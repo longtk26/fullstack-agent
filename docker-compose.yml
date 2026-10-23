@@ -11,7 +11,16 @@ x-agent-env: &agent-env
   RATE_LIMIT_STORAGE_URI: redis://redis:6379/1
   WORKSPACE_ROOT: ${HOST_WORKSPACE_ROOT:?HOST_WORKSPACE_ROOT is required, run `make env`}
   WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
+  DEFAULT_ENGINE: ${DEFAULT_ENGINE:-claude_code}
+  ENABLE_FAKE_ENGINE: ${ENABLE_FAKE_ENGINE:-true}
+  ENGINE_TIMEOUT_SECONDS: ${ENGINE_TIMEOUT_SECONDS:-900}
+  ENGINE_MAX_TURNS: ${ENGINE_MAX_TURNS:-40}
   ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  CLAUDE_CODE_MODEL: ${CLAUDE_CODE_MODEL:-}
+  CLAUDE_CREDENTIALS_FILE: /run/bga/claude-credentials.json
+  ANTIGRAVITY_AUTH: ${ANTIGRAVITY_AUTH:-gemini_api_key}
+  ANTIGRAVITY_MODEL: ${ANTIGRAVITY_MODEL:-}
+  GEMINI_API_KEY: ${GEMINI_API_KEY:-}
   LANGSMITH_TRACING: ${LANGSMITH_TRACING:-false}
   LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
   LANGSMITH_PROJECT: ${LANGSMITH_PROJECT:-backend-generation-agent}
@@ -74,6 +83,8 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       # Same absolute path inside and outside, so sibling sandbox containers can bind-mount job workspaces.
       - ${HOST_WORKSPACE_ROOT}:${HOST_WORKSPACE_ROOT}
+      # Optional Claude subscription login instead of ANTHROPIC_API_KEY (/dev/null = not configured).
+      - ${CLAUDE_CREDENTIALS_HOST_FILE:-/dev/null}:/run/bga/claude-credentials.json:ro
     depends_on:
       agent-api: { condition: service_healthy }
     healthcheck:

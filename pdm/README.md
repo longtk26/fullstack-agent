@@ -94,9 +94,9 @@ workflow to be built before real generation works.
 
 | # | Question | My default if unanswered |
 |---|---|---|
+| Q3 | *(default applied in Epic 3)* Claude Code auth: `ANTHROPIC_API_KEY`, or a read-only subscription credentials file (`CLAUDE_CREDENTIALS_HOST_FILE`) | Keep? |
+| Q4 | *(spike done)* Antigravity: account login is not usable in Docker (needs an OS keyring); the adapter supports `GEMINI_API_KEY` or ADC. Can you provide a Gemini key to verify an authenticated run? | API key |
 | Q2 | Agent API auth: seeded local users + JWT (meets FR-14 ownership), or a single static API key for local use? | Seeded users + JWT (Story 1.4) |
-| Q3 | Claude Code auth inside the worker container: `ANTHROPIC_API_KEY`, or mount your `~/.claude` subscription login? | `ANTHROPIC_API_KEY`, with an optional read-only mount |
-| Q4 | Antigravity auth: Google account login or API key? `agy -p` is [reported to hang under subprocess](https://github.com/google-antigravity/antigravity-cli/issues/318). Is it acceptable if 3.3 ends as "spike only" when that is still broken? | Spike first, then build the adapter with a PTY workaround if needed |
 | Q6 | Preview containers: start automatically on COMPLETED? Default TTL? | Auto-start, 2 h idle TTL, max 3 running, ports 18000–18099 |
 | Q7 | Do you have a LangSmith API key and project? Tracing is a no-op without one. | Optional. Works without it, and the local trace store (8.3) still feeds the UI. |
 | Q9 | Template fixes such as tests, ruff, `ConflictException` and the migrate-on-start entrypoint live in our overlay. Should they go upstream into `longtk26/template-frameworks@feat/fastapi` instead, so the overlay shrinks? | Overlay now; upstream later as a separate PR to your template repo |

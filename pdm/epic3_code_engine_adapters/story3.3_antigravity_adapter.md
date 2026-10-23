@@ -7,29 +7,29 @@
 As a user, I want to choose Antigravity as the generation engine so that I can compare engines and avoid
 depending on a single provider.
 
-## Part A — Spike (time-box: 1 day)
+## Part A — Spike (time-box: 1 day) — done 2026-10-23, verdict **go**, see [docs/engines/antigravity.md](../../docs/engines/antigravity.md)
 
 Third-party sources and early findings to confirm or reject. Record the results in `docs/engines/antigravity.md`:
 
-- [ ] Headless mode: `agy -p "<prompt>"`. Is stdin supported for long prompts?
-- [ ] Output format: `--output-format json|stream-json`. Capture the event schema and where usage/cost appear, if anywhere.
-- [ ] Approvals: what is the non-interactive approval policy (`--dangerously-skip-permissions`, `--approve`,
+- [x] Headless mode: `agy -p "<prompt>"`. Is stdin supported for long prompts?
+- [x] Output format: `--output-format json|stream-json`. Capture the event schema and where usage/cost appear, if anywhere.
+- [x] Approvals: what is the non-interactive approval policy (`--dangerously-skip-permissions`, `--approve`,
       `--sandbox`)? Can tools be restricted to file edits only (no shell)?
-- [ ] Auth in a container: API key env var vs Google login token. Which works headless?
-- [ ] **Known issue:** `agy -p` is reported to hang when stdout is piped or spawned from a subprocess
+- [x] Auth in a container: API key env var vs Google login token. Which works headless?
+- [x] **Known issue:** `agy -p` is reported to hang when stdout is piped or spawned from a subprocess
       ([issue #318](https://github.com/google-antigravity/antigravity-cli/issues/318)). Test on the pinned version.
       If it reproduces, test running under a PTY (`pty.openpty` / `pexpect`).
-- [ ] Context file convention (`AGENTS.md`? `GEMINI.md`?) and max turns or limit flags.
-- [ ] **Skills:** does `agy` load workspace skills (e.g. `.agents/skills/<name>/SKILL.md`, the layout this repo
+- [x] Context file convention (`AGENTS.md`? `GEMINI.md`?) and max turns or limit flags.
+- [x] **Skills:** does `agy` load workspace skills (e.g. `.agents/skills/<name>/SKILL.md`, the layout this repo
       already uses)? If not, the fastapi-skills content is inlined into the context file (3.4).
-- [ ] Spike exit: **go** (adapter below) or **no-go** (engine hidden from UI, findings documented).
+- [x] Spike exit: **go** (adapter below) or **no-go** (engine hidden from UI, findings documented).
 
 ## Part B — Adapter (if go)
 
-- [ ] `AntigravityEngine` implements `ICodeEngine` through `SubprocessRunner` (PTY mode when required),
+- [x] `AntigravityEngine` implements `ICodeEngine` through `SubprocessRunner` using stream-json **stdin** mode (PTY not needed so far; revisit if an authenticated run hangs),
       with the same workspace, env-scrubbing and timeout rules as 3.2.
-- [ ] Events and usage mapped into `EngineEvent` / `EngineResult`. Missing usage → `null` (not zero).
-- [ ] Tool restriction equivalent to "edit files, no shell". If that cannot be enforced, run the CLI
-      **inside the sandbox container** (Epic 6.1) with no network except the model endpoint, and document this.
-- [ ] Worker image pins the `agy` version.
-- [ ] The same integration test as 3.2 passes with `engine=antigravity`.
+- [x] Events and usage mapped into `EngineEvent` / `EngineResult`. Missing usage → `null` (not zero).
+- [x] Tool restriction equivalent to "edit files, no shell": per-job `settings.json` denies `command(*)`, URL access and MCP;
+      headless mode soft-denies shell anyway. `--max-turns` does not exist, so finished `agent_response` steps are counted and the run is stopped past the limit.
+- [x] Worker image pins the `agy` version.
+- [ ] The same integration test as 3.2 passes with `engine=antigravity`. *(pending: needs a `GEMINI_API_KEY`)*

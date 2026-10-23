@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -24,6 +26,25 @@ class Config(BaseSettings):
 
     spec_max_bytes: int = 1_000_000
     frontend_import_max_bytes: int = 5_000_000
+
+    default_engine: str = "claude_code"
+    enable_fake_engine: bool = True
+    engine_timeout_seconds: int = 900
+    engine_max_turns: int = 40
+    engine_max_output_bytes: int = 20_000_000
+    engine_skills_dir: str = "/opt/bga/skills"
+    engine_skills: list[str] = ["fastapi-skills"]
+
+    claude_code_bin: str = "claude"
+    claude_code_model: str | None = None
+    anthropic_api_key: str | None = None
+    claude_credentials_file: str | None = None
+
+    antigravity_bin: str = "agy"
+    antigravity_model: str | None = None
+    antigravity_auth: Literal["gemini_api_key", "adc"] = "gemini_api_key"
+    gemini_api_key: str | None = None
+    google_application_credentials: str | None = None
 
     workspace_root: str = "/tmp/bga/workspaces"
     worker_concurrency: int = 2

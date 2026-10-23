@@ -17,7 +17,9 @@ DEV_ENV := DB_URL=postgresql+psycopg://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@loc
            REDIS_URL=redis://localhost:$(BGA_REDIS_PORT)/0 \
            CORS_ORIGINS=http://localhost:$(BGA_UI_PORT) \
            WORKSPACE_ROOT=$(HOST_WORKSPACE_ROOT) \
-           WORKER_HEARTBEAT_FILE=$(CURDIR)/.data/worker.heartbeat
+           WORKER_HEARTBEAT_FILE=$(CURDIR)/.data/worker.heartbeat \
+           ENGINE_SKILLS_DIR=$(CURDIR)/.agents/skills \
+           CLAUDE_CREDENTIALS_FILE=$(CLAUDE_CREDENTIALS_HOST_FILE)
 
 .PHONY: env up down down-all ps logs dev dev-down dev-api dev-worker dev-ui setup migrate test lint
 

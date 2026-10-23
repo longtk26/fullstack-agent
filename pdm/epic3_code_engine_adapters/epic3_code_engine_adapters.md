@@ -26,6 +26,11 @@ EngineEvent    = {ts, kind: tool_use|tool_result|message|usage|error, summary, d
 `status=cli_error` (the engine itself failed) is always kept separate from validation failures of the
 generated code (NFR 8.5).
 
+**Status (2026-10-23):** done on `feat/epic3-code-engines`. Claude Code verified with real CLI runs; Antigravity
+spike = **go** (API key / ADC), adapter built and tested against recorded event shapes, authenticated run still
+pending a Gemini key — see [docs/engines/antigravity.md](../../docs/engines/antigravity.md).
+Code lives in `agent-api/src/engines/` (port, runner, adapters, prompts) and `agent-api/prompts/`.
+
 ## Stories
 
 | # | Story | Depends on |

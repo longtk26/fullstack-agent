@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 import psycopg
 import pytest
@@ -12,6 +13,8 @@ os.environ["JWT_SECRET"] = "test-secret-" + "x" * 32
 os.environ["SEED_USERS"] = "admin@test.local:adminpass:ADMIN,user@test.local:userpass,other@test.local:otherpass"
 os.environ["RATE_LIMIT_LOGIN"] = "5/minute"
 os.environ["RATE_LIMIT_STORAGE_URI"] = "memory://"
+os.environ["REDIS_URL"] = os.environ.get("REDIS_URL", "redis://localhost:6389/0").rsplit("/", 1)[0] + "/15"
+os.environ["ENGINE_SKILLS_DIR"] = str(Path(__file__).parents[2] / ".agents" / "skills")
 
 
 def _recreate_test_database() -> None:

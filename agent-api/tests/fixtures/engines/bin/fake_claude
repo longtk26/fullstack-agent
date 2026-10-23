@@ -1,0 +1,38 @@
+#!/usr/bin/env python3
+"""Stands in for `claude -p --output-format stream-json`; the prompt's MODE= picks the behaviour."""
+import json, os, pathlib, subprocess, sys, time
+
+prompt = sys.stdin.read()
+mode = next((w.split("=", 1)[1] for w in prompt.split() if w.startswith("MODE=")), "ok")
+home = pathlib.Path(os.environ["HOME"])
+home.joinpath("record.json").write_text(json.dumps({"argv": sys.argv, "env": dict(os.environ), "prompt": prompt}))
+out = lambda obj: print(json.dumps(obj), flush=True)
+out({"type": "system", "subtype": "init", "session_id": "s-1", "model": "fake-model", "tools": ["Read", "Write"]})
+
+if mode == "sleep":
+    child = subprocess.Popen(["sleep", "60"])
+    home.joinpath("child.pid").write_text(str(child.pid))
+    time.sleep(60)
+elif mode == "flood":
+    for i in range(100000):
+        out({"type": "system", "subtype": "thinking_tokens", "estimated_tokens": i, "padding": "x" * 200})
+elif mode == "crash":
+    print("fatal: something broke", file=sys.stderr)
+    sys.exit(2)
+elif mode == "auth":
+    out({"type": "result", "subtype": "success", "is_error": True, "num_turns": 0,
+         "result": "Invalid API key · Please run /login", "session_id": "s-1", "total_cost_usd": 0, "usage": {}})
+    sys.exit(1)
+elif mode == "max_turns":
+    out({"type": "result", "subtype": "error_max_turns", "is_error": False, "num_turns": 3, "session_id": "s-1",
+         "total_cost_usd": 0.01, "usage": {"input_tokens": 10, "output_tokens": 5}})
+else:
+    pathlib.Path("hello.py").write_text("def hello():\n    return 'hi'\n")
+    cwd = os.getcwd()
+    out({"type": "assistant", "message": {"content": [
+        {"type": "tool_use", "id": "t1", "name": "Write", "input": {"file_path": f"{cwd}/hello.py", "content": "..."}}]}})
+    out({"type": "user", "message": {"content": [{"type": "tool_result", "tool_use_id": "t1", "content": "File created"}]}})
+    text = "Done. key=sk-ant-api03-SECRETSECRETSECRET" if mode == "secret" else "Done."
+    out({"type": "assistant", "message": {"content": [{"type": "text", "text": text}]}})
+    out({"type": "result", "subtype": "success", "is_error": False, "num_turns": 2, "result": text, "session_id": "s-1",
+         "total_cost_usd": 0.0123, "usage": {"input_tokens": 100, "cache_read_input_tokens": 50, "output_tokens": 20}})
