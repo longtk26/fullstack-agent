@@ -1,0 +1,110 @@
+name: bga
+
+x-agent-env: &agent-env
+  APP_NAME: Backend Generation Agent
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  DB_URL: postgresql+psycopg://${POSTGRES_USER:-bga}:${POSTGRES_PASSWORD:-bga}@postgres:5432/${POSTGRES_DB:-agent}
+  REDIS_URL: redis://redis:6379/0
+  JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required, run `make env`}
+  SEED_USERS: ${SEED_USERS:-}
+  CORS_ORIGINS: http://localhost:${BGA_UI_PORT:-3100}
+  RATE_LIMIT_STORAGE_URI: redis://redis:6379/1
+  WORKSPACE_ROOT: ${HOST_WORKSPACE_ROOT:?HOST_WORKSPACE_ROOT is required, run `make env`}
+  WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  LANGSMITH_TRACING: ${LANGSMITH_TRACING:-false}
+  LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
+  LANGSMITH_PROJECT: ${LANGSMITH_PROJECT:-backend-generation-agent}
+
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-bga}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bga}
+      POSTGRES_DB: ${POSTGRES_DB:-agent}
+    # PostgreSQL 18 images keep data under /var/lib/postgresql/18/docker, so the volume mounts one level up.
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [bga-net]
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [bga-net]
+
+  agent-api:
+    build:
+      context: ./agent-api
+      target: api
+    environment: *agent-env
+    ports:
+      - "127.0.0.1:${BGA_API_PORT:-8100}:8000"
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks: [bga-net]
+
+  agent-worker:
+    build:
+      context: ./agent-api
+      target: worker
+      additional_contexts:
+        skills: ./.agents/skills
+    environment: *agent-env
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Same absolute path inside and outside, so sibling sandbox containers can bind-mount job workspaces.
+      - ${HOST_WORKSPACE_ROOT}:${HOST_WORKSPACE_ROOT}
+    depends_on:
+      agent-api: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os, sys, time; sys.exit(0 if time.time() - os.path.getmtime('/tmp/bga-worker.heartbeat') < 30 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+    networks: [bga-net]
+
+  agent-ui:
+    build:
+      context: ./agent-ui
+    environment:
+      API_URL: http://agent-api:8000
+    ports:
+      - "127.0.0.1:${BGA_UI_PORT:-3100}:3000"
+    depends_on:
+      agent-api: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    networks: [bga-net]
+
+volumes:
+  pgdata:
+  redisdata:
+
+networks:
+  bga-net:
+    name: bga-net

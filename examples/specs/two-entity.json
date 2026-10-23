@@ -1,0 +1,52 @@
+{
+  "specVersion": "1.0",
+  "project": {
+    "name": "Project Tracker",
+    "description": "Projects with tasks: the MVP definition-of-done scenario (two related entities)"
+  },
+  "stack": {
+    "framework": "fastapi",
+    "database": "postgresql",
+    "orm": "sqlalchemy",
+    "migration": "alembic"
+  },
+  "entities": [
+    {
+      "name": "Project",
+      "fields": [
+        { "name": "id", "type": "uuid", "primary": true },
+        { "name": "name", "type": "string", "required": true, "unique": true, "maxLength": 120 },
+        { "name": "description", "type": "text" },
+        { "name": "createdAt", "type": "datetime", "required": true }
+      ]
+    },
+    {
+      "name": "Task",
+      "fields": [
+        { "name": "id", "type": "uuid", "primary": true },
+        { "name": "projectId", "type": "uuid", "required": true, "index": true },
+        { "name": "title", "type": "string", "required": true, "maxLength": 200 },
+        { "name": "status", "type": "enum", "values": ["TODO", "IN_PROGRESS", "DONE"], "default": "TODO" },
+        { "name": "priority", "type": "integer", "default": 3, "min": 1, "max": 5 },
+        { "name": "dueDate", "type": "date" }
+      ]
+    }
+  ],
+  "relationships": [
+    { "name": "projectTasks", "type": "one-to-many", "from": "Project", "to": "Task", "onDelete": "CASCADE" }
+  ],
+  "operations": [
+    { "operationId": "project.create", "type": "crud", "action": "create", "entity": "Project", "method": "POST", "path": "/projects" },
+    { "operationId": "project.get", "type": "crud", "action": "get", "entity": "Project", "method": "GET", "path": "/projects/{id}" },
+    { "operationId": "project.list", "type": "crud", "action": "list", "entity": "Project", "method": "GET", "path": "/projects",
+      "pagination": true, "sort": ["name", "createdAt"] },
+    { "operationId": "project.update", "type": "crud", "action": "update", "entity": "Project", "method": "PATCH", "path": "/projects/{id}" },
+    { "operationId": "project.delete", "type": "crud", "action": "delete", "entity": "Project", "method": "DELETE", "path": "/projects/{id}" },
+    { "operationId": "task.create", "type": "crud", "action": "create", "entity": "Task", "method": "POST", "path": "/tasks" },
+    { "operationId": "task.get", "type": "crud", "action": "get", "entity": "Task", "method": "GET", "path": "/tasks/{id}" },
+    { "operationId": "task.list", "type": "crud", "action": "list", "entity": "Task", "method": "GET", "path": "/tasks",
+      "pagination": true, "filters": ["projectId", "status"], "sort": ["priority", "dueDate"] },
+    { "operationId": "task.update", "type": "crud", "action": "update", "entity": "Task", "method": "PATCH", "path": "/tasks/{id}" },
+    { "operationId": "task.delete", "type": "crud", "action": "delete", "entity": "Task", "method": "DELETE", "path": "/tasks/{id}" }
+  ]
+}

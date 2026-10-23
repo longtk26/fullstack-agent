@@ -1,0 +1,27 @@
+{
+  "specVersion": "1.0",
+  "project": {
+    "name": "Task Management",
+    "description": "Backend for task management"
+  },
+  "stack": {
+    "framework": "fastapi",
+    "database": "postgresql",
+    "orm": "sqlalchemy",
+    "migration": "alembic"
+  },
+  "entities": [
+    {
+      "name": "Task",
+      "fields": [
+        { "name": "id", "type": "uuid", "primary": true },
+        { "name": "title", "type": "string", "required": true },
+        { "name": "status", "type": "enum", "values": ["TODO", "IN_PROGRESS", "DONE"], "default": "TODO" }
+      ]
+    }
+  ],
+  "operations": [
+    { "operationId": "task.create", "type": "crud", "action": "create", "entity": "Task", "method": "POST", "path": "/tasks" },
+    { "operationId": "task.list", "type": "crud", "action": "list", "entity": "Task", "method": "GET", "path": "/tasks" }
+  ]
+}
