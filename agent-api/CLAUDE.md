@@ -23,6 +23,8 @@ Agent-specific notes:
 - Errors render as `{"error": {"code", "message", "details"}}` (`src/libs/exceptions/handlers.py`); pass an `ErrorCode`.
 - Auth: `CurrentUserDep` / `AdminUserDep` from `src.modules.auth.presenter`; other users' resources → 404 via `ensure_owner`.
 - PostgreSQL enums: add an explicit `sa.Enum(name=...).drop(...)` to migration downgrades.
+- Test doubles (fake engine, golden two-entity project, static validator, fake CLIs, opt-in test flags) are listed in
+  `docs/development/test-doubles.md`; add any new fake there and mark it at its definition.
 
 ## Architecture
 

@@ -51,6 +51,18 @@ class Config(BaseSettings):
     workspace_max_mb: int = 500
     workspace_retention_hours: int = 72
 
+    template_dir: str = "/opt/bga/fastapi-template"
+
+    sandbox_enabled: bool = True
+    sandbox_image: str = "bga-runner:1"
+    sandbox_db_image: str = "postgres:18"
+    sandbox_cpus: float = 1.0
+    sandbox_memory: str = "1g"
+    sandbox_pids: int = 256
+    sandbox_command_timeout_seconds: int = 300
+    sandbox_output_bytes: int = 2_000_000
+    sandbox_egress_network: str = "bga-sbx-egress"
+
     job_timeout_seconds: int = 1800
     worker_lease_ttl_seconds: int = 30
     worker_max_resumes: int = 2

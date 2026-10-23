@@ -38,36 +38,34 @@ class SimulatedCrash(BaseException):
     """Escapes normal error handling, like a worker dying mid-step (for recovery tests)."""
 
 
-_ROUTER = "src/modules/demo/presenter/router.py"
+GOLDEN = Path(__file__).resolve().parent / "golden" / "two_entity"
+_TASK_ROUTER = "src/modules/tasks/presenter/router.py"
 
 
 def demo_scenario(delay_s: float = 0.3) -> dict[str, list[FakeStep]]:
-    """Walks the whole workflow including one repair: the first router is broken on purpose."""
+    """Replays a recorded, convention-correct implementation of `examples/specs/two-entity.json`
+    (`golden/two_entity`, one step per planned module) with one deliberate defect: the tasks router is written
+    with a syntax error, so validation fails once and the repair loop runs. Any other spec fails validation."""
+    fixed_router = (GOLDEN / "tasks" / _TASK_ROUTER).read_text()
     return {
-        "generate_database": [
-            FakeStep(
-                sleep_s=delay_s,
-                write={
-                    "src/modules/shared/domain/entities/demo_entity.py": (
-                        "from pydantic import BaseModel\n\n\nclass DemoEntity(BaseModel):\n    name: str\n"
-                    )
-                },
-            )
-        ],
+        "generate_database": [FakeStep(sleep_s=delay_s, copy_from=GOLDEN / "database")],
         "generate_backend": [
+            FakeStep(sleep_s=delay_s, copy_from=GOLDEN / "projects"),
             FakeStep(
                 sleep_s=delay_s,
-                write={_ROUTER: "from fastapi import APIRouter\n\ndemo_router = APIRouter(\n\ndef broken(:\n"},
-            )
+                copy_from=GOLDEN / "tasks",
+                write={_TASK_ROUTER: fixed_router + "\n\ndef broken(:\n"},
+            ),
         ],
         "generate_tests": [
-            FakeStep(sleep_s=delay_s, write={"tests/test_demo.py": "def test_demo():\n    assert True\n"})
+            FakeStep(sleep_s=delay_s, copy_from=GOLDEN / "tests_projects"),
+            FakeStep(sleep_s=delay_s, copy_from=GOLDEN / "tests_tasks"),
         ],
         "repair_code": [
             FakeStep(
                 sleep_s=delay_s,
-                write={_ROUTER: 'from fastapi import APIRouter\n\ndemo_router = APIRouter(prefix="/demo")\n'},
-                message="Fixed the syntax error in the demo router.",
+                write={_TASK_ROUTER: fixed_router},
+                message="Fixed the syntax error in the tasks router.",
             )
         ],
         "*": [FakeStep(write={"FAKE_ENGINE.md": "Written by the fake engine.\n"})],
@@ -79,7 +77,8 @@ DEFAULT_SCENARIO = DEMO_SCENARIO
 
 
 class FakeEngine(ICodeEngine):
-    """Deterministic engine for tests and UI work: replays FakeSteps per purpose, never calls a model.
+    """TESTING / DEMO ONLY (docs/development/test-doubles.md). Deterministic engine for tests and UI work:
+    replays FakeSteps per purpose, never calls a model.
 
     Calls are counted per (workspace, purpose): the n-th call gets the n-th step and the last step repeats,
     so concurrent jobs never consume each other's script. Purpose "*" is the fallback.
@@ -139,7 +138,9 @@ class FakeEngine(ICodeEngine):
                     pass
             if status != EngineStatus.CANCELLED:
                 if step.copy_from is not None:
-                    shutil.copytree(step.copy_from, workdir, dirs_exist_ok=True)
+                    shutil.copytree(
+                        step.copy_from, workdir, dirs_exist_ok=True, ignore=shutil.ignore_patterns("__pycache__")
+                    )
                     await emit(EngineEventKind.TOOL_USE, f"Copy {step.copy_from.name}", tool="Copy")
                 for relative, content in step.write.items():
                     target = ensure_inside(workdir / relative, workdir)

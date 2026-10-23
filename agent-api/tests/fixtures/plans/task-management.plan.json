@@ -1,0 +1,291 @@
+{
+  "architecture": "fastapi-skills-hexagonal",
+  "conventions": {
+    "apiNames": "camelCase JSON and query parameters (Pydantic alias_generator=to_camel, populate_by_name)",
+    "errorBody": {
+      "error": {
+        "code": "str",
+        "details": "any",
+        "message": "str"
+      }
+    },
+    "listResponse": {
+      "items": "list",
+      "limit": "int",
+      "offset": "int",
+      "total": "int"
+    },
+    "pythonNames": "snake_case attributes and columns",
+    "searchParam": "q",
+    "sortParam": "sort=<field> or sort=-<field>; undeclared field → 422"
+  },
+  "dependencies": [],
+  "models": [
+    {
+      "class": "TaskModel",
+      "columns": [
+        {
+          "apiName": "id",
+          "attr": "id",
+          "columnType": "Uuid",
+          "default": {
+            "factory": "uuid.uuid4"
+          },
+          "field": "id",
+          "index": false,
+          "nullable": false,
+          "primaryKey": true,
+          "pythonType": "uuid.UUID",
+          "type": "uuid",
+          "unique": false
+        },
+        {
+          "apiName": "title",
+          "attr": "title",
+          "columnType": "VARCHAR",
+          "field": "title",
+          "index": false,
+          "nullable": false,
+          "primaryKey": false,
+          "pythonType": "str",
+          "type": "string",
+          "unique": false
+        },
+        {
+          "apiName": "status",
+          "attr": "status",
+          "columnType": "Enum",
+          "default": {
+            "value": "TODO"
+          },
+          "enum": {
+            "class": "TaskStatus",
+            "dbName": "task_status",
+            "module": "src/modules/shared/domain/entities/task_entity.py",
+            "values": [
+              "TODO",
+              "IN_PROGRESS",
+              "DONE"
+            ]
+          },
+          "field": "status",
+          "index": false,
+          "nullable": true,
+          "primaryKey": false,
+          "pythonType": "TaskStatus",
+          "type": "enum",
+          "unique": false
+        }
+      ],
+      "entity": "Task",
+      "entityClass": "TaskEntity",
+      "entityFile": "src/modules/shared/domain/entities/task_entity.py",
+      "enums": [
+        {
+          "class": "TaskStatus",
+          "dbName": "task_status",
+          "module": "src/modules/shared/domain/entities/task_entity.py",
+          "values": [
+            "TODO",
+            "IN_PROGRESS",
+            "DONE"
+          ]
+        }
+      ],
+      "file": "src/modules/shared/infrastructure/models/task_model.py",
+      "foreignKeys": [],
+      "indexes": [],
+      "primaryKey": "id",
+      "relationships": [],
+      "table": "tasks",
+      "uniqueConstraints": []
+    }
+  ],
+  "modules": [
+    {
+      "dtoFiles": [
+        "src/modules/tasks/presenter/dtos/create_task_dto.py",
+        "src/modules/tasks/presenter/dtos/list_tasks_dto.py",
+        "src/modules/tasks/presenter/dtos/task_response_dto.py"
+      ],
+      "entity": "Task",
+      "entityClass": "TaskEntity",
+      "model": "TaskModel",
+      "name": "tasks",
+      "operations": [
+        {
+          "action": "create",
+          "dtoFile": "create_task_dto.py",
+          "errors": [
+            {
+              "code": "VALIDATION_ERROR",
+              "exception": null,
+              "status": 422
+            }
+          ],
+          "handler": "create_task",
+          "method": "POST",
+          "operationId": "task.create",
+          "path": "/tasks",
+          "requestDto": "CreateTaskRequestDto",
+          "responseDto": "TaskResponseDto",
+          "status": 201,
+          "transactional": true,
+          "type": "crud",
+          "usecase": "CreateTaskUsecase",
+          "usecaseDep": "CreateTaskUsecaseDep",
+          "usecaseFile": "create_task_usecase.py"
+        },
+        {
+          "action": "list",
+          "dtoFile": "list_tasks_dto.py",
+          "errors": [],
+          "filters": [],
+          "handler": "list_tasks",
+          "method": "GET",
+          "operationId": "task.list",
+          "pagination": {
+            "defaultLimit": 20,
+            "maxLimit": 100
+          },
+          "path": "/tasks",
+          "responseDto": "ListTasksResponseDto",
+          "search": [],
+          "sort": [],
+          "status": 200,
+          "transactional": false,
+          "type": "crud",
+          "usecase": "ListTasksUsecase",
+          "usecaseDep": "ListTasksUsecaseDep",
+          "usecaseFile": "list_tasks_usecase.py"
+        }
+      ],
+      "port": {
+        "dep": "ITaskRepoDep",
+        "file": "src/modules/tasks/ports/output/task_repository.py",
+        "implementation": "TaskRepository",
+        "implementationFile": "src/modules/tasks/infrastructure/persistence/task_repository.py",
+        "interface": "ITaskRepository",
+        "methods": [
+          "create",
+          "list"
+        ]
+      },
+      "router": {
+        "file": "src/modules/tasks/presenter/router.py",
+        "prefix": "",
+        "tag": "tasks",
+        "variable": "task_router"
+      },
+      "testFile": "tests/modules/tasks/test_task_api.py",
+      "tests": [
+        {
+          "case": "ok",
+          "description": "valid payload creates the record and returns it",
+          "expectStatus": 201,
+          "file": "tests/modules/tasks/test_task_api.py",
+          "id": "test_create_task__ok",
+          "module": "tasks",
+          "operationId": "task.create"
+        },
+        {
+          "case": "invalid",
+          "description": "missing required field or wrong type is rejected",
+          "expectStatus": 422,
+          "file": "tests/modules/tasks/test_task_api.py",
+          "id": "test_create_task__invalid",
+          "module": "tasks",
+          "operationId": "task.create"
+        },
+        {
+          "case": "ok",
+          "description": "returns {items, total, limit, offset}",
+          "expectStatus": 200,
+          "file": "tests/modules/tasks/test_task_api.py",
+          "id": "test_list_tasks__ok",
+          "module": "tasks",
+          "operationId": "task.list"
+        },
+        {
+          "case": "pagination",
+          "description": "limit and offset page through the records; total counts all",
+          "expectStatus": 200,
+          "file": "tests/modules/tasks/test_task_api.py",
+          "id": "test_list_tasks__pagination",
+          "module": "tasks",
+          "operationId": "task.list"
+        }
+      ],
+      "usecases": [
+        {
+          "class": "CreateTaskUsecase",
+          "dep": "CreateTaskUsecaseDep",
+          "file": "src/modules/tasks/usecases/create_task_usecase.py",
+          "operationId": "task.create",
+          "raises": [],
+          "transactional": true
+        },
+        {
+          "class": "ListTasksUsecase",
+          "dep": "ListTasksUsecaseDep",
+          "file": "src/modules/tasks/usecases/list_tasks_usecase.py",
+          "operationId": "task.list",
+          "raises": [],
+          "transactional": false
+        }
+      ]
+    }
+  ],
+  "planVersion": "1",
+  "project": {
+    "name": "Task Management",
+    "slug": "task-management"
+  },
+  "routers": {
+    "file": "src/routers.py",
+    "order": [
+      "health_router",
+      "task_router"
+    ],
+    "variable": "all_router"
+  },
+  "tests": [
+    {
+      "case": "ok",
+      "description": "valid payload creates the record and returns it",
+      "expectStatus": 201,
+      "file": "tests/modules/tasks/test_task_api.py",
+      "id": "test_create_task__ok",
+      "module": "tasks",
+      "operationId": "task.create"
+    },
+    {
+      "case": "invalid",
+      "description": "missing required field or wrong type is rejected",
+      "expectStatus": 422,
+      "file": "tests/modules/tasks/test_task_api.py",
+      "id": "test_create_task__invalid",
+      "module": "tasks",
+      "operationId": "task.create"
+    },
+    {
+      "case": "ok",
+      "description": "returns {items, total, limit, offset}",
+      "expectStatus": 200,
+      "file": "tests/modules/tasks/test_task_api.py",
+      "id": "test_list_tasks__ok",
+      "module": "tasks",
+      "operationId": "task.list"
+    },
+    {
+      "case": "pagination",
+      "description": "limit and offset page through the records; total counts all",
+      "expectStatus": 200,
+      "file": "tests/modules/tasks/test_task_api.py",
+      "id": "test_list_tasks__pagination",
+      "module": "tasks",
+      "operationId": "task.list"
+    }
+  ],
+  "unresolved": []
+}

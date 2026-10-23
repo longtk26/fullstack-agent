@@ -19,7 +19,7 @@ import type { TGenerationOptionsFormValues } from "../schemas/generation-options
 const ENGINE_LABELS: Record<string, string> = {
   claude_code: "Claude Code",
   antigravity: "Antigravity",
-  fake: "Fake (scripted demo)",
+  fake: "Fake (test/demo: two-entity example only)",
 };
 
 const TOGGLES: { name: "runTests" | "generateDockerfile" | "deployPreview"; label: string; description: string }[] = [

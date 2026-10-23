@@ -7,12 +7,16 @@ from typing import Any
 from src.modules.shared.domain.backend_spec import validate_spec_text
 from src.modules.shared.domain.entities import ValidationRunEntity
 
+from .checks.parity import compare_schema
 from .context import EngineFailure, JobContext
-from .planning import skeleton_plan
+from .migrations import ensure_migration, reflect_schema, verify_migration
+from .planner import build_plan, dump_plan
+from .scaffold import SCAFFOLD_INFO, record_owned, scaffold_project
 from .state import GenerationState, Outcome
-from .validation import write_report
+from .validation import ValidationRequest, write_report
 
 DIGEST_LIMIT = 30_000
+PROMPT_VERSION = "v2"
 NodeResult = tuple[dict[str, Any], dict[str, Any]]
 
 
@@ -48,23 +52,76 @@ async def validate_spec(state: GenerationState, ctx: JobContext) -> NodeResult:
 
 
 async def plan_architecture(state: GenerationState, ctx: JobContext) -> NodeResult:
-    plan = skeleton_plan(_read_json(ctx, state["spec_ref"]))
-    _write_json(ctx.project_path(".bga", "plan.json"), plan)
-    return {"plan_ref": ".bga/plan.json"}, {"modules": len(plan["modules"])}
+    plan = build_plan(_read_json(ctx, state["spec_ref"]))
+    path = ctx.project_path(".bga", "plan.json")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(dump_plan(plan))
+    summary = {
+        "modules": len(plan["modules"]),
+        "models": len(plan["models"]),
+        "operations": sum(len(m["operations"]) for m in plan["modules"]),
+        "tests": len(plan["tests"]),
+        "unresolved": len(plan["unresolved"]),
+    }
+    await ctx.emit("plan.ready", step="plan_architecture", **summary)
+    return {"plan_ref": ".bga/plan.json"}, summary
+
+
+async def _scaffold(state: GenerationState, ctx: JobContext, project_name: str) -> None:
+    """Template + overlay, formatted once, owned files recorded, committed as `node:scaffold` (Story 5.2)."""
+    project = ctx.workspace.project
+    if (project / SCAFFOLD_INFO).exists():
+        return
+    info = scaffold_project(
+        ctx.template_dir, project, project_name, bool(state["options"].get("generateDockerfile", True))
+    )
+    sandbox = await ctx.sandbox()
+    if sandbox is not None:
+        # The pinned template is not ruff-clean (import order, unused names); normalize it once.
+        await sandbox.exec("ruff check --fix -q . ; ruff format -q .", timeout_s=120)
+    record_owned(project)
+    ctx.workspaces.commit(ctx.workspace, "node:scaffold")
+    await ctx.emit("scaffold.done", step="generate_database", **info)
+
+
+async def _schema_post_check(ctx: JobContext, plan: dict[str, Any]) -> dict[str, Any]:
+    """Story 5.3: autogenerate the migration in the sandbox and compare the migrated schema with the plan.
+    Problems are reported here and enforced by run_validation (where repair can fix them)."""
+    sandbox = await ctx.sandbox()
+    if sandbox is None:
+        return {"migration": "not_run"}
+    generated, _ = await ensure_migration(sandbox, ctx.workspace.project)
+    if generated is not None and not generated.ok:
+        result = {"migration": "autogenerate_failed"}
+    else:
+        verify = await verify_migration(sandbox)
+        schema, _ = await reflect_schema(sandbox) if verify.ok else (None, None)
+        problems = compare_schema(plan, schema) if schema is not None else None
+        result = {
+            "migration": "ok" if verify.ok else "failed",
+            "schemaProblems": len(problems) if problems is not None else None,
+        }
+        if problems:
+            result["firstProblems"] = [f"{p['table']}: {p['message']}" for p in problems[:5]]
+    await ctx.emit("schema.check", step="generate_database", **result)
+    return result
 
 
 async def generate_database(state: GenerationState, ctx: JobContext) -> NodeResult:
     spec = _read_json(ctx, state["spec_ref"])
+    plan = _read_json(ctx, state["plan_ref"])
+    await _scaffold(state, ctx, spec["project"]["name"])
     prompt = ctx.prompts.render(
         "generate_database",
+        PROMPT_VERSION,
         project_name=spec["project"]["name"],
         spec_path=state["spec_ref"],
         plan_path=state["plan_ref"],
-        entities=[entity["name"] for entity in spec.get("entities", [])],
+        models=plan["models"],
         file_tree=ctx.file_tree(),
     )
     result = await ctx.run_engine("generate_database", "generate_database", prompt)
-    return {}, {"changedFiles": len(result.changed_files)}
+    return {}, {"changedFiles": len(result.changed_files), **await _schema_post_check(ctx, plan)}
 
 
 async def generate_backend(state: GenerationState, ctx: JobContext) -> NodeResult:
@@ -73,7 +130,9 @@ async def generate_backend(state: GenerationState, ctx: JobContext) -> NodeResul
     for module in plan["modules"]:
         prompt = ctx.prompts.render(
             "generate_backend",
+            PROMPT_VERSION,
             module=module,
+            module_json=json.dumps({k: v for k, v in module.items() if k != "tests"}, indent=2, sort_keys=True),
             spec_path=state["spec_ref"],
             plan_path=state["plan_ref"],
             file_tree=ctx.file_tree(),
@@ -90,6 +149,7 @@ async def generate_tests(state: GenerationState, ctx: JobContext) -> NodeResult:
     for module in plan["modules"]:
         prompt = ctx.prompts.render(
             "generate_tests",
+            PROMPT_VERSION,
             module=module,
             test_cases=module["tests"],
             spec_path=state["spec_ref"],
@@ -101,7 +161,15 @@ async def generate_tests(state: GenerationState, ctx: JobContext) -> NodeResult:
 
 async def run_validation(state: GenerationState, ctx: JobContext) -> NodeResult:
     attempt = state.get("repair_attempts", 0) + 1
-    outcome = await ctx.validator.run(ctx.workspace.project, state["options"].get("runTests", True))
+    request = ValidationRequest(
+        project=ctx.workspace.project,
+        plan=_read_json(ctx, state["plan_ref"]),
+        run_tests=bool(state["options"].get("runTests", True)),
+        sandbox=await ctx.sandbox(),
+    )
+    outcome = await ctx.validator.run(request)
+    for name, document in request.artifacts.items():
+        _write_json(ctx.workspace.reports / f"{name}.json", document)
     for check in outcome.results:
         ctx.store.add_validation_run(
             ValidationRunEntity(
@@ -110,11 +178,17 @@ async def run_validation(state: GenerationState, ctx: JobContext) -> NodeResult:
                 check=check.check,
                 status=check.status,
                 duration_ms=check.duration_ms,
-                details={"summary": check.summary, "items": check.details[:50]},
+                details={"summary": check.summary, "items": check.details[:50], "output": check.output[-4000:]},
             )
         )
         await ctx.emit(
-            "validation.check", step="run_validation", status=check.status, check=check.check, summary=check.summary
+            "validation.check",
+            step="run_validation",
+            status=check.status,
+            check=check.check,
+            summary=check.summary,
+            durationMs=check.duration_ms,
+            attempt=attempt,
         )
     write_report(ctx.workspace.reports / f"validation-{attempt}.json", outcome)
     digest_path = ctx.workspace.reports / f"digest-{attempt}.txt"
@@ -149,12 +223,13 @@ async def repair_code(state: GenerationState, ctx: JobContext) -> NodeResult:
     digest = open(digest_ref).read() if digest_ref else ""
     prompt = ctx.prompts.render(
         "repair_code",
+        PROMPT_VERSION,
         attempt=attempt,
         max_attempts=state["max_repair_attempts"],
         failed_checks=state.get("failed_checks", []),
         implicated_files=state.get("implicated_files", []),
         failure_digest=digest or "(no output captured)",
-        tests_editable=False,
+        plan_path=state["plan_ref"],
     )
     try:
         result = await ctx.run_engine("repair_code", "repair_code", prompt)

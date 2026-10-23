@@ -9,7 +9,7 @@ generation nodes have an exact file-level scope and the plan is saved as an arti
 
 ## Acceptance criteria
 
-- [ ] Pure function `plan(spec) → ArchitecturePlan` (no LLM), saved as `plan.json` (artifact kind `plan`):
+- [x] Pure function `plan(spec) → ArchitecturePlan` (no LLM), saved as `plan.json` (artifact kind `plan`):
   - `modules[]`: one per entity → module name (snake_case plural), and every file path the skill's layout requires:
     domain entity, SQLModel model, output port, repository impl, use case per operation, request/response DTOs, router
   - `models[]`: table, columns, FKs, relationships (`Relationship(back_populates=…)`, link model for M:N), indexes, enums
@@ -21,6 +21,11 @@ generation nodes have an exact file-level scope and the plan is saved as an arti
   - `dependencies[]`: additions to `requirements.txt` beyond the template and overlay
   - `tests[]`: required test cases per operation (happy path, 404, 422, and rules from Epic 10)
   - `unresolved[]`: unsupported spec features carried forward to the manifest
-- [ ] Deterministic: the same spec gives a byte-identical plan (sorted keys, stable ordering). Snapshot tests per example spec.
-- [ ] Naming follows the skill: `I<Entity>Repository`, `I<Entity>RepoDep`, `<Action><Entity>Usecase(Dep)`,
+- [x] Deterministic: the same spec gives a byte-identical plan (sorted keys, stable ordering). Snapshot tests per example spec.
+- [x] Naming follows the skill: `I<Entity>Repository`, `I<Entity>RepoDep`, `<Action><Entity>Usecase(Dep)`,
       `<action>_<entity>_dto.py`, handler name derived from operationId (`task.create` → `create_task`).
+
+**Status (2026-10-23):** done (`agent-api/src/orchestrator/planner.py`). The plan is written to `.bga/plan.json`;
+registering it as an artifact of kind `plan` comes with 7.1. Snapshot tests: `tests/fixtures/plans/`. Python
+attributes/columns are snake_case and the API keeps the spec's camelCase via Pydantic aliases (recorded in
+`plan.conventions`). Auth/policy fields are carried to `unresolved` until Epic 10.

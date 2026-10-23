@@ -7,11 +7,12 @@ from src.libs.queue import JobQueue
 from src.libs.redaction import default_redactor
 from src.libs.redis import get_redis
 from src.modules.generations.infrastructure.adapters import EventPublisher
+from src.sandbox import DockerSandboxProvider
 
 from .checkpointer import postgres_checkpointer
 from .runner import JobRunner
 from .store import JobStore
-from .validation import StaticValidationRunner
+from .validation import SandboxValidationRunner, StaticValidationRunner
 from .worker_service import WorkerService, default_worker_id
 from .workspace import WorkspaceManager
 
@@ -25,6 +26,7 @@ async def build_worker_service(worker_id: str | None = None):
     events = EventPublisher(redis, default_redactor(), cap=config.events_cap)
     workspaces = WorkspaceManager(Path(config.workspace_root), config.workspace_max_mb)
     worker_id = worker_id or default_worker_id()
+    sandboxes = DockerSandboxProvider() if config.sandbox_enabled else None
     async with postgres_checkpointer() as checkpointer:
         runner = JobRunner(
             registry=registry,
@@ -33,8 +35,10 @@ async def build_worker_service(worker_id: str | None = None):
             events=events,
             workspaces=workspaces,
             prompts=prompts,
-            validator=StaticValidationRunner(),
+            validator=SandboxValidationRunner() if sandboxes else StaticValidationRunner(),
             engine_context=build_engine_context(prompts),
             worker_id=worker_id,
+            sandboxes=sandboxes,
+            template_dir=Path(config.template_dir),
         )
         yield WorkerService(runner, JobQueue(redis), store, events, redis, registry, workspaces, worker_id)

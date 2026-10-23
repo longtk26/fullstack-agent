@@ -19,6 +19,9 @@ repair loop.
  deps install: a separate short-lived container on network bga-sbx-egress, allowed to reach PyPI only
 ```
 
+**Status (2026-10-23):** 6.1 and 6.2 done with Epic 5; 6.3 (repair loop) exists since Epic 4 and now repairs real
+failures (prompt v2 with the structured digest). The diagnostic report for unrepairable jobs comes with 7.2.
+
 ## Stories
 
 | # | Story | Depends on |

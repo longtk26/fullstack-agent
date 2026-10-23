@@ -1,0 +1,1273 @@
+{
+  "architecture": "fastapi-skills-hexagonal",
+  "conventions": {
+    "apiNames": "camelCase JSON and query parameters (Pydantic alias_generator=to_camel, populate_by_name)",
+    "errorBody": {
+      "error": {
+        "code": "str",
+        "details": "any",
+        "message": "str"
+      }
+    },
+    "listResponse": {
+      "items": "list",
+      "limit": "int",
+      "offset": "int",
+      "total": "int"
+    },
+    "pythonNames": "snake_case attributes and columns",
+    "searchParam": "q",
+    "sortParam": "sort=<field> or sort=-<field>; undeclared field → 422"
+  },
+  "dependencies": [],
+  "models": [
+    {
+      "class": "ProjectModel",
+      "columns": [
+        {
+          "apiName": "id",
+          "attr": "id",
+          "columnType": "Uuid",
+          "default": {
+            "factory": "uuid.uuid4"
+          },
+          "field": "id",
+          "index": false,
+          "nullable": false,
+          "primaryKey": true,
+          "pythonType": "uuid.UUID",
+          "type": "uuid",
+          "unique": false
+        },
+        {
+          "apiName": "name",
+          "attr": "name",
+          "columnType": "VARCHAR(120)",
+          "field": "name",
+          "index": false,
+          "maxLength": 120,
+          "nullable": false,
+          "primaryKey": false,
+          "pythonType": "str",
+          "type": "string",
+          "unique": true
+        },
+        {
+          "apiName": "description",
+          "attr": "description",
+          "columnType": "Text",
+          "field": "description",
+          "index": false,
+          "nullable": true,
+          "primaryKey": false,
+          "pythonType": "str",
+          "type": "text",
+          "unique": false
+        },
+        {
+          "apiName": "createdAt",
+          "attr": "created_at",
+          "columnType": "DateTime(timezone=True)",
+          "default": {
+            "factory": "now (UTC)"
+          },
+          "field": "createdAt",
+          "index": false,
+          "nullable": false,
+          "primaryKey": false,
+          "pythonType": "datetime.datetime",
+          "type": "datetime",
+          "unique": false
+        }
+      ],
+      "entity": "Project",
+      "entityClass": "ProjectEntity",
+      "entityFile": "src/modules/shared/domain/entities/project_entity.py",
+      "enums": [],
+      "file": "src/modules/shared/infrastructure/models/project_model.py",
+      "foreignKeys": [],
+      "indexes": [],
+      "primaryKey": "id",
+      "relationships": [
+        {
+          "annotation": "list[\"TaskModel\"]",
+          "attr": "tasks",
+          "backPopulates": "project",
+          "link": null,
+          "model": "ProjectModel",
+          "relationship": "projectTasks",
+          "type": "one-to-many"
+        }
+      ],
+      "table": "projects",
+      "uniqueConstraints": []
+    },
+    {
+      "class": "TaskModel",
+      "columns": [
+        {
+          "apiName": "id",
+          "attr": "id",
+          "columnType": "Uuid",
+          "default": {
+            "factory": "uuid.uuid4"
+          },
+          "field": "id",
+          "index": false,
+          "nullable": false,
+          "primaryKey": true,
+          "pythonType": "uuid.UUID",
+          "type": "uuid",
+          "unique": false
+        },
+        {
+          "apiName": "projectId",
+          "attr": "project_id",
+          "columnType": "Uuid",
+          "field": "projectId",
+          "foreignKey": {
+            "onDelete": "CASCADE",
+            "references": "projects.id"
+          },
+          "index": true,
+          "nullable": false,
+          "primaryKey": false,
+          "pythonType": "uuid.UUID",
+          "type": "uuid",
+          "unique": false
+        },
+        {
+          "apiName": "title",
+          "attr": "title",
+          "columnType": "VARCHAR(200)",
+          "field": "title",
+          "index": false,
+          "maxLength": 200,
+          "nullable": false,
+          "primaryKey": false,
+          "pythonType": "str",
+          "type": "string",
+          "unique": false
+        },
+        {
+          "apiName": "status",
+          "attr": "status",
+          "columnType": "Enum",
+          "default": {
+            "value": "TODO"
+          },
+          "enum": {
+            "class": "TaskStatus",
+            "dbName": "task_status",
+            "module": "src/modules/shared/domain/entities/task_entity.py",
+            "values": [
+              "TODO",
+              "IN_PROGRESS",
+              "DONE"
+            ]
+          },
+          "field": "status",
+          "index": false,
+          "nullable": true,
+          "primaryKey": false,
+          "pythonType": "TaskStatus",
+          "type": "enum",
+          "unique": false
+        },
+        {
+          "apiName": "priority",
+          "attr": "priority",
+          "columnType": "Integer",
+          "default": {
+            "value": 3
+          },
+          "field": "priority",
+          "index": false,
+          "max": 5,
+          "min": 1,
+          "nullable": true,
+          "primaryKey": false,
+          "pythonType": "int",
+          "type": "integer",
+          "unique": false
+        },
+        {
+          "apiName": "dueDate",
+          "attr": "due_date",
+          "columnType": "Date",
+          "field": "dueDate",
+          "index": false,
+          "nullable": true,
+          "primaryKey": false,
+          "pythonType": "datetime.date",
+          "type": "date",
+          "unique": false
+        }
+      ],
+      "entity": "Task",
+      "entityClass": "TaskEntity",
+      "entityFile": "src/modules/shared/domain/entities/task_entity.py",
+      "enums": [
+        {
+          "class": "TaskStatus",
+          "dbName": "task_status",
+          "module": "src/modules/shared/domain/entities/task_entity.py",
+          "values": [
+            "TODO",
+            "IN_PROGRESS",
+            "DONE"
+          ]
+        }
+      ],
+      "file": "src/modules/shared/infrastructure/models/task_model.py",
+      "foreignKeys": [
+        {
+          "column": "project_id",
+          "onDelete": "CASCADE",
+          "references": "projects.id"
+        }
+      ],
+      "indexes": [],
+      "primaryKey": "id",
+      "relationships": [
+        {
+          "annotation": "\"ProjectModel\"",
+          "attr": "project",
+          "backPopulates": "tasks",
+          "link": null,
+          "model": "TaskModel",
+          "relationship": "projectTasks",
+          "type": "one-to-many"
+        }
+      ],
+      "table": "tasks",
+      "uniqueConstraints": []
+    }
+  ],
+  "modules": [
+    {
+      "dtoFiles": [
+        "src/modules/projects/presenter/dtos/create_project_dto.py",
+        "src/modules/projects/presenter/dtos/list_projects_dto.py",
+        "src/modules/projects/presenter/dtos/project_response_dto.py",
+        "src/modules/projects/presenter/dtos/update_project_dto.py"
+      ],
+      "entity": "Project",
+      "entityClass": "ProjectEntity",
+      "model": "ProjectModel",
+      "name": "projects",
+      "operations": [
+        {
+          "action": "create",
+          "dtoFile": "create_project_dto.py",
+          "errors": [
+            {
+              "code": "VALIDATION_ERROR",
+              "exception": null,
+              "status": 422
+            },
+            {
+              "code": "CONFLICT",
+              "exception": "ConflictException",
+              "status": 409
+            }
+          ],
+          "handler": "create_project",
+          "method": "POST",
+          "operationId": "project.create",
+          "path": "/projects",
+          "requestDto": "CreateProjectRequestDto",
+          "responseDto": "ProjectResponseDto",
+          "status": 201,
+          "transactional": true,
+          "type": "crud",
+          "usecase": "CreateProjectUsecase",
+          "usecaseDep": "CreateProjectUsecaseDep",
+          "usecaseFile": "create_project_usecase.py"
+        },
+        {
+          "action": "get",
+          "errors": [
+            {
+              "code": "NOT_FOUND",
+              "exception": "NotFoundException",
+              "status": 404
+            }
+          ],
+          "handler": "get_project",
+          "method": "GET",
+          "operationId": "project.get",
+          "path": "/projects/{id}",
+          "responseDto": "ProjectResponseDto",
+          "status": 200,
+          "transactional": false,
+          "type": "crud",
+          "usecase": "GetProjectUsecase",
+          "usecaseDep": "GetProjectUsecaseDep",
+          "usecaseFile": "get_project_usecase.py"
+        },
+        {
+          "action": "list",
+          "dtoFile": "list_projects_dto.py",
+          "errors": [
+            {
+              "code": "VALIDATION_ERROR",
+              "exception": null,
+              "status": 422
+            }
+          ],
+          "filters": [],
+          "handler": "list_projects",
+          "method": "GET",
+          "operationId": "project.list",
+          "pagination": {
+            "defaultLimit": 20,
+            "maxLimit": 100
+          },
+          "path": "/projects",
+          "responseDto": "ListProjectsResponseDto",
+          "search": [],
+          "sort": [
+            {
+              "attr": "name",
+              "param": "name"
+            },
+            {
+              "attr": "created_at",
+              "param": "createdAt"
+            }
+          ],
+          "status": 200,
+          "transactional": false,
+          "type": "crud",
+          "usecase": "ListProjectsUsecase",
+          "usecaseDep": "ListProjectsUsecaseDep",
+          "usecaseFile": "list_projects_usecase.py"
+        },
+        {
+          "action": "update",
+          "dtoFile": "update_project_dto.py",
+          "errors": [
+            {
+              "code": "NOT_FOUND",
+              "exception": "NotFoundException",
+              "status": 404
+            },
+            {
+              "code": "VALIDATION_ERROR",
+              "exception": null,
+              "status": 422
+            },
+            {
+              "code": "CONFLICT",
+              "exception": "ConflictException",
+              "status": 409
+            }
+          ],
+          "handler": "update_project",
+          "method": "PATCH",
+          "operationId": "project.update",
+          "path": "/projects/{id}",
+          "requestDto": "UpdateProjectRequestDto",
+          "responseDto": "ProjectResponseDto",
+          "status": 200,
+          "transactional": true,
+          "type": "crud",
+          "usecase": "UpdateProjectUsecase",
+          "usecaseDep": "UpdateProjectUsecaseDep",
+          "usecaseFile": "update_project_usecase.py"
+        },
+        {
+          "action": "delete",
+          "errors": [
+            {
+              "code": "NOT_FOUND",
+              "exception": "NotFoundException",
+              "status": 404
+            }
+          ],
+          "handler": "delete_project",
+          "method": "DELETE",
+          "operationId": "project.delete",
+          "path": "/projects/{id}",
+          "status": 204,
+          "transactional": true,
+          "type": "crud",
+          "usecase": "DeleteProjectUsecase",
+          "usecaseDep": "DeleteProjectUsecaseDep",
+          "usecaseFile": "delete_project_usecase.py"
+        }
+      ],
+      "port": {
+        "dep": "IProjectRepoDep",
+        "file": "src/modules/projects/ports/output/project_repository.py",
+        "implementation": "ProjectRepository",
+        "implementationFile": "src/modules/projects/infrastructure/persistence/project_repository.py",
+        "interface": "IProjectRepository",
+        "methods": [
+          "create",
+          "find_by_id",
+          "list",
+          "update",
+          "delete"
+        ]
+      },
+      "router": {
+        "file": "src/modules/projects/presenter/router.py",
+        "prefix": "",
+        "tag": "projects",
+        "variable": "project_router"
+      },
+      "testFile": "tests/modules/projects/test_project_api.py",
+      "tests": [
+        {
+          "case": "ok",
+          "description": "valid payload creates the record and returns it",
+          "expectStatus": 201,
+          "file": "tests/modules/projects/test_project_api.py",
+          "id": "test_create_project__ok",
+          "module": "projects",
+          "operationId": "project.create"
+        },
+        {
+          "case": "invalid",
+          "description": "missing required field or wrong type is rejected",
+          "expectStatus": 422,
+          "file": "tests/modules/projects/test_project_api.py",
+          "id": "test_create_project__invalid",
+          "module": "projects",
+          "operationId": "project.create"
+        },
+        {
+          "case": "conflict",
+          "description": "duplicate value in a unique field is rejected",
+          "expectStatus": 409,
+          "file": "tests/modules/projects/test_project_api.py",
+          "id": "test_create_project__conflict",
+          "module": "projects",
+          "operationId": "project.create"
+        },
+        {
+          "case": "ok",
+          "description": "returns the record",
+          "expectStatus": 200,
+          "file": "tests/modules/projects/test_project_api.py",
+          "id": "test_get_project__ok",
+          "module": "projects",
+          "operationId": "project.get"
+        },
+        {
+          "case": "not_found",
+          "description": "unknown id returns 404 with the error envelope",
+          "expectStatus": 404,
+          "file": "tests/modules/projects/test_project_api.py",
+          "id": "test_get_project__not_found",
+          "module": "projects",
+          "operationId": "project.get"
+        },
+        {
+          "case": "ok",
+          "description": "returns {items, total, limit, offset}",
+          "expectStatus": 200,
+          "file": "tests/modules/projects/test_project_api.py",
+          "id": "test_list_projects__ok",
+          "module": "projects",
+          "operationId": "project.list"
+        },
+        {
+          "case": "pagination",
+          "description": "limit and offset page through the records; total counts all",
+          "expectStatus": 200,
+          "file": "tests/modules/projects/test_project_api.py",
+          "id": "test_list_projects__pagination",
+          "module": "projects",
+          "operationId": "project.list"
+        },
+        {
+          "case": "sort",
+          "description": "?sort=<field> ascending and ?sort=-<field> descending",
+          "expectStatus": 200,
+          "file": "tests/modules/projects/test_project_api.py",
+          "id": "test_list_projects__sort",
+          "module": "projects",
+          "operationId": "project.list"
+        },
+        {
+          "case": "invalid_sort",
+          "description": "sorting by an undeclared field is rejected",
+          "expectStatus": 422,
+          "file": "tests/modules/projects/test_project_api.py",
+          "id": "test_list_projects__invalid_sort",
+          "module": "projects",
+          "operationId": "project.list"
+        },
+        {
+          "case": "ok",
+          "description": "partial update changes only the sent fields",
+          "expectStatus": 200,
+          "file": "tests/modules/projects/test_project_api.py",
+          "id": "test_update_project__ok",
+          "module": "projects",
+          "operationId": "project.update"
+        },
+        {
+          "case": "not_found",
+          "description": "unknown id returns 404",
+          "expectStatus": 404,
+          "file": "tests/modules/projects/test_project_api.py",
+          "id": "test_update_project__not_found",
+          "module": "projects",
+          "operationId": "project.update"
+        },
+        {
+          "case": "invalid",
+          "description": "wrong type is rejected",
+          "expectStatus": 422,
+          "file": "tests/modules/projects/test_project_api.py",
+          "id": "test_update_project__invalid",
+          "module": "projects",
+          "operationId": "project.update"
+        },
+        {
+          "case": "ok",
+          "description": "deletes the record; a later get returns 404",
+          "expectStatus": 204,
+          "file": "tests/modules/projects/test_project_api.py",
+          "id": "test_delete_project__ok",
+          "module": "projects",
+          "operationId": "project.delete"
+        },
+        {
+          "case": "not_found",
+          "description": "unknown id returns 404",
+          "expectStatus": 404,
+          "file": "tests/modules/projects/test_project_api.py",
+          "id": "test_delete_project__not_found",
+          "module": "projects",
+          "operationId": "project.delete"
+        }
+      ],
+      "usecases": [
+        {
+          "class": "CreateProjectUsecase",
+          "dep": "CreateProjectUsecaseDep",
+          "file": "src/modules/projects/usecases/create_project_usecase.py",
+          "operationId": "project.create",
+          "raises": [
+            "ConflictException"
+          ],
+          "transactional": true
+        },
+        {
+          "class": "GetProjectUsecase",
+          "dep": "GetProjectUsecaseDep",
+          "file": "src/modules/projects/usecases/get_project_usecase.py",
+          "operationId": "project.get",
+          "raises": [
+            "NotFoundException"
+          ],
+          "transactional": false
+        },
+        {
+          "class": "ListProjectsUsecase",
+          "dep": "ListProjectsUsecaseDep",
+          "file": "src/modules/projects/usecases/list_projects_usecase.py",
+          "operationId": "project.list",
+          "raises": [],
+          "transactional": false
+        },
+        {
+          "class": "UpdateProjectUsecase",
+          "dep": "UpdateProjectUsecaseDep",
+          "file": "src/modules/projects/usecases/update_project_usecase.py",
+          "operationId": "project.update",
+          "raises": [
+            "ConflictException",
+            "NotFoundException"
+          ],
+          "transactional": true
+        },
+        {
+          "class": "DeleteProjectUsecase",
+          "dep": "DeleteProjectUsecaseDep",
+          "file": "src/modules/projects/usecases/delete_project_usecase.py",
+          "operationId": "project.delete",
+          "raises": [
+            "NotFoundException"
+          ],
+          "transactional": true
+        }
+      ]
+    },
+    {
+      "dtoFiles": [
+        "src/modules/tasks/presenter/dtos/create_task_dto.py",
+        "src/modules/tasks/presenter/dtos/list_tasks_dto.py",
+        "src/modules/tasks/presenter/dtos/task_response_dto.py",
+        "src/modules/tasks/presenter/dtos/update_task_dto.py"
+      ],
+      "entity": "Task",
+      "entityClass": "TaskEntity",
+      "model": "TaskModel",
+      "name": "tasks",
+      "operations": [
+        {
+          "action": "create",
+          "dtoFile": "create_task_dto.py",
+          "errors": [
+            {
+              "code": "VALIDATION_ERROR",
+              "exception": null,
+              "status": 422
+            },
+            {
+              "code": "REFERENCE_NOT_FOUND",
+              "exception": "BadRequestException",
+              "status": 400
+            }
+          ],
+          "handler": "create_task",
+          "method": "POST",
+          "operationId": "task.create",
+          "path": "/tasks",
+          "requestDto": "CreateTaskRequestDto",
+          "responseDto": "TaskResponseDto",
+          "status": 201,
+          "transactional": true,
+          "type": "crud",
+          "usecase": "CreateTaskUsecase",
+          "usecaseDep": "CreateTaskUsecaseDep",
+          "usecaseFile": "create_task_usecase.py"
+        },
+        {
+          "action": "get",
+          "errors": [
+            {
+              "code": "NOT_FOUND",
+              "exception": "NotFoundException",
+              "status": 404
+            }
+          ],
+          "handler": "get_task",
+          "method": "GET",
+          "operationId": "task.get",
+          "path": "/tasks/{id}",
+          "responseDto": "TaskResponseDto",
+          "status": 200,
+          "transactional": false,
+          "type": "crud",
+          "usecase": "GetTaskUsecase",
+          "usecaseDep": "GetTaskUsecaseDep",
+          "usecaseFile": "get_task_usecase.py"
+        },
+        {
+          "action": "list",
+          "dtoFile": "list_tasks_dto.py",
+          "errors": [
+            {
+              "code": "VALIDATION_ERROR",
+              "exception": null,
+              "status": 422
+            }
+          ],
+          "filters": [
+            {
+              "attr": "project_id",
+              "param": "projectId",
+              "type": "uuid"
+            },
+            {
+              "attr": "status",
+              "param": "status",
+              "type": "enum"
+            }
+          ],
+          "handler": "list_tasks",
+          "method": "GET",
+          "operationId": "task.list",
+          "pagination": {
+            "defaultLimit": 20,
+            "maxLimit": 100
+          },
+          "path": "/tasks",
+          "responseDto": "ListTasksResponseDto",
+          "search": [],
+          "sort": [
+            {
+              "attr": "priority",
+              "param": "priority"
+            },
+            {
+              "attr": "due_date",
+              "param": "dueDate"
+            }
+          ],
+          "status": 200,
+          "transactional": false,
+          "type": "crud",
+          "usecase": "ListTasksUsecase",
+          "usecaseDep": "ListTasksUsecaseDep",
+          "usecaseFile": "list_tasks_usecase.py"
+        },
+        {
+          "action": "update",
+          "dtoFile": "update_task_dto.py",
+          "errors": [
+            {
+              "code": "NOT_FOUND",
+              "exception": "NotFoundException",
+              "status": 404
+            },
+            {
+              "code": "VALIDATION_ERROR",
+              "exception": null,
+              "status": 422
+            },
+            {
+              "code": "REFERENCE_NOT_FOUND",
+              "exception": "BadRequestException",
+              "status": 400
+            }
+          ],
+          "handler": "update_task",
+          "method": "PATCH",
+          "operationId": "task.update",
+          "path": "/tasks/{id}",
+          "requestDto": "UpdateTaskRequestDto",
+          "responseDto": "TaskResponseDto",
+          "status": 200,
+          "transactional": true,
+          "type": "crud",
+          "usecase": "UpdateTaskUsecase",
+          "usecaseDep": "UpdateTaskUsecaseDep",
+          "usecaseFile": "update_task_usecase.py"
+        },
+        {
+          "action": "delete",
+          "errors": [
+            {
+              "code": "NOT_FOUND",
+              "exception": "NotFoundException",
+              "status": 404
+            }
+          ],
+          "handler": "delete_task",
+          "method": "DELETE",
+          "operationId": "task.delete",
+          "path": "/tasks/{id}",
+          "status": 204,
+          "transactional": true,
+          "type": "crud",
+          "usecase": "DeleteTaskUsecase",
+          "usecaseDep": "DeleteTaskUsecaseDep",
+          "usecaseFile": "delete_task_usecase.py"
+        }
+      ],
+      "port": {
+        "dep": "ITaskRepoDep",
+        "file": "src/modules/tasks/ports/output/task_repository.py",
+        "implementation": "TaskRepository",
+        "implementationFile": "src/modules/tasks/infrastructure/persistence/task_repository.py",
+        "interface": "ITaskRepository",
+        "methods": [
+          "create",
+          "find_by_id",
+          "list",
+          "update",
+          "delete"
+        ]
+      },
+      "router": {
+        "file": "src/modules/tasks/presenter/router.py",
+        "prefix": "",
+        "tag": "tasks",
+        "variable": "task_router"
+      },
+      "testFile": "tests/modules/tasks/test_task_api.py",
+      "tests": [
+        {
+          "case": "ok",
+          "description": "valid payload creates the record and returns it",
+          "expectStatus": 201,
+          "file": "tests/modules/tasks/test_task_api.py",
+          "id": "test_create_task__ok",
+          "module": "tasks",
+          "operationId": "task.create"
+        },
+        {
+          "case": "invalid",
+          "description": "missing required field or wrong type is rejected",
+          "expectStatus": 422,
+          "file": "tests/modules/tasks/test_task_api.py",
+          "id": "test_create_task__invalid",
+          "module": "tasks",
+          "operationId": "task.create"
+        },
+        {
+          "case": "bad_reference",
+          "description": "a foreign key pointing at a missing record is rejected",
+          "expectStatus": 400,
+          "file": "tests/modules/tasks/test_task_api.py",
+          "id": "test_create_task__bad_reference",
+          "module": "tasks",
+          "operationId": "task.create"
+        },
+        {
+          "case": "ok",
+          "description": "returns the record",
+          "expectStatus": 200,
+          "file": "tests/modules/tasks/test_task_api.py",
+          "id": "test_get_task__ok",
+          "module": "tasks",
+          "operationId": "task.get"
+        },
+        {
+          "case": "not_found",
+          "description": "unknown id returns 404 with the error envelope",
+          "expectStatus": 404,
+          "file": "tests/modules/tasks/test_task_api.py",
+          "id": "test_get_task__not_found",
+          "module": "tasks",
+          "operationId": "task.get"
+        },
+        {
+          "case": "ok",
+          "description": "returns {items, total, limit, offset}",
+          "expectStatus": 200,
+          "file": "tests/modules/tasks/test_task_api.py",
+          "id": "test_list_tasks__ok",
+          "module": "tasks",
+          "operationId": "task.list"
+        },
+        {
+          "case": "pagination",
+          "description": "limit and offset page through the records; total counts all",
+          "expectStatus": 200,
+          "file": "tests/modules/tasks/test_task_api.py",
+          "id": "test_list_tasks__pagination",
+          "module": "tasks",
+          "operationId": "task.list"
+        },
+        {
+          "case": "filter_project_id",
+          "description": "?projectId= returns only matching records",
+          "expectStatus": 200,
+          "file": "tests/modules/tasks/test_task_api.py",
+          "id": "test_list_tasks__filter_project_id",
+          "module": "tasks",
+          "operationId": "task.list"
+        },
+        {
+          "case": "filter_status",
+          "description": "?status= returns only matching records",
+          "expectStatus": 200,
+          "file": "tests/modules/tasks/test_task_api.py",
+          "id": "test_list_tasks__filter_status",
+          "module": "tasks",
+          "operationId": "task.list"
+        },
+        {
+          "case": "sort",
+          "description": "?sort=<field> ascending and ?sort=-<field> descending",
+          "expectStatus": 200,
+          "file": "tests/modules/tasks/test_task_api.py",
+          "id": "test_list_tasks__sort",
+          "module": "tasks",
+          "operationId": "task.list"
+        },
+        {
+          "case": "invalid_sort",
+          "description": "sorting by an undeclared field is rejected",
+          "expectStatus": 422,
+          "file": "tests/modules/tasks/test_task_api.py",
+          "id": "test_list_tasks__invalid_sort",
+          "module": "tasks",
+          "operationId": "task.list"
+        },
+        {
+          "case": "ok",
+          "description": "partial update changes only the sent fields",
+          "expectStatus": 200,
+          "file": "tests/modules/tasks/test_task_api.py",
+          "id": "test_update_task__ok",
+          "module": "tasks",
+          "operationId": "task.update"
+        },
+        {
+          "case": "not_found",
+          "description": "unknown id returns 404",
+          "expectStatus": 404,
+          "file": "tests/modules/tasks/test_task_api.py",
+          "id": "test_update_task__not_found",
+          "module": "tasks",
+          "operationId": "task.update"
+        },
+        {
+          "case": "invalid",
+          "description": "wrong type is rejected",
+          "expectStatus": 422,
+          "file": "tests/modules/tasks/test_task_api.py",
+          "id": "test_update_task__invalid",
+          "module": "tasks",
+          "operationId": "task.update"
+        },
+        {
+          "case": "ok",
+          "description": "deletes the record; a later get returns 404",
+          "expectStatus": 204,
+          "file": "tests/modules/tasks/test_task_api.py",
+          "id": "test_delete_task__ok",
+          "module": "tasks",
+          "operationId": "task.delete"
+        },
+        {
+          "case": "not_found",
+          "description": "unknown id returns 404",
+          "expectStatus": 404,
+          "file": "tests/modules/tasks/test_task_api.py",
+          "id": "test_delete_task__not_found",
+          "module": "tasks",
+          "operationId": "task.delete"
+        }
+      ],
+      "usecases": [
+        {
+          "class": "CreateTaskUsecase",
+          "dep": "CreateTaskUsecaseDep",
+          "file": "src/modules/tasks/usecases/create_task_usecase.py",
+          "operationId": "task.create",
+          "raises": [
+            "BadRequestException"
+          ],
+          "transactional": true
+        },
+        {
+          "class": "GetTaskUsecase",
+          "dep": "GetTaskUsecaseDep",
+          "file": "src/modules/tasks/usecases/get_task_usecase.py",
+          "operationId": "task.get",
+          "raises": [
+            "NotFoundException"
+          ],
+          "transactional": false
+        },
+        {
+          "class": "ListTasksUsecase",
+          "dep": "ListTasksUsecaseDep",
+          "file": "src/modules/tasks/usecases/list_tasks_usecase.py",
+          "operationId": "task.list",
+          "raises": [],
+          "transactional": false
+        },
+        {
+          "class": "UpdateTaskUsecase",
+          "dep": "UpdateTaskUsecaseDep",
+          "file": "src/modules/tasks/usecases/update_task_usecase.py",
+          "operationId": "task.update",
+          "raises": [
+            "BadRequestException",
+            "NotFoundException"
+          ],
+          "transactional": true
+        },
+        {
+          "class": "DeleteTaskUsecase",
+          "dep": "DeleteTaskUsecaseDep",
+          "file": "src/modules/tasks/usecases/delete_task_usecase.py",
+          "operationId": "task.delete",
+          "raises": [
+            "NotFoundException"
+          ],
+          "transactional": true
+        }
+      ]
+    }
+  ],
+  "planVersion": "1",
+  "project": {
+    "name": "Project Tracker",
+    "slug": "project-tracker"
+  },
+  "routers": {
+    "file": "src/routers.py",
+    "order": [
+      "health_router",
+      "project_router",
+      "task_router"
+    ],
+    "variable": "all_router"
+  },
+  "tests": [
+    {
+      "case": "ok",
+      "description": "valid payload creates the record and returns it",
+      "expectStatus": 201,
+      "file": "tests/modules/projects/test_project_api.py",
+      "id": "test_create_project__ok",
+      "module": "projects",
+      "operationId": "project.create"
+    },
+    {
+      "case": "invalid",
+      "description": "missing required field or wrong type is rejected",
+      "expectStatus": 422,
+      "file": "tests/modules/projects/test_project_api.py",
+      "id": "test_create_project__invalid",
+      "module": "projects",
+      "operationId": "project.create"
+    },
+    {
+      "case": "conflict",
+      "description": "duplicate value in a unique field is rejected",
+      "expectStatus": 409,
+      "file": "tests/modules/projects/test_project_api.py",
+      "id": "test_create_project__conflict",
+      "module": "projects",
+      "operationId": "project.create"
+    },
+    {
+      "case": "ok",
+      "description": "returns the record",
+      "expectStatus": 200,
+      "file": "tests/modules/projects/test_project_api.py",
+      "id": "test_get_project__ok",
+      "module": "projects",
+      "operationId": "project.get"
+    },
+    {
+      "case": "not_found",
+      "description": "unknown id returns 404 with the error envelope",
+      "expectStatus": 404,
+      "file": "tests/modules/projects/test_project_api.py",
+      "id": "test_get_project__not_found",
+      "module": "projects",
+      "operationId": "project.get"
+    },
+    {
+      "case": "ok",
+      "description": "returns {items, total, limit, offset}",
+      "expectStatus": 200,
+      "file": "tests/modules/projects/test_project_api.py",
+      "id": "test_list_projects__ok",
+      "module": "projects",
+      "operationId": "project.list"
+    },
+    {
+      "case": "pagination",
+      "description": "limit and offset page through the records; total counts all",
+      "expectStatus": 200,
+      "file": "tests/modules/projects/test_project_api.py",
+      "id": "test_list_projects__pagination",
+      "module": "projects",
+      "operationId": "project.list"
+    },
+    {
+      "case": "sort",
+      "description": "?sort=<field> ascending and ?sort=-<field> descending",
+      "expectStatus": 200,
+      "file": "tests/modules/projects/test_project_api.py",
+      "id": "test_list_projects__sort",
+      "module": "projects",
+      "operationId": "project.list"
+    },
+    {
+      "case": "invalid_sort",
+      "description": "sorting by an undeclared field is rejected",
+      "expectStatus": 422,
+      "file": "tests/modules/projects/test_project_api.py",
+      "id": "test_list_projects__invalid_sort",
+      "module": "projects",
+      "operationId": "project.list"
+    },
+    {
+      "case": "ok",
+      "description": "partial update changes only the sent fields",
+      "expectStatus": 200,
+      "file": "tests/modules/projects/test_project_api.py",
+      "id": "test_update_project__ok",
+      "module": "projects",
+      "operationId": "project.update"
+    },
+    {
+      "case": "not_found",
+      "description": "unknown id returns 404",
+      "expectStatus": 404,
+      "file": "tests/modules/projects/test_project_api.py",
+      "id": "test_update_project__not_found",
+      "module": "projects",
+      "operationId": "project.update"
+    },
+    {
+      "case": "invalid",
+      "description": "wrong type is rejected",
+      "expectStatus": 422,
+      "file": "tests/modules/projects/test_project_api.py",
+      "id": "test_update_project__invalid",
+      "module": "projects",
+      "operationId": "project.update"
+    },
+    {
+      "case": "ok",
+      "description": "deletes the record; a later get returns 404",
+      "expectStatus": 204,
+      "file": "tests/modules/projects/test_project_api.py",
+      "id": "test_delete_project__ok",
+      "module": "projects",
+      "operationId": "project.delete"
+    },
+    {
+      "case": "not_found",
+      "description": "unknown id returns 404",
+      "expectStatus": 404,
+      "file": "tests/modules/projects/test_project_api.py",
+      "id": "test_delete_project__not_found",
+      "module": "projects",
+      "operationId": "project.delete"
+    },
+    {
+      "case": "ok",
+      "description": "valid payload creates the record and returns it",
+      "expectStatus": 201,
+      "file": "tests/modules/tasks/test_task_api.py",
+      "id": "test_create_task__ok",
+      "module": "tasks",
+      "operationId": "task.create"
+    },
+    {
+      "case": "invalid",
+      "description": "missing required field or wrong type is rejected",
+      "expectStatus": 422,
+      "file": "tests/modules/tasks/test_task_api.py",
+      "id": "test_create_task__invalid",
+      "module": "tasks",
+      "operationId": "task.create"
+    },
+    {
+      "case": "bad_reference",
+      "description": "a foreign key pointing at a missing record is rejected",
+      "expectStatus": 400,
+      "file": "tests/modules/tasks/test_task_api.py",
+      "id": "test_create_task__bad_reference",
+      "module": "tasks",
+      "operationId": "task.create"
+    },
+    {
+      "case": "ok",
+      "description": "returns the record",
+      "expectStatus": 200,
+      "file": "tests/modules/tasks/test_task_api.py",
+      "id": "test_get_task__ok",
+      "module": "tasks",
+      "operationId": "task.get"
+    },
+    {
+      "case": "not_found",
+      "description": "unknown id returns 404 with the error envelope",
+      "expectStatus": 404,
+      "file": "tests/modules/tasks/test_task_api.py",
+      "id": "test_get_task__not_found",
+      "module": "tasks",
+      "operationId": "task.get"
+    },
+    {
+      "case": "ok",
+      "description": "returns {items, total, limit, offset}",
+      "expectStatus": 200,
+      "file": "tests/modules/tasks/test_task_api.py",
+      "id": "test_list_tasks__ok",
+      "module": "tasks",
+      "operationId": "task.list"
+    },
+    {
+      "case": "pagination",
+      "description": "limit and offset page through the records; total counts all",
+      "expectStatus": 200,
+      "file": "tests/modules/tasks/test_task_api.py",
+      "id": "test_list_tasks__pagination",
+      "module": "tasks",
+      "operationId": "task.list"
+    },
+    {
+      "case": "filter_project_id",
+      "description": "?projectId= returns only matching records",
+      "expectStatus": 200,
+      "file": "tests/modules/tasks/test_task_api.py",
+      "id": "test_list_tasks__filter_project_id",
+      "module": "tasks",
+      "operationId": "task.list"
+    },
+    {
+      "case": "filter_status",
+      "description": "?status= returns only matching records",
+      "expectStatus": 200,
+      "file": "tests/modules/tasks/test_task_api.py",
+      "id": "test_list_tasks__filter_status",
+      "module": "tasks",
+      "operationId": "task.list"
+    },
+    {
+      "case": "sort",
+      "description": "?sort=<field> ascending and ?sort=-<field> descending",
+      "expectStatus": 200,
+      "file": "tests/modules/tasks/test_task_api.py",
+      "id": "test_list_tasks__sort",
+      "module": "tasks",
+      "operationId": "task.list"
+    },
+    {
+      "case": "invalid_sort",
+      "description": "sorting by an undeclared field is rejected",
+      "expectStatus": 422,
+      "file": "tests/modules/tasks/test_task_api.py",
+      "id": "test_list_tasks__invalid_sort",
+      "module": "tasks",
+      "operationId": "task.list"
+    },
+    {
+      "case": "ok",
+      "description": "partial update changes only the sent fields",
+      "expectStatus": 200,
+      "file": "tests/modules/tasks/test_task_api.py",
+      "id": "test_update_task__ok",
+      "module": "tasks",
+      "operationId": "task.update"
+    },
+    {
+      "case": "not_found",
+      "description": "unknown id returns 404",
+      "expectStatus": 404,
+      "file": "tests/modules/tasks/test_task_api.py",
+      "id": "test_update_task__not_found",
+      "module": "tasks",
+      "operationId": "task.update"
+    },
+    {
+      "case": "invalid",
+      "description": "wrong type is rejected",
+      "expectStatus": 422,
+      "file": "tests/modules/tasks/test_task_api.py",
+      "id": "test_update_task__invalid",
+      "module": "tasks",
+      "operationId": "task.update"
+    },
+    {
+      "case": "ok",
+      "description": "deletes the record; a later get returns 404",
+      "expectStatus": 204,
+      "file": "tests/modules/tasks/test_task_api.py",
+      "id": "test_delete_task__ok",
+      "module": "tasks",
+      "operationId": "task.delete"
+    },
+    {
+      "case": "not_found",
+      "description": "unknown id returns 404",
+      "expectStatus": 404,
+      "file": "tests/modules/tasks/test_task_api.py",
+      "id": "test_delete_task__not_found",
+      "module": "tasks",
+      "operationId": "task.delete"
+    }
+  ],
+  "unresolved": []
+}

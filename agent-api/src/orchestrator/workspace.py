@@ -5,7 +5,18 @@ from pathlib import Path
 
 from src.engines.workspace import ensure_inside
 
-_GIT = ["git", "-c", "user.name=bga", "-c", "user.email=bga@localhost", "-c", "commit.gpgsign=false"]
+# safe.directory: sandbox containers (another uid) also write into the project.
+_GIT = [
+    "git",
+    "-c",
+    "user.name=bga",
+    "-c",
+    "user.email=bga@localhost",
+    "-c",
+    "commit.gpgsign=false",
+    "-c",
+    "safe.directory=*",
+]
 
 
 class DiskLimitExceeded(RuntimeError):
@@ -64,7 +75,9 @@ class WorkspaceManager:
 
     def check_size(self, workspace: JobWorkspace) -> int:
         size = sum(
-            path.stat().st_size for path in workspace.root.rglob("*") if path.is_file() and not path.is_symlink()
+            path.stat().st_size
+            for path in workspace.root.rglob("*")
+            if path.is_file() and not path.is_symlink() and ".venv" not in path.parts
         )
         megabytes = size // (1024 * 1024)
         if megabytes > self.max_mb:

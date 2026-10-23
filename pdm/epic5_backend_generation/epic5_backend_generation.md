@@ -43,6 +43,10 @@ project/
 └── .bga/{spec.json, plan.json}                      # excluded from the ZIP
 ```
 
+**Status (2026-10-23):** 5.1–5.5 done on `feat/epic5-backend-generation`, together with 6.1 (sandbox) and 6.2
+(validation pipeline) which the epic acceptance depends on. Real validation for every generation; the fake engine
+replays a golden two-entity project (test double, see `docs/development/test-doubles.md`).
+
 ## Stories
 
 | # | Story | Depends on |

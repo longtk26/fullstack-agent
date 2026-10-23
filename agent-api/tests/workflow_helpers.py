@@ -34,7 +34,16 @@ def redis_client() -> Redis:
     return redis_from_url(config.redis_url)
 
 
-def build_runner(root: Path, redis: Redis, engine=None, checkpointer=None, worker_id: str = "test-worker"):
+def build_runner(
+    root: Path,
+    redis: Redis,
+    engine=None,
+    checkpointer=None,
+    worker_id: str = "test-worker",
+    validator=None,
+    sandboxes=None,
+    engine_context=None,
+):
     engine = engine or FakeEngine(allowed_root=root)
     store = JobStore()
     return JobRunner(
@@ -44,9 +53,10 @@ def build_runner(root: Path, redis: Redis, engine=None, checkpointer=None, worke
         events=EventPublisher(redis, Redactor()),
         workspaces=WorkspaceManager(root, max_mb=200),
         prompts=PromptLibrary(),
-        validator=StaticValidationRunner(),
-        engine_context=EngineContext(conventions="rules"),
+        validator=validator or StaticValidationRunner(),
+        engine_context=engine_context or EngineContext(conventions="rules"),
         worker_id=worker_id,
+        sandboxes=sandboxes,
     )
 
 

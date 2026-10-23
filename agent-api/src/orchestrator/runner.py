@@ -1,13 +1,16 @@
 import asyncio
 from datetime import UTC, datetime
+from pathlib import Path
 
 from src.configs import config, get_logger
 from src.engines import EngineContext, EngineRegistry, PromptLibrary, UnknownEngineError
 from src.modules.generations.infrastructure.adapters import EventPublisher
 from src.modules.shared.domain.enums import GenerationStatus
+from src.sandbox import ISandboxProvider, SandboxError
 
 from .context import EngineFailure, JobCancelled, JobContext
 from .graph import build_graph
+from .scaffold import TemplateDrift
 from .state import GenerationState, Outcome
 from .store import JobStore
 from .validation import IValidationRunner
@@ -31,6 +34,8 @@ class JobRunner:
         validator: IValidationRunner,
         engine_context: EngineContext,
         worker_id: str,
+        sandboxes: ISandboxProvider | None = None,
+        template_dir: Path | None = None,
     ):
         self.registry = registry
         self.checkpointer = checkpointer
@@ -41,6 +46,8 @@ class JobRunner:
         self.validator = validator
         self.engine_context = engine_context
         self.worker_id = worker_id
+        self.sandboxes = sandboxes
+        self.template_dir = template_dir
         self.active: dict[str, JobContext] = {}
 
     async def cancel(self, generation_id: str) -> bool:
@@ -74,6 +81,8 @@ class JobRunner:
             self.events,
             self.workspaces,
             workspace,
+            sandboxes=self.sandboxes,
+            template_dir=self.template_dir,
         )
         ctx._status = generation.status
         if generation.cancel_requested:
@@ -82,6 +91,7 @@ class JobRunner:
         try:
             return await self._execute(ctx, generation, workspace)
         finally:
+            await ctx.close_sandbox()
             self.active.pop(generation_id, None)
             self.events.forget(generation_id)
 
@@ -131,6 +141,10 @@ class JobRunner:
             return await self._finish(ctx, GenerationStatus.FAILED, "Job exceeded its time limit", "TIMEOUT")
         except DiskLimitExceeded as exc:
             return await self._finish(ctx, GenerationStatus.FAILED, str(exc), "DISK_LIMIT")
+        except TemplateDrift as exc:
+            return await self._finish(ctx, GenerationStatus.FAILED, str(exc)[:500], "TEMPLATE_DRIFT")
+        except SandboxError as exc:
+            return await self._finish(ctx, GenerationStatus.FAILED, f"Sandbox failed: {exc}"[:500], "SANDBOX_ERROR")
         except EngineFailure as exc:
             message = exc.result.error_message or str(exc)
             return await self._finish(ctx, GenerationStatus.FAILED, f"Engine failed: {message}", "ENGINE_ERROR")

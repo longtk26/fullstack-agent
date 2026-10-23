@@ -171,6 +171,7 @@ class WorkerService:
                 if now - last_reap >= config.reaper_interval_seconds:
                     await self.reap()
                     self.cleanup_workspaces()
+                    await self.cleanup_sandboxes()
                     last_reap = now
             except Exception:  # housekeeping must never take the worker down
                 logger.exception("worker housekeeping failed")
@@ -212,6 +213,21 @@ class WorkerService:
                 await self.queue.drop_from_processing(generation.id)
                 await self.queue.enqueue(generation.id)
                 logger.warning("re-enqueued orphaned pending generation", extra={"generation_id": generation.id})
+
+    async def cleanup_sandboxes(self) -> int:
+        """Removes sandboxes whose generation finished or vanished (e.g. a worker died mid-job)."""
+        provider = self.runner.sandboxes
+        if provider is None:
+            return 0
+        orphans = set()
+        for generation_id in await provider.job_ids():
+            generation = self.store.generation(generation_id)
+            if generation is None or generation.status.is_terminal:
+                orphans.add(generation_id)
+        removed = await provider.remove(orphans) if orphans else 0
+        if removed:
+            logger.info("removed orphaned sandboxes", extra={"generations": sorted(orphans)})
+        return removed
 
     def cleanup_workspaces(self) -> None:
         cutoff = datetime.now(UTC) - timedelta(hours=config.workspace_retention_hours)

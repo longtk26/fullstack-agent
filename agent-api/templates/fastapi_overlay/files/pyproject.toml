@@ -1,0 +1,19 @@
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+# Markdown is excluded: ruff also formats Python blocks in docs (CLAUDE.md, the installed skill).
+extend-exclude = ["alembic/versions", ".claude", ".agents", ".bga", "*.md"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+# FastAPI's Depends()/Query() defaults in signatures are idiomatic.
+ignore = ["B008"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["src", "tests"]
+known-third-party = ["alembic"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "--import-mode=importlib -p no:cacheprovider"

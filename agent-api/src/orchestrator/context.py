@@ -17,6 +17,7 @@ from src.engines import (
 from src.modules.generations.infrastructure.adapters import EventPublisher
 from src.modules.shared.domain.entities import CliInvocationEntity
 from src.modules.shared.domain.enums import GenerationStatus
+from src.sandbox import ISandbox, ISandboxProvider
 
 from .state import status_for
 from .store import JobStore
@@ -50,6 +51,8 @@ class JobContext:
         events: EventPublisher,
         workspaces: WorkspaceManager,
         workspace: JobWorkspace,
+        sandboxes: ISandboxProvider | None = None,
+        template_dir: Path | None = None,
     ):
         self.generation_id = generation_id
         self.engine = engine
@@ -63,6 +66,9 @@ class JobContext:
         self.cancel_requested = asyncio.Event()
         self.current_invocation: str | None = None
         self.current_run_id: uuid.UUID | None = None
+        self.sandboxes = sandboxes
+        self.template_dir = template_dir or Path(config.template_dir)
+        self._sandbox: ISandbox | None = None
         self._status: GenerationStatus | None = None
 
     async def emit(self, type: str, step: str | None = None, status: str | None = None, **payload: Any) -> None:
@@ -162,6 +168,27 @@ class JobContext:
         if result.status != EngineStatus.OK:
             raise EngineFailure(result)
         return result
+
+    @property
+    def sandbox_enabled(self) -> bool:
+        return self.sandboxes is not None
+
+    async def sandbox(self) -> ISandbox | None:
+        """The job's sandbox, started on first use and kept until the job ends (close_sandbox)."""
+        if self.sandboxes is None:
+            return None
+        if self._sandbox is None:
+            self._sandbox = self.sandboxes.for_job(self.generation_id, self.workspace.project)
+        await self._sandbox.start()
+        return self._sandbox
+
+    async def close_sandbox(self) -> None:
+        if self._sandbox is not None:
+            try:
+                await self._sandbox.stop()
+            except Exception:
+                logger.warning("sandbox cleanup failed", extra={"generation_id": self.generation_id}, exc_info=True)
+            self._sandbox = None
 
     def file_tree(self, limit: int = 300) -> str:
         project = self.workspace.project

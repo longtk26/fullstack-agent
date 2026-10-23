@@ -1,0 +1,8 @@
+.git
+.venv
+.bga
+.claude
+.agents
+.env
+**/__pycache__
+tests

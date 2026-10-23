@@ -1,0 +1,44 @@
+{
+  "version": "1",
+  "templateCommit": "69e0231b2018e174bf7d2c1332f86dada2492645",
+  "replace": {
+    ".env.ex": "4c82012e1241e10dd4ef11f619a6688b653d22eb2404fb73b3b7f41014123b1e",
+    ".gitignore": "508d10f46f7c813337563ee2bae740f6bb3736e786001b06e0dd2629898b8049",
+    "Dockerfile": "93afae3ed73c6612c40db01d7cec58cd21372c2feec83a37ea5ca61f9ae082a2",
+    "Makefile": "7ef4ac0804d6af1a8cd97c2f645b81910885ae5847a5f892468b7086a70f89f4",
+    "README.md": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "alembic/env.py": "0cce1c78f3d624ba1d9208b77230c691d2760194173417b5b4073f86e577b3d9",
+    "docker-compose.yml": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "requirements.txt": "d1ed8852d60ad29542af27054a91e321d681d89ceceb0ea0b01fd0825083c38d",
+    "src/configs/__init__.py": "0ce027a7c39eef004a5f66214a24891dbb3b69cf478bc48ae29438a1ac141fab",
+    "src/configs/config.py": "570bff631fb933c023e102fce5232aca70511aae076ce5dcb7f91cb217837cad",
+    "src/configs/logger.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "src/libs/exceptions/__init__.py": "5c625daf7793336738fb7fdf03af18c50f35bdfc0b479fd2c4f988c64538e9a8",
+    "src/libs/exceptions/base_exception.py": "295ee5a509fe421ac83d82d5187d14e0d90a861eda4e5131012faac0230a8d53",
+    "src/libs/exceptions/error_codes.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "src/main.py": "bfd51614b05a0f9742c4723f69aa26170b72d28f4ab8a6d5c68c61d20271d053",
+    "src/modules/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "src/modules/shared/domain/entities/__init__.py": "c29862a16f660d2ba2f3c05969452f7b45f87631c1f65dca97d67fa5cf8ac081",
+    "src/modules/shared/infrastructure/models/__init__.py": "f3acb5b3435006896d16973829677235761df4352737449492d0850824c6c540",
+    "src/routers.py": "cf53c439a98031a2157f7a9fa216fb1014fb5e84a506908b455938ada7a8a8f0"
+  },
+  "add": [
+    ".dockerignore",
+    "docker-entrypoint.sh",
+    "pyproject.toml",
+    "requirements-dev.txt",
+    "scripts/__init__.py",
+    "scripts/seed.py",
+    "src/libs/exceptions/handlers.py",
+    "src/libs/rate_limit/__init__.py",
+    "src/libs/rate_limit/limiter.py",
+    "tests/conftest.py",
+    "tests/test_health.py"
+  ],
+  "remove": [
+    "src/modules/users",
+    "src/modules/shared/domain/entities/user_entity.py",
+    "src/modules/shared/infrastructure/models/user_model.py",
+    "alembic/versions/9a87df8ba9ec_create_user_table.py"
+  ]
+}

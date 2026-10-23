@@ -9,7 +9,7 @@ COMPLETED status means the backend actually works.
 
 ## Acceptance criteria
 
-- [ ] Ordered checks. A failing check stops dependents (marked `skipped`), and independent ones still run:
+- [x] Ordered checks. A failing check stops dependents (marked `skipped`), and independent ones still run:
 
 | # | Check | Command (in sandbox) | Depends on |
 |---|---|---|---|
@@ -22,11 +22,17 @@ COMPLETED status means the backend actually works.
 | 7 | `tests` | `pytest -q --junitxml=reports/junit.xml` (skipped if `runTests=false`) | 4, 5 |
 | 8 | `openapi` | `with TestClient(app): app.openapi()` (the lifespan must run, because the template registers routers there) → `openapi.json`, validated with `openapi-spec-validator`, operationId parity with the plan | 4 |
 
-- [ ] Each check writes a `validation_runs` row and emits a `validation.check` event (status, duration, short summary).
-- [ ] The `conventions` checker is a module of the agent (`orchestrator/checks/conventions.py`), run against the
+- [x] Each check writes a `validation_runs` row and emits a `validation.check` event (status, duration, short summary).
+- [x] The `conventions` checker is a module of the agent (`orchestrator/checks/conventions.py`), run against the
       workspace from the worker (static analysis only, no code execution). Each violation → `{file, line, rule, hint}`,
       with the hint quoting the skill rule it breaks.
-- [ ] Structured failure extraction: ruff JSON → `{file, line, code, message}`; pytest junit → failing test ids +
+- [x] Structured failure extraction: ruff JSON → `{file, line, code, message}`; pytest junit → failing test ids +
       assertion and traceback excerpt; Python tracebacks → file and line frames inside `/work`.
-- [ ] Node output: `state.validation`, `state.failed_checks`, `failure_digest_ref` (max 30 KB, the most relevant first).
+- [x] Node output: `state.validation`, `state.failed_checks`, `failure_digest_ref` (max 30 KB, the most relevant first).
 - [ ] Re-validation after repair runs failed checks + all dependents + `tests` (regression).
+
+**Status (2026-10-23):** done (`orchestrator/validation.py`, `orchestrator/checks/`). `syntax` is a static parse in
+the worker (no execution) instead of `compileall`. OpenAPI is compared with the plan; `openapi-spec-validator`
+is not run (FastAPI generates the document). Every validation re-runs all eight checks (≈20 s), a superset of
+"failed + dependents + tests". The schema-vs-plan check is part of `migration`, and the planned-test coverage
+check is part of `tests`.

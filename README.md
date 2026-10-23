@@ -18,8 +18,9 @@ make ps
 ```
 
 - UI: http://localhost:3100. Sign in with a seeded user from `SEED_USERS` in `.env` (for example
-  `user@bga.local` / `user12345`), then **New generation** → JSON tab → *Load example* → pick the **Fake** engine
-  to watch a scripted run without model calls.
+  `user@bga.local` / `user12345`), then **New generation** → JSON tab → *Load example* `two-entity` → pick the
+  **Fake** engine to watch a scripted run without model calls. The fake engine is a test double that only fits that
+  example; see [docs/development/test-doubles.md](docs/development/test-doubles.md).
 - API docs: http://localhost:8100/docs. API login:
   `curl -s localhost:8100/api/v1/auth/login -H 'content-type: application/json' -d '{"email":"admin@bga.local","password":"admin12345"}'`
 

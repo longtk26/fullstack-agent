@@ -15,6 +15,8 @@ os.environ["RATE_LIMIT_LOGIN"] = "5/minute"
 os.environ["RATE_LIMIT_STORAGE_URI"] = "memory://"
 os.environ["REDIS_URL"] = os.environ.get("REDIS_URL", "redis://localhost:6389/0").rsplit("/", 1)[0] + "/15"
 os.environ["ENGINE_SKILLS_DIR"] = str(Path(__file__).parents[2] / ".agents" / "skills")
+os.environ.setdefault("TEMPLATE_DIR", str(Path(__file__).parents[2] / ".data" / "fastapi-template"))
+os.environ["SANDBOX_ENABLED"] = "false"  # sandbox tests opt in with BGA_SANDBOX_TESTS=1
 
 
 def _recreate_test_database() -> None:
