@@ -62,6 +62,7 @@ class JobContext:
         self.workspace = workspace
         self.cancel_requested = asyncio.Event()
         self.current_invocation: str | None = None
+        self.current_run_id: uuid.UUID | None = None
         self._status: GenerationStatus | None = None
 
     async def emit(self, type: str, step: str | None = None, status: str | None = None, **payload: Any) -> None:
@@ -92,6 +93,7 @@ class JobContext:
         await self.check_cancel()
         await self.set_status(status_for(node), step=node, current_step=node)
         run_id = self.store.start_node(self.generation_id, node, attempt)
+        self.current_run_id = run_id
         await self.emit("step.started", step=node, attempt=attempt)
         return run_id
 
@@ -114,6 +116,7 @@ class JobContext:
         record_id = self.store.add_cli_invocation(
             CliInvocationEntity(
                 generation_id=self.generation_id,
+                node_run_id=self.current_run_id,
                 engine=self.engine.name,
                 purpose=purpose,
                 status="running",

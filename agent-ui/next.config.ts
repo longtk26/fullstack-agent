@@ -4,6 +4,9 @@ const nextConfig: NextConfig = {
   output: "standalone",
   cacheComponents: true,
   partialPrefetching: true,
+  async redirects() {
+    return [{ source: "/", destination: "/generations", permanent: false }];
+  },
   turbopack: {
     rules: {
       "*.css": {

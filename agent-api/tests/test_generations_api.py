@@ -100,6 +100,10 @@ def test_detail_and_ownership(client, user_headers, login, tmp_path):
     assert detail["validation"]["syntax"] == "passed"
     assert [s["node"] for s in detail["steps"]][:2] == ["validate_spec", "plan_architecture"]
     assert detail["repairAttempts"] == 1
+    by_node = {s["node"]: s for s in detail["steps"]}
+    assert [i["purpose"] for i in by_node["generate_backend"]["invocations"]] == ["generate_backend"] * 2
+    assert by_node["validate_spec"]["invocations"] == []
+    assert set(detail["usage"]) == {"inputTokens", "outputTokens", "costUsd"}
     assert client.get(f"/api/v1/generations/{generation_id}", headers=other).status_code == 404
 
 

@@ -64,6 +64,14 @@ class ExecutionRecordRepository(IExecutionRecordRepository):
         )
         return [NodeRunEntity.model_validate(m.model_dump()) for m in self.session.exec(query)]
 
+    def list_cli_invocations(self, generation_id: str) -> list[CliInvocationEntity]:
+        query = (
+            select(CliInvocationModel)
+            .where(CliInvocationModel.generation_id == generation_id)
+            .order_by(col(CliInvocationModel.created_at))
+        )
+        return [CliInvocationEntity.model_validate(m.model_dump()) for m in self.session.exec(query)]
+
     def list_validation_runs(self, generation_id: str) -> list[ValidationRunEntity]:
         query = (
             select(ValidationRunModel)

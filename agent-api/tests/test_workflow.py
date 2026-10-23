@@ -56,7 +56,7 @@ def test_demo_run_goes_through_one_repair_and_completes(client, user_headers, tm
     purposes = sorted(i.purpose for i in cli_invocations(generation_id))
     # two-entity spec = two modules, so backend and tests run once per module
     assert purposes == ["generate_backend"] * 2 + ["generate_database"] + ["generate_tests"] * 2 + ["repair_code"]
-    assert all(i.status == "ok" for i in cli_invocations(generation_id))
+    assert all(i.status == "ok" and i.node_run_id is not None for i in cli_invocations(generation_id))
 
     project = tmp_path / generation_id / "project"
     assert (project / ".bga" / "spec.json").exists() and (project / ".bga" / "plan.json").exists()

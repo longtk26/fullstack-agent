@@ -2,3 +2,5 @@ node_modules
 .next
 .env*
 Dockerfile
+public/monaco
+public/examples

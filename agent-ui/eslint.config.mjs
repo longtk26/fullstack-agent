@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Copied by scripts/copy-assets.mjs
+    "public/monaco/**",
+    "public/examples/**",
   ]),
 ]);
 

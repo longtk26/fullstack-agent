@@ -11,7 +11,6 @@ from src.modules.generations.presenter.dtos import (
     GenerationDetailDto,
     GenerationPageDto,
     GenerationSummaryDto,
-    StepDto,
 )
 from src.modules.generations.usecases import (
     CancelGenerationUsecaseDep,
@@ -77,32 +76,7 @@ async def get_workflow_graph(_: CurrentUserDep, usecase: GetWorkflowGraphUsecase
 
 @generation_router.get("/{generation_id}", response_model=GenerationDetailDto)
 async def get_generation(generation_id: str, user: CurrentUserDep, usecase: GetGenerationUsecaseDep):
-    detail = await usecase.execute(generation_id, user)
-    generation = detail.generation
-    return GenerationDetailDto(
-        generation_id=generation.id,
-        spec_id=str(generation.spec_id),
-        project_name=detail.project_name,
-        status=generation.status,
-        current_step=generation.current_step,
-        engine=generation.engine,
-        options=generation.options,
-        repair_attempts=generation.repair_attempts,
-        resume_count=generation.resume_count,
-        cancel_requested=generation.cancel_requested,
-        validation=detail.validation,
-        steps=[
-            StepDto(node=s.node, attempt=s.attempt, status=s.status, started_at=s.started_at, finished_at=s.finished_at)
-            for s in detail.steps
-        ],
-        artifacts={},
-        preview=None,
-        trace={"traceId": generation.trace_id, "langsmithUrl": generation.langsmith_run_url},
-        error=generation.error_summary,
-        created_at=generation.created_at,
-        started_at=generation.started_at,
-        finished_at=generation.finished_at,
-    )
+    return GenerationDetailDto.from_detail(await usecase.execute(generation_id, user))
 
 
 @generation_router.post(

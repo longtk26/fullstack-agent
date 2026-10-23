@@ -104,6 +104,8 @@ services:
     restart: unless-stopped
     build:
       context: ./agent-ui
+      additional_contexts:
+        examples: ./examples
     environment:
       API_URL: http://agent-api:8000
     ports:

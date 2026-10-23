@@ -17,9 +17,11 @@ make up    # builds and starts postgres 18, redis, agent-api, agent-worker, agen
 make ps
 ```
 
-- UI: http://localhost:3100 · API docs: http://localhost:8100/docs
-- Log in: `curl -s localhost:8100/api/v1/auth/login -H 'content-type: application/json' -d '{"email":"admin@bga.local","password":"admin12345"}'`
-  (users come from `SEED_USERS` in `.env`)
+- UI: http://localhost:3100. Sign in with a seeded user from `SEED_USERS` in `.env` (for example
+  `user@bga.local` / `user12345`), then **New generation** → JSON tab → *Load example* → pick the **Fake** engine
+  to watch a scripted run without model calls.
+- API docs: http://localhost:8100/docs. API login:
+  `curl -s localhost:8100/api/v1/auth/login -H 'content-type: application/json' -d '{"email":"admin@bga.local","password":"admin12345"}'`
 
 `make down` stops the stack; `make down-all` also removes volumes.
 

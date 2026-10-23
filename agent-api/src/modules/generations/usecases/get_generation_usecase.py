@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from src.libs.exceptions import NotFoundException
 from src.libs.security import ensure_owner
 from src.modules.generations.ports.output import IExecutionRecordRepoDep, IGenerationRepoDep
-from src.modules.shared.domain.entities import GenerationEntity, NodeRunEntity, UserEntity
+from src.modules.shared.domain.entities import CliInvocationEntity, GenerationEntity, NodeRunEntity, UserEntity
 from src.modules.specs.ports.output import IBackendSpecRepoDep
 
 
@@ -15,6 +15,7 @@ class GenerationDetail(BaseModel):
     project_name: str | None
     validation: dict[str, str]
     steps: list[NodeRunEntity]
+    invocations: list[CliInvocationEntity]
 
 
 class GetGenerationUsecase:
@@ -47,6 +48,7 @@ class GetGenerationUsecase:
             project_name=project.get("name"),
             validation=validation,
             steps=self.records.list_node_runs(generation_id),
+            invocations=self.records.list_cli_invocations(generation_id),
         )
 
 

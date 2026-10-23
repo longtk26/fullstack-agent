@@ -39,3 +39,7 @@ class IExecutionRecordRepository(ABC):
     @abstractmethod
     def list_validation_runs(self, generation_id: str) -> list[ValidationRunEntity]:
         pass
+
+    @abstractmethod
+    def list_cli_invocations(self, generation_id: str) -> list[CliInvocationEntity]:
+        pass

@@ -42,6 +42,10 @@ the generated OpenAPI with try-it calls against the running preview container.
 | 9.5 | [Results: validation, artifacts & source](story9.5_results_view.md) | 9.3, 7.2 |
 | 9.6 | [OpenAPI explorer & try-it against preview](story9.6_openapi_explorer.md) | 9.5, 7.3 |
 
+**Status (2026-10-23):** 9.1–9.3 done on `feat/epic9-agent-ui` (Requirement tab and "Refine with AI" wait for 2.4).
+Trace, Results and API tabs exist with placeholders for 9.4–9.6; Results already lists the latest validation checks.
+Code: `agent-ui/src/features/{auth,generations,specs}`, `agent-ui/src/app/api/proxy`.
+
 ## Epic acceptance
 
 - From the UI alone, a user can paste the two-entity spec, generate, watch the steps live, see the repair
