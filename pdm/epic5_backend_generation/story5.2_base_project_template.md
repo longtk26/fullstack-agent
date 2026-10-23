@@ -1,0 +1,34 @@
+# Story 5.2 — Base project: pinned template + overlay
+
+**Epic:** [5 — Backend generation](epic5_backend_generation.md) · **Requirements:** FR-16, FR-06 (env secrets), NFR 8.4 · **Decision:** Q1 (Q9 for upstreaming) · **Depends on:** 5.1, 1.1
+
+## User story
+
+As the workflow, I want every generated project to start from your fastapi-skills template at a known commit,
+with the same deterministic fixes applied, so that structure and tooling are identical across jobs and the LLM
+only writes domain code.
+
+## Template gaps the overlay fills (verified against `feat/fastapi@69e0231`)
+
+| Gap in template | Overlay adds |
+|---|---|
+| No tests ("No test infrastructure is set up yet") | `tests/conftest.py` (see 5.5), `requirements-dev.txt` (pytest, httpx, ruff), `pyproject.toml` with ruff + pytest config |
+| `configs/logger.py` and `libs/exceptions/error_codes.py` are empty | structured JSON logger; `ErrorCode` enum; `detail={code, message, details}` convention for `BaseException` |
+| No `ConflictException` (needed for 409) | `ConflictException` in `base_exception.py` |
+| No rate limiting (skill pillar 2) | `src/libs/rate_limit/limiter.py` (slowapi, limits from env), wired in `main.py` |
+| No CORS (needed for UI try-it, 9.6) | `CORSMiddleware` with `CORS_ORIGINS` from config |
+| Dockerfile does not run migrations | `docker-entrypoint.sh`: `alembic upgrade head`, optional seed (7.3), then `fastapi run` |
+| No way to preload data | `scripts/seed.py`: loads `SEED_FILE` (spec `seed[]`) into tables through `SQLModel.metadata`. Used by preview only (7.3). |
+| Sample `users` module, entity, model and migration | removed (re-created by Epic 10 when the spec has auth) |
+| `.env.ex` has only `APP_NAME, PORT, DB_URL` | entries added for `CORS_ORIGINS`, `RATE_LIMIT_DEFAULT`, `LOG_LEVEL` (and `JWT_SECRET` with Epic 10). No values for secrets. |
+
+## Acceptance criteria
+
+- [ ] At the start of `generate_database`, the template checkout in the worker image is copied to `project/`
+      (`.git` dropped, fresh repo per 4.4). Then the overlay from `agent-api/templates/fastapi_overlay/` is applied
+      (files plus small, idempotent text patches with anchors). The sample users files are removed. Commit `node:scaffold`.
+- [ ] If an anchor is missing (the template changed), the job fails with `TEMPLATE_DRIFT`. It never patches half the files.
+      `template.lock` is bumped deliberately.
+- [ ] CI test of the agent: template + overlay with zero modules passes ruff, startup, `make mghead` (empty) and the health test.
+- [ ] The template commit sha and overlay version are recorded in the manifest (`templateRef`, `generatorVersion`).
+- [ ] With `generateDockerfile=false`, the Dockerfile, entrypoint and compose file are removed.

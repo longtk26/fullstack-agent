@@ -1,0 +1,49 @@
+# Epic 9 — Agent UI (Next.js)
+
+## Overview
+
+A Next.js app (nextjs-skills conventions) for driving the agent: **input** a requirement, BackendSpec JSON, or an
+imported Frontend-Agent site JSON,
+**watch** the LangGraph steps live, **inspect** the trace, **review** validation and artifacts, and **explore**
+the generated OpenAPI with try-it calls against the running preview container.
+
+**Requirements:** user UI requirements, FR-14, FR-15, FR-17
+
+## Screens
+
+```
+ /login
+ /generations                     list + status badges + "New generation"
+ /generations/new                 [Requirement] [Import frontend JSON] [JSON] tabs → options → Submit
+ /generations/[id]                header (status, engine, duration, cost, Cancel, LangSmith link)
+     ├── Steps     (default)      live LangGraph diagram + event log
+     ├── Trace                    waterfall + span detail drawer
+     ├── Results                  validation checks, artifacts, manifest, source browser
+     └── API                      OpenAPI explorer + try-it against preview, preview controls
+```
+
+## Library choices (beyond the skill defaults)
+
+| Need | Choice | Note |
+|---|---|---|
+| JSON editing | `@monaco-editor/react` | JSON Schema from 2.1 gives autocomplete and inline markers |
+| Graph view | `@xyflow/react` (React Flow) + `dagre` layout | nodes and edges from `GET /generations/graph` |
+| OpenAPI explorer | `@scalar/api-reference-react` | try-it with the server URL set to the preview; alternative `swagger-ui-react` |
+| SSE | native `EventSource` through a Next.js route-handler proxy | the cookie JWT is forwarded server-side |
+
+## Stories
+
+| # | Story | Depends on |
+|---|---|---|
+| 9.1 | [UI scaffold, auth & generations list](story9.1_ui_scaffold_auth_list.md) | 1.4, 4.1 |
+| 9.2 | [Spec input: requirement, frontend import & JSON](story9.2_spec_input.md) | 9.1, 2.3 (2.4 Requirement tab, 2.5 Import tab) |
+| 9.3 | [Live workflow step visualization](story9.3_step_visualization.md) | 9.1, 4.5 |
+| 9.4 | [Trace viewer](story9.4_trace_viewer.md) | 9.3, 8.3 |
+| 9.5 | [Results: validation, artifacts & source](story9.5_results_view.md) | 9.3, 7.2 |
+| 9.6 | [OpenAPI explorer & try-it against preview](story9.6_openapi_explorer.md) | 9.5, 7.3 |
+
+## Epic acceptance
+
+- From the UI alone, a user can paste the two-entity spec, generate, watch the steps live, see the repair
+  loop if one happens, open the trace, download the ZIP, and successfully call `POST /tasks` then `GET /tasks`
+  on the running preview.
