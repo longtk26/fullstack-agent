@@ -17,7 +17,7 @@
         { "name": "id", "type": "uuid", "primary": true },
         { "name": "name", "type": "string", "required": true, "unique": true, "maxLength": 120 },
         { "name": "description", "type": "text" },
-        { "name": "createdAt", "type": "datetime", "required": true }
+        { "name": "createdAt", "type": "datetime", "required": true, "default": "now" }
       ]
     },
     {

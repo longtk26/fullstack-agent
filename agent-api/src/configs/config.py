@@ -22,6 +22,9 @@ class Config(BaseSettings):
     rate_limit_storage_uri: str = "memory://"
     rate_limit_login: str = "10/minute"
 
+    spec_max_bytes: int = 1_000_000
+    frontend_import_max_bytes: int = 5_000_000
+
     workspace_root: str = "/tmp/bga/workspaces"
     worker_concurrency: int = 2
     worker_heartbeat_file: str = "/tmp/bga-worker.heartbeat"

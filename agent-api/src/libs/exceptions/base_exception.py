@@ -39,6 +39,20 @@ class ConflictException(BaseException):
         super().__init__(status_code=HTTPStatus.CONFLICT, detail=detail, code=code, details=details)
 
 
+class PayloadTooLargeException(BaseException):
+    def __init__(
+        self, detail: Any = "Payload too large", code: ErrorCode = ErrorCode.PAYLOAD_TOO_LARGE, details: Any = None
+    ):
+        super().__init__(status_code=HTTPStatus.REQUEST_ENTITY_TOO_LARGE, detail=detail, code=code, details=details)
+
+
+class UnprocessableEntityException(BaseException):
+    def __init__(
+        self, detail: Any = "Unprocessable entity", code: ErrorCode = ErrorCode.VALIDATION_ERROR, details: Any = None
+    ):
+        super().__init__(status_code=HTTPStatus.UNPROCESSABLE_ENTITY, detail=detail, code=code, details=details)
+
+
 class InternalServerErrorException(BaseException):
     def __init__(
         self, detail: Any = "Internal server error", code: ErrorCode = ErrorCode.INTERNAL_ERROR, details: Any = None

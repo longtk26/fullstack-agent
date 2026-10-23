@@ -19,6 +19,8 @@ before generating:
  BackendSpec JSON ─────────────────────────────────────────────▶ validate (2.2/2.3) ──▶ user reviews ──▶ submit generation (4.1)
 ```
 
+**Status (2026-10-23):** 2.1, 2.2, 2.3 and 2.5 done (branch `feat/epic2-backend-spec`). 2.4 and 2.5's "Refine with AI" wait for 3.2 + 4.2.
+
 ## Stories
 
 | # | Story | Depends on |

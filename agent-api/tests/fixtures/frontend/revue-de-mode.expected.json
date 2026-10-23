@@ -1,0 +1,714 @@
+{
+  "backend_spec": {
+    "specVersion": "1.0",
+    "project": {
+      "name": "REVUE DE MODE",
+      "description": "Backend generated from a Frontend-Agent site JSON"
+    },
+    "stack": {
+      "framework": "fastapi",
+      "database": "postgresql",
+      "orm": "sqlmodel",
+      "migration": "alembic"
+    },
+    "entities": [
+      {
+        "name": "Post",
+        "fields": [
+          {
+            "name": "id",
+            "type": "string",
+            "primary": true,
+            "maxLength": 64
+          },
+          {
+            "name": "body",
+            "type": "text",
+            "required": true
+          },
+          {
+            "name": "date",
+            "type": "date",
+            "required": true
+          },
+          {
+            "name": "tags",
+            "type": "json",
+            "required": true
+          },
+          {
+            "name": "image",
+            "type": "string",
+            "required": true,
+            "maxLength": 255
+          },
+          {
+            "name": "title",
+            "type": "string",
+            "required": true,
+            "maxLength": 255
+          },
+          {
+            "name": "author",
+            "type": "string",
+            "required": true,
+            "maxLength": 255
+          },
+          {
+            "name": "excerpt",
+            "type": "string",
+            "required": true,
+            "maxLength": 255
+          },
+          {
+            "name": "category",
+            "type": "string",
+            "required": true,
+            "maxLength": 255,
+            "index": true
+          }
+        ]
+      }
+    ],
+    "operations": [
+      {
+        "operationId": "post.list",
+        "type": "crud",
+        "action": "list",
+        "entity": "Post",
+        "method": "GET",
+        "path": "/posts",
+        "pagination": {
+          "defaultLimit": 8,
+          "maxLimit": 100
+        },
+        "filters": [
+          "category"
+        ],
+        "sort": [
+          "date",
+          "title",
+          "category"
+        ],
+        "search": [
+          "title",
+          "excerpt",
+          "author",
+          "category"
+        ]
+      },
+      {
+        "operationId": "post.get",
+        "type": "crud",
+        "action": "get",
+        "entity": "Post",
+        "method": "GET",
+        "path": "/posts/{id}"
+      },
+      {
+        "operationId": "post.listRelated",
+        "type": "custom",
+        "entity": "Post",
+        "method": "GET",
+        "path": "/posts/{id}/related",
+        "summary": "Related posts",
+        "description": "Posts sharing `category` with the given record, excluding it. Query parameter `limit` caps the result."
+      },
+      {
+        "operationId": "post.create",
+        "type": "crud",
+        "action": "create",
+        "entity": "Post",
+        "method": "POST",
+        "path": "/posts"
+      },
+      {
+        "operationId": "post.update",
+        "type": "crud",
+        "action": "update",
+        "entity": "Post",
+        "method": "PATCH",
+        "path": "/posts/{id}"
+      },
+      {
+        "operationId": "post.delete",
+        "type": "crud",
+        "action": "delete",
+        "entity": "Post",
+        "method": "DELETE",
+        "path": "/posts/{id}"
+      }
+    ],
+    "seed": [
+      {
+        "entity": "Post",
+        "records": [
+          {
+            "id": "art-01",
+            "body": "完璧なシンメトリーへの執着は終わりを告げた。今シーズンのランウェイを支配したのは、縫い目を露出し、芯地をあえて覗かせる脱構築のテーラリングである。\n\n古典的なウールギャバジンに、工業用ナイロンや未加工の生機（きばた）を組み合わせる試みは、衣服の構造そのものを批評的な言説へと昇華させている。身体を拘束する鎧から、自己を解放する余白へ。",
+            "date": "2025-03-15",
+            "tags": [
+              "テーラリング",
+              "2025SS",
+              "モード批評"
+            ],
+            "image": "images/bfa330c9-09d3-4749-8260-7660b603ed7f.jpg",
+            "title": "DECONSTRUCTED TAILORING: 伝統を解体する新たな仕立て",
+            "author": "佐伯 玲央",
+            "excerpt": "サヴィル・ロウの厳格な規律を軽やかに逸脱し、不完全さの中に究極のエレガンスを見出す新世代テーラーの肖像。",
+            "category": "COLLECTIONS"
+          },
+          {
+            "id": "art-02",
+            "body": "照明に照らされたランウェイの外側にこそ、真のモードが息づいている。早朝のパレ・ロワイヤルに集まるコレクターやスタイリストたちの着こなしには、トレンドを消化した者だけが持つ静かな確信があった。\n\nオーバーサイズのレザーコートにヴィンテージのシルクスカーフ。作為のないレイヤードが、石畳の朝露に映える。",
+            "date": "2025-03-12",
+            "tags": [
+              "パリコレ",
+              "ストリート",
+              "スナップ"
+            ],
+            "image": "images/cb05ea4d-82b2-4431-8f94-ac0ac257e604.jpg",
+            "title": "DAWN AT PALAIS-ROYAL: パリの早朝、静寂のストリートスナップ",
+            "author": "マリー・ルクレール",
+            "excerpt": "ファッションウィークの喧騒が訪れる前の冷涼な空気の中、回廊に佇む表現者たちの私服とアティチュード。",
+            "category": "RUNWAY"
+          },
+          {
+            "id": "art-03",
+            "body": "単なる懐古趣味ではない。現在進行形のミニマリズムは、環境への眼差しとデジタル社会における視覚疲労への明確なアンチテーゼである。\n\n無駄を削ぎ落としたモノリスのようなスリップドレスは、身体の微細な所作を雄弁に際立たせる。少なさこそが最大の主張となる時代の再来だ。",
+            "date": "2025-03-08",
+            "tags": [
+              "ミニマリズム",
+              "アーカイブ",
+              "90s"
+            ],
+            "image": "images/1d2d4ee8-506b-4360-8cfc-265ef65e1967.jpg",
+            "title": "HYPER-MINIMALISM: 90年代クリーンルックの批評的再解釈",
+            "author": "桐島 悠",
+            "excerpt": "装飾過剰の反動として回帰した無駄のない輪郭。ヘルムート・ラングとジル・サンダーが遺した思想の現代的変容。",
+            "category": "EDITORIAL"
+          },
+          {
+            "id": "art-04",
+            "body": "「デジタルで平滑化された肌には感情が宿らない」とエレナは語る。彼女のレンズが捉えるのは、最高級のシルクと人間の肌が接触する瞬間の緊張感だ。\n\n汗、乱れた髪、布地の擦れる気配。完璧さを脱ぎ捨てたファッション写真が、観る者の皮膚感覚を直接揺さぶる。",
+            "date": "2025-03-02",
+            "tags": [
+              "インタビュー",
+              "写真",
+              "クリエイター"
+            ],
+            "image": "images/584751e8-1cab-45b7-aa1a-59960f64aaf4.jpg",
+            "title": "THE RADICAL EYE: 写真家エレナ・ヴォルクが捉える皮膚の質感",
+            "author": "編集部",
+            "excerpt": "レタッチを拒否し、フィルムの荒い粒子と自然光のみで衣服と肉体の対話を記録する写真家のモノローグ。",
+            "category": "INTERVIEWS"
+          },
+          {
+            "id": "art-05",
+            "body": "素肌を陶器のようにマットに整え、唇には色を乗せない。その代わり、目元に鋭利なネオンイエローの幾何学ラインを一筋引く。\n\n光と影のコントラストが顔立ちの立体感を研ぎ澄まし、クラシカルな黒のドレスに強烈な未来的サイバーパンクの陰影を与える。",
+            "date": "2025-02-27",
+            "tags": [
+              "ビューティ",
+              "メイクアップ",
+              "ネオン"
+            ],
+            "image": "images/36ea48ba-3c53-4cc2-9806-d56a38c87731.jpg",
+            "title": "SHADOW & CHROMA: 漆黒のカンバスに差す蛍光イエロー",
+            "author": "カミーユ・デュポン",
+            "excerpt": "今季のビューティを決定づけるグラフィックアイライン。闇を照らす閃光のようなネオンピグメントの実験。",
+            "category": "BEAUTY"
+          },
+          {
+            "id": "art-06",
+            "body": "数百年受け継がれた撚糸の技術が、アルゴリズムによる造形と出会った。熱によって収縮し、自律的にドレープを形成するシルクの彫刻。\n\n職人の手技とテクノロジーの融合が、オートクチュールを博物館の保存物から生きた実験場へと連れ戻している。",
+            "date": "2025-02-20",
+            "tags": [
+              "クチュール",
+              "職人技",
+              "マテリアル"
+            ],
+            "image": "images/15679512-f838-419d-b37f-9082a6b2ce39.jpg",
+            "title": "SUBVERSIVE SILK: 変形するオートクチュールの物質性",
+            "author": "佐伯 玲央",
+            "excerpt": "京都の伝統的な丹後ちりめんと最新の3Dプリンティングが交差する、アトリエの実験的クチュールピース。",
+            "category": "COLLECTIONS"
+          },
+          {
+            "id": "art-07",
+            "body": "衣服を着るという行為は、極めて親密な音響体験である。歩くたびに微かに鳴るシルクタフタの擦過音。\n\nサウンドアーティストとのコラボレーションによって制作された今作は、着用者の歩行リズムによって音色の変わる実験的なコレクションだ。",
+            "date": "2025-02-14",
+            "tags": [
+              "サウンド",
+              "カルチャー",
+              "空間表現"
+            ],
+            "image": "images/0b75da59-f594-4cc8-a857-fb91acc7f984.jpg",
+            "title": "ACOUSTIC LUXURY: 衣服の擦れ合う音が紡ぐモード",
+            "author": "桐島 悠",
+            "excerpt": "視覚至上主義への疑問。タフタの硬質な衣擦れやレザーの軋みが持つ、触覚的かつ聴覚的なラグジュアリー。",
+            "category": "CULTURE"
+          },
+          {
+            "id": "art-08",
+            "body": "黒という色の奥深さは、異なる光沢を持つ素材の衝突によってのみ立ち現れる。マットな起毛ウールと濡れたようなエナメル、そして透け感のあるオーガンジー。\n\n単一のトーンの中で繰り広げられる極小の差異の探求が、観る者の視覚を研ぎ澄ます。",
+            "date": "2025-02-05",
+            "tags": [
+              "モノトーン",
+              "スタイリング",
+              "テクスチャー"
+            ],
+            "image": "images/2690dcf9-cbf6-4a9f-8994-48d8ea05bc03.jpg",
+            "title": "MONOCHROME DISCIPLINE: 厳格なる黒と白の比率",
+            "author": "編集部",
+            "excerpt": "色彩を剥ぎ取られた世界で試される、素材のテクスチャーとカッティングの真価。",
+            "category": "EDITORIAL"
+          }
+        ]
+      }
+    ],
+    "x-frontendBindings": [
+      {
+        "page": "home",
+        "componentPath": "/pages/0/tree/children/1/children/1",
+        "component": "CollectionStrip",
+        "operationId": "post.list",
+        "params": {
+          "sortBy": "date",
+          "order": "desc",
+          "limit": 4
+        }
+      },
+      {
+        "page": "home",
+        "componentPath": "/pages/0/tree/children/1/children/1/children/0/children/0/children/0/children/1",
+        "component": "RecordLink",
+        "operationId": "post.get",
+        "params": {}
+      },
+      {
+        "page": "home",
+        "componentPath": "/pages/0/tree/children/1/children/1/children/0/children/0/children/1/children/1",
+        "component": "RecordLink",
+        "operationId": "post.get",
+        "params": {}
+      },
+      {
+        "page": "editorial",
+        "componentPath": "/pages/1/tree/children/2/children/0/children/0",
+        "component": "CollectionBrowser",
+        "operationId": "post.list",
+        "params": {
+          "pageSize": 8,
+          "sortFields": [
+            {
+              "field": "date",
+              "label": "発行日（新しい順）"
+            },
+            {
+              "field": "title",
+              "label": "タイトル順"
+            },
+            {
+              "field": "category",
+              "label": "カテゴリー順"
+            }
+          ],
+          "searchFields": [
+            "title",
+            "excerpt",
+            "author",
+            "category"
+          ],
+          "categoryField": "category"
+        }
+      },
+      {
+        "page": "editorial",
+        "componentPath": "/pages/1/tree/children/2/children/0/children/0/children/0/children/0/children/0/children/0",
+        "component": "SearchBox",
+        "operationId": "post.list",
+        "params": {
+          "placeholder": "論文・論考を検索…"
+        }
+      },
+      {
+        "page": "editorial",
+        "componentPath": "/pages/1/tree/children/2/children/0/children/0/children/0/children/0/children/1",
+        "component": "CategoryFilter",
+        "operationId": "post.list",
+        "params": {}
+      },
+      {
+        "page": "editorial",
+        "componentPath": "/pages/1/tree/children/2/children/0/children/0/children/0/children/0/children/2",
+        "component": "SortControl",
+        "operationId": "post.list",
+        "params": {}
+      },
+      {
+        "page": "editorial",
+        "componentPath": "/pages/1/tree/children/2/children/0/children/0/children/0/children/1/children/0",
+        "component": "ResultCount",
+        "operationId": "post.list",
+        "params": {}
+      },
+      {
+        "page": "editorial",
+        "componentPath": "/pages/1/tree/children/2/children/0/children/0/children/1/children/0/children/0/children/1",
+        "component": "RecordLink",
+        "operationId": "post.get",
+        "params": {}
+      },
+      {
+        "page": "editorial",
+        "componentPath": "/pages/1/tree/children/2/children/0/children/0/children/1/children/0/children/0/children/2/children/0",
+        "component": "RecordLink",
+        "operationId": "post.get",
+        "params": {}
+      },
+      {
+        "page": "editorial",
+        "componentPath": "/pages/1/tree/children/2/children/0/children/0/children/1/children/0/children/1/children/1",
+        "component": "RecordLink",
+        "operationId": "post.get",
+        "params": {}
+      },
+      {
+        "page": "editorial",
+        "componentPath": "/pages/1/tree/children/2/children/0/children/0/children/2/children/0",
+        "component": "Pagination",
+        "operationId": "post.list",
+        "params": {}
+      },
+      {
+        "page": "article",
+        "componentPath": "/pages/2/tree/children/1",
+        "component": "CollectionDetail",
+        "operationId": "post.get",
+        "params": {}
+      },
+      {
+        "page": "article",
+        "componentPath": "/pages/2/tree/children/2/children/0/children/1",
+        "component": "CollectionStrip",
+        "operationId": "post.listRelated",
+        "params": {
+          "limit": 3,
+          "like": "category"
+        }
+      },
+      {
+        "page": "article",
+        "componentPath": "/pages/2/tree/children/2/children/0/children/1/children/0/children/0",
+        "component": "RecordLink",
+        "operationId": "post.get",
+        "params": {}
+      }
+    ]
+  },
+  "seed": [
+    {
+      "entity": "Post",
+      "records": [
+        {
+          "id": "art-01",
+          "body": "完璧なシンメトリーへの執着は終わりを告げた。今シーズンのランウェイを支配したのは、縫い目を露出し、芯地をあえて覗かせる脱構築のテーラリングである。\n\n古典的なウールギャバジンに、工業用ナイロンや未加工の生機（きばた）を組み合わせる試みは、衣服の構造そのものを批評的な言説へと昇華させている。身体を拘束する鎧から、自己を解放する余白へ。",
+          "date": "2025-03-15",
+          "tags": [
+            "テーラリング",
+            "2025SS",
+            "モード批評"
+          ],
+          "image": "images/bfa330c9-09d3-4749-8260-7660b603ed7f.jpg",
+          "title": "DECONSTRUCTED TAILORING: 伝統を解体する新たな仕立て",
+          "author": "佐伯 玲央",
+          "excerpt": "サヴィル・ロウの厳格な規律を軽やかに逸脱し、不完全さの中に究極のエレガンスを見出す新世代テーラーの肖像。",
+          "category": "COLLECTIONS"
+        },
+        {
+          "id": "art-02",
+          "body": "照明に照らされたランウェイの外側にこそ、真のモードが息づいている。早朝のパレ・ロワイヤルに集まるコレクターやスタイリストたちの着こなしには、トレンドを消化した者だけが持つ静かな確信があった。\n\nオーバーサイズのレザーコートにヴィンテージのシルクスカーフ。作為のないレイヤードが、石畳の朝露に映える。",
+          "date": "2025-03-12",
+          "tags": [
+            "パリコレ",
+            "ストリート",
+            "スナップ"
+          ],
+          "image": "images/cb05ea4d-82b2-4431-8f94-ac0ac257e604.jpg",
+          "title": "DAWN AT PALAIS-ROYAL: パリの早朝、静寂のストリートスナップ",
+          "author": "マリー・ルクレール",
+          "excerpt": "ファッションウィークの喧騒が訪れる前の冷涼な空気の中、回廊に佇む表現者たちの私服とアティチュード。",
+          "category": "RUNWAY"
+        },
+        {
+          "id": "art-03",
+          "body": "単なる懐古趣味ではない。現在進行形のミニマリズムは、環境への眼差しとデジタル社会における視覚疲労への明確なアンチテーゼである。\n\n無駄を削ぎ落としたモノリスのようなスリップドレスは、身体の微細な所作を雄弁に際立たせる。少なさこそが最大の主張となる時代の再来だ。",
+          "date": "2025-03-08",
+          "tags": [
+            "ミニマリズム",
+            "アーカイブ",
+            "90s"
+          ],
+          "image": "images/1d2d4ee8-506b-4360-8cfc-265ef65e1967.jpg",
+          "title": "HYPER-MINIMALISM: 90年代クリーンルックの批評的再解釈",
+          "author": "桐島 悠",
+          "excerpt": "装飾過剰の反動として回帰した無駄のない輪郭。ヘルムート・ラングとジル・サンダーが遺した思想の現代的変容。",
+          "category": "EDITORIAL"
+        },
+        {
+          "id": "art-04",
+          "body": "「デジタルで平滑化された肌には感情が宿らない」とエレナは語る。彼女のレンズが捉えるのは、最高級のシルクと人間の肌が接触する瞬間の緊張感だ。\n\n汗、乱れた髪、布地の擦れる気配。完璧さを脱ぎ捨てたファッション写真が、観る者の皮膚感覚を直接揺さぶる。",
+          "date": "2025-03-02",
+          "tags": [
+            "インタビュー",
+            "写真",
+            "クリエイター"
+          ],
+          "image": "images/584751e8-1cab-45b7-aa1a-59960f64aaf4.jpg",
+          "title": "THE RADICAL EYE: 写真家エレナ・ヴォルクが捉える皮膚の質感",
+          "author": "編集部",
+          "excerpt": "レタッチを拒否し、フィルムの荒い粒子と自然光のみで衣服と肉体の対話を記録する写真家のモノローグ。",
+          "category": "INTERVIEWS"
+        },
+        {
+          "id": "art-05",
+          "body": "素肌を陶器のようにマットに整え、唇には色を乗せない。その代わり、目元に鋭利なネオンイエローの幾何学ラインを一筋引く。\n\n光と影のコントラストが顔立ちの立体感を研ぎ澄まし、クラシカルな黒のドレスに強烈な未来的サイバーパンクの陰影を与える。",
+          "date": "2025-02-27",
+          "tags": [
+            "ビューティ",
+            "メイクアップ",
+            "ネオン"
+          ],
+          "image": "images/36ea48ba-3c53-4cc2-9806-d56a38c87731.jpg",
+          "title": "SHADOW & CHROMA: 漆黒のカンバスに差す蛍光イエロー",
+          "author": "カミーユ・デュポン",
+          "excerpt": "今季のビューティを決定づけるグラフィックアイライン。闇を照らす閃光のようなネオンピグメントの実験。",
+          "category": "BEAUTY"
+        },
+        {
+          "id": "art-06",
+          "body": "数百年受け継がれた撚糸の技術が、アルゴリズムによる造形と出会った。熱によって収縮し、自律的にドレープを形成するシルクの彫刻。\n\n職人の手技とテクノロジーの融合が、オートクチュールを博物館の保存物から生きた実験場へと連れ戻している。",
+          "date": "2025-02-20",
+          "tags": [
+            "クチュール",
+            "職人技",
+            "マテリアル"
+          ],
+          "image": "images/15679512-f838-419d-b37f-9082a6b2ce39.jpg",
+          "title": "SUBVERSIVE SILK: 変形するオートクチュールの物質性",
+          "author": "佐伯 玲央",
+          "excerpt": "京都の伝統的な丹後ちりめんと最新の3Dプリンティングが交差する、アトリエの実験的クチュールピース。",
+          "category": "COLLECTIONS"
+        },
+        {
+          "id": "art-07",
+          "body": "衣服を着るという行為は、極めて親密な音響体験である。歩くたびに微かに鳴るシルクタフタの擦過音。\n\nサウンドアーティストとのコラボレーションによって制作された今作は、着用者の歩行リズムによって音色の変わる実験的なコレクションだ。",
+          "date": "2025-02-14",
+          "tags": [
+            "サウンド",
+            "カルチャー",
+            "空間表現"
+          ],
+          "image": "images/0b75da59-f594-4cc8-a857-fb91acc7f984.jpg",
+          "title": "ACOUSTIC LUXURY: 衣服の擦れ合う音が紡ぐモード",
+          "author": "桐島 悠",
+          "excerpt": "視覚至上主義への疑問。タフタの硬質な衣擦れやレザーの軋みが持つ、触覚的かつ聴覚的なラグジュアリー。",
+          "category": "CULTURE"
+        },
+        {
+          "id": "art-08",
+          "body": "黒という色の奥深さは、異なる光沢を持つ素材の衝突によってのみ立ち現れる。マットな起毛ウールと濡れたようなエナメル、そして透け感のあるオーガンジー。\n\n単一のトーンの中で繰り広げられる極小の差異の探求が、観る者の視覚を研ぎ澄ます。",
+          "date": "2025-02-05",
+          "tags": [
+            "モノトーン",
+            "スタイリング",
+            "テクスチャー"
+          ],
+          "image": "images/2690dcf9-cbf6-4a9f-8994-48d8ea05bc03.jpg",
+          "title": "MONOCHROME DISCIPLINE: 厳格なる黒と白の比率",
+          "author": "編集部",
+          "excerpt": "色彩を剥ぎ取られた世界で試される、素材のテクスチャーとカッティングの真価。",
+          "category": "EDITORIAL"
+        }
+      ]
+    }
+  ],
+  "assumptions": [
+    {
+      "path": "/collections/0/records",
+      "message": "Existing ids are not UUIDs; kept as a string primary key so frontend links keep working",
+      "suggestion": null
+    },
+    {
+      "path": "/collections/0",
+      "message": "Added create/update/delete for Post although the site has no editing UI",
+      "suggestion": "Turn off 'Include admin CRUD' for a read-only API, or protect these with auth (Epic 10)"
+    },
+    {
+      "path": "/collections/0/records",
+      "message": "'tags' holds lists; kept inline as a json array",
+      "suggestion": "Model it as a separate Tag entity (many-to-many)"
+    },
+    {
+      "path": "/collections/0/records",
+      "message": "'image' holds asset paths; files are not uploaded to the backend",
+      "suggestion": null
+    },
+    {
+      "path": "/collections/0/records",
+      "message": "'author' kept as a plain string (5 distinct values)",
+      "suggestion": "Model it as a separate Author entity (one-to-many)"
+    },
+    {
+      "path": "/collections/0/records",
+      "message": "'category' has 6 distinct values; kept as an indexed string",
+      "suggestion": "Make it an enum with values ['BEAUTY', 'COLLECTIONS', 'CULTURE', 'EDITORIAL', 'INTERVIEWS', 'RUNWAY']"
+    }
+  ],
+  "unresolved": [],
+  "bindings": [
+    {
+      "page": "home",
+      "componentPath": "/pages/0/tree/children/1/children/1",
+      "component": "CollectionStrip",
+      "operationId": "post.list",
+      "params": {
+        "sortBy": "date",
+        "order": "desc",
+        "limit": 4
+      }
+    },
+    {
+      "page": "home",
+      "componentPath": "/pages/0/tree/children/1/children/1/children/0/children/0/children/0/children/1",
+      "component": "RecordLink",
+      "operationId": "post.get",
+      "params": {}
+    },
+    {
+      "page": "home",
+      "componentPath": "/pages/0/tree/children/1/children/1/children/0/children/0/children/1/children/1",
+      "component": "RecordLink",
+      "operationId": "post.get",
+      "params": {}
+    },
+    {
+      "page": "editorial",
+      "componentPath": "/pages/1/tree/children/2/children/0/children/0",
+      "component": "CollectionBrowser",
+      "operationId": "post.list",
+      "params": {
+        "pageSize": 8,
+        "sortFields": [
+          {
+            "field": "date",
+            "label": "発行日（新しい順）"
+          },
+          {
+            "field": "title",
+            "label": "タイトル順"
+          },
+          {
+            "field": "category",
+            "label": "カテゴリー順"
+          }
+        ],
+        "searchFields": [
+          "title",
+          "excerpt",
+          "author",
+          "category"
+        ],
+        "categoryField": "category"
+      }
+    },
+    {
+      "page": "editorial",
+      "componentPath": "/pages/1/tree/children/2/children/0/children/0/children/0/children/0/children/0/children/0",
+      "component": "SearchBox",
+      "operationId": "post.list",
+      "params": {
+        "placeholder": "論文・論考を検索…"
+      }
+    },
+    {
+      "page": "editorial",
+      "componentPath": "/pages/1/tree/children/2/children/0/children/0/children/0/children/0/children/1",
+      "component": "CategoryFilter",
+      "operationId": "post.list",
+      "params": {}
+    },
+    {
+      "page": "editorial",
+      "componentPath": "/pages/1/tree/children/2/children/0/children/0/children/0/children/0/children/2",
+      "component": "SortControl",
+      "operationId": "post.list",
+      "params": {}
+    },
+    {
+      "page": "editorial",
+      "componentPath": "/pages/1/tree/children/2/children/0/children/0/children/0/children/1/children/0",
+      "component": "ResultCount",
+      "operationId": "post.list",
+      "params": {}
+    },
+    {
+      "page": "editorial",
+      "componentPath": "/pages/1/tree/children/2/children/0/children/0/children/1/children/0/children/0/children/1",
+      "component": "RecordLink",
+      "operationId": "post.get",
+      "params": {}
+    },
+    {
+      "page": "editorial",
+      "componentPath": "/pages/1/tree/children/2/children/0/children/0/children/1/children/0/children/0/children/2/children/0",
+      "component": "RecordLink",
+      "operationId": "post.get",
+      "params": {}
+    },
+    {
+      "page": "editorial",
+      "componentPath": "/pages/1/tree/children/2/children/0/children/0/children/1/children/0/children/1/children/1",
+      "component": "RecordLink",
+      "operationId": "post.get",
+      "params": {}
+    },
+    {
+      "page": "editorial",
+      "componentPath": "/pages/1/tree/children/2/children/0/children/0/children/2/children/0",
+      "component": "Pagination",
+      "operationId": "post.list",
+      "params": {}
+    },
+    {
+      "page": "article",
+      "componentPath": "/pages/2/tree/children/1",
+      "component": "CollectionDetail",
+      "operationId": "post.get",
+      "params": {}
+    },
+    {
+      "page": "article",
+      "componentPath": "/pages/2/tree/children/2/children/0/children/1",
+      "component": "CollectionStrip",
+      "operationId": "post.listRelated",
+      "params": {
+        "limit": 3,
+        "like": "category"
+      }
+    },
+    {
+      "page": "article",
+      "componentPath": "/pages/2/tree/children/2/children/0/children/1/children/0/children/0",
+      "component": "RecordLink",
+      "operationId": "post.get",
+      "params": {}
+    }
+  ],
+  "validation": {
+    "valid": true,
+    "spec_version": "1.0",
+    "errors": [],
+    "warnings": []
+  }
+}

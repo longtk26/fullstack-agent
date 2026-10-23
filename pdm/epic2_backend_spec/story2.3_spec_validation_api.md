@@ -9,11 +9,11 @@ reproduce any generation later.
 
 ## Acceptance criteria
 
-- [ ] `POST /api/v1/specs/validate` (body: raw JSON text) → 200 with `ValidationReport`. Nothing is persisted.
+- [x] `POST /api/v1/specs/validate` (body: raw JSON text) → 200 with `ValidationReport`. Nothing is persisted.
       Used by the UI editor, debounced.
-- [ ] `POST /api/v1/specs` → 201 `{specId}` if valid. 422 with the same error envelope if invalid.
+- [x] `POST /api/v1/specs[?source=json|frontend]` → 201 `{specId, specVersion, warnings}` if valid. 422 with the same error envelope if invalid.
       Stores `raw_json` byte-for-byte plus `normalized_json` and `spec_version`.
-- [ ] `GET /api/v1/specs/{id}` returns raw and normalized versions. Scoped to the owner.
-- [ ] Error envelope matches the global `BaseException` handler format:
-      `{error: {code, message, details: [...issues]}}`.
-- [ ] Request size limit (default 1 MB) → 413.
+- [x] `GET /api/v1/specs/{id}` returns raw and normalized versions. Scoped to the owner.
+- [x] Error envelope matches the global `BaseException` handler format:
+      `{error: {code: "SPEC_INVALID", message, details: [...issues]}}`.
+- [x] Request size limit (default 1 MB, `SPEC_MAX_BYTES`) → 413 `PAYLOAD_TOO_LARGE`.

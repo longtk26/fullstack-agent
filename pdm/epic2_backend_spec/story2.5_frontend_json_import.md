@@ -24,32 +24,34 @@ backend can serve that site.
 
 ## Acceptance criteria
 
-- [ ] `POST /api/v1/spec-imports/frontend` (raw JSON, ≤ 5 MB) → 200
+- [x] `POST /api/v1/spec-imports/frontend` (raw JSON, ≤ 5 MB) → 200
       `{backendSpec, seed, assumptions[], unresolved[], bindings[], validation}`. It is **deterministic** (no LLM) and nothing is persisted
       until the user submits.
-- [ ] Entity mapping: one entity per collection. The name is the singular PascalCase of `key` (`posts` → `Post`),
+- [x] Entity mapping: one entity per collection. The name is the singular PascalCase of `key` (`posts` → `Post`),
       and the label comes from `name`. Field types are inferred across all records: ISO date → `date`/`datetime`, int/float/bool,
       string > 255 chars or multi-paragraph → `text`, otherwise `string` (+ `maxLength`), array of scalars → `json`
       array. A field is required if it is present and non-null in every record. The existing `id` becomes the string PK.
-- [ ] Operations are derived from the bindings table above, with stable operationIds (`post.list`, `post.get`,
+- [x] Operations are derived from the bindings table above, with stable operationIds (`post.list`, `post.get`,
       `post.listRelated` only if a `like` strip exists). Write operations (`create/update/delete`) are added only when
       the UI's "Include admin CRUD" toggle is on (default **on**), with an assumption entry noting that the frontend has no
       write UI.
-- [ ] `seed`: all collection records, converted to the inferred types. Image paths are kept as strings, and an assumption
+- [x] `seed`: all collection records, converted to the inferred types. Image paths are kept as strings, and an assumption
       notes that assets are not uploaded.
-- [ ] Assumptions instead of guessing (FR-07). Each of these produces an entry rather than a silent choice:
+- [x] Assumptions instead of guessing (FR-07). Each of these produces an entry rather than a silent choice:
       `category` with few distinct values (6 in the fixture; kept as an indexed `string`, enum suggested); `author` and `tags` (kept inline,
       separate `Author`/`Tag` entities suggested); a non-UUID id format.
-- [ ] `bindings[]`: `{page, componentPath, component, operationId, params}` for every data-bound component, stored in
+- [x] `bindings[]`: `{page, componentPath, component, operationId, params}` for every data-bound component, stored in
       the spec under `x-frontendBindings` and copied into the manifest (7.1) for the future Integration Agent (§11).
-- [ ] Unknown components or collection kinds → `unresolved[]`. The import still succeeds.
-- [ ] "Refine with AI" (optional): sends the deterministic draft and the site JSON to the 2.4 draft job
+- [x] Unknown components or collection kinds → `unresolved[]`. The import still succeeds.
+- [ ] *(deferred with 2.4)* "Refine with AI" (optional): sends the deterministic draft and the site JSON to the 2.4 draft job
       (`mode: frontend`). The engine may rename or normalize (e.g. `Tag` M:N) but must keep operationIds and bindings intact.
       The result is re-validated.
-- [ ] Fixture test: `revue-de-mode.json` → a snapshot of the expected spec (`Post`, `post.list` with sort `date|title|category`,
+- [x] Fixture test: `revue-de-mode.json` → a snapshot of the expected spec (`Post`, `post.list` with sort `date|title|category`,
       search `title|excerpt|author|category`, filter `category`, pageSize 8; `post.get`; `post.listRelated` by `category`; 8 seed rows) that passes 2.2.
 
 ## Technical notes
 
-- The importer lives in `modules/specs/usecases/import_frontend_spec_usecase.py` with a pure converter in `modules/specs/domain/`.
+- The importer lives in `src/modules/specs/usecases/import_frontend_spec_usecase.py` with the pure converter in `src/modules/shared/domain/frontend_site/importer.py`.
+- Styling props (`className`, `style`, `animate`, `data-*`, `aria-*`) are dropped from binding params.
+- The reviewed output for the fixture is snapshotted in `agent-api/tests/fixtures/frontend/revue-de-mode.expected.json`.
 - Site JSON is untrusted. It is parsed with size and depth limits, and strings are never interpolated into prompts outside delimiters (3.4).

@@ -8,9 +8,11 @@ mghead:
 	alembic upgrade head
 mgdown:
 	alembic downgrade -1
+schema:
+	python -m scripts.export_spec_schema
 test:
 	pytest
 lint:
 	ruff check . && ruff format --check .
 
-.PHONY: run worker newmg mghead mgdown test lint
+.PHONY: run worker newmg mghead mgdown schema test lint

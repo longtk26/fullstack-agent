@@ -2,6 +2,8 @@
 
 **Epic:** [2 — BackendSpec](epic2_backend_spec.md) · **Requirements:** FR-01, FR-07 (no invented policies) · **Depends on:** 2.3, 3.2
 
+> **Status (2026-10-23): deferred.** Needs the Claude Code adapter (3.2) and the worker queue (4.1/4.2). Implement right after them; the `spec_drafts` table already exists (1.3).
+
 ## User story
 
 As a user without a ready-made spec, I want to describe my backend in plain language and get a valid

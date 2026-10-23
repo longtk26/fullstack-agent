@@ -1,0 +1,193 @@
+{
+  "description": "Rule id reused",
+  "expect": [
+    {
+      "code": "DUPLICATE_RULE_ID",
+      "path": "/rules/1/id"
+    }
+  ],
+  "spec": {
+    "specVersion": "1.0",
+    "project": {
+      "name": "Shop"
+    },
+    "stack": {
+      "framework": "fastapi",
+      "database": "postgresql",
+      "orm": "sqlalchemy",
+      "migration": "alembic"
+    },
+    "entities": [
+      {
+        "name": "User",
+        "fields": [
+          {
+            "name": "id",
+            "type": "uuid",
+            "primary": true
+          },
+          {
+            "name": "email",
+            "type": "string",
+            "required": true,
+            "unique": true
+          },
+          {
+            "name": "role",
+            "type": "enum",
+            "values": [
+              "USER",
+              "ADMIN"
+            ],
+            "default": "USER"
+          }
+        ]
+      },
+      {
+        "name": "Order",
+        "fields": [
+          {
+            "name": "id",
+            "type": "uuid",
+            "primary": true
+          },
+          {
+            "name": "userId",
+            "type": "uuid",
+            "required": true
+          },
+          {
+            "name": "status",
+            "type": "enum",
+            "values": [
+              "NEW",
+              "PAID",
+              "SHIPPED",
+              "CANCELLED"
+            ],
+            "default": "NEW"
+          },
+          {
+            "name": "total",
+            "type": "decimal",
+            "default": 0
+          }
+        ]
+      }
+    ],
+    "relationships": [
+      {
+        "name": "userOrders",
+        "type": "one-to-many",
+        "from": "User",
+        "to": "Order"
+      }
+    ],
+    "auth": {
+      "type": "jwt",
+      "userEntity": "User",
+      "loginField": "email",
+      "roles": [
+        "USER",
+        "ADMIN"
+      ]
+    },
+    "policies": [
+      {
+        "name": "ownOrders",
+        "type": "ownership",
+        "ownerField": "userId"
+      },
+      {
+        "name": "adminOnly",
+        "type": "role",
+        "roles": [
+          "ADMIN"
+        ]
+      }
+    ],
+    "rules": [
+      {
+        "id": "order.status.flow",
+        "kind": "transition",
+        "entity": "Order",
+        "params": {
+          "field": "status",
+          "transitions": {
+            "NEW": [
+              "PAID",
+              "CANCELLED"
+            ],
+            "PAID": [
+              "SHIPPED"
+            ]
+          }
+        }
+      },
+      {
+        "id": "order.status.flow",
+        "kind": "transition",
+        "entity": "Order",
+        "params": {
+          "field": "status",
+          "transitions": {
+            "NEW": [
+              "PAID",
+              "CANCELLED"
+            ],
+            "PAID": [
+              "SHIPPED"
+            ]
+          }
+        }
+      }
+    ],
+    "operations": [
+      {
+        "operationId": "order.create",
+        "type": "crud",
+        "action": "create",
+        "entity": "Order",
+        "method": "POST",
+        "path": "/orders",
+        "auth": "jwt"
+      },
+      {
+        "operationId": "order.get",
+        "type": "crud",
+        "action": "get",
+        "entity": "Order",
+        "method": "GET",
+        "path": "/orders/{id}",
+        "policy": "ownOrders"
+      },
+      {
+        "operationId": "order.list",
+        "type": "crud",
+        "action": "list",
+        "entity": "Order",
+        "method": "GET",
+        "path": "/orders",
+        "filters": [
+          "status"
+        ],
+        "sort": [
+          "total"
+        ],
+        "policy": "ownOrders"
+      },
+      {
+        "operationId": "order.update",
+        "type": "crud",
+        "action": "update",
+        "entity": "Order",
+        "method": "PATCH",
+        "path": "/orders/{id}",
+        "policy": "ownOrders",
+        "rules": [
+          "order.status.flow"
+        ]
+      }
+    ]
+  }
+}
