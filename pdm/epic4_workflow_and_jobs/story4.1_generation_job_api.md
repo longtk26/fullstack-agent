@@ -9,15 +9,15 @@ generation never blocks my HTTP request.
 
 ## Acceptance criteria
 
-- [ ] `POST /api/v1/generations` body `{backendSpec | specId, options}` → **202** `{generationId, status: "PENDING", createdAt}`.
-  - Options (all optional): `maxRepairAttempts` (default 3, max 10), `runTests` (true), `generateDockerfile` (true),
-    `deployPreview` (true), `engine` (`claude_code|antigravity|fake`), `timeoutSeconds`.
+- [x] `POST /api/v1/generations` body `{backendSpec | specId, options}` → **202** `{generationId, status: "PENDING", createdAt}`.
+  - Options (all optional, unknown keys rejected): `maxRepairAttempts` (default 3, 0–10), `runTests` (true), `generateDockerfile` (true),
+    `deployPreview` (true), `engine` (`claude_code|antigravity|fake`, default `DEFAULT_ENGINE`), `timeoutSeconds` (60–7200).
   - `deployPreview=true` with `generateDockerfile=false` → 422 `OPTIONS_CONFLICT`.
   - An invalid inline spec is still accepted (202) and fails at `validate_spec`. The UI pre-validates through 2.3.
-- [ ] The job row is persisted, then `generationId` is pushed to the Redis list `bga:jobs`. If the push fails,
+- [x] The job row is committed, then `generationId` is pushed to the Redis list `bga:jobs` (never before the commit). If the push fails,
       the row stays PENDING and a startup sweeper re-enqueues PENDING rows older than 30 s.
-- [ ] `GET /api/v1/generations/{id}` returns the §7 "completed" shape: `status`, `currentStep`, `repairAttempts`,
+- [x] `GET /api/v1/generations/{id}` returns the §7 "completed" shape: `status`, `currentStep`, `repairAttempts`,
       `validation{syntax,lint,deps,startup,migration,conventions,tests,openapi}`, `artifacts{source,openapi,manifest,report}` (ids),
       `preview{status,url}`, `trace{langsmithUrl}`, timestamps, `error`.
-- [ ] `GET /api/v1/generations?status=&cursor=` paginated list for the owner.
-- [ ] Idempotency: an optional `Idempotency-Key` header returns the same job for repeated submits within 24 h.
+- [x] `GET /api/v1/generations?status=&cursor=&limit=` paginated list for the owner (newest first, opaque cursor); `scope=all` for admins.
+- [x] Idempotency: an optional `Idempotency-Key` header returns the same job for repeated submits within 24 h.

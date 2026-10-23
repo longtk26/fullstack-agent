@@ -61,3 +61,25 @@ def login(client):
         return response.json()["accessToken"]
 
     return _login
+
+
+@pytest.fixture
+def user_headers(login):
+    return {"Authorization": f"Bearer {login('user@test.local', 'userpass')}"}
+
+
+@pytest.fixture
+def clean_redis():
+    import asyncio
+
+    from redis.asyncio import Redis
+
+    from src.configs import config
+
+    async def flush():
+        client = Redis.from_url(config.redis_url)
+        await client.flushdb()
+        await client.aclose()
+
+    asyncio.run(flush())
+    yield

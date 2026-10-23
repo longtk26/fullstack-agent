@@ -29,6 +29,8 @@ class GenerationModel(SQLModel, table=True):
     langsmith_run_url: str | None = None
     error_summary: str | None = Field(default=None, sa_type=Text)
     cancel_requested: bool = False
+    resume_count: int = 0
+    worker_id: str | None = Field(default=None, max_length=64)
     created_at: datetime = Field(default_factory=utcnow, sa_type=TZDateTime)
     started_at: datetime | None = Field(default=None, sa_type=TZDateTime)
     finished_at: datetime | None = Field(default=None, sa_type=TZDateTime)

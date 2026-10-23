@@ -8,10 +8,9 @@ As a user, I want to cancel a running generation and be sure nothing keeps runni
 
 ## Acceptance criteria
 
-- [ ] `POST /api/v1/generations/{id}/cancel` → 202. Sets `cancel_requested` and publishes to `bga:cancel:<genId>`.
+- [x] `POST /api/v1/generations/{id}/cancel` → 202. Sets `cancel_requested` and publishes to `bga:cancel:<genId>`.
       Terminal jobs → 409 `ALREADY_FINISHED`. PENDING jobs → CANCELLED immediately and removed from the queue.
-- [ ] The worker listens and then: (1) cancels the active engine invocation (process-group kill, 3.1), (2) stops and
-      removes `sandbox-<gen>` containers and network, (3) marks the node as cancelled, (4) sets status CANCELLED,
-      (5) emits a final event.
-- [ ] The graph checks the cancel flag between nodes, so cancellation also works when no subprocess is running.
-- [ ] Test: cancel during a long FakeEngine call → no child PID left, no `sandbox-<gen>` container left, status CANCELLED within 10 s.
+- [x] The worker listens (`psubscribe bga:cancel:*`) and then: (1) cancels the active engine invocation (process-group kill, 3.1),
+      (2) marks the node as cancelled, (3) sets status CANCELLED, (4) emits a final event. Sandbox cleanup is added with 6.1.
+- [x] The graph checks the cancel flag between nodes, so cancellation also works when no subprocess is running.
+- [x] Test: cancel during a long FakeEngine call → no child PID left, no `sandbox-<gen>` container left, status CANCELLED within 10 s.

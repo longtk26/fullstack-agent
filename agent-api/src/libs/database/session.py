@@ -11,7 +11,12 @@ class DBSessionManager:
         self.engine = self.create_db_engine(config.db_url)
 
     def create_db_engine(self, db_url: str):
-        return create_engine(db_url, pool_pre_ping=True)
+        # Pre-ping + timeouts: a restarted Postgres must cost a reconnect, never a hung worker.
+        return create_engine(
+            db_url,
+            pool_pre_ping=True,
+            connect_args={"connect_timeout": 5, "keepalives": 1, "keepalives_idle": 30},
+        )
 
     def create_db_and_tables(self):
         SQLModel.metadata.create_all(self.engine)

@@ -12,3 +12,7 @@ class IBackendSpecRepository(ABC):
     @abstractmethod
     def find_by_id(self, spec_id: uuid.UUID) -> BackendSpecEntity | None:
         pass
+
+    @abstractmethod
+    def find_by_ids(self, spec_ids: list[uuid.UUID]) -> dict[uuid.UUID, BackendSpecEntity]:
+        pass

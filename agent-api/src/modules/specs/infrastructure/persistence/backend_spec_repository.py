@@ -2,6 +2,7 @@ import uuid
 from typing import Annotated
 
 from fastapi import Depends
+from sqlmodel import col, select
 
 from src.libs.database.session import SessionDep
 from src.modules.shared.domain.entities import BackendSpecEntity
@@ -23,6 +24,12 @@ class BackendSpecRepository(IBackendSpecRepository):
     def find_by_id(self, spec_id: uuid.UUID) -> BackendSpecEntity | None:
         model = self.session.get(BackendSpecModel, spec_id)
         return self.__to_entity(model) if model else None
+
+    def find_by_ids(self, spec_ids: list[uuid.UUID]) -> dict[uuid.UUID, BackendSpecEntity]:
+        if not spec_ids:
+            return {}
+        query = select(BackendSpecModel).where(col(BackendSpecModel.id).in_(spec_ids))
+        return {model.id: self.__to_entity(model) for model in self.session.exec(query)}
 
     def __to_entity(self, model: BackendSpecModel) -> BackendSpecEntity:
         return BackendSpecEntity(

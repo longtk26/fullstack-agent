@@ -8,7 +8,7 @@ from src.libs.redaction import default_redactor
 
 from .antigravity import AntigravityEngine
 from .claude_code import ClaudeCodeEngine
-from .fake_engine import FakeEngine
+from .fake_engine import FakeEngine, demo_scenario
 from .port import EngineContext, EngineHealth, ICodeEngine
 from .prompts import PromptLibrary
 from .workspace import directory_sha256
@@ -83,7 +83,7 @@ def build_engine_registry(cfg=default_config) -> EngineRegistry:
         ),
     ]
     if cfg.enable_fake_engine:
-        engines.append(FakeEngine(allowed_root=root))
+        engines.append(FakeEngine(allowed_root=root, scenario=demo_scenario(cfg.fake_engine_delay_seconds)))
     return EngineRegistry(engines, default=cfg.default_engine)
 
 

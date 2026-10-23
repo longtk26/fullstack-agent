@@ -13,6 +13,7 @@ x-agent-env: &agent-env
   WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
   DEFAULT_ENGINE: ${DEFAULT_ENGINE:-claude_code}
   ENABLE_FAKE_ENGINE: ${ENABLE_FAKE_ENGINE:-true}
+  FAKE_ENGINE_DELAY_SECONDS: ${FAKE_ENGINE_DELAY_SECONDS:-0.3}
   ENGINE_TIMEOUT_SECONDS: ${ENGINE_TIMEOUT_SECONDS:-900}
   ENGINE_MAX_TURNS: ${ENGINE_MAX_TURNS:-40}
   ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
@@ -28,6 +29,7 @@ x-agent-env: &agent-env
 services:
   postgres:
     image: postgres:18
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-bga}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bga}
@@ -44,6 +46,7 @@ services:
 
   redis:
     image: redis:7-alpine
+    restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - redisdata:/data
@@ -55,6 +58,7 @@ services:
     networks: [bga-net]
 
   agent-api:
+    restart: unless-stopped
     build:
       context: ./agent-api
       target: api
@@ -73,6 +77,7 @@ services:
     networks: [bga-net]
 
   agent-worker:
+    restart: unless-stopped
     build:
       context: ./agent-api
       target: worker
@@ -96,6 +101,7 @@ services:
     networks: [bga-net]
 
   agent-ui:
+    restart: unless-stopped
     build:
       context: ./agent-ui
     environment:

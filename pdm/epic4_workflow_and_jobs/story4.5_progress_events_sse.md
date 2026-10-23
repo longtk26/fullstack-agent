@@ -9,12 +9,13 @@ missed, so that I can follow a long generation.
 
 ## Acceptance criteria
 
-- [ ] Event types: `status.changed`, `step.started`, `step.finished`, `engine.event` (tool use and message summaries
-      from 3.x, throttled), `engine.usage`, `validation.check`, `repair.attempt`, `artifact.created`,
-      `preview.status`, `log` (non-sensitive), `heartbeat`.
-- [ ] Every event is `{id, ts, generationId, type, step?, status?, payload}`. It is persisted to `generation_events`
+- [x] Event types so far: `status.changed`, `job.started`, `job.resumed`, `job.requeued`, `step.started`, `step.finished`,
+      `engine.started`, `engine.event`, `engine.finished` (status, usage, changed files), `engine.retry`, `spec.invalid`,
+      `validation.check`, `repair.attempt`, `cancel.requested`. `artifact.created` / `preview.status` arrive with Epic 7;
+      SSE keep-alive pings replace a `heartbeat` event.
+- [x] Every event is `{id, ts, generationId, type, step?, status?, payload}`. It is persisted to `generation_events`
       first, then published on Redis `bga:events:<genId>`.
-- [ ] `GET /api/v1/generations/{id}/events` (SSE) replays from the `Last-Event-ID` header (or `?after=`), then
+- [x] `GET /api/v1/generations/{id}/events` (SSE) replays from the `Last-Event-ID` header (or `?after=`), then
       tails live. Heartbeat every 15 s. The stream closes after a terminal status and the final event.
-- [ ] Payloads pass through the redactor (8.1). Raw stdout is never streamed, only summaries plus refs.
-- [ ] Per-job event cap (default 5,000). `engine.event` is sampled beyond the cap.
+- [x] Payloads pass through the redactor (8.1). Raw stdout is never streamed, only summaries plus refs.
+- [x] Per-job event cap (`EVENTS_CAP`, default 5,000). Beyond it only every 20th `engine.event` is stored; other types always are.

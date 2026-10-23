@@ -27,8 +27,15 @@ until Epics 5–6 land.
            └── repair_code
 ```
 
-Status mapping: `validate_spec … generate_tests` → `RUNNING`, `run_validation` → `VALIDATING`,
-`repair_code` → `REPAIRING`.
+Status mapping: `validate_spec … generate_tests` and `package_artifacts` → `RUNNING`, `run_validation` → `VALIDATING`,
+`repair_code` → `REPAIRING`. Final status is set by the runner from the graph's `outcome`.
+
+**Status (2026-10-23):** done on `feat/epic4-workflow-jobs`; all three epic acceptance checks verified on the Docker
+stack (fake engine: full run with one repair; worker SIGKILLed mid-`generate_backend` → reaper requeue → resumed from
+the Postgres checkpoint without re-running finished nodes; API restart mid-job has no effect).
+Placeholders until later epics: `plan_architecture` uses a skeleton plan (5.1), `run_validation` only checks syntax
+statically and reports the other checks `not_run` (6.1/6.2), `package_artifacts` produces no artifacts yet (7.1).
+Code: `agent-api/src/orchestrator/`, `agent-api/src/modules/generations/`, `agent-api/src/libs/queue/`.
 
 ## Stories
 
@@ -43,7 +50,7 @@ Status mapping: `validate_spec … generate_tests` → `RUNNING`, `run_validatio
 
 ## Epic acceptance
 
-- With `engine=fake`, a submitted spec goes PENDING → RUNNING → VALIDATING → REPAIRING → VALIDATING → COMPLETED,
+- With `engine=fake`, a submitted spec goes PENDING → RUNNING → VALIDATING → REPAIRING → VALIDATING → RUNNING → COMPLETED,
   and every transition appears on the SSE stream.
 - Killing the worker container mid-job and restarting it resumes from the last checkpoint without re-running completed nodes.
 - `docker compose restart agent-api` does not affect running jobs.

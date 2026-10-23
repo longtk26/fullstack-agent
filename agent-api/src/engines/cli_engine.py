@@ -85,10 +85,8 @@ class CliEngine(ICodeEngine):
         pass
 
     async def cancel(self, invocation_id: str) -> bool:
-        event = self._cancels.get(invocation_id)
-        if event is None:
-            return False
-        event.set()
+        # setdefault, not get: a cancel that lands just before run() registers the invocation must not be lost.
+        self._cancels.setdefault(invocation_id, asyncio.Event()).set()
         return True
 
     async def run(self, request: EngineRequest, on_event: OnEngineEvent | None = None) -> EngineResult:

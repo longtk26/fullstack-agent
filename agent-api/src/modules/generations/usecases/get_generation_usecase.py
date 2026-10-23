@@ -1,0 +1,53 @@
+from typing import Annotated
+
+from fastapi import Depends
+from pydantic import BaseModel
+
+from src.libs.exceptions import NotFoundException
+from src.libs.security import ensure_owner
+from src.modules.generations.ports.output import IExecutionRecordRepoDep, IGenerationRepoDep
+from src.modules.shared.domain.entities import GenerationEntity, NodeRunEntity, UserEntity
+from src.modules.specs.ports.output import IBackendSpecRepoDep
+
+
+class GenerationDetail(BaseModel):
+    generation: GenerationEntity
+    project_name: str | None
+    validation: dict[str, str]
+    steps: list[NodeRunEntity]
+
+
+class GetGenerationUsecase:
+    def __init__(
+        self,
+        generation_repo: IGenerationRepoDep,
+        records: IExecutionRecordRepoDep,
+        spec_repo: IBackendSpecRepoDep,
+    ):
+        self.generation_repo = generation_repo
+        self.records = records
+        self.spec_repo = spec_repo
+
+    def load(self, generation_id: str, user: UserEntity) -> GenerationEntity:
+        generation = self.generation_repo.find_by_id(generation_id)
+        if generation is None:
+            raise NotFoundException("Generation not found")
+        ensure_owner(generation.owner_id, user.id, user.is_admin, resource="Generation")
+        return generation
+
+    async def execute(self, generation_id: str, user: UserEntity) -> GenerationDetail:
+        generation = self.load(generation_id, user)
+        validation: dict[str, str] = {}
+        for run in self.records.list_validation_runs(generation_id):  # oldest first, so the latest attempt wins
+            validation[run.check] = run.status
+        spec = self.spec_repo.find_by_id(generation.spec_id)
+        project = ((spec.normalized_json or {}).get("project") or {}) if spec else {}
+        return GenerationDetail(
+            generation=generation,
+            project_name=project.get("name"),
+            validation=validation,
+            steps=self.records.list_node_runs(generation_id),
+        )
+
+
+GetGenerationUsecaseDep = Annotated[GetGenerationUsecase, Depends(GetGenerationUsecase)]

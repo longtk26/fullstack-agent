@@ -29,6 +29,7 @@ class Config(BaseSettings):
 
     default_engine: str = "claude_code"
     enable_fake_engine: bool = True
+    fake_engine_delay_seconds: float = 0.3
     engine_timeout_seconds: int = 900
     engine_max_turns: int = 40
     engine_max_output_bytes: int = 20_000_000
@@ -47,6 +48,16 @@ class Config(BaseSettings):
     google_application_credentials: str | None = None
 
     workspace_root: str = "/tmp/bga/workspaces"
+    workspace_max_mb: int = 500
+    workspace_retention_hours: int = 72
+
+    job_timeout_seconds: int = 1800
+    worker_lease_ttl_seconds: int = 30
+    worker_max_resumes: int = 2
+    worker_shutdown_grace_seconds: int = 60
+    reaper_interval_seconds: int = 60
+    events_cap: int = 5000
+    checkpoint_schema: str = "langgraph"
     worker_concurrency: int = 2
     worker_heartbeat_file: str = "/tmp/bga-worker.heartbeat"
     worker_heartbeat_seconds: int = 10

@@ -28,18 +28,61 @@ class FakeStep(BaseModel):
     copy_from: Path | None = None
     delete: list[str] = []
     sleep_s: float = 0
+    crash: bool = False
     status: EngineStatus = EngineStatus.OK
     error_reason: EngineErrorReason | None = None
     message: str = "Done."
 
 
-DEFAULT_SCENARIO = {"*": [FakeStep(write={"FAKE_ENGINE.md": "Written by the fake engine.\n"})]}
+class SimulatedCrash(BaseException):
+    """Escapes normal error handling, like a worker dying mid-step (for recovery tests)."""
+
+
+_ROUTER = "src/modules/demo/presenter/router.py"
+
+
+def demo_scenario(delay_s: float = 0.3) -> dict[str, list[FakeStep]]:
+    """Walks the whole workflow including one repair: the first router is broken on purpose."""
+    return {
+        "generate_database": [
+            FakeStep(
+                sleep_s=delay_s,
+                write={
+                    "src/modules/shared/domain/entities/demo_entity.py": (
+                        "from pydantic import BaseModel\n\n\nclass DemoEntity(BaseModel):\n    name: str\n"
+                    )
+                },
+            )
+        ],
+        "generate_backend": [
+            FakeStep(
+                sleep_s=delay_s,
+                write={_ROUTER: "from fastapi import APIRouter\n\ndemo_router = APIRouter(\n\ndef broken(:\n"},
+            )
+        ],
+        "generate_tests": [
+            FakeStep(sleep_s=delay_s, write={"tests/test_demo.py": "def test_demo():\n    assert True\n"})
+        ],
+        "repair_code": [
+            FakeStep(
+                sleep_s=delay_s,
+                write={_ROUTER: 'from fastapi import APIRouter\n\ndemo_router = APIRouter(prefix="/demo")\n'},
+                message="Fixed the syntax error in the demo router.",
+            )
+        ],
+        "*": [FakeStep(write={"FAKE_ENGINE.md": "Written by the fake engine.\n"})],
+    }
+
+
+DEMO_SCENARIO = demo_scenario()
+DEFAULT_SCENARIO = DEMO_SCENARIO
 
 
 class FakeEngine(ICodeEngine):
     """Deterministic engine for tests and UI work: replays FakeSteps per purpose, never calls a model.
 
-    Each call for a purpose consumes the next step; the last step repeats. Purpose "*" is the fallback.
+    Calls are counted per (workspace, purpose): the n-th call gets the n-th step and the last step repeats,
+    so concurrent jobs never consume each other's script. Purpose "*" is the fallback.
     """
 
     name = "fake"
@@ -48,6 +91,7 @@ class FakeEngine(ICodeEngine):
         self.allowed_root = allowed_root
         self.scenario = {purpose: list(steps) for purpose, steps in (scenario or DEFAULT_SCENARIO).items()}
         self.calls: list[EngineRequest] = []
+        self._counts: dict[tuple[str, str], int] = {}
         self._cancels: dict[str, asyncio.Event] = {}
 
     async def health(self) -> EngineHealth:
@@ -58,21 +102,24 @@ class FakeEngine(ICodeEngine):
         write_managed_section(workdir / "CLAUDE.md", context.conventions)
 
     async def cancel(self, invocation_id: str) -> bool:
-        event = self._cancels.get(invocation_id)
-        if event is None:
-            return False
-        event.set()
+        # setdefault, not get: a cancel that lands just before run() registers the invocation must not be lost.
+        self._cancels.setdefault(invocation_id, asyncio.Event()).set()
         return True
 
-    def _next_step(self, purpose: str) -> FakeStep:
+    def _next_step(self, workdir: Path, purpose: str) -> FakeStep:
         steps = self.scenario.get(purpose) or self.scenario.get("*") or [FakeStep()]
-        return steps.pop(0) if len(steps) > 1 else steps[0]
+        key = (str(workdir), purpose)
+        index = self._counts.get(key, 0)
+        self._counts[key] = index + 1
+        return steps[min(index, len(steps) - 1)]
 
     async def run(self, request: EngineRequest, on_event: OnEngineEvent | None = None) -> EngineResult:
         workdir = ensure_inside(request.workdir, self.allowed_root)
         ensure_inside(request.state_dir, self.allowed_root)
         self.calls.append(request)
-        step = self._next_step(request.purpose)
+        step = self._next_step(workdir, request.purpose)
+        if step.crash:
+            raise SimulatedCrash(f"simulated crash during {request.purpose}")
         started = time.monotonic()
         before = snapshot(workdir)
 

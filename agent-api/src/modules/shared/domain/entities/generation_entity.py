@@ -20,6 +20,8 @@ class GenerationEntity(BaseModel):
     langsmith_run_url: str | None = None
     error_summary: str | None = None
     cancel_requested: bool = False
+    resume_count: int = 0
+    worker_id: str | None = None
     created_at: datetime | None = None
     started_at: datetime | None = None
     finished_at: datetime | None = None

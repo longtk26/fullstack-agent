@@ -97,7 +97,14 @@ class SubprocessRunner:
         waiters = {asyncio.create_task(process.wait()): "exit", asyncio.create_task(stop.wait()): "stop"}
         if cancel is not None:
             waiters[asyncio.create_task(cancel.wait())] = "cancel"
-        done, pending = await asyncio.wait(waiters, timeout=spec.timeout_s, return_when=asyncio.FIRST_COMPLETED)
+        try:
+            done, pending = await asyncio.wait(waiters, timeout=spec.timeout_s, return_when=asyncio.FIRST_COMPLETED)
+        except asyncio.CancelledError:
+            # The caller's task was cancelled (shutdown, job timeout): never leave the CLI running.
+            for task in [*waiters, *pumps]:
+                task.cancel()
+            await asyncio.shield(self._kill_group(process))
+            raise
         reasons = {waiters[task] for task in done}
         for task in pending:
             task.cancel()
