@@ -1,4 +1,4 @@
-# Backend Generation Agent
+# Fullstack Generation Agent
 
 Turns a requirement, a Frontend-Agent site JSON, or a BackendSpec JSON into a tested FastAPI backend, then runs
 it as its own container. Requirements: [requirements.md](requirements.md) · Backlog: [pdm/](pdm/README.md)

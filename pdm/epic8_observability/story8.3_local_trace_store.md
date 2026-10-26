@@ -9,7 +9,7 @@ As a UI user, I want to see the trace waterfall inside the agent UI, whether or 
 ## Acceptance criteria
 
 - [ ] `GET /api/v1/generations/{id}/trace` → span tree built from `node_runs`, `cli_invocations`, `validation_runs`
-      and repair records: `[{spanId, parentId, kind: node|engine|tool|check|sandbox, name, status, startedAt,
+      and repair records: `[{spanId, parentId, kind: lane|node|engine|llm|tool|check|sandbox, name, status, startedAt,
       endedAt, durationMs, attrs{tokens,cost,exitCode,attempt,...}, refs{stdout,stderr,patch}}]`.
 - [ ] `GET /api/v1/generations/{id}/trace/spans/{spanId}/output?stream=stdout|stderr&tail=500` → redacted
       text excerpt from the ref (size-capped).

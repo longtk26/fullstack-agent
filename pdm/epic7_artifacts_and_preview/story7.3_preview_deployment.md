@@ -21,4 +21,7 @@ so that I can call it immediately from Postman, a frontend, or the UI's API expl
 - [ ] `previews` row and `preview.status` events. `GET /api/v1/generations/{id}` includes
       `preview: {status, url: "http://localhost:<port>", openapiUrl, docsUrl}`.
 - [ ] `GET /api/v1/generations/{id}/preview/logs?tail=200` (redacted).
+- [ ] `GET /api/v1/generations/{id}/preview/requests?after=<cursor>`: structured request log of the backend
+      preview (method, path, matched `operationId`, status, duration, timestamp), parsed from its access log, for
+      the App tab's Network panel (9.9). Bodies are not recorded.
 - [ ] Previews bind to `127.0.0.1` only by default (`PREVIEW_BIND_HOST`), because they are local-only and never exposed publicly.

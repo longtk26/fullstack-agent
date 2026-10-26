@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Backend Generation Agent",
+  title: "Fullstack Generation Agent",
   description: "Generate, validate and preview FastAPI backends from BackendSpec JSON",
 };
 

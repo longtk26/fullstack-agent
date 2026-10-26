@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
-This is the **Backend Generation Agent** API + worker, built on the `feat/fastapi` template
+This is the **Fullstack Generation Agent** API + worker, built on the `feat/fastapi` template
 (see `templates/template.lock`). From the repo root, prefer `make dev`, `make dev-api`, `make dev-worker`,
 `make migrate`, `make test` — they point at the dev Postgres 18 / Redis ports from `.env`.
 

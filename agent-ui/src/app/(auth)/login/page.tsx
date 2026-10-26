@@ -9,7 +9,7 @@ export default function LoginPage() {
       <Card className="w-full max-w-sm">
         <CardHeader>
           <Boxes className="size-6 text-primary" />
-          <CardTitle>Backend Generation Agent</CardTitle>
+          <CardTitle>Fullstack Generation Agent</CardTitle>
           <CardDescription>Sign in with a seeded local account.</CardDescription>
         </CardHeader>
         <CardContent>

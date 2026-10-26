@@ -18,7 +18,7 @@ export function AppShell({ children }: AppShellProps) {
         <Stack gap="lg" className="sticky top-0 p-4">
           <Link href="/generations" className="flex items-center gap-2 font-semibold">
             <Boxes className="size-5 text-primary" />
-            <span>Backend Gen Agent</span>
+            <span>Fullstack Gen Agent</span>
           </Link>
           <Separator />
           <Suspense fallback={<NavLinks pathname={null} />}>

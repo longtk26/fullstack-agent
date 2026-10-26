@@ -1,8 +1,19 @@
-# AI Backend Generation Agent — Requirements Specification
+# AI Fullstack Generation Agent — Requirements Specification
 
-**Version:** 1.1  
+**Version:** 1.2  
 **Status:** Approved for MVP — backlog in [`pdm/`](pdm/README.md)  
 **Priority:** High
+
+**Changes in 1.2 (2026-10-26):**
+- Frontend generation is in scope. The user picks a **generation mode**: backend API only, **static website**
+  (frontend only), or **dynamic web app** (frontend + backend generated **in parallel** from one API contract).
+- New **FrontendSpec** JSON (pages, theme, layout, components, data bindings, forms, content), drafted from a
+  requirement and reviewed in the UI before generation.
+- Generated frontends follow the project's `nextjs-skills` (Next.js App Router, pnpm, shadcn/ui, design tokens,
+  React Query, Zustand, RHF + Zod), exactly as generated backends follow `fastapi-skills`.
+- In dynamic mode the frontend runs on a mock API generated from the contract (`MOCK_TEST_API=true`) and switches
+  to the real backend (`MOCK_TEST_API=false`) once the backend is generated and healthy.
+- New requirements FR-21 … FR-27; FR-18 (UI) extended. Backlog: Epics 12–14, Stories 9.7–9.8.
 
 **Changes in 1.1 (2026-10-23):**
 - Code generation goes through a pluggable engine: Claude Code CLI (default) and Antigravity CLI.
@@ -16,13 +27,16 @@
 
 ### 1.1 Objective
 
-Develop an AI-powered Backend Generation Agent capable of automatically generating complete, executable FastAPI backend applications based on structured JSON specifications.
+Develop an AI-powered Fullstack Generation Agent (formerly Backend Generation Agent) capable of automatically generating complete, executable FastAPI backend applications based on structured JSON specifications.
 
 The agent must use LangGraph to orchestrate the generation workflow and a pluggable code-generation engine — Claude Code CLI (default) or Antigravity CLI — to generate, modify, and repair source code.
 
 LangSmith will provide observability, tracing, and evaluation of the agent's execution.
 
 The generated backend must be independent of the frontend and expose machine-readable API contracts that a separate Integration Agent can consume.
+
+Since v1.2 the agent can also generate the frontend: a static website, or a dynamic web app whose frontend and
+backend are generated in parallel from a shared API contract (FR-21 … FR-27).
 
 ### 1.2 Goals
 
@@ -36,11 +50,13 @@ The generated backend must be independent of the frontend and expose machine-rea
 - Produce standardized artifacts for future frontend/backend integration.
 - Run each successfully generated backend as its own local container so clients can call it immediately.
 - Provide a web UI to submit inputs, watch the workflow, inspect traces and results, and test the generated API.
+- Generate Next.js frontends (`nextjs-skills`) from a FrontendSpec: static sites, or dynamic apps generated in
+  parallel with their backend and connected to it through a contract-first API, mocks first, then the live API.
 
 ### 1.3 Out of Scope — Initial MVP
 
-- Frontend code generation.
-- Direct frontend/backend integration.
+- Frontend frameworks other than Next.js (frontend generation itself is in scope since v1.2).
+- Integrating with arbitrary existing frontends or backends (only the pairs this agent generates).
 - Automatic production deployment (local preview containers only; see FR-19).
 - GraphQL generation.
 - Microservices architecture generation.
@@ -74,6 +90,10 @@ The generated backend must be independent of the frontend and expose machine-rea
 | Generated Validation | Pydantic v2 |
 | Generated Tests | Pytest |
 | Code Quality | Ruff + `fastapi-skills` conventions check |
+| Generated Frontend | Next.js (App Router) from `nextjs-skills`: pnpm, shadcn/ui, design tokens, React Query, Zustand, RHF + Zod |
+| API Contract | OpenAPI 3.1, generated deterministically from the BackendSpec plan (dynamic mode) |
+| Frontend API Client / Mocks | `openapi-typescript` types + typed fetch client; MSW handlers and example data from the contract |
+| Frontend Tests | TypeScript check, ESLint, `next build`, Vitest, Playwright smoke tests (Node sandbox) |
 
 The agent service and generated applications are separate projects. A generated application's Python dependencies and runtime environment must not be shared with the agent service.
 
@@ -81,7 +101,7 @@ The agent service and generated applications are separate projects. A generated 
 
 ## 3. High-Level Architecture
 
-The system consists of seven primary components.
+The system consists of nine primary components.
 
 ### 3.1 Backend Generation API
 
@@ -153,7 +173,18 @@ Responsible for building each successfully generated backend into an image and r
 
 ### 3.7 Agent UI
 
-A Next.js application for submitting inputs, following progress, inspecting traces and results, and testing the generated API (FR-18).
+A Next.js application for choosing the generation mode, submitting inputs, reviewing specs, following progress, inspecting traces and results, and testing the generated API (FR-18).
+
+### 3.8 Frontend Lane
+
+Plans and generates a Next.js frontend from a FrontendSpec on the `nextjs-skills` foundation (pinned base +
+overlay, skill installed in the workspace for the engine), validates it in a Node sandbox, repairs failures, and
+runs it as a preview container (FR-25, FR-26).
+
+### 3.9 Contract & Integration
+
+Derives the API contract before generation in dynamic mode, runs the frontend and backend lanes in parallel,
+then checks the backend and switches the frontend from the mock API to the live backend (FR-23, FR-27).
 
 ---
 
@@ -439,6 +470,11 @@ Tracing must capture, where available:
 - CLI invocation duration.
 - CLI execution status.
 - CLI-reported token usage and costs.
+- Every model call inside a CLI session that the CLI reports in its structured output (model, tokens by kind,
+  latency where available, cost reported or estimated from a configurable price table and labelled as estimated).
+- Per-node, per-lane and per-generation rollups of wall time, engine time, sandbox time, model calls, tokens and
+  cost, viewable in the Agent UI (Trace tab per generation, Usage & traces page across generations) with or
+  without LangSmith.
 - Validation results.
 - Repair attempts.
 - Errors.
@@ -513,7 +549,7 @@ Source code must be packaged as a ZIP archive.
 
 A future Integration Agent will connect generated backends to frontend applications.
 
-The Backend Generation Agent must expose sufficient metadata to support that integration without requiring the frontend agent to inspect all source files.
+The Fullstack Generation Agent must expose sufficient metadata to support that integration without requiring the frontend agent to inspect all source files.
 
 The manifest must contain:
 
@@ -540,6 +576,13 @@ The system must provide a web UI that supports:
 - A trace view (nodes, engine invocations, tool uses, validation checks) with a link to LangSmith.
 - Validation results, artifact downloads, manifest and source browsing.
 - An OpenAPI explorer that sends test requests to the generated backend's preview container.
+- A first step that asks which **mode** to generate: static website, dynamic web app, or backend API only (FR-21).
+- FrontendSpec editing and review: page count and routes, theme (colours, fonts, radius, light/dark), the
+  component catalogue, and the operations each page uses (FR-22).
+- A parallel view of the frontend and backend lanes, the frontend preview with a Mock API / Live API badge, and
+  controls to re-check the backend or switch back to mocks (FR-27).
+- An **App** view where the user uses the generated web app itself (embedded frontend preview talking to the live
+  generated backend), with device sizes, a page jumper, and panels showing the backend calls and resulting data.
 
 Authentication tokens must be kept in httpOnly cookies, never in browser storage.
 
@@ -562,6 +605,72 @@ The system must convert a Frontend-Agent site JSON (`collections` + `pages`) int
 - A component → operationId bindings list kept for the manifest.
 
 An optional engine-assisted refinement may improve the draft but must keep operationIds and bindings intact.
+
+
+### FR-21: Generation Modes
+
+The user must choose one mode per generation:
+
+- `backend` — backend API only (FR-01 … FR-20, unchanged; the default for API clients).
+- `static` — frontend only, content baked in, no backend and no contract.
+- `dynamic` — frontend and backend generated in parallel from one API contract.
+
+A generation has an overall status and one status per lane (`frontend`, `backend`, `integration`). In dynamic
+mode a failed backend lane leaves the frontend usable on mocks and the overall status is
+`COMPLETED_WITH_WARNINGS`; a failed frontend lane fails the generation.
+
+### FR-22: FrontendSpec
+
+A versioned FrontendSpec JSON must describe the frontend to generate:
+
+- `project` (name, mode, locales), `theme` (preset, colour tokens, typography, radius, light/dark, density),
+  `layout` (shell, header, navigation, footer).
+- `pages` (id, route, title, purpose, SEO, sections). Each section names a component and either static `content`
+  or a `data` binding to a contract `operationId`, with loading, empty and error states.
+- `components` (the catalogue used, with the shadcn primitives each relies on), `forms` (fields, validation,
+  target operation, success behaviour), `content` and `assets` for static data.
+
+It must be validated structurally and semantically (unique routes, known components and pages, static mode
+without bindings) and exposed as a JSON Schema for editors.
+
+### FR-23: API Contract
+
+In dynamic mode the system must derive an OpenAPI 3.1 contract deterministically from the BackendSpec plan before
+generation starts (operations, operationIds, request/response schemas, list and error envelopes, examples from
+seed data). Every FrontendSpec binding must exist in the contract (consistency check before any engine call). The
+generated backend must conform to the contract; neither lane may change it.
+
+### FR-24: Requirement Drafting for Frontend
+
+From a natural-language requirement and a mode, the system must draft a FrontendSpec (and in dynamic mode the
+matching BackendSpec), listing assumptions and unresolved questions for the user to acknowledge. The page list
+must cover every user-visible feature of the requirement.
+
+### FR-25: Frontend Generation
+
+The system must generate a Next.js frontend on the `nextjs-skills` foundation:
+
+- a pinned base project plus overlay (providers, layout primitives, runtime config, test setup, Dockerfile),
+  with the skill installed in the workspace so the engine follows it;
+- theme tokens from the FrontendSpec, one route per page, composite components with companion hooks, forms
+  with RHF + Zod;
+- in dynamic mode, a typed API client and a mock layer generated from the contract — no other network access;
+- validation in an isolated Node sandbox (install, type check, lint, `nextjs-skills` conventions, build, route
+  coverage, tests) with the same bounded repair loop as the backend.
+
+### FR-26: Frontend Preview and Artifacts
+
+A generated frontend must be downloadable (ZIP, FrontendSpec, plan, report) and run as a local preview container
+(static: web server for the export; dynamic: Node server), bound to `127.0.0.1`.
+
+### FR-27: Parallel Generation and Live-API Switch
+
+In dynamic mode the frontend and backend lanes must run concurrently. The frontend starts with
+`MOCK_TEST_API=true`. When the frontend lane finishes, the system must check the backend (lane COMPLETED,
+preview `/health` OK, OpenAPI matching the contract) and, if healthy, restart the frontend preview with
+`MOCK_TEST_API=false` and `API_BASE_URL` set to the backend preview, then run live smoke tests (every page
+renders, data-bound sections show backend data, forms submit). If the backend is not healthy, the frontend stays
+on mocks with the reason recorded, and the user can re-check later.
 
 ---
 
@@ -838,6 +947,14 @@ Artifact names are identifiers resolved through authenticated artifact APIs, not
 - Natural-language requirement drafting and Frontend site JSON import.
 - Better automated evaluation.
 
+### Phase 6 — Frontend Generation (v1.2)
+
+- Generation modes (static, dynamic, backend) and per-lane statuses.
+- FrontendSpec schema, validation and requirement drafting.
+- Contract-first OpenAPI and frontend ↔ contract consistency check.
+- Next.js frontend generation on `nextjs-skills`, Node sandbox validation, frontend preview.
+- Parallel lanes, `MOCK_TEST_API` switch to the live backend, live smoke tests.
+
 ---
 
 ## 10. MVP Definition of Done
@@ -865,6 +982,11 @@ The MVP is complete when the following scenario works end to end:
 13. The generated backend can be started independently using its documented setup commands.
 14. The generated backend is running as a preview container and answers a CRUD round trip.
 15. All of the above can be done from the Agent UI.
+
+**Frontend extension (v1.2):** given a requirement for a small site with data (e.g. a shop catalogue), choosing
+*Dynamic web app* drafts a FrontendSpec and BackendSpec, generates both in parallel, the frontend preview first
+shows mock data and then the backend's data after the automatic `MOCK_TEST_API` switch; choosing *Static
+website* for a brochure site produces a themed static site with the planned pages and no backend.
 
 **Success criterion:** At least 90% of a defined benchmark set of valid, in-scope CRUD specifications must produce backends that pass all required automated checks without manual code changes. This is an initial project target, not a claimed current capability.
 
@@ -900,7 +1022,7 @@ Its responsibilities will include:
 
 The Integration Agent must not silently change backend API contracts without coordinating the required regeneration or explicit contract updates.
 
-This agent is not part of the Backend Generation Agent MVP.
+This agent is not part of the Fullstack Generation Agent MVP.
 
 ---
 
@@ -908,7 +1030,7 @@ This agent is not part of the Backend Generation Agent MVP.
 
 The project must provide:
 
-1. A functioning Python/FastAPI Backend Generation Agent service.
+1. A functioning Python/FastAPI Fullstack Generation Agent service.
 2. A versioned BackendSpec schema with validation.
 3. A LangGraph workflow supporting generation, validation, and repair.
 4. Reusable code engine adapters (Claude Code CLI, Antigravity CLI).
@@ -922,4 +1044,6 @@ The project must provide:
 12. Automated tests for the generation service itself.
 13. An Agent UI and local preview containers for generated backends.
 14. A Docker Compose setup that runs the whole system locally.
+15. A versioned FrontendSpec schema, contract-first OpenAPI generation, and generated Next.js frontends
+    (static and dynamic) with preview containers and the mock-to-live API switch.
 

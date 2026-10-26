@@ -1,7 +1,7 @@
 name: bga
 
 x-agent-env: &agent-env
-  APP_NAME: Backend Generation Agent
+  APP_NAME: Fullstack Generation Agent
   LOG_LEVEL: ${LOG_LEVEL:-INFO}
   DB_URL: postgresql+psycopg://${POSTGRES_USER:-bga}:${POSTGRES_PASSWORD:-bga}@postgres:5432/${POSTGRES_DB:-agent}
   REDIS_URL: redis://redis:6379/0
@@ -24,7 +24,7 @@ x-agent-env: &agent-env
   GEMINI_API_KEY: ${GEMINI_API_KEY:-}
   LANGSMITH_TRACING: ${LANGSMITH_TRACING:-false}
   LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
-  LANGSMITH_PROJECT: ${LANGSMITH_PROJECT:-backend-generation-agent}
+  LANGSMITH_PROJECT: ${LANGSMITH_PROJECT:-fullstack-generation-agent}
 
 services:
   postgres:

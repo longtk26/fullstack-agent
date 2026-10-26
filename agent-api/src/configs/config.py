@@ -7,7 +7,7 @@ EXAMPLE_JWT_SECRET = "change-me-to-a-long-random-string"
 
 
 class Config(BaseSettings):
-    app_name: str = "Backend Generation Agent"
+    app_name: str = "Fullstack Generation Agent"
     port: int = 8000
     log_level: str = "INFO"
 
