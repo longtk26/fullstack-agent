@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-from sqlmodel import Session
+from sqlmodel import Session, col, update
 
 from src.configs import config
 from src.engines import EngineRegistry
@@ -19,6 +19,19 @@ from src.orchestrator.workspace import WorkspaceManager
 from workflow_helpers import build_runner, events, generation, redis_client, submit
 
 pytestmark = pytest.mark.usefixtures("clean_redis")
+
+
+@pytest.fixture(autouse=True)
+def settle_other_generations():
+    """Other test modules leave PENDING generations behind; after 30 s the reaper would re-enqueue them into these
+    tests' queue. Cancel them so each test sees only its own jobs."""
+    with Session(db_session_manager.engine) as session:
+        session.exec(
+            update(GenerationModel)
+            .where(col(GenerationModel.status).in_(["PENDING", "RUNNING", "VALIDATING", "REPAIRING"]))
+            .values(status="CANCELLED")
+        )
+        session.commit()
 
 
 def _service(root: Path, redis, engine=None, worker_id="w-test") -> WorkerService:

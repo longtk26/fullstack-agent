@@ -13,6 +13,7 @@ from src.libs.exceptions.handlers import (
     rate_limit_exception_handler,
     validation_exception_handler,
 )
+from src.libs.middlewares import AccessLogMiddleware
 from src.libs.rate_limit import limiter
 from src.routers import all_router
 
@@ -35,6 +36,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(AccessLogMiddleware)
 app.add_exception_handler(BaseException, base_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.add_exception_handler(RateLimitExceeded, rate_limit_exception_handler)

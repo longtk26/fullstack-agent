@@ -22,6 +22,12 @@ x-agent-env: &agent-env
   ANTIGRAVITY_AUTH: ${ANTIGRAVITY_AUTH:-gemini_api_key}
   ANTIGRAVITY_MODEL: ${ANTIGRAVITY_MODEL:-}
   GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+  ARTIFACT_ROOT: /data/artifacts
+  PREVIEW_ENABLED: ${PREVIEW_ENABLED:-true}
+  PREVIEW_PORT_RANGE: ${PREVIEW_PORT_RANGE:-18000-18099}
+  PREVIEW_CORS_ORIGINS: http://localhost:${BGA_UI_PORT:-3100}
+  PREVIEW_MAX_RUNNING: ${PREVIEW_MAX_RUNNING:-3}
+  PREVIEW_TTL_HOURS: ${PREVIEW_TTL_HOURS:-2}
   LANGSMITH_TRACING: ${LANGSMITH_TRACING:-false}
   LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
   LANGSMITH_PROJECT: ${LANGSMITH_PROJECT:-fullstack-generation-agent}
@@ -63,6 +69,8 @@ services:
       context: ./agent-api
       target: api
     environment: *agent-env
+    volumes:
+      - artifacts:/data/artifacts:ro
     ports:
       - "127.0.0.1:${BGA_API_PORT:-8100}:8000"
     depends_on:
@@ -86,6 +94,7 @@ services:
     environment: *agent-env
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - artifacts:/data/artifacts
       # Same absolute path inside and outside, so sibling sandbox containers can bind-mount job workspaces.
       - ${HOST_WORKSPACE_ROOT}:${HOST_WORKSPACE_ROOT}
       # Optional Claude subscription login instead of ANTHROPIC_API_KEY (/dev/null = not configured).
@@ -123,6 +132,7 @@ services:
 volumes:
   pgdata:
   redisdata:
+  artifacts:
 
 networks:
   bga-net:

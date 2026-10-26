@@ -95,8 +95,9 @@ workflow to be built before real generation works.
 | Epic | State |
 |---|---|
 | 1, 2 (2.1–2.3, 2.5), 3, 4, 5, 6 (6.1–6.2) | done (merged to `main`); 6.3 repair loop works on real failures |
-| 9 | 9.1–9.3 done; 9.4–9.10 open |
-| 2.4, 7, 8, 10, 11, 12, 13, 14 | open |
+| 7 | done on `feat/epic7-artifacts-preview` (artifacts, artifact API, preview containers, lifecycle); in review |
+| 9 | 9.1–9.3 done; 9.4–9.10 open (9.5/9.6 can start: the artifact and preview APIs exist) |
+| 2.4, 8, 10, 11, 12, 13, 14 | open |
 
 ## Decisions (2026-10-23 review)
 

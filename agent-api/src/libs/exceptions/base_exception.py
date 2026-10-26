@@ -53,6 +53,13 @@ class UnprocessableEntityException(BaseException):
         super().__init__(status_code=HTTPStatus.UNPROCESSABLE_ENTITY, detail=detail, code=code, details=details)
 
 
+class ServiceUnavailableException(BaseException):
+    def __init__(
+        self, detail: Any = "Service unavailable", code: ErrorCode = ErrorCode.WORKER_UNAVAILABLE, details: Any = None
+    ):
+        super().__init__(status_code=HTTPStatus.SERVICE_UNAVAILABLE, detail=detail, code=code, details=details)
+
+
 class InternalServerErrorException(BaseException):
     def __init__(
         self, detail: Any = "Internal server error", code: ErrorCode = ErrorCode.INTERNAL_ERROR, details: Any = None

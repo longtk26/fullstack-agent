@@ -23,6 +23,7 @@ test-only flag, add it here and mark it at its definition.
 | Invalid / base specs | `agent-api/tests/fixtures/specs/` | One invalid spec per validator error code. |
 | Plan snapshots | `agent-api/tests/fixtures/plans/*.plan.json` | Expected planner output; refresh deliberately with `UPDATE_SNAPSHOTS=1`. |
 | Frontend site snapshot | `agent-api/tests/fixtures/frontend/` | Importer regression input. |
+| Fake preview runtime | `agent-api/tests/preview_fakes.py` (`FakePreviewRuntime`) | In-memory stand-in for `DockerPreviewRuntime` so the preview lifecycle (start, limits, TTL, reconcile, commands) is tested without Docker. The real containers are covered by `tests/sandbox/test_preview_docker.py`. |
 
 `examples/` (repo root) is **not** test-only: the UI serves it for "Load example" / "Load sample". The golden
 project above is written against `examples/specs/two-entity.json`, so change both together.
@@ -32,13 +33,13 @@ project above is written against `examples/specs/two-entity.json`, so change bot
 | What | Where | Note |
 |---|---|---|
 | Seeded users | `SEED_USERS` in `.env.example` (`admin@bga.local`, `user@bga.local`) | Created at API startup for local login. Replace or empty it for any shared deployment. |
-| Test databases | `tests/conftest.py` | Uses `<DB>_test`, Redis db 15, a fixed JWT secret and in-memory rate limits. |
+| Test databases | `tests/conftest.py` | Uses `<DB>_test`, Redis db 15, a fixed JWT secret, in-memory rate limits, a temporary `ARTIFACT_ROOT` and a 1 s `PREVIEW_COMMAND_TIMEOUT_SECONDS`. |
 
 ## Opt-in test suites and flags
 
 | Flag | Effect |
 |---|---|
-| `BGA_SANDBOX_TESTS=1` | Runs `tests/sandbox/` against the real Docker sandbox (needs Docker and `make runner`). Workspaces go under `.data/test-sandbox/` because Docker Desktop only shares configured paths. |
+| `BGA_SANDBOX_TESTS=1` | Runs `tests/sandbox/` against the real Docker sandbox (needs Docker and `make runner`), including a real preview container built from `backend.zip` (needs network for its `pip install`). Workspaces go under `.data/test-sandbox/` because Docker Desktop only shares configured paths. |
 | `BGA_KEEP_SANDBOX_DIRS=1` | Keeps those sandbox workspaces for inspection. |
 | `BGA_LIVE_ENGINE_TESTS=1` | Runs `tests/live/` with the real CLIs (costs money, needs credentials). |
 | `UPDATE_SNAPSHOTS=1` | Rewrites the plan snapshots. |

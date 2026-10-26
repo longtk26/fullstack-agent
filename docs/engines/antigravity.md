@@ -45,10 +45,19 @@ Spec: `examples/specs/two-entity.json` (2 models, 10 operations). Limits at the 
 | `generate_database` | ok in 310 s (Claude Code: ~41 s); migration upgrade/check/downgrade passed; schema matches the plan |
 | `generate_backend` | **failed** after 400 s: `limit_exceeded (max_turns)`; it had written one repository port + implementation. ~2.9 M input / 132 k output tokens |
 
+Second run with the per-engine limits (150 turns, 2400 s):
+
+| Step | Result |
+|---|---|
+| `generate_database` | ok in 314 s |
+| `generate_backend` | **ok**: both modules, 47 files, 15.5 min |
+| `generate_tests` | failed: `cli_error (rate_limit)`: "Individual quota reached … Resets in 167h" (account quota, after ~8.6 M input / 271 k output tokens for the run) |
+
 Takeaways: auth, skills and the permission rules work headless; agy is slower and explores more than Claude Code,
 and the shared 40-turn cap was too small for it, hence the per-engine limits above. Cost is not reported by agy.
 
 ## To do before relying on it
 
-1. Re-run a full generation with the per-engine limits (account login on the host, or `GEMINI_API_KEY` in `make up`).
+1. Finish a full generation (tests + validation) once the account quota resets, or with `GEMINI_API_KEY`. A full
+   two-entity run costs roughly 9 M input tokens on agy, which a consumer account quota may not cover.
 2. Confirm no self-update happens inside the worker image.

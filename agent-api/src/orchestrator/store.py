@@ -7,14 +7,22 @@ from typing import Any, TypeVar
 from sqlmodel import Session
 
 from src.libs.database import db_session_manager
-from src.modules.generations.infrastructure.persistence import ExecutionRecordRepository, GenerationRepository
+from src.modules.generations.infrastructure.persistence import (
+    ArtifactRepository,
+    ExecutionRecordRepository,
+    GenerationRepository,
+)
+from src.modules.previews.infrastructure.persistence import PreviewRepository
 from src.modules.shared.domain.entities import (
+    ArtifactEntity,
     BackendSpecEntity,
     CliInvocationEntity,
     GenerationEntity,
     NodeRunEntity,
+    PreviewEntity,
     ValidationRunEntity,
 )
+from src.modules.shared.domain.enums import PreviewStatus
 from src.modules.specs.infrastructure.persistence import BackendSpecRepository
 
 T = TypeVar("T")
@@ -70,3 +78,39 @@ class JobStore:
 
     def add_validation_run(self, run: ValidationRunEntity) -> None:
         self._with(lambda s: ExecutionRecordRepository(s).add_validation_run(run))
+
+    def node_runs(self, generation_id: str) -> list[NodeRunEntity]:
+        return self._with(lambda s: ExecutionRecordRepository(s).list_node_runs(generation_id))
+
+    def validation_runs(self, generation_id: str) -> list[ValidationRunEntity]:
+        return self._with(lambda s: ExecutionRecordRepository(s).list_validation_runs(generation_id))
+
+    def cli_invocations(self, generation_id: str) -> list[CliInvocationEntity]:
+        return self._with(lambda s: ExecutionRecordRepository(s).list_cli_invocations(generation_id))
+
+    # -- artifacts (Story 7.1) ----------------------------------------------------------------------------------
+
+    def replace_artifacts(self, generation_id: str, artifacts: list[ArtifactEntity]) -> None:
+        self._with(lambda s: ArtifactRepository(s).replace_for_generation(generation_id, artifacts))
+
+    def artifacts(self, generation_id: str) -> list[ArtifactEntity]:
+        return self._with(lambda s: ArtifactRepository(s).list_for_generation(generation_id))
+
+    def artifact_by_name(self, generation_id: str, name: str) -> ArtifactEntity | None:
+        return self._with(lambda s: ArtifactRepository(s).find_by_name(generation_id, name))
+
+    # -- previews (Stories 7.3, 7.4) ----------------------------------------------------------------------------
+
+    def preview(self, generation_id: str) -> PreviewEntity | None:
+        return self._with(lambda s: PreviewRepository(s).find(generation_id))
+
+    def upsert_preview(self, generation_id: str, **fields: Any) -> PreviewEntity:
+        return self._with(lambda s: PreviewRepository(s).upsert(generation_id, **fields))
+
+    def delete_preview(self, generation_id: str) -> None:
+        self._with(lambda s: PreviewRepository(s).delete(generation_id))
+
+    def previews(self, statuses: tuple[PreviewStatus, ...] | None = None) -> list[PreviewEntity]:
+        if statuses is None:
+            return self._with(lambda s: PreviewRepository(s).list_all())
+        return self._with(lambda s: PreviewRepository(s).list_by_status(statuses))

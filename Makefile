@@ -22,7 +22,8 @@ DEV_ENV := DB_URL=postgresql+psycopg://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@loc
            WORKER_HEARTBEAT_FILE=$(CURDIR)/.data/worker.heartbeat \
            ENGINE_SKILLS_DIR=$(CURDIR)/.agents/skills \
            CLAUDE_CREDENTIALS_FILE=$(CLAUDE_CREDENTIALS_HOST_FILE) \
-           TEMPLATE_DIR=$(TEMPLATE_DIR)
+           TEMPLATE_DIR=$(TEMPLATE_DIR) \
+           ARTIFACT_ROOT=$(CURDIR)/.data/artifacts
 
 .PHONY: env up down down-all ps logs dev dev-down dev-api dev-worker dev-ui setup migrate test lint template runner
 
@@ -47,11 +48,20 @@ template:
 	  rm -rf $(TEMPLATE_DIR) && git clone -q --branch "$$branch" "$$repo" $(TEMPLATE_DIR) && \
 	  git -C $(TEMPLATE_DIR) checkout -q "$$commit" && echo "template $$commit ready"; fi
 
+# Preview containers are not part of the compose project: `down` stops them (they keep their data and come back
+# with `start`), `down-all` removes every bga.* container, network, volume and image, previews included.
 down:
 	$(COMPOSE) down
+	@docker ps -q --filter label=bga.preview | xargs -r docker stop >/dev/null
 
 down-all:
 	$(COMPOSE) down -v --remove-orphans
+	@docker ps -aq --filter label=bga.preview | xargs -r docker rm -f >/dev/null
+	@docker ps -aq --filter label=bga.sandbox | xargs -r docker rm -f >/dev/null
+	@docker network ls -q --filter label=bga.preview | xargs -r docker network rm >/dev/null
+	@docker network ls -q --filter label=bga.sandbox | xargs -r docker network rm >/dev/null
+	@docker volume ls -q --filter name=bga-preview-db- | xargs -r docker volume rm >/dev/null
+	@docker images -q --filter label=bga.preview | xargs -r docker rmi -f >/dev/null
 
 ps:
 	$(COMPOSE) ps

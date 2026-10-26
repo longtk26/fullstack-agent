@@ -1,5 +1,5 @@
 {
-  "version": "1",
+  "version": "2",
   "templateCommit": "69e0231b2018e174bf7d2c1332f86dada2492645",
   "replace": {
     ".env.ex": "4c82012e1241e10dd4ef11f619a6688b653d22eb2404fb73b3b7f41014123b1e",
@@ -30,6 +30,8 @@
     "scripts/__init__.py",
     "scripts/seed.py",
     "src/libs/exceptions/handlers.py",
+    "src/libs/middlewares/__init__.py",
+    "src/libs/middlewares/access_log.py",
     "src/libs/rate_limit/__init__.py",
     "src/libs/rate_limit/limiter.py",
     "tests/conftest.py",

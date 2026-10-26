@@ -3,13 +3,15 @@ from pathlib import Path
 
 from src.configs import config
 from src.engines import PromptLibrary, build_engine_context, get_engine_registry
-from src.libs.queue import JobQueue
+from src.libs.queue import JobQueue, PreviewCommandBus
 from src.libs.redaction import default_redactor
 from src.libs.redis import get_redis
 from src.modules.generations.infrastructure.adapters import EventPublisher
+from src.preview.docker_preview import DockerPreviewRuntime
 from src.sandbox import DockerSandboxProvider
 
 from .checkpointer import postgres_checkpointer
+from .previews import PreviewService
 from .runner import JobRunner
 from .store import JobStore
 from .validation import SandboxValidationRunner, StaticValidationRunner
@@ -27,6 +29,11 @@ async def build_worker_service(worker_id: str | None = None):
     workspaces = WorkspaceManager(Path(config.workspace_root), config.workspace_max_mb)
     worker_id = worker_id or default_worker_id()
     sandboxes = DockerSandboxProvider() if config.sandbox_enabled else None
+    previews = (
+        PreviewService(DockerPreviewRuntime(), store, events, PreviewCommandBus(redis))
+        if config.preview_enabled
+        else None
+    )
     async with postgres_checkpointer() as checkpointer:
         runner = JobRunner(
             registry=registry,
@@ -40,5 +47,8 @@ async def build_worker_service(worker_id: str | None = None):
             worker_id=worker_id,
             sandboxes=sandboxes,
             template_dir=Path(config.template_dir),
+            on_completed=previews.request_start if previews else None,
         )
-        yield WorkerService(runner, JobQueue(redis), store, events, redis, registry, workspaces, worker_id)
+        yield WorkerService(
+            runner, JobQueue(redis), store, events, redis, registry, workspaces, worker_id, previews=previews
+        )

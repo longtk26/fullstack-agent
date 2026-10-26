@@ -1,4 +1,6 @@
 from .generation_dto import (
+    ArtifactDto,
+    ArtifactListDto,
     CancelGenerationResponseDto,
     CreateGenerationRequestDto,
     CreateGenerationResponseDto,
@@ -12,6 +14,8 @@ from .generation_dto import (
 )
 
 __all__ = [
+    "ArtifactDto",
+    "ArtifactListDto",
     "CancelGenerationResponseDto",
     "CreateGenerationRequestDto",
     "CreateGenerationResponseDto",

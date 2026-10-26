@@ -1,4 +1,5 @@
 import asyncio
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -10,6 +11,7 @@ from src.sandbox import ISandboxProvider, SandboxError
 
 from .context import EngineFailure, JobCancelled, JobContext
 from .graph import build_graph
+from .nodes import write_artifacts
 from .scaffold import TemplateDrift
 from .state import GenerationState, Outcome
 from .store import JobStore
@@ -36,6 +38,7 @@ class JobRunner:
         worker_id: str,
         sandboxes: ISandboxProvider | None = None,
         template_dir: Path | None = None,
+        on_completed: Callable[[str], Awaitable[None]] | None = None,
     ):
         self.registry = registry
         self.checkpointer = checkpointer
@@ -48,6 +51,7 @@ class JobRunner:
         self.worker_id = worker_id
         self.sandboxes = sandboxes
         self.template_dir = template_dir
+        self.on_completed = on_completed  # e.g. deploy the preview (Story 7.3); never affects the job status
         self.active: dict[str, JobContext] = {}
 
     async def cancel(self, generation_id: str) -> bool:
@@ -170,6 +174,11 @@ class JobRunner:
     async def _finish(
         self, ctx: JobContext, status: GenerationStatus, error: str | None, code: str | None = None
     ) -> GenerationStatus:
+        if status == GenerationStatus.FAILED:
+            try:
+                await write_artifacts(ctx, {}, completed=False, error=error)
+            except Exception:  # diagnostics are best effort; the failure itself must still be recorded
+                logger.exception("diagnostic packaging failed", extra={"generation_id": ctx.generation_id})
         await ctx.set_status(
             status,
             payload={"errorCode": code, "errorSummary": error},
@@ -177,6 +186,12 @@ class JobRunner:
             finished_at=datetime.now(UTC),
         )
         logger.info("generation finished", extra={"generation_id": ctx.generation_id, "status": status, "code": code})
+        generation = self.store.generation(ctx.generation_id)
+        if status == GenerationStatus.COMPLETED and self.on_completed and generation.options.get("deployPreview", True):
+            try:
+                await self.on_completed(ctx.generation_id)
+            except Exception:
+                logger.exception("preview request failed", extra={"generation_id": ctx.generation_id})
         return status
 
     async def _fail_early(self, generation_id: str, code: str, message: str) -> GenerationStatus:

@@ -1,4 +1,5 @@
 import os
+import tempfile
 from pathlib import Path
 
 import psycopg
@@ -20,6 +21,8 @@ os.environ.setdefault("TEMPLATE_DIR", str(Path(__file__).parents[2] / ".data" / 
 os.environ["DEFAULT_ENGINE"] = "claude_code"
 os.environ["ANTIGRAVITY_AUTH"] = "gemini_api_key"
 os.environ["SANDBOX_ENABLED"] = "false"  # sandbox tests opt in with BGA_SANDBOX_TESTS=1
+os.environ["ARTIFACT_ROOT"] = tempfile.mkdtemp(prefix="bga-test-artifacts-")
+os.environ["PREVIEW_COMMAND_TIMEOUT_SECONDS"] = "1"
 
 
 def _recreate_test_database() -> None:

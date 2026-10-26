@@ -52,17 +52,25 @@ def directory_sha256(directory: Path) -> str:
     return digest.hexdigest()
 
 
+_BEGIN, _END = f"<!-- BEGIN {_SECTION} -->", f"<!-- END {_SECTION} -->"
+_MANAGED = re.compile(re.escape(_BEGIN) + r".*?" + re.escape(_END) + r"\n?", re.DOTALL)
+
+
 def write_managed_section(path: Path, body: str) -> None:
     """Adds or replaces our section in a context file, leaving the rest (e.g. the template's CLAUDE.md) intact."""
-    begin, end = f"<!-- BEGIN {_SECTION} -->", f"<!-- END {_SECTION} -->"
-    block = f"{begin}\n{body.strip()}\n{end}\n"
+    block = f"{_BEGIN}\n{body.strip()}\n{_END}\n"
     existing = path.read_text() if path.exists() else ""
-    pattern = re.compile(re.escape(begin) + r".*?" + re.escape(end) + r"\n?", re.DOTALL)
-    if pattern.search(existing):
-        updated = pattern.sub(lambda _: block, existing)
+    if _MANAGED.search(existing):
+        updated = _MANAGED.sub(lambda _: block, existing)
     else:
         updated = f"{existing.rstrip()}\n\n{block}" if existing.strip() else block
     path.write_text(updated)
+
+
+def strip_managed_section(text: str) -> str:
+    """The context file without our section (what a packaged project ships)."""
+    stripped = _MANAGED.sub("", text).rstrip()
+    return stripped + "\n" if stripped else ""
 
 
 def remove_path(path: Path) -> None:

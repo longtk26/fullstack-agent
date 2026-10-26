@@ -1,8 +1,9 @@
+from .artifact_repository import IArtifactRepository
 from .execution_record_repository import IExecutionRecordRepository
 from .generation_event_repository import IGenerationEventRepository
 from .generation_repository import IGenerationRepository
 
-_DEPS = {"IGenerationRepoDep", "IGenerationEventRepoDep", "IExecutionRecordRepoDep"}
+_DEPS = {"IArtifactRepoDep", "IGenerationRepoDep", "IGenerationEventRepoDep", "IExecutionRecordRepoDep"}
 
 
 def __getattr__(name: str):
@@ -15,6 +16,8 @@ def __getattr__(name: str):
 
 
 __all__ = [
+    "IArtifactRepository",
+    "IArtifactRepoDep",
     "IExecutionRecordRepository",
     "IGenerationEventRepository",
     "IGenerationRepository",

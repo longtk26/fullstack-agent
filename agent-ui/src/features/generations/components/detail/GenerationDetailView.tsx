@@ -82,7 +82,7 @@ export function GenerationDetailView({ id }: GenerationDetailViewProps) {
             <ComingSoonPanel
               icon={FileCode2}
               title="Artifacts and source browser"
-              description="ZIP download, manifest and the generated source arrive with packaging (Epic 7, Story 9.5)."
+              description="ZIP download, manifest and the generated source browser arrive with Story 9.5 (the API is ready)."
             />
           </Stack>
         </TabsContent>
@@ -90,7 +90,7 @@ export function GenerationDetailView({ id }: GenerationDetailViewProps) {
           <ComingSoonPanel
             icon={PlugZap}
             title="OpenAPI explorer"
-            description="Try-it calls against the running preview container arrive with Epic 7 (Story 9.6)."
+            description="Try-it calls against the running preview container arrive with Story 9.6 (the preview API is ready)."
           />
         </TabsContent>
       </Tabs>

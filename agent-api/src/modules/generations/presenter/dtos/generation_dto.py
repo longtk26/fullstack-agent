@@ -5,6 +5,8 @@ from typing import TYPE_CHECKING, Any, Literal
 from pydantic import ConfigDict, Field, model_validator
 
 from src.libs.dtos import CamelModel
+from src.modules.previews.presenter.dtos import PreviewDto
+from src.modules.shared.domain.entities import ArtifactEntity
 from src.modules.shared.domain.enums import GenerationStatus
 
 if TYPE_CHECKING:
@@ -72,6 +74,32 @@ class UsageTotalsDto(CamelModel):
     cost_usd: float
 
 
+class ArtifactDto(CamelModel):
+    artifact_id: str
+    kind: str
+    name: str
+    size: int
+    sha256: str
+    content_type: str
+    created_at: datetime | None
+
+    @classmethod
+    def from_entity(cls, artifact: ArtifactEntity) -> "ArtifactDto":
+        return cls(
+            artifact_id=artifact.id,
+            kind=artifact.kind,
+            name=artifact.name,
+            size=artifact.size,
+            sha256=artifact.sha256,
+            content_type=artifact.content_type,
+            created_at=artifact.created_at,
+        )
+
+
+class ArtifactListDto(CamelModel):
+    items: list[ArtifactDto]
+
+
 class GenerationDetailDto(CamelModel):
     generation_id: str
     spec_id: str
@@ -86,8 +114,8 @@ class GenerationDetailDto(CamelModel):
     validation: dict[str, str]
     steps: list[StepDto]
     usage: UsageTotalsDto
-    artifacts: dict[str, str]
-    preview: dict[str, Any] | None
+    artifacts: list[ArtifactDto]
+    preview: PreviewDto | None
     trace: dict[str, Any]
     error: str | None
     created_at: datetime | None
@@ -131,8 +159,8 @@ class GenerationDetailDto(CamelModel):
                 output_tokens=sum(i.output_tokens or 0 for i in detail.invocations),
                 cost_usd=round(sum(i.cost_usd or 0.0 for i in detail.invocations), 6),
             ),
-            artifacts={},
-            preview=None,
+            artifacts=[ArtifactDto.from_entity(a) for a in detail.artifacts],
+            preview=PreviewDto.from_entity(detail.preview) if detail.preview else None,
             trace={"traceId": generation.trace_id, "langsmithUrl": generation.langsmith_run_url},
             error=generation.error_summary,
             created_at=generation.created_at,

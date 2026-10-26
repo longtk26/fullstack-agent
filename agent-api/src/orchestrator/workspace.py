@@ -73,6 +73,16 @@ class WorkspaceManager:
         self._git(workspace, "reset", "-q", "--hard", sha)
         self._git(workspace, "clean", "-q", "-fdx")
 
+    def repair_patches(self, workspace: JobWorkspace) -> list[tuple[str, str]]:
+        """(name, diff) per `node:repair_code` commit, oldest first: what each repair attempt changed."""
+        log = self._git(workspace, "log", "--reverse", "--format=%H %s", "--grep=^node:repair_code ")
+        patches = []
+        for line in log.splitlines():
+            sha, _, subject = line.partition(" ")
+            attempt = subject.rsplit("attempt:", 1)[-1]
+            patches.append((f"repair-{attempt}.patch", self._git(workspace, "show", "--format=", "--binary", sha)))
+        return patches
+
     def check_size(self, workspace: JobWorkspace) -> int:
         size = sum(
             path.stat().st_size

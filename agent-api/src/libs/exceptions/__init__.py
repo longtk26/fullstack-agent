@@ -6,6 +6,7 @@ from .base_exception import (
     InternalServerErrorException,
     NotFoundException,
     PayloadTooLargeException,
+    ServiceUnavailableException,
     UnauthorizedException,
     UnprocessableEntityException,
 )
@@ -21,6 +22,7 @@ __all__ = [
     "ConflictException",
     "InternalServerErrorException",
     "PayloadTooLargeException",
+    "ServiceUnavailableException",
     "UnprocessableEntityException",
     "ErrorCode",
     "register_exception_handlers",

@@ -18,6 +18,9 @@ class Redactor:
     def __init__(self, secrets: Iterable[str | None] = ()):
         self._secrets = sorted({s for s in secrets if s and len(s) >= 8}, key=len, reverse=True)
 
+    def with_secrets(self, *secrets: str | None) -> "Redactor":
+        return Redactor([*self._secrets, *secrets])
+
     def redact(self, text: str) -> str:
         for secret in self._secrets:
             text = text.replace(secret, MASK)

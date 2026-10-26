@@ -11,7 +11,7 @@ from sqlmodel import Session, select
 
 from src.configs import config
 from src.engines import EngineContext, EngineRegistry, PromptLibrary
-from src.engines.fake_engine import FakeEngine
+from src.engines.fake_engine import FakeEngine, demo_scenario
 from src.libs.database import db_session_manager
 from src.libs.redaction import Redactor
 from src.libs.redis import redis_from_url
@@ -43,6 +43,7 @@ def build_runner(
     validator=None,
     sandboxes=None,
     engine_context=None,
+    on_completed=None,
 ):
     engine = engine or FakeEngine(allowed_root=root)
     store = JobStore()
@@ -57,6 +58,7 @@ def build_runner(
         engine_context=engine_context or EngineContext(conventions="rules"),
         worker_id=worker_id,
         sandboxes=sandboxes,
+        on_completed=on_completed,
     )
 
 
@@ -75,6 +77,15 @@ def run_job(root: Path, generation_id: str, **kwargs):
             return await runner.run(generation_id)
 
     return asyncio.run(go())
+
+
+def completed_generation(client, root: Path, **options) -> str:
+    """A COMPLETED fake generation (demo scenario without step delays) owned by user@test.local."""
+    login = client.post("/api/v1/auth/login", json={"email": "user@test.local", "password": "userpass"})
+    headers = {"Authorization": f"Bearer {login.json()['accessToken']}"}
+    generation_id = submit(client, headers, **options)
+    assert run_job(root, generation_id, engine=FakeEngine(root, demo_scenario(0))) == "COMPLETED"
+    return generation_id
 
 
 def submit(client, headers, spec=None, **options) -> str:

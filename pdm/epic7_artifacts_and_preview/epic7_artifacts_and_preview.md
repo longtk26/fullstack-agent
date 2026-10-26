@@ -11,10 +11,10 @@ long-running Docker container** that clients and the UI's API explorer can call.
 ## Preview topology
 
 ```
- host :18000-18099 ──▶ preview-<gen>  (image bga-gen-<gen>:latest built from the generated Dockerfile)
-                         │  env: DB_URL, JWT_SECRET (random per preview), CORS_ORIGINS=http://localhost:3000, SEED_FILE
-                         ▼  network bga-previews-<gen>
-                       preview-db-<gen>  postgres:18, named volume (kept until preview is deleted)
+ host 127.0.0.1:18000-18099 ──▶ bga-preview-<gen>  (image bga-gen-<gen>:latest built from backend.zip)
+                         │  env: DB_URL, JWT_SECRET (derived per preview), CORS_ORIGINS=<UI origin>, SEED_FILE
+                         ▼  network bga-preview-net-<gen>
+                       bga-preview-db-<gen>  postgres:18, volume bga-preview-db-<gen> (kept until the preview is deleted)
 ```
 
 ## Stories
@@ -29,5 +29,8 @@ long-running Docker container** that clients and the UI's API explorer can call.
 ## Epic acceptance
 
 - After COMPLETED: `backend.zip`, `openapi.json`, `manifest.json` and `report.json` are downloadable, and
-  `curl http://localhost:<port>/api/v1/tasks` works against the running preview container.
+  `curl http://localhost:<port>/tasks` works against the running preview container (routes use the spec's paths).
 - Unzipping `backend.zip` and following its README starts the backend on its own (DoD §10 step 13).
+
+**Status (2026-10-26):** all four stories done; acceptance verified on `make up` with the fake engine (see 7.3 and
+7.4). The ZIP-starts-on-its-own check is covered by every preview, whose image is built from `backend.zip` alone.

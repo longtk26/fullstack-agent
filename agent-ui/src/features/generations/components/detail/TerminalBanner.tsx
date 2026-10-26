@@ -38,7 +38,7 @@ export function TerminalBanner({ detail, events, onOpenTab }: TerminalBannerProp
         <AlertTitle>Generation failed{code ? ` · ${code}` : ""}</AlertTitle>
         <AlertDescription>
           <p>{detail.error ?? "No error summary was recorded."}</p>
-          <p className="text-xs">The diagnostic report download arrives with the artifacts epic (Story 7.2).</p>
+          <p className="text-xs">Diagnostics (report, patches, logs) are available through the artifacts API; their download in the UI arrives with Story 9.5.</p>
         </AlertDescription>
       </Alert>
     );

@@ -13,6 +13,7 @@ from src.libs.queue import CANCEL_PREFIX, JobQueue
 from src.modules.generations.infrastructure.adapters import EventPublisher
 from src.modules.shared.domain.enums import GenerationStatus
 
+from .previews import PreviewService
 from .runner import JobRunner
 from .store import JobStore
 from .workspace import WorkspaceManager
@@ -43,6 +44,7 @@ class WorkerService:
         workspaces: WorkspaceManager,
         worker_id: str,
         concurrency: int = config.worker_concurrency,
+        previews: PreviewService | None = None,
     ):
         self.runner = runner
         self.queue = queue
@@ -53,7 +55,9 @@ class WorkerService:
         self.workspaces = workspaces
         self.worker_id = worker_id
         self.concurrency = concurrency
+        self.previews = previews
         self.tasks: dict[str, asyncio.Task] = {}
+        self.preview_tasks: set[asyncio.Task] = set()
         self._shutting_down = False
 
     async def run(self, stop: asyncio.Event) -> None:
@@ -66,6 +70,8 @@ class WorkerService:
             asyncio.create_task(self._cancel_listener()),
             asyncio.create_task(self._periodic(stop)),
         ]
+        if self.previews is not None:
+            background.append(asyncio.create_task(self._preview_commands(stop)))
         try:
             await self._consume(stop)
         finally:
@@ -157,10 +163,27 @@ class WorkerService:
             finally:
                 await pubsub.aclose()
 
+    async def _preview_commands(self, stop: asyncio.Event) -> None:
+        """Preview commands from the API (start, stop, logs, …); each runs as its own task."""
+        backoff = 0.5
+        while not stop.is_set():
+            try:
+                command = await self.previews.bus.next(timeout_s=1)
+                backoff = 0.5
+            except TRANSIENT_ERRORS as exc:
+                logger.warning("preview command queue unavailable", extra={"error": str(exc)})
+                await _sleep_or_stop(stop, backoff)
+                backoff = min(backoff * 2, MAX_BACKOFF_S)
+                continue
+            if command is not None:
+                task = asyncio.create_task(self.previews.handle(command))
+                self.preview_tasks.add(task)
+                task.add_done_callback(self.preview_tasks.discard)
+
     async def _periodic(self, stop: asyncio.Event) -> None:
         heartbeat_file = Path(config.worker_heartbeat_file)
         health_store = EngineHealthStore(self.redis)
-        last_health = last_reap = 0.0
+        last_health = last_reap = last_reconcile = 0.0
         while not stop.is_set():
             heartbeat_file.touch()
             now = time.monotonic()
@@ -172,7 +195,12 @@ class WorkerService:
                     await self.reap()
                     self.cleanup_workspaces()
                     await self.cleanup_sandboxes()
+                    if self.previews is not None:
+                        await self.previews.expire()
                     last_reap = now
+                if self.previews is not None and now - last_reconcile >= config.preview_reconcile_seconds:
+                    await self.previews.reconcile()
+                    last_reconcile = now
             except Exception:  # housekeeping must never take the worker down
                 logger.exception("worker housekeeping failed")
             try:

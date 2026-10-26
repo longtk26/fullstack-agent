@@ -1,10 +1,13 @@
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Header, Query, status
+from fastapi.responses import FileResponse
 from sse_starlette import EventSourceResponse
 
 from src.modules.auth.presenter import CurrentUserDep
 from src.modules.generations.presenter.dtos import (
+    ArtifactDto,
+    ArtifactListDto,
     CancelGenerationResponseDto,
     CreateGenerationRequestDto,
     CreateGenerationResponseDto,
@@ -13,6 +16,8 @@ from src.modules.generations.presenter.dtos import (
     GenerationSummaryDto,
 )
 from src.modules.generations.usecases import (
+    ArtifactUsecaseDep,
+    BrowseFilesUsecaseDep,
     CancelGenerationUsecaseDep,
     CreateGenerationUsecaseDep,
     GetGenerationUsecaseDep,
@@ -101,3 +106,26 @@ async def stream_generation_events(
 ) -> EventSourceResponse:
     start = int(last_event_id) if last_event_id and last_event_id.isdigit() else (after or 0)
     return EventSourceResponse(await usecase.execute(generation_id, user, start), ping=15)
+
+
+@generation_router.get("/{generation_id}/artifacts", response_model=ArtifactListDto)
+async def list_artifacts(generation_id: str, user: CurrentUserDep, usecase: ArtifactUsecaseDep) -> ArtifactListDto:
+    return ArtifactListDto(items=[ArtifactDto.from_entity(a) for a in await usecase.list(generation_id, user)])
+
+
+@generation_router.get("/{generation_id}/artifacts/{artifact_id}", response_class=FileResponse)
+async def download_artifact(
+    generation_id: str, artifact_id: str, user: CurrentUserDep, usecase: ArtifactUsecaseDep
+) -> FileResponse:
+    artifact, path = await usecase.file(generation_id, artifact_id, user)
+    return FileResponse(path, media_type=artifact.content_type, filename=artifact.name)
+
+
+@generation_router.get("/{generation_id}/files", response_model=dict[str, Any])
+async def browse_files(
+    generation_id: str,
+    user: CurrentUserDep,
+    usecase: BrowseFilesUsecaseDep,
+    path: Annotated[str, Query(max_length=512)] = "",
+) -> dict[str, Any]:
+    return await usecase.execute(generation_id, user, path)

@@ -66,6 +66,26 @@ class Config(BaseSettings):
     sandbox_output_bytes: int = 2_000_000
     sandbox_egress_network: str = "bga-sbx-egress"
 
+    generator_version: str = "0.7.0"
+    # Shared by worker (writes) and API (downloads); outlives workspaces.
+    artifact_root: str = "/tmp/bga/artifacts"
+
+    # Preview containers (Epic 7): each COMPLETED backend runs as its own container, local-only.
+    preview_enabled: bool = True
+    preview_port_range: str = "18000-18099"
+    preview_bind_host: str = "127.0.0.1"
+    preview_public_host: str = "localhost"
+    preview_cors_origins: str = "http://localhost:3100"
+    preview_max_running: int = 3
+    preview_evict: bool = True
+    preview_ttl_hours: float = 2
+    preview_cpus: float = 1.0
+    preview_memory: str = "512m"
+    preview_build_timeout_seconds: int = 600
+    preview_health_timeout_seconds: int = 60
+    preview_reconcile_seconds: int = 300
+    preview_command_timeout_seconds: float = 8  # API waiting for the worker (logs); below the Redis socket timeout
+
     job_timeout_seconds: int = 1800
     worker_lease_ttl_seconds: int = 30
     worker_max_resumes: int = 2
@@ -89,6 +109,11 @@ class Config(BaseSettings):
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+    @property
+    def preview_ports(self) -> range:
+        low, _, high = self.preview_port_range.partition("-")
+        return range(int(low), int(high or low) + 1)
 
 
 config = Config()

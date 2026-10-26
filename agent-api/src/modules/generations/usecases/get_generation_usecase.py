@@ -5,8 +5,16 @@ from pydantic import BaseModel
 
 from src.libs.exceptions import NotFoundException
 from src.libs.security import ensure_owner
-from src.modules.generations.ports.output import IExecutionRecordRepoDep, IGenerationRepoDep
-from src.modules.shared.domain.entities import CliInvocationEntity, GenerationEntity, NodeRunEntity, UserEntity
+from src.modules.generations.ports.output import IArtifactRepoDep, IExecutionRecordRepoDep, IGenerationRepoDep
+from src.modules.previews.ports.output import IPreviewRepoDep
+from src.modules.shared.domain.entities import (
+    ArtifactEntity,
+    CliInvocationEntity,
+    GenerationEntity,
+    NodeRunEntity,
+    PreviewEntity,
+    UserEntity,
+)
 from src.modules.specs.ports.output import IBackendSpecRepoDep
 
 
@@ -16,6 +24,8 @@ class GenerationDetail(BaseModel):
     validation: dict[str, str]
     steps: list[NodeRunEntity]
     invocations: list[CliInvocationEntity]
+    artifacts: list[ArtifactEntity] = []
+    preview: PreviewEntity | None = None
 
 
 class GetGenerationUsecase:
@@ -24,10 +34,14 @@ class GetGenerationUsecase:
         generation_repo: IGenerationRepoDep,
         records: IExecutionRecordRepoDep,
         spec_repo: IBackendSpecRepoDep,
+        artifact_repo: IArtifactRepoDep,
+        preview_repo: IPreviewRepoDep,
     ):
         self.generation_repo = generation_repo
         self.records = records
         self.spec_repo = spec_repo
+        self.artifact_repo = artifact_repo
+        self.preview_repo = preview_repo
 
     def load(self, generation_id: str, user: UserEntity) -> GenerationEntity:
         generation = self.generation_repo.find_by_id(generation_id)
@@ -49,6 +63,8 @@ class GetGenerationUsecase:
             validation=validation,
             steps=self.records.list_node_runs(generation_id),
             invocations=self.records.list_cli_invocations(generation_id),
+            artifacts=self.artifact_repo.list_for_generation(generation_id),
+            preview=self.preview_repo.find(generation_id),
         )
 
 

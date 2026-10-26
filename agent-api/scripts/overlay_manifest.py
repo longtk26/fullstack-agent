@@ -18,7 +18,7 @@ REMOVE = [
     "src/modules/shared/infrastructure/models/user_model.py",
     "alembic/versions/9a87df8ba9ec_create_user_table.py",
 ]
-VERSION = "1"
+VERSION = "2"
 
 
 def main(template: Path) -> None:

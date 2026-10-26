@@ -38,5 +38,6 @@ Third-party sources and early findings to confirm or reject. Record the results 
 - [x] Own limits: `ANTIGRAVITY_MAX_TURNS=150`, `ANTIGRAVITY_TIMEOUT_SECONDS=2400` (agy emits one response per tool call).
 
 **Status (2026-10-26):** account login verified on the host dev worker. First full generation: data layer passed
-(310 s), backend step stopped at the shared 40-turn cap → per-engine limits added; a re-run is in progress. Details
-in `docs/engines/antigravity.md`.
+(310 s), backend step stopped at the shared 40-turn cap → per-engine limits added. The re-run generated the whole
+backend layer, then `generate_tests` hit the account quota (resets after 7 days). Details in
+`docs/engines/antigravity.md`.
