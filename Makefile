@@ -34,6 +34,7 @@ env:
 	      .env.example > .env && mkdir -p .data/workspaces && echo "created .env" )
 
 up: env runner
+	@mkdir -p .data/artifacts
 	$(COMPOSE) up -d --build --wait
 
 # Sandbox image for validating generated projects (Story 6.1); its venv matches the overlay requirements.

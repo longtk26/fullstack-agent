@@ -44,5 +44,5 @@ project above is written against `examples/specs/two-entity.json`, so change bot
 | `BGA_LIVE_ENGINE_TESTS=1` | Runs `tests/live/` with the real CLIs (costs money, needs credentials). |
 | `UPDATE_SNAPSHOTS=1` | Rewrites the plan snapshots. |
 
-Sandboxes are labelled with the agent instance (a hash of `DB_URL`), so the test suite, a dev worker and the
+Sandboxes and previews are labelled with the agent instance (a hash of the database name, so the Docker worker and a host dev worker on the same database are one instance), so the test suite and the
 Docker stack can share one Docker daemon without cleaning up each other's containers.

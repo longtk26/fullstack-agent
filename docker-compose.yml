@@ -70,7 +70,7 @@ services:
       target: api
     environment: *agent-env
     volumes:
-      - artifacts:/data/artifacts:ro
+      - ./.data/artifacts:/data/artifacts:ro
     ports:
       - "127.0.0.1:${BGA_API_PORT:-8100}:8000"
     depends_on:
@@ -94,7 +94,8 @@ services:
     environment: *agent-env
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - artifacts:/data/artifacts
+      # A host directory (not a volume), so a host dev worker and the Docker API share the same artifacts.
+      - ./.data/artifacts:/data/artifacts
       # Same absolute path inside and outside, so sibling sandbox containers can bind-mount job workspaces.
       - ${HOST_WORKSPACE_ROOT}:${HOST_WORKSPACE_ROOT}
       # Optional Claude subscription login instead of ANTHROPIC_API_KEY (/dev/null = not configured).
@@ -132,7 +133,6 @@ services:
 volumes:
   pgdata:
   redisdata:
-  artifacts:
 
 networks:
   bga-net:

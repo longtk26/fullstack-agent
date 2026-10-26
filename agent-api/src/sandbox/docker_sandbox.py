@@ -18,6 +18,7 @@ import docker
 from docker.errors import APIError, NotFound
 from requests.exceptions import ConnectionError as RequestsConnectionError
 from requests.exceptions import ReadTimeout
+from sqlalchemy.engine import make_url
 
 from src.configs import config, get_logger
 
@@ -32,9 +33,12 @@ DB_READY_TIMEOUT_S = 60
 
 
 def instance_id() -> str:
-    """Identifies this agent deployment (its database), so a worker only ever cleans up its own sandboxes even
-    when several deployments (e.g. the Docker stack and a dev worker or the test suite) share one Docker daemon."""
-    return hashlib.sha256(config.db_url.encode()).hexdigest()[:12]
+    """Identifies this agent deployment by its database, so a worker only ever cleans up its own sandboxes and
+    previews when several deployments (e.g. the Docker stack and the test suite) share one Docker daemon.
+
+    Only the database name counts, not the URL: the Docker worker (`postgres:5432`) and a host dev worker
+    (`localhost:5442`) use the same database and must recognise each other's containers."""
+    return hashlib.sha256((make_url(config.db_url).database or "").encode()).hexdigest()[:12]
 
 
 def _labels(generation_id: str) -> dict[str, str]:

@@ -20,5 +20,6 @@ As a client, I want to list and download a job's artifacts by id, safely.
 workspace (workspaces are deleted after 72 h): a directory returns `{type: "dir", entries}`, a text file
 `{type: "file", content}`; binary or > 1 MB files → 409 `FILE_NOT_TEXT`; `..` → 400. Failed jobs get
 `report.json/.md`, `repair-<n>.patch`, `validation-<n>.json` and `engine-logs.zip` (redacted on packaging; the
-raw logs stay in the job's state directory). In Docker the artifacts live on the `artifacts` volume (worker
-read-write, API read-only); host dev uses `.data/artifacts`.
+raw logs stay in the job's state directory). Artifacts live in `.data/artifacts` on the host, bind-mounted
+into the worker (read-write) and the API (read-only), so a host dev worker and the Docker stack share them
+(was a named volume until 2026-10-26).

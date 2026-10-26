@@ -29,5 +29,5 @@ so that it cannot touch the agent, the host, secrets or the internet.
 proxy: projects whose requirements differ from the runner's baked venv install into `/work/.venv` on a plain
 egress bridge network (`bga-sbx-egress`); the allowlist proxy is left for hardening (11.x). Generated CRUD
 projects need no extra packages, so the normal path never leaves the internal network. Sandboxes carry an
-instance label (hash of `DB_URL`) so deployments sharing a Docker daemon never clean up each other's sandboxes;
+instance label (hash of the database name; was `DB_URL` until 2026-10-26) so deployments sharing a Docker daemon never clean up each other's sandboxes;
 the worker removes orphans of finished generations. Isolation tests: `tests/sandbox/` (`BGA_SANDBOX_TESTS=1`).
