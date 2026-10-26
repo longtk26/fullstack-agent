@@ -16,6 +16,9 @@ os.environ["RATE_LIMIT_STORAGE_URI"] = "memory://"
 os.environ["REDIS_URL"] = os.environ.get("REDIS_URL", "redis://localhost:6389/0").rsplit("/", 1)[0] + "/15"
 os.environ["ENGINE_SKILLS_DIR"] = str(Path(__file__).parents[2] / ".agents" / "skills")
 os.environ.setdefault("TEMPLATE_DIR", str(Path(__file__).parents[2] / ".data" / "fastapi-template"))
+# Pin settings a developer's .env may change (the Makefile exports .env into the test process).
+os.environ["DEFAULT_ENGINE"] = "claude_code"
+os.environ["ANTIGRAVITY_AUTH"] = "gemini_api_key"
 os.environ["SANDBOX_ENABLED"] = "false"  # sandbox tests opt in with BGA_SANDBOX_TESTS=1
 
 

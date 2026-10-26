@@ -32,4 +32,11 @@ Third-party sources and early findings to confirm or reject. Record the results 
 - [x] Tool restriction equivalent to "edit files, no shell": per-job `settings.json` denies `command(*)`, URL access and MCP;
       headless mode soft-denies shell anyway. `--max-turns` does not exist, so finished `agent_response` steps are counted and the run is stopped past the limit.
 - [x] Worker image pins the `agy` version.
-- [ ] The same integration test as 3.2 passes with `engine=antigravity`. *(pending: needs a `GEMINI_API_KEY`)*
+- [x] The same integration test as 3.2 passes with `engine=antigravity` (live adapter test, account login).
+- [x] `ANTIGRAVITY_AUTH=account`: uses the host `agy` login (OS keyring over D-Bus), no `GEMINI_API_KEY`; reported
+      unavailable inside a container.
+- [x] Own limits: `ANTIGRAVITY_MAX_TURNS=150`, `ANTIGRAVITY_TIMEOUT_SECONDS=2400` (agy emits one response per tool call).
+
+**Status (2026-10-26):** account login verified on the host dev worker. First full generation: data layer passed
+(310 s), backend step stopped at the shared 40-turn cap → per-engine limits added; a re-run is in progress. Details
+in `docs/engines/antigravity.md`.

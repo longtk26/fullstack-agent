@@ -43,7 +43,10 @@ class Config(BaseSettings):
 
     antigravity_bin: str = "agy"
     antigravity_model: str | None = None
-    antigravity_auth: Literal["gemini_api_key", "adc"] = "gemini_api_key"
+    # agy streams one agent response per tool call, so its "turns" are much smaller than Claude's.
+    antigravity_max_turns: int = 150
+    antigravity_timeout_seconds: int = 2400
+    antigravity_auth: Literal["gemini_api_key", "adc", "account"] = "gemini_api_key"
     gemini_api_key: str | None = None
     google_application_credentials: str | None = None
 

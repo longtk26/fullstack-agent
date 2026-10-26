@@ -116,8 +116,6 @@ class JobContext:
             state_dir=self.workspace.state,
             prompt=prompt.text,
             prompt_ref=prompt.ref,
-            max_turns=config.engine_max_turns,
-            timeout_s=config.engine_timeout_seconds,
         )
         record_id = self.store.add_cli_invocation(
             CliInvocationEntity(

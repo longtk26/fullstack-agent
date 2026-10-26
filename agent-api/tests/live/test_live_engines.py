@@ -1,4 +1,5 @@
-"""Real CLI runs (cost money). Opt in with BGA_LIVE_ENGINE_TESTS=1 plus the engine's credentials."""
+"""Real CLI runs (cost money). Opt in with BGA_LIVE_ENGINE_TESTS=1 plus the engine's credentials
+(BGA_LIVE_ANTIGRAVITY_AUTH=account to use the agy login of this machine)."""
 
 import asyncio
 import os
@@ -16,6 +17,10 @@ def test_engine_writes_a_hello_app(engine_name, tmp_path, monkeypatch):
     from src.configs import config
 
     monkeypatch.setattr(config, "workspace_root", str(tmp_path))
+    # conftest pins ANTIGRAVITY_AUTH; e.g. BGA_LIVE_ANTIGRAVITY_AUTH=account uses the host's agy login.
+    monkeypatch.setattr(
+        config, "antigravity_auth", os.environ.get("BGA_LIVE_ANTIGRAVITY_AUTH", config.antigravity_auth)
+    )
     engine = build_engine_registry(config).get(engine_name)
     health = asyncio.run(engine.health())
     if not health.available:

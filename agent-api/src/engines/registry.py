@@ -79,7 +79,11 @@ def build_engine_registry(cfg=default_config) -> EngineRegistry:
             gemini_api_key=cfg.gemini_api_key,
             google_application_credentials=cfg.google_application_credentials,
             model=cfg.antigravity_model,
-            **limits,
+            **{
+                **limits,
+                "default_timeout_s": cfg.antigravity_timeout_seconds,
+                "default_max_turns": cfg.antigravity_max_turns,
+            },
         ),
     ]
     if cfg.enable_fake_engine:

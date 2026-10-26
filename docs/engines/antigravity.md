@@ -3,9 +3,8 @@
 Spike for Story 3.3, run 2026-10-23 against **agy 1.4.6** (installed in a throwaway `python:3.12-slim` container).
 Adapter: `agent-api/src/engines/antigravity/`.
 
-**Verdict: go**, with API-key or ADC auth. An authenticated generation run has **not** been verified yet (no
-Gemini key available during the spike); everything else below was checked against the real binary or the
-official docs.
+**Verdict: go**, with API-key or ADC auth in Docker, or the `agy` account login on the host. A real generation
+was run on 2026-10-26 with the account login (see *Real run* below).
 
 ## Findings
 
@@ -16,11 +15,11 @@ official docs.
 | Output events | NDJSON with `event`: `init` (`conversation_id`, `tools`, `permission_mode`), `step_update` (`step_index`, `state` ACTIVE/DONE, `step_type` `agent_response`/`tool`/…, `text_delta`, `tool_info{name, parameters, output, error}`), `result` (`status` SUCCESS/ERROR/CANCELED/…, `response`, `error`, `num_turns`, `usage{input_tokens, output_tokens, thinking_tokens, cache_read_tokens, total_tokens}`). **No cost field.** | docs; `result` verified |
 | Exit codes | 0 success (also when a tool was soft-denied); 1 failed run (e.g. auth). Unauthenticated run printed `{"event":"result","result":{…"status":"ERROR","error":"authentication failed or timed out"…}}` and `Error: authentication required…` on stderr, exit 1. | verified |
 | Approvals / tools | `--mode accept-edits`; headless soft-denies shell commands by default. Permission rules live in `~/.gemini/antigravity-cli/settings.json` → `permissions.allow/deny/ask` with `action(target)` (`read_file`, `write_file`, `command`, `read_url`, `execute_url`, `mcp`). The adapter writes a per-job settings file that denies `command(*)`, URL access and MCP. `--sandbox` / `enableTerminalSandbox` restricts the terminal. | docs |
-| Auth in a container | Account login needs an OS keyring (not available in Docker) → **not usable**. Supported for us: `GEMINI_API_KEY` **plus** `"modelProvider": "gemini"` in settings.json (the key alone is ignored), or ADC (`AGY_ADC_AUTH=true` + `GOOGLE_APPLICATION_CREDENTIALS`). | docs |
+| Auth | **Host:** the `agy` account login (`ANTIGRAVITY_AUTH=account`) keeps its token in the OS keyring over D-Bus, so it works headless from the host dev worker even with a per-job `HOME`; no `GEMINI_API_KEY` needed. **In a container** the keyring is missing → the adapter reports the engine unavailable. Supported for us: `GEMINI_API_KEY` **plus** `"modelProvider": "gemini"` in settings.json (the key alone is ignored), or ADC (`AGY_ADC_AUTH=true` + `GOOGLE_APPLICATION_CREDENTIALS`). | docs |
 | Subprocess hang ([issue #318](https://github.com/google-antigravity/antigravity-cli/issues/318)) | Reported for `agy -p` with piped stdout. Stdin stream-json mode returned promptly over pipes in the probe (auth-error path). **PTY fallback not implemented**; revisit if an authenticated run hangs. | partially verified |
 | Context files | `AGENTS.md`, `GEMINI.md`, `.agents/AGENTS.md`, `.agents/rules/*.md` (needs frontmatter). Max 24 KB per file. | docs |
 | Skills | Workspace skills at `.agents/skills/<name>/SKILL.md`. | docs |
-| Max turns | **No flag.** The adapter counts finished `agent_response` steps and stops the process past `max_turns` (`limit_exceeded`/`max_turns`). `--print-timeout` bounds wall-clock time. | docs |
+| Max turns | **No flag.** The adapter counts finished `agent_response` steps and stops the process past `max_turns` (`limit_exceeded`/`max_turns`). `--print-timeout` bounds wall-clock time. agy emits one `agent_response` per tool call, so its turns are far smaller than Claude's: it gets its own limits (`ANTIGRAVITY_MAX_TURNS=150`, `ANTIGRAVITY_TIMEOUT_SECONDS=2400`). | docs + real run |
 | Self-update | The binary keeps updater state under `$HOME` (`updater/`, `last_check.timestamp`). Each job gets its own `HOME`; whether agy self-updates the pinned binary in place is unverified. | observed |
 
 ## Adapter decisions
@@ -37,8 +36,19 @@ consumes the same entitlements as interactive use, while extracting OAuth tokens
 consumer plans were still open in October 2026. Our container setup uses API keys or ADC, not account logins.
 [forum thread](https://discuss.ai.google.dev/t/is-external-orchestration-of-antigravity-cli-headless-mode-supported-with-account-based-usage/183051)
 
+## Real run (2026-10-26, account login, host dev worker)
+
+Spec: `examples/specs/two-entity.json` (2 models, 10 operations). Limits at the time: 40 turns, 900 s per call.
+
+| Step | Result |
+|---|---|
+| `generate_database` | ok in 310 s (Claude Code: ~41 s); migration upgrade/check/downgrade passed; schema matches the plan |
+| `generate_backend` | **failed** after 400 s: `limit_exceeded (max_turns)`; it had written one repository port + implementation. ~2.9 M input / 132 k output tokens |
+
+Takeaways: auth, skills and the permission rules work headless; agy is slower and explores more than Claude Code,
+and the shared 40-turn cap was too small for it, hence the per-engine limits above. Cost is not reported by agy.
+
 ## To do before relying on it
 
-1. Run `make` stack with `GEMINI_API_KEY` set and `DEFAULT_ENGINE=antigravity`; generate a hello app (same as the Claude integration test).
-2. Confirm the permission rules block `command(*)` without prompting, and that skills under `.agents/skills/` are picked up headless.
-3. Confirm no self-update happens inside the worker image.
+1. Re-run a full generation with the per-engine limits (account login on the host, or `GEMINI_API_KEY` in `make up`).
+2. Confirm no self-update happens inside the worker image.

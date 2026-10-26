@@ -18,6 +18,12 @@ PERMISSIONS = {
     "deny": ["command(*)", "read_url(*)", "execute_url(*)", "mcp(*)", "write_file(.agents/)"],
 }
 UNTRUSTED_WORKSPACE_CONFIG = [".agents/hooks.json", ".agents/rules"]
+# Marker files of a container runtime: the agy account login lives in the host's OS keyring.
+CONTAINER_MARKERS = (Path("/.dockerenv"), Path("/run/.containerenv"))
+
+
+def _in_container() -> bool:
+    return any(marker.exists() for marker in CONTAINER_MARKERS)
 
 
 class AntigravityEngine(CliEngine):
@@ -29,7 +35,7 @@ class AntigravityEngine(CliEngine):
         self,
         *,
         binary: str,
-        auth: Literal["gemini_api_key", "adc"],
+        auth: Literal["gemini_api_key", "adc", "account"],
         gemini_api_key: str | None,
         google_application_credentials: str | None,
         model: str | None,
@@ -54,6 +60,13 @@ class AntigravityEngine(CliEngine):
             return EngineHealth(name=self.name, available=False, reason="Set GEMINI_API_KEY (or ANTIGRAVITY_AUTH=adc)")
         if self.auth == "adc" and not self.google_application_credentials:
             return EngineHealth(name=self.name, available=False, reason="Set GOOGLE_APPLICATION_CREDENTIALS for ADC")
+        if self.auth == "account":
+            # `agy` signed in with a Google account keeps its token in the OS keyring (D-Bus secret service), which
+            # only exists on the host. Use it for a host dev worker; containers need GEMINI_API_KEY or ADC.
+            if _in_container():
+                reason = "ANTIGRAVITY_AUTH=account needs the host keyring; use GEMINI_API_KEY or ADC in Docker"
+                return EngineHealth(name=self.name, available=False, reason=reason)
+            return EngineHealth(name=self.name, available=True, reason="Uses the agy account login on this machine")
         return EngineHealth(name=self.name, available=True)
 
     async def prepare_workspace(self, workdir: Path, context: EngineContext) -> None:

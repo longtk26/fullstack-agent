@@ -38,11 +38,11 @@ def _claude(root, **overrides):
     return ClaudeCodeEngine(**values, **_limits(root))
 
 
-def _agy(root):
+def _agy(root, auth="gemini_api_key"):
     return AntigravityEngine(
         binary=str(BIN / "fake_agy"),
-        auth="gemini_api_key",
-        gemini_api_key="gemini-test-key-123",
+        auth=auth,
+        gemini_api_key="gemini-test-key-123" if auth == "gemini_api_key" else None,
         google_application_credentials=None,
         model=None,
         **_limits(root),
@@ -242,3 +242,39 @@ def test_prepare_workspace_installs_skill_and_conventions(root, tmp_path, factor
 
     assert (workdir / skills_dir / "fastapi-skills" / "SKILL.md").exists()
     assert "RULES" in (workdir / context_file).read_text()
+
+
+def test_antigravity_account_login_is_host_only(root, monkeypatch):
+    from src.engines.antigravity import engine as agy_module
+
+    engine = _agy(root, auth="account")
+    monkeypatch.setattr(agy_module, "_in_container", lambda: False)
+    assert asyncio.run(engine.health()).available
+
+    monkeypatch.setattr(agy_module, "_in_container", lambda: True)
+    health = asyncio.run(engine.health())
+    assert not health.available and "GEMINI_API_KEY" in health.reason
+
+
+def test_antigravity_account_invocation_passes_no_key(root):
+    request = _request(root)
+    request.workdir.mkdir(parents=True, exist_ok=True)
+    home = root / "home"
+
+    invocation = _agy(root, auth="account").build_invocation(request, home, 5, 60)
+
+    settings = json.loads((home / ".gemini" / "antigravity-cli" / "settings.json").read_text())
+    assert "GEMINI_API_KEY" not in invocation.env and "modelProvider" not in settings
+    assert settings["permissions"]["deny"][0] == "command(*)"
+
+
+def test_registry_gives_antigravity_its_own_limits(tmp_path):
+    from src.configs.config import Config
+    from src.engines.registry import build_engine_registry
+
+    cfg = Config(workspace_root=str(tmp_path), engine_max_turns=40, antigravity_max_turns=150)
+    registry = build_engine_registry(cfg)
+
+    assert registry.get("claude_code").default_max_turns == 40
+    assert registry.get("antigravity").default_max_turns == 150
+    assert registry.get("antigravity").default_timeout_s == cfg.antigravity_timeout_seconds
