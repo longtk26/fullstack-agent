@@ -22,6 +22,11 @@ logger = get_logger(__name__)
 TERMINAL = {GenerationStatus.COMPLETED, GenerationStatus.FAILED, GenerationStatus.CANCELLED}
 
 
+def job_timeout(engine: str) -> int:
+    """Default wall-clock limit for a whole job; `options.timeoutSeconds` overrides it."""
+    return config.antigravity_job_timeout_seconds if engine == "antigravity" else config.job_timeout_seconds
+
+
 class JobRunner:
     """Runs (or resumes) one generation through the graph and owns its final status."""
 
@@ -136,7 +141,7 @@ class JobRunner:
             }
 
         try:
-            async with asyncio.timeout(generation.options.get("timeoutSeconds") or config.job_timeout_seconds):
+            async with asyncio.timeout(generation.options.get("timeoutSeconds") or job_timeout(generation.engine)):
                 final = await graph.ainvoke(inputs, run_config)
         except JobCancelled:
             return await self._finish(ctx, GenerationStatus.CANCELLED, None)

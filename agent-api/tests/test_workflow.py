@@ -197,3 +197,11 @@ def test_redis_helper_connects():
             await client.aclose()
 
     assert asyncio.run(ping())
+
+
+def test_antigravity_jobs_get_a_longer_default_timeout():
+    from src.configs import config
+    from src.orchestrator.runner import job_timeout
+
+    assert job_timeout("claude_code") == config.job_timeout_seconds
+    assert job_timeout("antigravity") == config.antigravity_job_timeout_seconds > config.job_timeout_seconds

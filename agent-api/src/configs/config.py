@@ -46,6 +46,7 @@ class Config(BaseSettings):
     # agy streams one agent response per tool call, so its "turns" are much smaller than Claude's.
     antigravity_max_turns: int = 150
     antigravity_timeout_seconds: int = 2400
+    antigravity_job_timeout_seconds: int = 10800  # a full agy run takes far longer than the 30 min default
     antigravity_auth: Literal["gemini_api_key", "adc", "account"] = "gemini_api_key"
     gemini_api_key: str | None = None
     google_application_credentials: str | None = None
