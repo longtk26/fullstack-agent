@@ -21,7 +21,7 @@ class ListEnginesUsecase:
         self.store = store
 
     async def execute(self) -> EngineCatalog:
-        report = await self.store.read()
+        report = await self.store.read(self.registry.names())
         if report is not None:
             return EngineCatalog(
                 default=self.registry.default,

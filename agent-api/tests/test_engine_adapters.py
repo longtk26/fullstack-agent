@@ -38,13 +38,13 @@ def _claude(root, **overrides):
     return ClaudeCodeEngine(**values, **_limits(root))
 
 
-def _agy(root, auth="gemini_api_key"):
+def _agy(root, auth="gemini_api_key", model=None):
     return AntigravityEngine(
         binary=str(BIN / "fake_agy"),
         auth=auth,
         gemini_api_key="gemini-test-key-123" if auth == "gemini_api_key" else None,
         google_application_credentials=None,
-        model=None,
+        model=model,
         **_limits(root),
     )
 
@@ -278,3 +278,16 @@ def test_registry_gives_antigravity_its_own_limits(tmp_path):
     assert registry.get("claude_code").default_max_turns == 40
     assert registry.get("antigravity").default_max_turns == 150
     assert registry.get("antigravity").default_timeout_s == cfg.antigravity_timeout_seconds
+    assert registry.get("claude_code").model == "claude-sonnet-5-5"
+    assert registry.get("antigravity").model == "gemini-3.8-flash-medium"
+
+
+def test_configured_model_is_passed_to_the_cli(root):
+    request = _request(root)
+    request.workdir.mkdir(parents=True, exist_ok=True)
+
+    agy = _agy(root, auth="account", model="gemini-3.8-flash-medium").build_invocation(request, root / "h1", 5, 60)
+    claude = _claude(root, model="claude-sonnet-5-5").build_invocation(request, root / "h2", 5, 60)
+
+    assert agy.argv[agy.argv.index("--model") + 1] == "gemini-3.8-flash-medium"
+    assert claude.argv[claude.argv.index("--model") + 1] == "claude-sonnet-5-5"

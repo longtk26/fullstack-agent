@@ -37,12 +37,12 @@ class Config(BaseSettings):
     engine_skills: list[str] = ["fastapi-skills"]
 
     claude_code_bin: str = "claude"
-    claude_code_model: str | None = None
+    claude_code_model: str = "claude-sonnet-5-5"
     anthropic_api_key: str | None = None
     claude_credentials_file: str | None = None
 
     antigravity_bin: str = "agy"
-    antigravity_model: str | None = None
+    antigravity_model: str = "gemini-3.8-flash-medium"  # `agy models` lists the choices
     # agy streams one agent response per tool call, so its "turns" are much smaller than Claude's.
     antigravity_max_turns: int = 150
     antigravity_timeout_seconds: int = 2400
@@ -97,8 +97,19 @@ class Config(BaseSettings):
     worker_concurrency: int = 2
     worker_heartbeat_file: str = "/tmp/bga-worker.heartbeat"
     worker_heartbeat_seconds: int = 10
+    # Engines this worker runs (comma-separated; empty = all registered). `make up` gives Antigravity's account
+    # login to a host worker, because the login lives in the desktop keyring that containers cannot reach.
+    worker_engines: str = ""
+    # Whether this worker drives preview containers (commands, TTL, reconcile); only one kind of worker should.
+    preview_worker: bool = True
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    @field_validator("claude_code_model", "antigravity_model", mode="before")
+    @classmethod
+    def _blank_model_means_default(cls, value, info):
+        # Compose passes `CLAUDE_CODE_MODEL=` when .env leaves it empty; that means "the default", not "none".
+        return cls.model_fields[info.field_name].default if value in (None, "") else value
 
     @field_validator("jwt_secret")
     @classmethod
@@ -110,6 +121,10 @@ class Config(BaseSettings):
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+    @property
+    def worker_engine_list(self) -> list[str]:
+        return [name.strip() for name in self.worker_engines.split(",") if name.strip()]
 
     @property
     def preview_ports(self) -> range:

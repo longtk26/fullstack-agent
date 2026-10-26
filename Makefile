@@ -2,7 +2,6 @@
 export
 
 COMPOSE     := docker compose
-COMPOSE_DEV := docker compose -f docker-compose.yml -f docker-compose.dev.yml
 API_DIR     := agent-api
 UI_DIR      := agent-ui
 PY          := $(CURDIR)/$(API_DIR)/.venv/bin
@@ -13,6 +12,15 @@ BGA_PG_PORT    ?= 5442
 BGA_REDIS_PORT ?= 6389
 TEMPLATE_DIR   := $(CURDIR)/.data/fastapi-template
 RUNNER_IMAGE   ?= bga-runner:1
+
+# Antigravity's account login lives in the desktop keyring, which containers cannot reach. With
+# ANTIGRAVITY_AUTH=account, `make up` also starts a worker on the host that runs only Antigravity jobs, and the
+# Docker worker runs the other engines. Jobs are queued per engine, so each goes to a worker that can run it.
+comma := ,
+HOST_WORKER           := $(filter account,$(ANTIGRAVITY_AUTH))
+DOCKER_WORKER_ENGINES := $(if $(HOST_WORKER),claude_code$(comma)fake,)
+HOST_WORKER_PID       := $(CURDIR)/.data/host-worker.pid
+HOST_WORKER_LOG       := $(CURDIR)/.data/host-worker.log
 
 # Host-side overrides for running api/worker/ui outside Docker.
 DEV_ENV := DB_URL=postgresql+psycopg://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@localhost:$(BGA_PG_PORT)/$(POSTGRES_DB) \
@@ -25,7 +33,8 @@ DEV_ENV := DB_URL=postgresql+psycopg://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@loc
            TEMPLATE_DIR=$(TEMPLATE_DIR) \
            ARTIFACT_ROOT=$(CURDIR)/.data/artifacts
 
-.PHONY: env up down down-all ps logs dev dev-down dev-api dev-worker dev-ui setup migrate test lint template runner
+.PHONY: env up down down-all ps logs dev dev-down dev-api dev-worker dev-ui setup venv migrate test lint template runner \
+        host-worker host-worker-stop
 
 env:
 	@test -f .env && echo ".env already exists" || ( \
@@ -33,9 +42,21 @@ env:
 	      -e "s|^HOST_WORKSPACE_ROOT=.*|HOST_WORKSPACE_ROOT=$(CURDIR)/.data/workspaces|" \
 	      .env.example > .env && mkdir -p .data/workspaces && echo "created .env" )
 
-up: env runner
+up: env runner $(if $(HOST_WORKER),template venv)
 	@mkdir -p .data/artifacts
 	$(COMPOSE) up -d --build --wait
+	@$(MAKE) --no-print-directory $(if $(HOST_WORKER),host-worker,host-worker-stop)
+
+# Worker on the host for Antigravity's account login (started by `make up`, stopped by `make down`).
+host-worker: host-worker-stop
+	@command -v $(or $(ANTIGRAVITY_BIN),agy) >/dev/null || echo "warning: agy not found on PATH; Antigravity will be unavailable"
+	@( cd $(API_DIR) && exec env $(DEV_ENV) WORKER_ENGINES=antigravity PREVIEW_WORKER=false \
+	    $(PY)/python -m src.worker ) > $(HOST_WORKER_LOG) 2>&1 & echo $$! > $(HOST_WORKER_PID)
+	@echo "host worker (antigravity) started: pid $$(cat $(HOST_WORKER_PID)), log .data/host-worker.log"
+
+host-worker-stop:
+	@if [ -f $(HOST_WORKER_PID) ]; then \
+	  kill $$(cat $(HOST_WORKER_PID)) 2>/dev/null && echo "host worker stopped" || true; rm -f $(HOST_WORKER_PID); fi
 
 # Sandbox image for validating generated projects (Story 6.1); its venv matches the overlay requirements.
 runner:
@@ -51,11 +72,11 @@ template:
 
 # Preview containers are not part of the compose project: `down` stops them (they keep their data and come back
 # with `start`), `down-all` removes every bga.* container, network, volume and image, previews included.
-down:
+down: host-worker-stop
 	$(COMPOSE) down
 	@docker ps -q --filter label=bga.preview | xargs -r docker stop >/dev/null
 
-down-all:
+down-all: host-worker-stop
 	$(COMPOSE) down -v --remove-orphans
 	@docker ps -aq --filter label=bga.preview | xargs -r docker rm -f >/dev/null
 	@docker ps -aq --filter label=bga.sandbox | xargs -r docker rm -f >/dev/null
@@ -66,18 +87,23 @@ down-all:
 
 ps:
 	$(COMPOSE) ps
+	@if [ -f $(HOST_WORKER_PID) ] && kill -0 $$(cat $(HOST_WORKER_PID)) 2>/dev/null; then \
+	  echo "host worker (antigravity): running, pid $$(cat $(HOST_WORKER_PID))"; fi
 
 logs:
 	$(COMPOSE) logs -f --tail=200
 
 dev: env template runner
-	$(COMPOSE_DEV) up -d --wait postgres redis
+	$(COMPOSE) up -d --wait postgres redis
 
 dev-down:
-	$(COMPOSE_DEV) down
+	$(COMPOSE) down
 
-setup: template
-	cd $(API_DIR) && uv venv -q -p 3.12 .venv && uv pip install -q -p .venv/bin/python -r requirements-dev.txt
+venv:
+	@test -x $(PY)/python || ( cd $(API_DIR) && uv venv -q -p 3.12 .venv && \
+	  uv pip install -q -p .venv/bin/python -r requirements-dev.txt )
+
+setup: template venv
 	cd $(UI_DIR) && pnpm install
 
 dev-api:

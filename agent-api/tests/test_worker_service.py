@@ -34,7 +34,7 @@ def settle_other_generations():
         session.commit()
 
 
-def _service(root: Path, redis, engine=None, worker_id="w-test") -> WorkerService:
+def _service(root: Path, redis, engine=None, worker_id="w-test", engines=None) -> WorkerService:
     engine = engine or FakeEngine(allowed_root=root)
     runner = build_runner(root, redis, engine=engine, worker_id=worker_id)
     return WorkerService(
@@ -47,6 +47,7 @@ def _service(root: Path, redis, engine=None, worker_id="w-test") -> WorkerServic
         WorkspaceManager(root, max_mb=200),
         worker_id,
         concurrency=2,
+        engines=engines,
     )
 
 
@@ -127,10 +128,10 @@ def test_reaper_requeues_stale_jobs_and_gives_up_after_max_resumes(client, user_
         redis = redis_client()
         try:
             queue = JobQueue(redis)
-            await redis.delete("bga:jobs")
+            await redis.delete("bga:jobs:fake")
             await queue.hold_lease(leased, "other-worker", 30)
             await _service(tmp_path, redis).reap()
-            return await redis.lrange("bga:jobs", 0, -1)
+            return await redis.lrange("bga:jobs:fake", 0, -1)
         finally:
             await redis.aclose()
 
@@ -150,9 +151,9 @@ def test_reaper_reenqueues_orphaned_pending_jobs(client, user_headers, tmp_path)
     async def scenario():
         redis = redis_client()
         try:
-            await redis.delete("bga:jobs")  # the enqueue after commit was lost
+            await redis.delete("bga:jobs:fake")  # the enqueue after commit was lost
             await _service(tmp_path, redis).reap()
-            return await redis.lrange("bga:jobs", 0, -1)
+            return await redis.lrange("bga:jobs:fake", 0, -1)
         finally:
             await redis.aclose()
 
@@ -188,7 +189,7 @@ def test_consume_loop_survives_redis_outages(tmp_path):
             super().__init__(redis)
             self.calls = 0
 
-        async def dequeue(self, worker_id, timeout_s):
+        async def dequeue(self, worker_id, engines, timeout_s):
             self.calls += 1
             if self.calls <= 2:
                 raise RedisConnectionError("Connection closed by server.")
@@ -231,10 +232,10 @@ def test_pending_job_stuck_in_a_dead_workers_processing_list_is_recovered(client
     async def scenario():
         redis = redis_client()
         try:
-            await redis.delete("bga:jobs")
+            await redis.delete("bga:jobs:fake")
             await redis.lpush("bga:processing:dead-worker", generation_id)  # taken, then the worker died
             await _service(tmp_path, redis).reap()
-            return await redis.lrange("bga:jobs", 0, -1), await redis.llen("bga:processing:dead-worker")
+            return await redis.lrange("bga:jobs:fake", 0, -1), await redis.llen("bga:processing:dead-worker")
         finally:
             await redis.aclose()
 
@@ -276,3 +277,24 @@ def test_a_job_enqueued_twice_runs_once(client, user_headers, tmp_path):
             await redis.aclose()
 
     assert asyncio.run(scenario()) == "PENDING", "worker-b saw worker-a's lease and did not run the job"
+
+
+def test_a_worker_only_takes_jobs_for_its_engines(client, user_headers, tmp_path):
+    """e.g. the Docker worker (claude_code, fake) never takes an antigravity job meant for the host worker."""
+    mine = submit(client, user_headers)  # engine "fake"
+    other = submit(client, user_headers, engine="antigravity")
+
+    async def scenario():
+        redis = redis_client()
+        stop = asyncio.Event()
+        task = asyncio.create_task(_service(tmp_path, redis, engines=["fake"]).run(stop))
+        try:
+            await _wait_for_status(mine, {"COMPLETED", "FAILED"})
+            return await redis.lrange("bga:jobs:antigravity", 0, -1)
+        finally:
+            stop.set()
+            await asyncio.wait_for(task, timeout=15)
+            await redis.aclose()
+
+    assert asyncio.run(scenario()) == [other]
+    assert generation(other).status == "PENDING"

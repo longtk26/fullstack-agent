@@ -223,6 +223,9 @@ def remove_job_resources(client: docker.DockerClient, generation_ids: set[str]) 
     for generation_id in generation_ids:
         selector = {"label": [f"{LABEL}={generation_id}", f"{INSTANCE_LABEL}={instance_id()}"]}
         for container in client.containers.list(all=True, sparse=True, filters=selector):
+            if not (container.attrs.get("Labels") or {}).get(LABEL):
+                logger.warning("refusing to remove a non-sandbox container", extra={"container": container.id[:12]})
+                continue
             try:
                 container.remove(force=True)
                 removed += 1

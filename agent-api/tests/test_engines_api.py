@@ -3,7 +3,7 @@ import asyncio
 import pytest
 
 from src.engines import EngineHealth, EngineHealthStore
-from src.engines.health_store import HEALTH_KEY
+from src.engines.health_store import HEALTH_PREFIX
 from src.libs.redis import get_redis
 
 
@@ -24,11 +24,17 @@ async def _redis_call(fn):
         await client.aclose()
 
 
+async def _clear(redis):
+    keys = [key async for key in redis.scan_iter(match=HEALTH_PREFIX + "*")]
+    if keys:
+        await redis.delete(*keys)
+
+
 @pytest.fixture(autouse=True)
 def clear_health():
-    asyncio.run(_redis_call(lambda r: r.delete(HEALTH_KEY)))
+    asyncio.run(_redis_call(_clear))
     yield
-    asyncio.run(_redis_call(lambda r: r.delete(HEALTH_KEY)))
+    asyncio.run(_redis_call(_clear))
 
 
 def test_reports_worker_published_health(client, login):
@@ -38,8 +44,26 @@ def test_reports_worker_published_health(client, login):
     body = client.get("/api/v1/engines", headers=_headers(login)).json()
 
     assert body["reportedByWorker"] is True
-    assert {e["name"]: e["available"] for e in body["engines"]} == {"claude_code": True, "fake": True}
+    engines = {e["name"]: e for e in body["engines"]}
+    assert engines["claude_code"]["available"] and engines["fake"]["available"]
+    assert not engines["antigravity"]["available"], "no worker reported it"
+    assert engines["antigravity"]["reason"] == "No running worker serves this engine"
     assert body["default"] == "claude_code"
+
+
+def test_two_workers_report_their_own_engines(client, login):
+    docker_worker = [EngineHealth(name="claude_code", available=True), EngineHealth(name="fake", available=True)]
+    host_worker = [EngineHealth(name="antigravity", available=True, reason="Uses the agy account login")]
+    asyncio.run(_redis_call(lambda r: EngineHealthStore(r).publish(docker_worker)))
+    asyncio.run(_redis_call(lambda r: EngineHealthStore(r).publish(host_worker)))
+
+    body = client.get("/api/v1/engines", headers=_headers(login)).json()
+
+    assert {e["name"]: e["available"] for e in body["engines"]} == {
+        "claude_code": True,
+        "antigravity": True,
+        "fake": True,
+    }
 
 
 def test_without_a_worker_report_real_engines_are_unavailable(client, login):

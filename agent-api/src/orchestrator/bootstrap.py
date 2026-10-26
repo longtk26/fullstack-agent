@@ -49,6 +49,15 @@ async def build_worker_service(worker_id: str | None = None):
             template_dir=Path(config.template_dir),
             on_completed=previews.request_start if previews else None,
         )
+        # Every worker requests previews for its finished jobs; only a preview worker drives the containers.
         yield WorkerService(
-            runner, JobQueue(redis), store, events, redis, registry, workspaces, worker_id, previews=previews
+            runner,
+            JobQueue(redis),
+            store,
+            events,
+            redis,
+            registry,
+            workspaces,
+            worker_id,
+            previews=previews if config.preview_worker else None,
         )

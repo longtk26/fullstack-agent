@@ -24,7 +24,13 @@ make ps
 - API docs: http://localhost:8100/docs. API login:
   `curl -s localhost:8100/api/v1/auth/login -H 'content-type: application/json' -d '{"email":"admin@bga.local","password":"admin12345"}'`
 
-`make down` stops the stack; `make down-all` also removes volumes.
+Engines (default models: `claude-sonnet-5-5` and `gemini-3.8-flash-medium`; override with `CLAUDE_CODE_MODEL` /
+`ANTIGRAVITY_MODEL`): **Claude Code** runs in the Docker worker (an `ANTHROPIC_API_KEY`, or your subscription login via
+`CLAUDE_CREDENTIALS_HOST_FILE`). **Antigravity** with `ANTIGRAVITY_AUTH=account` (your `agy` Google login) needs the
+desktop keyring, which containers cannot reach, so `make up` also starts a host worker for Antigravity jobs only
+(needs `uv` and `agy` on the host; log in `.data/host-worker.log`). With `GEMINI_API_KEY` or ADC it runs in Docker.
+
+`make down` stops the stack (and the host worker, and preview containers); `make down-all` also removes volumes.
 
 ## Develop
 

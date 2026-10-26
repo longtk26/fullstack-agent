@@ -17,7 +17,10 @@ def _queued() -> list[str]:
     async def read():
         client = Redis.from_url(config.redis_url, decode_responses=True)
         try:
-            return await client.lrange("bga:jobs", 0, -1)
+            jobs = []
+            async for key in client.scan_iter(match="bga:jobs:*"):
+                jobs += await client.lrange(key, 0, -1)
+            return jobs
         finally:
             await client.aclose()
 
@@ -153,7 +156,7 @@ def test_cancel_running_job_sets_the_flag(client, user_headers):
 async def _drain_queue():
     client = Redis.from_url(config.redis_url, decode_responses=True)
     try:
-        await JobQueue(client).dequeue("w-test", 1)
+        await JobQueue(client).dequeue("w-test", ["fake", "claude_code"], 1)
     finally:
         await client.aclose()
 

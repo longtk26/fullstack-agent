@@ -1,8 +1,0 @@
-# Dev mode: only infra runs in Docker; agent-api, agent-worker and agent-ui run on the host (see `make dev`).
-services:
-  postgres:
-    ports:
-      - "127.0.0.1:${BGA_PG_PORT:-5442}:5432"
-  redis:
-    ports:
-      - "127.0.0.1:${BGA_REDIS_PORT:-6389}:6379"

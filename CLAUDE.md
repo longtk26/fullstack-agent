@@ -30,7 +30,9 @@ make test                # agent-api tests (BGA_SANDBOX_TESTS=1 adds the Docker 
 make lint                # ruff (agent-api) + eslint (agent-ui); also run `pnpm exec tsc --noEmit` in agent-ui
 ```
 
-`make up` stops the dev Postgres port; run `make dev` again before `make test`.
+`make up` publishes Postgres (5442) and Redis (6389) on localhost, so `make test` works while the stack runs.
+With `ANTIGRAVITY_AUTH=account` it also starts a host worker for Antigravity (`.data/host-worker.log`); the agy
+login lives in the desktop keyring, which containers cannot reach. `make down` stops it.
 
 ## Working conventions
 

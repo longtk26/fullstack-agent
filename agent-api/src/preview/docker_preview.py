@@ -297,6 +297,7 @@ class DockerPreviewRuntime(IPreviewRuntime):
     def _remove_container(self, name: str) -> None:
         container = self._get(name)
         if container is not None:
+            logger.info("removing preview container", extra={"container": name, "status": container.status})
             try:
                 container.remove(force=True)
             except NotFound:

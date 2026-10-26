@@ -34,3 +34,7 @@ developer I want a lighter dev mode with hot reload.
 - Mounting the Docker socket gives root-equivalent access to the host. That is acceptable for the
   local MVP and is recorded as a known risk in 11.3. A later option is a `docker:dind` sidecar or sysbox.
 - No secrets are baked into images. Everything comes from `.env`.
+
+**Update (2026-10-26):** `docker-compose.dev.yml` was removed: the base compose file publishes Postgres and Redis
+on `127.0.0.1` (5442, 6389), so host processes (dev servers, tests, the Antigravity host worker) work while the
+full stack runs; `make dev` starts just those two services.

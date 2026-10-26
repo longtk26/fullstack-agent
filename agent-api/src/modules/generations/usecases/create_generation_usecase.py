@@ -62,7 +62,7 @@ class CreateGenerationUsecase:
         if idempotency_redis_key:
             await self.redis.set(idempotency_redis_key, generation.id, ex=IDEMPOTENCY_TTL_S, nx=True)
         # Enqueued only after the commit, so the worker can always see the row it is handed.
-        await self.queue.enqueue(generation.id)
+        await self.queue.enqueue(generation.id, generation.engine)
         await self.events.publish(generation.id, "status.changed", status=generation.status, payload={"engine": engine})
         return generation
 

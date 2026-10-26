@@ -32,7 +32,6 @@ backend-generation-agent/
 ├── examples/specs/            # sample BackendSpecs (task-management, two-entity, …)
 ├── examples/frontend/         # sample Frontend-Agent site JSON (json.json → revue-de-mode.json)
 ├── docker-compose.yml
-├── docker-compose.dev.yml
 ├── .env.example
 └── Makefile
 ```

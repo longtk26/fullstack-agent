@@ -45,6 +45,7 @@ class WorkerService:
         worker_id: str,
         concurrency: int = config.worker_concurrency,
         previews: PreviewService | None = None,
+        engines: list[str] | None = None,
     ):
         self.runner = runner
         self.queue = queue
@@ -52,6 +53,8 @@ class WorkerService:
         self.events = events
         self.redis = redis
         self.registry = registry
+        wanted = engines or config.worker_engine_list
+        self.engines = [name for name in registry.names() if not wanted or name in wanted]
         self.workspaces = workspaces
         self.worker_id = worker_id
         self.concurrency = concurrency
@@ -61,7 +64,10 @@ class WorkerService:
         self._shutting_down = False
 
     async def run(self, stop: asyncio.Event) -> None:
-        logger.info("worker started", extra={"worker_id": self.worker_id, "concurrency": self.concurrency})
+        logger.info(
+            "worker started",
+            extra={"worker_id": self.worker_id, "concurrency": self.concurrency, "engines": self.engines},
+        )
         leftovers = await self.queue.clear_processing(self.worker_id)
         if leftovers:
             logger.warning("found jobs from a previous run of this worker", extra={"generation_ids": leftovers})
@@ -90,7 +96,7 @@ class WorkerService:
                 slots.release()
                 break
             try:
-                generation_id = await self.queue.dequeue(self.worker_id, timeout_s=1)
+                generation_id = await self.queue.dequeue(self.worker_id, self.engines, timeout_s=1)
             except TRANSIENT_ERRORS as exc:
                 slots.release()
                 logger.warning("queue unavailable, retrying", extra={"error": str(exc), "retry_in_s": backoff})
@@ -189,7 +195,8 @@ class WorkerService:
             now = time.monotonic()
             try:
                 if now - last_health >= ENGINE_HEALTH_INTERVAL_S:
-                    await health_store.publish(await self.registry.health())
+                    served = [h for h in await self.registry.health() if h.name in self.engines]
+                    await health_store.publish(served)
                     last_health = now
                 if now - last_reap >= config.reaper_interval_seconds:
                     await self.reap()
@@ -227,7 +234,7 @@ class WorkerService:
                 )
                 continue
             self.store.update_generation(generation.id, resume_count=generation.resume_count + 1, heartbeat_at=now)
-            await self.queue.enqueue(generation.id)
+            await self.queue.enqueue(generation.id, generation.engine)
             await self.events.publish(
                 generation.id,
                 "job.requeued",
@@ -239,7 +246,7 @@ class WorkerService:
             # A claimed job always has a lease, so "no lease and not queued" means nobody will run it.
             if not await self.queue.has_lease(generation.id) and not await self.queue.is_queued(generation.id):
                 await self.queue.drop_from_processing(generation.id)
-                await self.queue.enqueue(generation.id)
+                await self.queue.enqueue(generation.id, generation.engine)
                 logger.warning("re-enqueued orphaned pending generation", extra={"generation_id": generation.id})
 
     async def cleanup_sandboxes(self) -> int:
