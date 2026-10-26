@@ -1,10 +1,16 @@
-import { apiClient } from "@/lib/api-client";
+import { apiClient, proxyUrl } from "@/lib/api-client";
 import type {
+  TArtifact,
   TCreateGenerationPayload,
   TCreateGenerationResult,
+  TFileNode,
   TGenerationDetail,
   TGenerationPage,
   TListFilters,
+  TPreview,
+  TPreviewAction,
+  TPreviewRequest,
+  TValidationHistory,
   TWorkflowGraph,
 } from "../types";
 
@@ -37,4 +43,46 @@ export function cancelGeneration(id: string) {
 
 export function generationEventsUrl(id: string) {
   return `/api/proxy/generations/${id}/events`;
+}
+
+// -- results (Story 9.5) ------------------------------------------------------------------------------------------
+
+export function fetchValidationHistory(id: string) {
+  return apiClient.get<TValidationHistory>(`/generations/${id}/validation`);
+}
+
+export function artifactUrl(id: string, artifact: TArtifact) {
+  return proxyUrl(`/generations/${id}/artifacts/${artifact.artifactId}`);
+}
+
+export function fetchArtifactJson<TData>(id: string, artifactId: string) {
+  return apiClient.get<TData>(`/generations/${id}/artifacts/${artifactId}`);
+}
+
+export function fetchArtifactText(id: string, artifactId: string) {
+  return apiClient.text(`/generations/${id}/artifacts/${artifactId}`);
+}
+
+export function fetchFiles(id: string, path: string) {
+  return apiClient.get<TFileNode>(`/generations/${id}/files`, { query: { path } });
+}
+
+// -- preview (Story 9.6) ------------------------------------------------------------------------------------------
+
+export function fetchPreview(id: string) {
+  return apiClient.get<TPreview>(`/generations/${id}/preview`);
+}
+
+export function previewAction(id: string, action: TPreviewAction) {
+  return apiClient.post<TPreview>(`/generations/${id}/preview/${action}`);
+}
+
+export function fetchPreviewLogs(id: string, tail = 300) {
+  return apiClient.get<{ lines: string[] }>(`/generations/${id}/preview/logs`, { query: { tail } });
+}
+
+export function fetchPreviewRequests(id: string) {
+  return apiClient.get<{ items: TPreviewRequest[]; cursor: string | null }>(`/generations/${id}/preview/requests`, {
+    query: { limit: 500 },
+  });
 }

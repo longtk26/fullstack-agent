@@ -6,13 +6,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Stack } from "@/components/layout/Stack";
 import { useGenerationDetail } from "../../hooks/use-generation-detail";
+import { ApiTab } from "../api-explorer/ApiTab";
+import { ResultsTab } from "../results/ResultsTab";
 import { ComingSoonPanel } from "./ComingSoonPanel";
 import { EventLog } from "./EventLog";
 import { GenerationHeader } from "./GenerationHeader";
 import { StepDrawer } from "./StepDrawer";
 import type { TDetailTab } from "../../types";
 import { TerminalBanner } from "./TerminalBanner";
-import { ValidationChecks } from "./ValidationChecks";
 import { WorkflowDiagram } from "./WorkflowDiagram";
 
 type GenerationDetailViewProps = {
@@ -76,22 +77,10 @@ export function GenerationDetailView({ id }: GenerationDetailViewProps) {
           />
         </TabsContent>
         <TabsContent value="results" className="pt-2">
-          <Stack gap="md">
-            <h2 className="text-sm font-medium">Validation checks</h2>
-            <ValidationChecks validation={detail.validation} />
-            <ComingSoonPanel
-              icon={FileCode2}
-              title="Artifacts and source browser"
-              description="ZIP download, manifest and the generated source browser arrive with Story 9.5 (the API is ready)."
-            />
-          </Stack>
+          <ResultsTab detail={detail} />
         </TabsContent>
         <TabsContent value="api" className="pt-2">
-          <ComingSoonPanel
-            icon={PlugZap}
-            title="OpenAPI explorer"
-            description="Try-it calls against the running preview container arrive with Story 9.6 (the preview API is ready)."
-          />
+          <ApiTab detail={detail} />
         </TabsContent>
       </Tabs>
       <StepDrawer

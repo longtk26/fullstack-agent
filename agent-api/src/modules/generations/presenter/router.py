@@ -21,6 +21,7 @@ from src.modules.generations.usecases import (
     CancelGenerationUsecaseDep,
     CreateGenerationUsecaseDep,
     GetGenerationUsecaseDep,
+    GetValidationUsecaseDep,
     GetWorkflowGraphUsecaseDep,
     ListGenerationsUsecaseDep,
     StreamGenerationEventsUsecaseDep,
@@ -106,6 +107,11 @@ async def stream_generation_events(
 ) -> EventSourceResponse:
     start = int(last_event_id) if last_event_id and last_event_id.isdigit() else (after or 0)
     return EventSourceResponse(await usecase.execute(generation_id, user, start), ping=15)
+
+
+@generation_router.get("/{generation_id}/validation", response_model=dict[str, Any])
+async def get_validation(generation_id: str, user: CurrentUserDep, usecase: GetValidationUsecaseDep) -> dict[str, Any]:
+    return await usecase.execute(generation_id, user)
 
 
 @generation_router.get("/{generation_id}/artifacts", response_model=ArtifactListDto)

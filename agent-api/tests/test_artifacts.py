@@ -137,3 +137,15 @@ def test_artifacts_are_owner_scoped(client, user_headers, login, completed):
     assert client.get(url, headers=other).status_code == 404
     assert client.get(f"/api/v1/generations/{completed}/files", headers=other).status_code == 404
     assert client.get(f"/api/v1/generations/{completed}/artifacts/art_nope", headers=user_headers).status_code == 404
+
+
+def test_validation_history_lists_every_attempt(client, user_headers, completed):
+    response = client.get(f"/api/v1/generations/{completed}/validation", headers=user_headers)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["attempts"] == 2
+    assert [c["check"] for c in body["checks"]][:2] == ["syntax", "lint"]
+    syntax = next(c for c in body["checks"] if c["check"] == "syntax")
+    assert [(r["attempt"], r["status"]) for r in syntax["runs"]] == [(1, "failed"), (2, "passed")]
+    assert syntax["runs"][0]["items"][0]["file"].endswith("router.py")

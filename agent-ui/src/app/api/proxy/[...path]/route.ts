@@ -3,7 +3,14 @@ import type { NextRequest } from "next/server";
 import { API_URL, AUTH_COOKIE_NAME } from "@/lib/server-config";
 
 const FORWARDED_REQUEST_HEADERS = ["accept", "content-type", "idempotency-key", "last-event-id"];
-const FORWARDED_RESPONSE_HEADERS = ["content-type", "cache-control", "retry-after", "x-request-id"];
+const FORWARDED_RESPONSE_HEADERS = [
+  "content-type",
+  "content-disposition",
+  "content-length",
+  "cache-control",
+  "retry-after",
+  "x-request-id",
+];
 
 type ProxyContext = { params: Promise<{ path: string[] }> };
 

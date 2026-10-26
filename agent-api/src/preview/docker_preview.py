@@ -92,8 +92,8 @@ def parse_request_lines(text: str, after: str | None) -> list[dict[str, Any]]:
             entry = json.loads(line)
         except json.JSONDecodeError:
             continue
-        if entry.get("message") != "request" or not entry.get("ts"):
-            continue
+        if entry.get("message") != "request" or not entry.get("ts") or entry.get("method") == "OPTIONS":
+            continue  # OPTIONS = browser CORS preflights, not calls the user made
         if after and entry["ts"] <= after:
             continue
         items.append(

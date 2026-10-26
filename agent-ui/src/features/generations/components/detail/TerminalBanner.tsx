@@ -36,10 +36,14 @@ export function TerminalBanner({ detail, events, onOpenTab }: TerminalBannerProp
       <Alert variant="destructive">
         <CircleX />
         <AlertTitle>Generation failed{code ? ` · ${code}` : ""}</AlertTitle>
-        <AlertDescription>
-          <p>{detail.error ?? "No error summary was recorded."}</p>
-          <p className="text-xs">Diagnostics (report, patches, logs) are available through the artifacts API; their download in the UI arrives with Story 9.5.</p>
-        </AlertDescription>
+        <AlertDescription>{detail.error ?? "No error summary was recorded."}</AlertDescription>
+        {detail.artifacts.length > 0 && (
+          <AlertAction>
+            <Button size="sm" variant="outline" onClick={() => onOpenTab("results")}>
+              Diagnostic report
+            </Button>
+          </AlertAction>
+        )}
       </Alert>
     );
   }

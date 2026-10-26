@@ -21,7 +21,7 @@ type TRequestOptions = Omit<RequestInit, "body"> & {
   query?: Record<string, string | number | boolean | null | undefined>;
 };
 
-async function request<TData>(path: string, { json, rawBody, query, headers, ...init }: TRequestOptions = {}) {
+async function send(path: string, { json, rawBody, query, headers, ...init }: TRequestOptions = {}) {
   const url = new URL(`${PROXY_BASE}${path}`, window.location.origin);
   for (const [key, value] of Object.entries(query ?? {})) {
     if (value !== undefined && value !== null && value !== "") url.searchParams.set(key, String(value));
@@ -50,11 +50,24 @@ async function request<TData>(path: string, { json, rawBody, query, headers, ...
       error?.error?.details,
     );
   }
-  if (response.status === 204) return undefined as TData;
+  return response;
+}
+
+async function request<TData>(path: string, options: TRequestOptions = {}) {
+  const response = await send(path, options);
+  if (response.status === 204 || response.headers.get("content-length") === "0") return undefined as TData;
   return (await response.json()) as TData;
 }
 
 export const apiClient = {
   get: <TData>(path: string, options?: TRequestOptions) => request<TData>(path, { ...options, method: "GET" }),
   post: <TData>(path: string, options?: TRequestOptions) => request<TData>(path, { ...options, method: "POST" }),
+  delete: <TData>(path: string, options?: TRequestOptions) => request<TData>(path, { ...options, method: "DELETE" }),
+  text: async (path: string, options?: TRequestOptions) =>
+    (await send(path, { ...options, method: "GET", headers: { Accept: "*/*", ...options?.headers } })).text(),
 };
+
+/** Same-origin URL for a plain link (downloads); the BFF proxy adds the auth cookie as a bearer token. */
+export function proxyUrl(path: string): string {
+  return `${PROXY_BASE}${path}`;
+}

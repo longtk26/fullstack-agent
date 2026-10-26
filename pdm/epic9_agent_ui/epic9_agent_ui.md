@@ -54,6 +54,8 @@ the generated OpenAPI with try-it calls against the running preview container.
 Trace, Results and API tabs exist with placeholders for 9.4–9.6; Results already lists the latest validation checks.
 Code: `agent-ui/src/features/{auth,generations,specs}`, `agent-ui/src/app/api/proxy`.
 
+**Status (2026-10-26):** 9.5 and 9.6 done on `feat/epic9-results-and-api-explorer`: Results tab (validation history, artifacts, manifest, source browser, diagnostic report) and API tab (Scalar explorer with try-it against the preview, preview controls, request log). The 9.6 auth helper waits for Epic 10.
+
 ## Epic acceptance
 
 - From the UI alone, a user can paste the two-entity spec, generate, watch the steps live, see the repair

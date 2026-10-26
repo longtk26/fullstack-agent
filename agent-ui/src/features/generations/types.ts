@@ -71,6 +71,8 @@ export type TGenerationDetail = TGeneration & {
   steps: TStepRun[];
   usage: TUsageTotals;
   trace: { traceId: string | null; langsmithUrl: string | null };
+  artifacts: TArtifact[];
+  preview: TPreview | null;
   error: string | null;
 };
 
@@ -119,3 +121,118 @@ export type TListFilters = {
 };
 
 export type TDetailTab = "steps" | "trace" | "results" | "api";
+
+// -- results (Story 9.5) ------------------------------------------------------------------------------------------
+
+export type TArtifact = {
+  artifactId: string;
+  kind: string;
+  name: string;
+  size: number;
+  sha256: string;
+  contentType: string;
+  createdAt: string | null;
+};
+
+export type TCheckStatus = "passed" | "failed" | "skipped" | "not_run";
+
+export type TCheckItem = {
+  file?: string;
+  line?: number;
+  code?: string;
+  rule?: string;
+  test?: string;
+  table?: string;
+  operation?: string;
+  message?: string;
+  hint?: string;
+  excerpt?: string;
+};
+
+export type TCheckRun = {
+  attempt: number;
+  status: TCheckStatus;
+  durationMs: number | null;
+  summary: string | null;
+  items: TCheckItem[];
+  output: string | null;
+};
+
+export type TValidationHistory = {
+  attempts: number;
+  checks: { check: string; runs: TCheckRun[] }[];
+};
+
+export type TManifestOperation = {
+  operationId: string;
+  method: string;
+  path: string;
+  auth: string;
+  policy?: string;
+  requestSchema?: string;
+  responseSchema?: string;
+  statusCodes: number[];
+};
+
+export type TFrontendBinding = {
+  page: string;
+  componentPath: string;
+  component: string;
+  operationId: string;
+  params?: Record<string, unknown>;
+};
+
+export type TManifest = {
+  manifestVersion: string;
+  generationId: string;
+  generatorVersion: string;
+  templateRef: string | null;
+  architecture: string;
+  framework: string;
+  engine: string;
+  project: { name: string; slug: string } | null;
+  api: { openapiArtifactId: string | null; basePath: string; source: "openapi" | "plan" };
+  operations: TManifestOperation[];
+  contractProblems: { operation: string; message: string }[];
+  env: { name: string; required: boolean; secret: boolean; description: string | null }[];
+  auth?: { type: string; tokenType: string };
+  modules: { name: string; entity: string; path: string }[];
+  frontendBindings?: TFrontendBinding[];
+  unresolved: { kind?: string; ref?: string; specPath?: string; message?: string; reason?: string }[];
+  assumptions: unknown[];
+};
+
+export type TFileEntry = { name: string; path: string; type: "dir" | "file"; size: number | null };
+
+export type TFileNode =
+  | { path: string; type: "dir"; entries: TFileEntry[] }
+  | { path: string; type: "file"; size: number; content: string };
+
+// -- preview (Story 9.6) ------------------------------------------------------------------------------------------
+
+export type TPreviewStatus = "STARTING" | "RUNNING" | "STOPPED" | "FAILED";
+
+export type TPreview = {
+  generationId: string;
+  status: TPreviewStatus;
+  url: string | null;
+  openapiUrl: string | null;
+  docsUrl: string | null;
+  hostPort: number | null;
+  startedAt: string | null;
+  lastAccessedAt: string | null;
+  expiresAt: string | null;
+  error: string | null;
+};
+
+export type TPreviewAction = "start" | "stop" | "restart" | "reset-db" | "touch";
+
+export type TPreviewRequest = {
+  ts: string;
+  method: string;
+  path: string;
+  route: string | null;
+  operationId: string | null;
+  status: number;
+  durationMs: number | null;
+};

@@ -286,3 +286,22 @@ def test_runner_requests_a_preview_on_completion(client, user_headers, tmp_path)
     assert run_job(tmp_path, skipped, engine=fast, on_completed=on_completed) == "COMPLETED"
 
     assert requested == [wanted]
+
+
+def test_request_log_parsing_keeps_only_app_calls():
+    from src.preview.docker_preview import parse_request_lines
+
+    text = "\n".join(
+        [
+            'INFO:     172.22.0.1:1 - "GET /projects HTTP/1.1" 200 OK',
+            '{"ts": "2026-10-26T10:00:00+00:00", "message": "request", "method": "OPTIONS", "path": "/projects"}',
+            '{"ts": "2026-10-26T10:00:01+00:00", "message": "request", "method": "GET", "path": "/projects",'
+            ' "route": "/projects", "operationId": "project.list", "status": 200, "durationMs": 4.2}',
+            '{"ts": "2026-10-26T10:00:02+00:00", "message": "task created"}',
+        ]
+    )
+
+    items = parse_request_lines(text, after=None)
+
+    assert [(i["method"], i["operationId"], i["status"]) for i in items] == [("GET", "project.list", 200)]
+    assert parse_request_lines(text, after="2026-10-26T10:00:01+00:00") == []
