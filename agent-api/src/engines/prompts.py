@@ -43,3 +43,6 @@ class PromptLibrary:
 
     def conventions(self) -> str:
         return (self.root / "conventions.md").read_text()
+
+    def frontend_conventions(self) -> str:
+        return (self.root / "frontend_conventions.md").read_text()

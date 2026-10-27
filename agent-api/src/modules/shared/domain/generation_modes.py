@@ -17,11 +17,11 @@ LANES: dict[GenerationMode, tuple[Lane, ...]] = {
     GenerationMode.DYNAMIC: (Lane.BACKEND, Lane.FRONTEND, Lane.INTEGRATION),
 }
 
-# Lanes this build cannot run yet, with the reason the job reports. Epic 13 brings the frontend lane, Epic 14
-# the integration lane; until then their lane status is SKIPPED and the job ends COMPLETED_WITH_WARNINGS.
+# Lanes this build cannot run yet, with the reason the job reports. Epic 14 brings the integration lane (the
+# switch from mocks to the live backend); until then it is SKIPPED and a dynamic job ends COMPLETED_WITH_WARNINGS.
 UNAVAILABLE_LANES: dict[Lane, str] = {
-    Lane.FRONTEND: "Frontend generation is not available yet (Epic 13); the FrontendSpec was validated and packaged",
-    Lane.INTEGRATION: "The live-API switch is not available yet (Epic 14)",
+    Lane.INTEGRATION: "The switch from the mock API to the live backend is not available yet (Epic 14); "
+    "the frontend runs on mocks",
 }
 
 

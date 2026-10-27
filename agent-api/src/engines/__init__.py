@@ -20,6 +20,7 @@ from .registry import (
     UnknownEngineError,
     build_engine_context,
     build_engine_registry,
+    build_frontend_engine_context,
     engine_skills,
     get_engine_registry,
 )
@@ -45,6 +46,7 @@ __all__ = [
     "ToolCall",
     "UnknownEngineError",
     "build_engine_context",
+    "build_frontend_engine_context",
     "build_engine_registry",
     "engine_skills",
     "get_engine_registry",

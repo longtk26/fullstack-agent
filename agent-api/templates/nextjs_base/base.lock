@@ -1,0 +1,6 @@
+nextVersion=16.4.2
+shadcnVersion=4.22.1
+shadcnStyle=base-nova
+pnpmVersion=10.18.3
+node=v22.23.4
+createdWith=pnpm dlx create-next-app@16.4.2 --typescript --tailwind --eslint --app --src-dir --import-alias "@/*" --use-pnpm

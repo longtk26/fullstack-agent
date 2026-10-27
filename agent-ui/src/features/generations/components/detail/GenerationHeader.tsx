@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, Coins, ExternalLink, Radio, RotateCcw, Timer } from "lucide-react";
+import { AppWindow, ArrowLeft, Coins, ExternalLink, Radio, RotateCcw, Timer } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -81,6 +81,16 @@ export function GenerationHeader({ detail, streamState }: GenerationHeaderProps)
           </Stack>
         </Stack>
         <Stack direction="row" gap="xs">
+          {detail.frontendPreview?.status === "RUNNING" && detail.frontendPreview.url && (
+            <Button
+              size="sm"
+              render={<a href={detail.frontendPreview.url} target="_blank" rel="noreferrer" />}
+              nativeButton={false}
+            >
+              <AppWindow /> Open site
+              {detail.frontendPreview.mockApi && <Badge variant="secondary">mock API</Badge>}
+            </Button>
+          )}
           {detail.trace.langsmithUrl ? (
             <Button
               variant="outline"

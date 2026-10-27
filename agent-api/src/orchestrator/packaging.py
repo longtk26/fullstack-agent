@@ -46,8 +46,12 @@ ZIP_SKIP_DIRS = {
     ".pytest_cache",
     ".ruff_cache",
     "node_modules",
+    ".next",
+    "out",
+    "test-results",
+    "playwright-report",
 }
-ZIP_SKIP_FILES = {".env"}
+ZIP_SKIP_FILES = {".env", ".env.local"}
 CONTEXT_FILES = {"CLAUDE.md", "AGENTS.md"}
 HTTP_METHODS = {"get", "post", "put", "patch", "delete"}
 SECRET_NAME = re.compile(r"(SECRET|PASSWORD|TOKEN|API_KEY|_KEY$|DB_URL$)")

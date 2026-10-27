@@ -28,6 +28,7 @@ class GenerationDetail(BaseModel):
     invocations: list[CliInvocationEntity]
     artifacts: list[ArtifactEntity] = []
     preview: PreviewEntity | None = None
+    frontend_preview: PreviewEntity | None = None
 
 
 class GetGenerationUsecase:
@@ -67,6 +68,7 @@ class GetGenerationUsecase:
             invocations=self.records.list_cli_invocations(generation_id),
             artifacts=self.artifact_repo.list_for_generation(generation_id),
             preview=self.preview_repo.find(generation_id),
+            frontend_preview=self.preview_repo.find(generation_id, "frontend"),
         )
 
 

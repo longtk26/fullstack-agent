@@ -12,24 +12,49 @@ NODES = (
     "generate_tests",
     "run_validation",
     "repair_code",
+    "plan_frontend",
+    "scaffold_frontend",
+    "generate_frontend",
+    "validate_frontend",
+    "repair_frontend",
     "package_artifacts",
 )
-BACKEND_NODES = NODES[2:]
+BACKEND_NODES = (
+    "validate_spec",
+    "plan_architecture",
+    "generate_database",
+    "generate_backend",
+    "generate_tests",
+    "run_validation",
+    "repair_code",
+)
+FRONTEND_NODES = ("plan_frontend", "scaffold_frontend", "generate_frontend", "validate_frontend", "repair_frontend")
 
-# The nodes each mode's graph is built from (Story 12.2; 14.1 adds the parallel frontend lane).
+# The nodes each mode's graph is built from (Stories 12.2, 13.x; 14.1 runs the two lanes in parallel).
 MODE_NODES: dict[GenerationMode, tuple[str, ...]] = {
-    GenerationMode.BACKEND: BACKEND_NODES,
-    GenerationMode.DYNAMIC: ("validate_inputs", "build_contract", *BACKEND_NODES[1:]),
-    GenerationMode.STATIC: ("validate_inputs", "package_artifacts"),
+    GenerationMode.BACKEND: (*BACKEND_NODES, "package_artifacts"),
+    GenerationMode.DYNAMIC: (
+        "validate_inputs",
+        "build_contract",
+        *BACKEND_NODES[1:],
+        *FRONTEND_NODES,
+        "package_artifacts",
+    ),
+    GenerationMode.STATIC: ("validate_inputs", *FRONTEND_NODES, "package_artifacts"),
 }
 
 NODE_STATUS = {
     "run_validation": GenerationStatus.VALIDATING,
     "repair_code": GenerationStatus.REPAIRING,
+    "validate_frontend": GenerationStatus.VALIDATING,
+    "repair_frontend": GenerationStatus.REPAIRING,
 }
 
 # Which lane a node belongs to; job-level nodes (inputs, contract, packaging) have none.
-NODE_LANE: dict[str, Lane] = {node: Lane.BACKEND for node in BACKEND_NODES if node not in ("package_artifacts",)}
+NODE_LANE: dict[str, Lane] = {
+    **{node: Lane.BACKEND for node in BACKEND_NODES},
+    **{node: Lane.FRONTEND for node in FRONTEND_NODES},
+}
 
 
 def status_for(node: str) -> GenerationStatus:
@@ -71,3 +96,12 @@ class GenerationState(TypedDict, total=False):
     artifact_ids: dict[str, str]
     last_commit: str | None
     outcome: str | None
+    # frontend lane (Epic 13)
+    frontend_plan_ref: str | None
+    frontend_repair_attempts: int
+    frontend_validation: dict[str, str]
+    frontend_failed_checks: list[str]
+    frontend_digest_ref: str | None
+    frontend_implicated_files: list[str]
+    frontend_last_commit: str | None
+    backend_error: str | None

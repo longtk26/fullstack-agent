@@ -2,15 +2,17 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from src.configs import config
-from src.engines import PromptLibrary, build_engine_context, get_engine_registry
+from src.engines import PromptLibrary, build_engine_context, build_frontend_engine_context, get_engine_registry
 from src.libs.queue import JobQueue, PreviewCommandBus
 from src.libs.redaction import default_redactor
 from src.libs.redis import get_redis
 from src.modules.generations.infrastructure.adapters import EventPublisher
+from src.preview.docker_frontend_preview import DockerFrontendPreviewRuntime
 from src.preview.docker_preview import DockerPreviewRuntime
 from src.sandbox import DockerSandboxProvider
 
 from .checkpointer import postgres_checkpointer
+from .frontend_validation import SandboxFrontendValidationRunner, StaticFrontendValidationRunner
 from .previews import PreviewService
 from .runner import JobRunner
 from .store import JobStore
@@ -30,7 +32,13 @@ async def build_worker_service(worker_id: str | None = None):
     worker_id = worker_id or default_worker_id()
     sandboxes = DockerSandboxProvider() if config.sandbox_enabled else None
     previews = (
-        PreviewService(DockerPreviewRuntime(), store, events, PreviewCommandBus(redis))
+        PreviewService(
+            DockerPreviewRuntime(),
+            store,
+            events,
+            PreviewCommandBus(redis),
+            frontend_runtime=DockerFrontendPreviewRuntime(),
+        )
         if config.preview_enabled
         else None
     )
@@ -48,6 +56,8 @@ async def build_worker_service(worker_id: str | None = None):
             sandboxes=sandboxes,
             template_dir=Path(config.template_dir),
             on_completed=previews.request_start if previews else None,
+            frontend_engine_context=build_frontend_engine_context(prompts),
+            frontend_validator=SandboxFrontendValidationRunner() if sandboxes else StaticFrontendValidationRunner(),
         )
         # Every worker requests previews for its finished jobs; only a preview worker drives the containers.
         yield WorkerService(

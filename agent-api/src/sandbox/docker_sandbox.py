@@ -22,11 +22,12 @@ from sqlalchemy.engine import make_url
 
 from src.configs import config, get_logger
 
-from .port import ExecResult, ISandbox, ISandboxProvider, SandboxError
+from .port import ExecResult, ISandbox, ISandboxProvider, SandboxError, SandboxKind
 
 logger = get_logger(__name__)
 LABEL = "bga.sandbox"
 INSTANCE_LABEL = "bga.instance"
+PART_LABEL = "bga.sandbox.part"
 RUNNER_UID = 10001
 DB_USER = "app"
 DB_READY_TIMEOUT_S = 60
@@ -41,8 +42,23 @@ def instance_id() -> str:
     return hashlib.sha256((make_url(config.db_url).database or "").encode()).hexdigest()[:12]
 
 
-def _labels(generation_id: str) -> dict[str, str]:
-    return {LABEL: generation_id, INSTANCE_LABEL: instance_id()}
+def _labels(generation_id: str, part: str = "backend") -> dict[str, str]:
+    return {LABEL: generation_id, INSTANCE_LABEL: instance_id(), PART_LABEL: part}
+
+
+class SandboxProfile:
+    """What a sandbox kind runs with: image, database sidecar, limits and extra volumes."""
+
+    def __init__(self, kind: SandboxKind):
+        frontend = kind == "frontend"
+        self.kind = kind
+        self.image = config.frontend_sandbox_image if frontend else config.sandbox_image
+        self.database = not frontend
+        self.cpus = config.frontend_sandbox_cpus if frontend else config.sandbox_cpus
+        self.memory = config.frontend_sandbox_memory if frontend else config.sandbox_memory
+        self.pids = config.frontend_sandbox_pids if frontend else config.sandbox_pids
+        self.tmp = config.frontend_sandbox_tmp if frontend else "512m"
+        self.volumes = {config.frontend_store_volume: {"bind": "/pnpm-store", "mode": "rw"}} if frontend else {}
 
 
 def _slug(generation_id: str) -> str:
@@ -67,11 +83,13 @@ def _chown_tree(root: Path, uid: int, gid: int) -> None:
 
 
 class DockerSandbox(ISandbox):
-    def __init__(self, client: docker.DockerClient, generation_id: str, project: Path):
+    def __init__(self, client: docker.DockerClient, generation_id: str, project: Path, kind: SandboxKind = "backend"):
         self.client = client
         self.generation_id = generation_id
         self.project = project.resolve()
-        self.network_name = f"bga-sbx-{_slug(generation_id)}"
+        self.profile = SandboxProfile(kind)
+        suffix = "" if kind == "backend" else "-fe"
+        self.network_name = f"bga-sbx-{_slug(generation_id)}{suffix}"
         self.db_name = f"bga-sbx-db-{_slug(generation_id)}"
         self.password = secrets.token_hex(16)
         self.db_url = f"postgresql://{DB_USER}:{self.password}@{self.db_name}:5432/app"
@@ -89,8 +107,11 @@ class DockerSandbox(ISandbox):
 
     def _start(self) -> None:
         self._remove_all()
-        labels = _labels(self.generation_id)
+        labels = _labels(self.generation_id, self.profile.kind)
         self.client.networks.create(self.network_name, driver="bridge", internal=True, labels=labels)
+        if not self.profile.database:
+            logger.info("sandbox started", extra={"generation_id": self.generation_id, "kind": self.profile.kind})
+            return
         self.client.containers.run(
             config.sandbox_db_image,
             name=self.db_name,
@@ -119,7 +140,7 @@ class DockerSandbox(ISandbox):
         self._started = False
 
     def _remove_all(self) -> None:
-        remove_job_resources(self.client, {self.generation_id})
+        remove_job_resources(self.client, {self.generation_id}, part=self.profile.kind)
 
     # -- database -----------------------------------------------------------------------------------------------
 
@@ -155,33 +176,39 @@ class DockerSandbox(ISandbox):
     def _exec(self, command: str, timeout_s: int, env: dict[str, str] | None, egress: bool) -> ExecResult:
         if egress:
             ensure_egress_network(self.client)
-        environment = {
-            "DB_URL": self.db_url,
-            "TEST_DB_URL": self.test_db_url,
-            "CORS_ORIGINS": "*",
-            "JWT_SECRET": secrets.token_hex(32),
-            **(env or {}),
-        }
+        environment = (
+            {
+                "DB_URL": self.db_url,
+                "TEST_DB_URL": self.test_db_url,
+                "CORS_ORIGINS": "*",
+                "JWT_SECRET": secrets.token_hex(32),
+            }
+            if self.profile.database
+            else {"HOME": "/tmp", "CI": "1", "NEXT_TELEMETRY_DISABLED": "1"}
+        )
+        environment |= env or {}
         if (self.project / ".venv" / "bin" / "python").exists():
             environment["PATH"] = "/work/.venv/bin:/opt/venv/bin:/usr/local/bin:/usr/bin:/bin"
         started = time.monotonic()
         container = self.client.containers.run(
-            config.sandbox_image,
+            self.profile.image,
             ["sh", "-c", command],
             detach=True,
             user=self._user(),
             network=config.sandbox_egress_network if egress else self.network_name,
-            labels=_labels(self.generation_id),
-            volumes={str(self.project): {"bind": "/work", "mode": "rw"}},
+            labels=_labels(self.generation_id, self.profile.kind),
+            volumes={str(self.project): {"bind": "/work", "mode": "rw"}, **self.profile.volumes},
             working_dir="/work",
             environment=environment,
             read_only=True,
-            tmpfs={"/tmp": "rw,exec,size=512m"},
+            tmpfs={"/tmp": f"rw,exec,size={self.profile.tmp}"},
             cap_drop=["ALL"],
             security_opt=["no-new-privileges"],
-            nano_cpus=int(config.sandbox_cpus * 1e9),
-            mem_limit=_memory_bytes(config.sandbox_memory),
-            pids_limit=config.sandbox_pids,
+            nano_cpus=int(self.profile.cpus * 1e9),
+            mem_limit=_memory_bytes(self.profile.memory),
+            pids_limit=self.profile.pids,
+            ipc_mode="private",
+            shm_size="256m" if self.profile.kind == "frontend" else None,
         )
         timed_out = False
         try:
@@ -218,11 +245,15 @@ def ensure_egress_network(client: docker.DockerClient) -> None:
         client.networks.create(config.sandbox_egress_network, driver="bridge", labels={LABEL: "egress"})
 
 
-def remove_job_resources(client: docker.DockerClient, generation_ids: set[str]) -> int:
+def remove_job_resources(client: docker.DockerClient, generation_ids: set[str], part: str | None = None) -> int:
+    """Containers and networks of those generations' sandboxes; only one part (backend / frontend) when given.
+    Resources from before parts existed carry no part label and count as `backend`."""
     removed = 0
     for generation_id in generation_ids:
         selector = {"label": [f"{LABEL}={generation_id}", f"{INSTANCE_LABEL}={instance_id()}"]}
         for container in client.containers.list(all=True, sparse=True, filters=selector):
+            if part is not None and (container.attrs.get("Labels") or {}).get(PART_LABEL, "backend") != part:
+                continue
             if not (container.attrs.get("Labels") or {}).get(LABEL):
                 logger.warning("refusing to remove a non-sandbox container", extra={"container": container.id[:12]})
                 continue
@@ -232,6 +263,8 @@ def remove_job_resources(client: docker.DockerClient, generation_ids: set[str]) 
             except (NotFound, APIError):  # already gone, or removal already in progress
                 pass
         for network in client.networks.list(filters=selector):
+            if part is not None and (network.attrs.get("Labels") or {}).get(PART_LABEL, "backend") != part:
+                continue
             try:
                 network.remove()
                 removed += 1
@@ -244,8 +277,8 @@ class DockerSandboxProvider(ISandboxProvider):
     def __init__(self, client: docker.DockerClient | None = None):
         self.client = client or docker.from_env()
 
-    def for_job(self, generation_id: str, project: Path) -> DockerSandbox:
-        return DockerSandbox(self.client, generation_id, project)
+    def for_job(self, generation_id: str, project: Path, kind: SandboxKind = "backend") -> DockerSandbox:
+        return DockerSandbox(self.client, generation_id, project, kind)
 
     async def job_ids(self) -> set[str]:
         def run() -> set[str]:

@@ -8,6 +8,7 @@ from src.modules.previews.usecases import (
     ListPreviewsUsecaseDep,
     PreviewAction,
     PreviewActionUsecaseDep,
+    PreviewKind,
     PreviewQueryUsecaseDep,
     TouchPreviewUsecaseDep,
 )
@@ -16,28 +17,40 @@ preview_router = APIRouter(prefix="/api/v1/generations/{generation_id}/preview",
 previews_router = APIRouter(prefix="/api/v1/previews", tags=["previews"])
 
 
+# `kind=frontend` addresses the frontend preview (Story 13.5); the default is the backend preview.
+KindQuery = Annotated[PreviewKind, Query()]
+
+
 @preview_router.get("", response_model=PreviewDto)
-async def get_preview(generation_id: str, user: CurrentUserDep, usecase: PreviewQueryUsecaseDep) -> PreviewDto:
-    return PreviewDto.from_entity(usecase.get(generation_id, user))
+async def get_preview(
+    generation_id: str, user: CurrentUserDep, usecase: PreviewQueryUsecaseDep, kind: KindQuery = "backend"
+) -> PreviewDto:
+    return PreviewDto.from_entity(usecase.get(generation_id, user, kind))
 
 
-async def _act(generation_id: str, user, usecase, action: PreviewAction) -> PreviewDto:
-    return PreviewDto.from_entity(await usecase.execute(generation_id, user, action))
+async def _act(generation_id: str, user, usecase, action: PreviewAction, kind: PreviewKind = "backend") -> PreviewDto:
+    return PreviewDto.from_entity(await usecase.execute(generation_id, user, action, kind))
 
 
 @preview_router.post("/start", response_model=PreviewDto, status_code=status.HTTP_202_ACCEPTED)
-async def start_preview(generation_id: str, user: CurrentUserDep, usecase: PreviewActionUsecaseDep) -> PreviewDto:
-    return await _act(generation_id, user, usecase, "start")
+async def start_preview(
+    generation_id: str, user: CurrentUserDep, usecase: PreviewActionUsecaseDep, kind: KindQuery = "backend"
+) -> PreviewDto:
+    return await _act(generation_id, user, usecase, "start", kind)
 
 
 @preview_router.post("/stop", response_model=PreviewDto, status_code=status.HTTP_202_ACCEPTED)
-async def stop_preview(generation_id: str, user: CurrentUserDep, usecase: PreviewActionUsecaseDep) -> PreviewDto:
-    return await _act(generation_id, user, usecase, "stop")
+async def stop_preview(
+    generation_id: str, user: CurrentUserDep, usecase: PreviewActionUsecaseDep, kind: KindQuery = "backend"
+) -> PreviewDto:
+    return await _act(generation_id, user, usecase, "stop", kind)
 
 
 @preview_router.post("/restart", response_model=PreviewDto, status_code=status.HTTP_202_ACCEPTED)
-async def restart_preview(generation_id: str, user: CurrentUserDep, usecase: PreviewActionUsecaseDep) -> PreviewDto:
-    return await _act(generation_id, user, usecase, "restart")
+async def restart_preview(
+    generation_id: str, user: CurrentUserDep, usecase: PreviewActionUsecaseDep, kind: KindQuery = "backend"
+) -> PreviewDto:
+    return await _act(generation_id, user, usecase, "restart", kind)
 
 
 @preview_router.post("/reset-db", response_model=PreviewDto, status_code=status.HTTP_202_ACCEPTED)
@@ -46,14 +59,18 @@ async def reset_preview_db(generation_id: str, user: CurrentUserDep, usecase: Pr
 
 
 @preview_router.delete("", status_code=status.HTTP_202_ACCEPTED)
-async def delete_preview(generation_id: str, user: CurrentUserDep, usecase: PreviewActionUsecaseDep) -> Response:
-    await usecase.execute(generation_id, user, "delete")
+async def delete_preview(
+    generation_id: str, user: CurrentUserDep, usecase: PreviewActionUsecaseDep, kind: KindQuery = "backend"
+) -> Response:
+    await usecase.execute(generation_id, user, "delete", kind)
     return Response(status_code=status.HTTP_202_ACCEPTED)
 
 
 @preview_router.post("/touch", response_model=PreviewDto)
-async def touch_preview(generation_id: str, user: CurrentUserDep, usecase: TouchPreviewUsecaseDep) -> PreviewDto:
-    return PreviewDto.from_entity(await usecase.execute(generation_id, user))
+async def touch_preview(
+    generation_id: str, user: CurrentUserDep, usecase: TouchPreviewUsecaseDep, kind: KindQuery = "backend"
+) -> PreviewDto:
+    return PreviewDto.from_entity(await usecase.execute(generation_id, user, kind))
 
 
 @preview_router.get("/logs", response_model=PreviewLogsDto)
@@ -62,8 +79,9 @@ async def preview_logs(
     user: CurrentUserDep,
     usecase: PreviewQueryUsecaseDep,
     tail: Annotated[int, Query(ge=1, le=2000)] = 200,
+    kind: KindQuery = "backend",
 ) -> PreviewLogsDto:
-    return PreviewLogsDto.model_validate(await usecase.logs(generation_id, user, tail))
+    return PreviewLogsDto.model_validate(await usecase.logs(generation_id, user, tail, kind))
 
 
 @preview_router.get("/requests", response_model=PreviewRequestsDto)

@@ -1,0 +1,28 @@
+{
+  "baseLock": {
+    "createdWith": "pnpm dlx create-next-app@16.4.2 --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --use-pnpm",
+    "nextVersion": "16.4.2",
+    "node": "v22.23.4",
+    "pnpmVersion": "10.18.3",
+    "shadcnStyle": "base-nova",
+    "shadcnVersion": "4.22.1"
+  },
+  "lockSha256": "e6663fe1230c9a8a87bbae6ccd19b818775a80866cbdd69069b0808943fee132",
+  "remove": {
+    "public/file.svg": "2b67812c325c199a02536cdbeea0c593a72f707d323b72ee3e08dbab06753bd4",
+    "public/globe.svg": "b614b9bf183925957661ac851498fe1d8029fd43a62fbfed86f9e2624a57e7cf",
+    "public/next.svg": "55995dfad6ecb4945a1e856ddca03c5e16aa5bf13fd21b4df6a74ae79357bcfc",
+    "public/vercel.svg": "f081337b2fee635b455b63275406a3e7f39d6a014e25ad90dab5a67e62a12ac4",
+    "public/window.svg": "644768c4aaeb4767bce293344eeb0c125fb804a94d801440424072202d85e3a1",
+    "src/app/page.tsx": "5a51fdb3f4c514f83e3415b8568d481455656afec2167d61167181c6483c62ff"
+  },
+  "replace": {
+    "README.md": "60b55ff7df79af72590f9524208e46642bc32bdc175cdad41349681c0e2f958f",
+    "eslint.config.mjs": "870f1adccecf3051cbcd9fd307cef51d7633cf510979c181a81f4b1797273493",
+    "next.config.ts": "17145a9822ec351b92b8a5f8d3a709a531c8690ed92d397a4405ae084ea9acc7",
+    "src/app/globals.css": "15fd52bd462719c6469cb5978ece7a907e9558ac22050005abe8b865524e05e1",
+    "src/app/layout.tsx": "ac0a51f726d23d255be241c5f37e47119736c2c3cdf5feac57f85de677686ee5",
+    "src/hooks/use-mobile.ts": "ad0936f84f1df79d3697bfbff9c18f8ad58431c1cbaf2359c6a853b0fcc9f28b"
+  },
+  "version": "1"
+}

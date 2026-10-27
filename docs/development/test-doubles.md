@@ -11,6 +11,8 @@ test-only flag, add it here and mark it at its definition.
 | **Fake engine** (`engine: "fake"`) | `agent-api/src/engines/fake_engine.py` | unit/workflow tests, UI demos, `make up` smoke runs | The LLM CLI. It replays scripted file writes (`FakeStep`s) and never calls a model. Shown in the engine list only when `ENABLE_FAKE_ENGINE=true`. Each run reports two scripted model calls (model `fake`, $0, 1000 in / 200 out tokens) so traces and usage rollups have data (Epic 8). |
 | **Golden two-entity project** | `agent-api/src/engines/golden/two_entity/` | the fake engine's script (`demo_scenario`); tests (`tests/generation_helpers.golden_project`) | A hand-written, convention-correct implementation of **`examples/specs/two-entity.json` only**. The fake engine copies it one module per call and plants one syntax error in the tasks router so the repair loop runs. With any other spec a fake run **fails validation** — that is expected. |
 | **Static validation runner** | `StaticValidationRunner` in `agent-api/src/orchestrator/validation.py` | `SANDBOX_ENABLED=false` (the default in `tests/conftest.py`) | The sandbox pipeline. It only runs the syntax and conventions checks; every check that would execute code is reported `not_run`, never `passed`. |
+| **Golden frontends** | `agent-api/src/engines/golden/frontend/{static_landing,project_tracker}/` (`GOLDEN_FRONTENDS` in `fake_engine.py`) | the fake engine's `generate_frontend` / `repair_frontend` steps; `tests/test_frontend_scaffold.py`, `tests/sandbox/test_frontend_sandbox.py` | Hand-written, nextjs-skills-conformant pages and components for **`examples/frontend-specs/static-landing.json` and `project-tracker-dynamic.json` only** (picked by the FrontendSpec's project name). The first `generate_frontend` call copies the whole golden frontend with one planted defect (a hard-coded colour in the shell, caught by the `conventions` check) so the repair loop runs; `repair_frontend` copies it again. Other FrontendSpecs (e.g. `shop-dynamic.json`) need a real engine. |
+| **Static frontend validation runner** | `StaticFrontendValidationRunner` in `agent-api/src/orchestrator/frontend_validation.py` | `SANDBOX_ENABLED=false` | The Node sandbox pipeline. It only runs the conventions check; install, typecheck, lint, build, routes and tests are reported `not_run`, never `passed`. |
 
 `FAKE_ENGINE_DELAY_SECONDS` (default 0.3) slows each fake step so the UI's live view can be watched.
 
@@ -24,6 +26,7 @@ test-only flag, add it here and mark it at its definition.
 | Recording LangSmith client | `agent-api/tests/tracing_fakes.py` (`RecordingLangSmithClient`) | Replaces `langsmith.Client` in `tests/test_tracing.py`: keeps every posted/patched run after the same hide hooks, so the span tree and secret masking are tested without sending anything. `tests/conftest.py` also forces `LANGSMITH_TRACING=false`, so no test run reaches LangSmith. |
 | Invalid / base specs | `agent-api/tests/fixtures/specs/` | One invalid spec per validator error code. |
 | Plan snapshots | `agent-api/tests/fixtures/plans/*.plan.json` | Expected planner output; refresh deliberately with `UPDATE_SNAPSHOTS=1`. |
+| Frontend plan snapshots | `agent-api/tests/fixtures/frontend-plans/*.plan.json` | Expected frontend planner output per FrontendSpec example (Story 13.1); refresh with `UPDATE_SNAPSHOTS=1`. |
 | Contract snapshots | `agent-api/tests/fixtures/contracts/*.contract.json` | Expected API contract per example spec (Story 12.3); refresh with `UPDATE_SNAPSHOTS=1`. |
 | Exported OpenAPI documents | `agent-api/tests/fixtures/openapi/two-entity.{golden,engine}.json` | Real `openapi.json` exports of two generated two-entity backends (the golden project, and an engine-generated one); the contract conformance check is tested against them and against mutated copies. |
 | Frontend site snapshot | `agent-api/tests/fixtures/frontend/` | Importer regression input. |
@@ -31,8 +34,9 @@ test-only flag, add it here and mark it at its definition.
 
 `examples/` (repo root) is **not** test-only: the UI serves it for "Load example" / "Load sample". The golden
 project above is written against `examples/specs/two-entity.json`, so change both together.
-`examples/frontend-specs/project-tracker-dynamic.json` is the frontend for that spec: it exists so a `dynamic`
-job can run its backend lane with the fake engine (the other FrontendSpec examples need a real engine).
+`examples/frontend-specs/project-tracker-dynamic.json` is the frontend for that spec: with the golden frontends
+above, the fake engine runs both lanes of a `dynamic` job and the frontend lane of a `static-landing.json` job.
+`examples/requirements/*.md` are sample requirements for those specs (input for requirement drafting, 2.4/12.4).
 
 ## Local-development defaults (never production values)
 

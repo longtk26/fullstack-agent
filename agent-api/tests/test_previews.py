@@ -218,7 +218,7 @@ def test_api_start_records_the_request_and_queues_a_command(client, user_headers
     response = client.post(f"{url}/start", headers=user_headers)
 
     assert response.status_code == 202 and response.json()["status"] == "STARTING"
-    assert _bus_next() == {"op": "start", "generationId": completed, "args": {}}
+    assert _bus_next() == {"op": "start", "generationId": completed, "args": {"kind": "backend"}}
     assert client.post(f"{url}/touch", headers=user_headers).status_code == 409, "not running yet"
     listed = client.get("/api/v1/previews", headers=user_headers).json()["items"]
     assert [p["generationId"] for p in listed] == [completed]
@@ -285,7 +285,11 @@ def test_runner_requests_a_preview_on_completion(client, user_headers, tmp_path)
     assert run_job(tmp_path, wanted, engine=fast, on_completed=on_completed) == "COMPLETED"
     assert run_job(tmp_path, skipped, engine=fast, on_completed=on_completed) == "COMPLETED"
 
-    assert requested == [wanted]
+    # The runner reports every finished generation; the preview service decides which previews it gets.
+    assert requested == [wanted, skipped]
+    service = PreviewService(FakePreviewRuntime(), STORE, None, None, frontend_runtime=FakePreviewRuntime())
+    assert service.startable(wanted) == ["backend"]
+    assert service.startable(skipped) == []
 
 
 def test_request_log_parsing_keeps_only_app_calls():

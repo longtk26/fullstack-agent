@@ -11,11 +11,12 @@ from src.modules.generations.usecases.get_generation_usecase import GetGeneratio
 from src.modules.previews.infrastructure.adapters import PreviewCommandBusDep
 from src.modules.previews.ports.output import IPreviewRepoDep
 from src.modules.shared.domain.entities import PreviewEntity, UserEntity
-from src.modules.shared.domain.enums import PreviewStatus
+from src.modules.shared.domain.enums import LaneStatus, PreviewStatus
 from src.modules.shared.domain.generation_modes import backend_ready
 
 PreviewAction = Literal["start", "stop", "restart", "delete", "reset-db"]
-SOURCE_ARTIFACT = "backend.zip"
+PreviewKind = Literal["backend", "frontend"]
+SOURCE_ARTIFACTS = {"backend": "backend.zip", "frontend": "frontend.zip"}
 ACTIVE = (PreviewStatus.STARTING, PreviewStatus.RUNNING)
 
 
@@ -35,23 +36,32 @@ class PreviewActionUsecase:
         self.artifact_repo = artifact_repo
         self.bus = bus
 
-    async def execute(self, generation_id: str, user: UserEntity, action: PreviewAction) -> PreviewEntity | None:
+    async def execute(
+        self, generation_id: str, user: UserEntity, action: PreviewAction, kind: PreviewKind = "backend"
+    ) -> PreviewEntity | None:
         generation = self.getter.load(generation_id, user)
         if not config.preview_enabled:
             raise ConflictException("Previews are disabled (PREVIEW_ENABLED=false)", code=ErrorCode.PREVIEWS_DISABLED)
-        preview = self.preview_repo.find(generation_id)
+        preview = self.preview_repo.find(generation_id, kind)
         if action in ("stop", "delete"):
             if preview is None:
                 raise NotFoundException("Preview not found")
-            await self.bus.send(action, generation_id)
+            await self.bus.send(action, generation_id, kind=kind)
             return preview if action == "stop" else None
 
-        if not backend_ready(generation.status, generation.lanes):
+        if kind == "frontend" and action == "reset-db":
+            raise ConflictException("Frontend previews have no database", code=ErrorCode.BAD_REQUEST)
+        ready = (
+            generation.lanes.get("frontend") == LaneStatus.COMPLETED.value
+            if kind == "frontend"
+            else backend_ready(generation.status, generation.lanes)
+        )
+        if not ready:
             raise ConflictException(
-                f"Only generations with a completed backend have a preview (status {generation.status})",
+                f"Only generations with a completed {kind} have a {kind} preview (status {generation.status})",
                 code=ErrorCode.GENERATION_NOT_COMPLETED,
             )
-        if self.artifact_repo.find_by_name(generation_id, SOURCE_ARTIFACT) is None:
+        if self.artifact_repo.find_by_name(generation_id, SOURCE_ARTIFACTS[kind]) is None:
             raise ConflictException("The generation has no packaged source", code=ErrorCode.ARTIFACT_MISSING)
         if action == "start" and preview is not None and preview.status in ACTIVE:
             return preview
@@ -63,14 +73,14 @@ class PreviewActionUsecase:
                     "stop one first",
                     code=ErrorCode.PREVIEW_LIMIT_REACHED,
                 )
-        preview = await self._mark_starting(generation_id)
-        await self.bus.send(action, generation_id)
+        preview = await self._mark_starting(generation_id, kind)
+        await self.bus.send(action, generation_id, kind=kind)
         return preview
 
     @Transactional
-    async def _mark_starting(self, generation_id: str) -> PreviewEntity:
+    async def _mark_starting(self, generation_id: str, kind: str) -> PreviewEntity:
         return self.preview_repo.upsert(
-            generation_id, status=PreviewStatus.STARTING, started_at=datetime.now(UTC), error=None
+            generation_id, kind, status=PreviewStatus.STARTING, started_at=datetime.now(UTC), error=None
         )
 
 
@@ -80,16 +90,16 @@ class TouchPreviewUsecase:
         self.preview_repo = preview_repo
 
     @Transactional
-    async def execute(self, generation_id: str, user: UserEntity) -> PreviewEntity:
+    async def execute(self, generation_id: str, user: UserEntity, kind: PreviewKind = "backend") -> PreviewEntity:
         self.getter.load(generation_id, user)
-        preview = self.preview_repo.find(generation_id)
+        preview = self.preview_repo.find(generation_id, kind)
         if preview is None:
             raise NotFoundException("Preview not found")
         if preview.status != PreviewStatus.RUNNING:
             raise ConflictException(f"Preview is {preview.status}", code=ErrorCode.PREVIEW_NOT_RUNNING)
         now = datetime.now(UTC)
         return self.preview_repo.upsert(
-            generation_id, last_accessed_at=now, expires_at=now + timedelta(hours=config.preview_ttl_hours)
+            generation_id, kind, last_accessed_at=now, expires_at=now + timedelta(hours=config.preview_ttl_hours)
         )
 
 

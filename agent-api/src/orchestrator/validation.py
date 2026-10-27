@@ -152,15 +152,20 @@ def _format_detail(detail: dict[str, Any]) -> str:
 
 
 def build_digest(results: list[CheckResult]) -> str:
+    return build_digest_for(results, DIGEST_ORDER)
+
+
+def build_digest_for(results: list[CheckResult], order: tuple[str, ...]) -> str:
+    """Failed checks in `order` (most useful first), each with its details and, where useful, its output."""
     by_check = {r.check: r for r in results}
     sections = []
-    for check in DIGEST_ORDER:
+    for check in order:
         result = by_check.get(check)
         if result is None or result.status != "failed":
             continue
         lines = [f"## {check}: {result.summary}"]
         lines += [f"- {_format_detail(detail)}" for detail in result.details[:40]]
-        if result.output and (not result.details or check in ("startup", "migration", "deps")):
+        if result.output and (not result.details or check in ("startup", "migration", "deps", "install", "tests")):
             lines += ["```", result.output[-4000:], "```"]
         sections.append("\n".join(lines))
     return "\n\n".join(sections)[:DIGEST_LIMIT]

@@ -42,17 +42,23 @@ class SkillInfo(BaseModel):
     sha256: str
 
 
-def engine_skills(cfg=default_config) -> list[SkillInfo]:
+def engine_skills(cfg=default_config, names: list[str] | None = None) -> list[SkillInfo]:
     root = Path(cfg.engine_skills_dir)
     return [
         SkillInfo(name=name, path=root / name, sha256=directory_sha256(root / name))
-        for name in cfg.engine_skills
+        for name in (cfg.engine_skills if names is None else names)
         if (root / name / "SKILL.md").is_file()
     ]
 
 
 def build_engine_context(prompts: PromptLibrary, cfg=default_config) -> EngineContext:
     return EngineContext(conventions=prompts.conventions(), skill_dirs=[skill.path for skill in engine_skills(cfg)])
+
+
+def build_frontend_engine_context(prompts: PromptLibrary, cfg=default_config) -> EngineContext:
+    """The frontend lane's engine context: nextjs-skills and the frontend project rules (Story 13.2)."""
+    skills = engine_skills(cfg, cfg.frontend_engine_skills)
+    return EngineContext(conventions=prompts.frontend_conventions(), skill_dirs=[skill.path for skill in skills])
 
 
 def build_engine_registry(cfg=default_config) -> EngineRegistry:

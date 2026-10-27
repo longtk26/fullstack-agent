@@ -62,6 +62,8 @@ class JobContext:
         template_dir: Path | None = None,
         mode: GenerationMode = GenerationMode.BACKEND,
         lanes: dict[str, str] | None = None,
+        frontend_engine_context: EngineContext | None = None,
+        frontend_validator: Any = None,
     ):
         self.generation_id = generation_id
         self.mode = mode
@@ -81,6 +83,9 @@ class JobContext:
         self.sandboxes = sandboxes
         self.template_dir = template_dir or Path(config.template_dir)
         self._sandbox: ISandbox | None = None
+        self._frontend_sandbox: ISandbox | None = None
+        self.frontend_engine_context = frontend_engine_context or engine_context
+        self.frontend_validator = frontend_validator
         self._status: GenerationStatus | None = None
         self.trace: tracing.GenerationTrace | None = None
 
@@ -141,12 +146,16 @@ class JobContext:
         self.store.finish_node(run_id, status, summary)
         await self.emit("step.finished", step=node, status=status, **summary)
 
-    async def run_engine(self, node: str, purpose: str, prompt: RenderedPrompt) -> EngineResult:
+    async def run_engine(self, node: str, purpose: str, prompt: RenderedPrompt, repo: str = "project") -> EngineResult:
+        """One engine call in the backend project (`repo="project"`) or the frontend (`repo="frontend"`), each
+        with its own skill and project rules."""
         await self.check_cancel()
-        await self.engine.prepare_workspace(self.workspace.project, self.engine_context)
+        workdir = self.workspace.repo(repo)
+        context = self.frontend_engine_context if repo == "frontend" else self.engine_context
+        await self.engine.prepare_workspace(workdir, context)
         request = EngineRequest(
             purpose=purpose,
-            workdir=self.workspace.project,
+            workdir=workdir,
             state_dir=self.workspace.state,
             prompt=prompt.text,
             prompt_ref=prompt.ref,
@@ -170,7 +179,7 @@ class JobContext:
                 "purpose": purpose,
                 "prompt": prompt_id,
                 "promptSha256": prompt.ref.sha256,
-                "workdir": "project",
+                "workdir": repo,
                 "maxTurns": request.max_turns,
             },
             metadata={"engine": self.engine.name, "purpose": purpose},
@@ -317,17 +326,32 @@ class JobContext:
         await self._sandbox.start()
         return self._sandbox
 
+    async def frontend_sandbox(self) -> ISandbox | None:
+        """The frontend's Node sandbox (Story 13.4): no database, the shared pnpm store, kept until the job ends."""
+        if self.sandboxes is None:
+            return None
+        if self._frontend_sandbox is None:
+            inner = self.sandboxes.for_job(self.generation_id, self.workspace.frontend, kind="frontend")
+            self._frontend_sandbox = RecordingSandbox(inner, self)
+        await self._frontend_sandbox.start()
+        return self._frontend_sandbox
+
     async def close_sandbox(self) -> None:
-        if self._sandbox is not None:
+        for attribute in ("_sandbox", "_frontend_sandbox"):
+            sandbox = getattr(self, attribute)
+            if sandbox is None:
+                continue
             try:
-                await self._sandbox.stop()
+                await sandbox.stop()
             except Exception:
                 logger.warning("sandbox cleanup failed", extra={"generation_id": self.generation_id}, exc_info=True)
-            self._sandbox = None
+            setattr(self, attribute, None)
 
-    def file_tree(self, limit: int = 300) -> str:
-        project = self.workspace.project
+    def file_tree(self, limit: int = 300, repo: str = "project") -> str:
+        project = self.workspace.repo(repo)
         skip = {".git", ".claude", ".agents", "__pycache__", ".venv"}
+        if repo == "frontend":
+            skip |= {"node_modules", ".next", "out", "test-results", "playwright-report"}
         files = sorted(
             p.relative_to(project).as_posix()
             for p in project.rglob("*")
@@ -339,6 +363,9 @@ class JobContext:
 
     def project_path(self, *parts: str) -> Path:
         return self.workspace.project.joinpath(*parts)
+
+    def frontend_path(self, *parts: str) -> Path:
+        return self.workspace.frontend.joinpath(*parts)
 
 
 def exec_label(command: str) -> str:

@@ -9,6 +9,7 @@ from src.modules.shared.domain.enums import PreviewStatus
 class PreviewEntity(BaseModel):
     id: uuid.UUID | None = None
     generation_id: str
+    kind: str = "backend"
     status: PreviewStatus = PreviewStatus.STARTING
     container_id: str | None = None
     db_container_id: str | None = None
@@ -18,3 +19,4 @@ class PreviewEntity(BaseModel):
     last_accessed_at: datetime | None = None
     expires_at: datetime | None = None
     error: str | None = None
+    mock_api: bool | None = None

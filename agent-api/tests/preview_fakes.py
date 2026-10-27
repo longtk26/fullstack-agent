@@ -14,6 +14,7 @@ class FakePreviewRuntime(IPreviewRuntime):
         self.calls: list[tuple[str, str]] = []
         self.requests: dict[str, list[dict[str, Any]]] = {}
         self.seeds: dict[str, bytes | None] = {}
+        self.options: dict[str, dict[str, Any]] = {}
 
     async def deploy(self, request: PreviewRequest) -> PreviewHandle:
         self.calls.append(("deploy", request.generation_id))
@@ -26,6 +27,7 @@ class FakePreviewRuntime(IPreviewRuntime):
         port = state.host_port if state and state.host_port else request.ports[0]
         self.containers[request.generation_id] = PreviewState(app="running", db="running", host_port=port)
         self.seeds[request.generation_id] = request.seed
+        self.options[request.generation_id] = dict(request.options)
         return PreviewHandle(
             container_id=f"app-{request.generation_id}",
             db_container_id=f"db-{request.generation_id}",

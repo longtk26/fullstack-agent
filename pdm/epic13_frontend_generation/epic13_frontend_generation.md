@@ -39,6 +39,13 @@ frontend/
 | 13.4 | [Frontend validation & repair (Node sandbox)](story13.4_frontend_validation.md) | 13.3, 6.1 |
 | 13.5 | [Frontend packaging & preview container](story13.5_frontend_preview.md) | 13.4, 7.3 |
 
+## Status (2026-10-27)
+
+13.1–13.5 done. Verified in Docker with the fake engine: `static-landing` → a static site with its five routes,
+themed, all seven checks passed (one repair), served by its preview; `project-tracker-dynamic` + `two-entity` →
+backend and frontend lanes completed, frontend tests passed on mocks, both previews running. `shop-dynamic` has no
+golden frontend, so it needs a real engine to verify (not run: paid engines are only used when asked).
+
 ## Epic acceptance
 
 - `examples/frontend-specs/static-landing.json` → a static site whose page count and routes equal the spec,

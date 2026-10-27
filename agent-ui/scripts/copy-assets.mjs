@@ -1,5 +1,5 @@
 // Copies static assets the UI serves from public/: Monaco's AMD build (self-hosted, so the JSON editor works
-// offline) and the repo's examples/ (BackendSpecs, Frontend-Agent site JSON, FrontendSpecs) plus an index of them.
+// offline) and the repo's examples/ (BackendSpecs, Frontend-Agent site JSON, FrontendSpecs, sample requirements) plus an index of them.
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -27,14 +27,14 @@ function copyExamples() {
   rmSync(target, { recursive: true, force: true });
   mkdirSync(target, { recursive: true });
   const index = {};
-  for (const kind of ["specs", "frontend", "frontend-specs"]) {
+  for (const [kind, extension] of [["specs", ".json"], ["frontend", ".json"], ["frontend-specs", ".json"], ["requirements", ".md"]]) {
     const dir = join(source, kind);
     if (!existsSync(dir)) continue;
     cpSync(dir, join(target, kind), { recursive: true });
     index[kind] = readdirSync(dir)
-      .filter((name) => name.endsWith(".json"))
+      .filter((name) => name.endsWith(extension))
       .sort()
-      .map((name) => ({ name: name.replace(/\.json$/, ""), path: `/examples/${kind}/${name}` }));
+      .map((name) => ({ name: name.slice(0, -extension.length), path: `/examples/${kind}/${name}` }));
   }
   writeFileSync(join(target, "index.json"), JSON.stringify(index, null, 2));
 }

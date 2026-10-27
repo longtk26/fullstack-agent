@@ -32,6 +32,11 @@ Agent-specific notes:
   `modules/shared/domain/generation_modes.py`. FrontendSpec lives in `modules/shared/domain/frontend_spec/`;
   the API contract (`orchestrator/contract.py`) and its checks (`checks/conformance.py`, `checks/consistency.py`)
   are pure functions with snapshot tests (`UPDATE_SNAPSHOTS=1`).
+- Frontend lane (Epic 13): `orchestrator/frontend_*.py` (planner, theme, codegen, scaffold, validation, nodes);
+  base in `templates/nextjs_base` (regenerate with `make frontend-base`, never edit by hand), overlay in
+  `templates/nextjs_overlay` (`overlay.json` = drift manifest). Frontend checks are stored as `frontend:<check>`;
+  the frontend has its own git repo (`<workspace>/frontend`), sandbox kind (`for_job(..., "frontend")`) and
+  preview kind (`previews.kind`).
 - Test doubles (fake engine, golden two-entity project, static validator, fake CLIs, opt-in test flags) are listed in
   `docs/development/test-doubles.md`; add any new fake there and mark it at its definition.
 

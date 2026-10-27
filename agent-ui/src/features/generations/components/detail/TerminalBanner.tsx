@@ -14,17 +14,21 @@ export function TerminalBanner({ detail, events, onOpenTab }: TerminalBannerProp
     return (
       <Alert>
         <CircleCheck className="text-success" />
-        <AlertTitle>Backend generated</AlertTitle>
+        <AlertTitle>{detail.mode === "static" ? "Site generated" : "Backend generated"}</AlertTitle>
         <AlertDescription>
-          Validation passed after {detail.repairAttempts} repair attempt{detail.repairAttempts === 1 ? "" : "s"}.
+          {detail.mode === "static"
+            ? "The site built and passed its checks and smoke tests."
+            : `Validation passed after ${detail.repairAttempts} repair attempt${detail.repairAttempts === 1 ? "" : "s"}.`}
         </AlertDescription>
         <AlertAction className="flex gap-2">
           <Button size="sm" variant="outline" onClick={() => onOpenTab("results")}>
             Results
           </Button>
-          <Button size="sm" onClick={() => onOpenTab("api")}>
-            API
-          </Button>
+          {detail.mode !== "static" && (
+            <Button size="sm" onClick={() => onOpenTab("api")}>
+              API
+            </Button>
+          )}
         </AlertAction>
       </Alert>
     );
@@ -34,7 +38,13 @@ export function TerminalBanner({ detail, events, onOpenTab }: TerminalBannerProp
     return (
       <Alert>
         <TriangleAlert className="text-warning" />
-        <AlertTitle>{backendDone ? "Backend generated, with warnings" : "Finished with warnings"}</AlertTitle>
+        <AlertTitle>
+          {detail.lanes.frontend === "COMPLETED" && backendDone
+            ? "Frontend and backend generated, with warnings"
+            : backendDone
+              ? "Backend generated, with warnings"
+              : "Finished with warnings"}
+        </AlertTitle>
         <AlertDescription>{detail.error ?? "Some lanes did not complete."}</AlertDescription>
         <AlertAction className="flex gap-2">
           <Button size="sm" variant="outline" onClick={() => onOpenTab("results")}>

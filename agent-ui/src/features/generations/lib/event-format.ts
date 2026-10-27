@@ -38,6 +38,8 @@ export const EVENT_ICONS: Record<string, LucideIcon> = {
   "inputs.valid": FileCheck,
   "spec.invalid": TriangleAlert,
   "contract.ready": FileJson,
+  "frontend.plan.ready": FileJson,
+  "frontend.scaffold.done": FileCheck,
 };
 
 function text(value: unknown): string | null {
@@ -99,6 +101,15 @@ export function describeEvent(event: TGenerationEvent): string {
       const first = errors[0];
       const where = first ? ` first: ${[text(first.spec), text(first.path), text(first.message)].filter(Boolean).join(" ")}` : "";
       return `${num(p.total) ?? errors.length} input error(s);${where}`;
+    }
+    case "frontend.plan.ready":
+      return `Frontend plan: ${num(p.routes) ?? "?"} route(s), ${num(p.components) ?? "?"} component(s), ${num(p.tests) ?? "?"} test(s)`;
+    case "frontend.scaffold.done":
+      return `Frontend base ready (${text(p.mode) ?? "?"}): ${num(p.shadcn) ?? "?"} shadcn primitive(s), ${num(p.generated) ?? "?"} generated file(s)`;
+    case "preview.status": {
+      const kind = text(p.kind) === "frontend" ? "Site" : "API";
+      const detail = text(p.url) ?? text(p.error) ?? text(p.reason);
+      return `${kind} preview → ${(event.status ?? "?").toLowerCase()}${detail ? ` (${detail})` : ""}`;
     }
     case "contract.ready":
       return `API contract ready: ${num(p.operations) ?? "?"} operation(s), sha256 ${(text(p.sha256) ?? "").slice(0, 12)}`;

@@ -9,6 +9,7 @@ from src.engines.fake_engine import FakeEngine, demo_scenario
 from src.modules.shared.domain.enums import GenerationMode, GenerationStatus
 from src.modules.shared.domain.generation_modes import close_lanes, overall_status
 from src.orchestrator.contract import build_contract, dump_contract
+from src.orchestrator.store import JobStore
 from workflow_helpers import TWO_ENTITY, cli_invocations, events, generation, node_runs, run_job
 
 EXAMPLES = Path(__file__).parents[2] / "examples"
@@ -179,9 +180,14 @@ def test_workflow_graph_per_mode(client, headers):
     }
     assert "validate_spec" in ids["b"] and "validate_inputs" not in ids["b"]
     assert ids["d"][:3] == ["__start__", "validate_inputs", "build_contract"] and "validate_spec" not in ids["d"]
-    assert ids["s"] == ["__start__", "validate_inputs", "package_artifacts", "__end__"]
+    frontend_lane = ["plan_frontend", "scaffold_frontend", "generate_frontend", "validate_frontend", "repair_frontend"]
+    assert ids["s"] == ["__start__", "validate_inputs", *frontend_lane, "package_artifacts", "__end__"]
+    assert set(frontend_lane) <= set(ids["d"]) and not set(frontend_lane) & set(ids["b"])
     lanes = {node["id"]: node["lane"] for node in dynamic["nodes"] if not node["id"].startswith("__")}
     assert lanes["generate_backend"] == "backend" and lanes["build_contract"] is None
+    assert lanes["generate_frontend"] == "frontend"
+    edges = {(edge["source"], edge["target"]) for edge in dynamic["edges"]}
+    assert ("run_validation", "plan_frontend") in edges and ("run_validation", "__end__") not in edges
 
 
 # -- running them ------------------------------------------------------------------------------------------------
@@ -192,23 +198,38 @@ def _artifacts(client, headers: dict, generation_id: str) -> dict[str, dict]:
     return {item["name"]: item for item in items}
 
 
-def test_dynamic_generation_builds_the_contract_then_the_backend_lane(client, headers, tmp_path):
+def test_dynamic_generation_runs_contract_backend_and_frontend_lanes(client, headers, tmp_path):
+    auth = headers()
     generation_id = _submit(
-        client, headers(), {"mode": "dynamic", "frontendSpec": TRACKER_FRONTEND, "backendSpec": TWO_ENTITY}
+        client, auth, {"mode": "dynamic", "frontendSpec": TRACKER_FRONTEND, "backendSpec": TWO_ENTITY}
     )
     assert run_job(tmp_path, generation_id, engine=FakeEngine(tmp_path, demo_scenario(0))) == "COMPLETED_WITH_WARNINGS"
 
     row = generation(generation_id)
-    assert row.lanes == {"backend": "COMPLETED", "frontend": "SKIPPED", "integration": "SKIPPED"}
-    assert "Epic 13" in row.error_summary
+    assert row.lanes == {"backend": "COMPLETED", "frontend": "COMPLETED", "integration": "SKIPPED"}
+    assert "Epic 14" in row.error_summary
     nodes = [run.node for run in node_runs(generation_id)]
     assert nodes[:3] == ["validate_inputs", "build_contract", "plan_architecture"] and "validate_spec" not in nodes
+    backend_done = nodes.index("plan_frontend")
+    assert nodes[backend_done - 1] == "run_validation" and nodes[-1] == "package_artifacts"
+    assert nodes[backend_done:-1] == [
+        "plan_frontend", "scaffold_frontend", "generate_frontend", "validate_frontend", "repair_frontend",
+        "validate_frontend",
+    ]  # fmt: skip
+    frontend = tmp_path / generation_id / "frontend"
+    assert (frontend / ".bga" / "contract.json").is_file() and (
+        frontend / "src" / "lib" / "api" / "queries.ts"
+    ).is_file()
 
-    artifacts = _artifacts(client, headers(), generation_id)
-    assert {"contract.json", "frontend-spec.json", "spec.json", "backend.zip", "manifest.json"} <= set(artifacts)
+    artifacts = _artifacts(client, auth, generation_id)
+    assert {
+        "contract.json", "frontend-spec.json", "spec.json", "backend.zip", "manifest.json", "frontend.zip",
+        "frontend-plan.json", "frontend-repair-1.patch", "frontend-validation-2.json",
+    } <= set(artifacts)  # fmt: skip
+    assert artifacts["frontend.zip"]["kind"] == "frontend"
     assert artifacts["contract.json"]["kind"] == "contract"
     url = f"/api/v1/generations/{generation_id}/artifacts/{artifacts['contract.json']['artifactId']}"
-    contract_text = client.get(url, headers=headers()).text
+    contract_text = client.get(url, headers=auth).text
     from generation_helpers import normalized
 
     assert contract_text == dump_contract(build_contract(normalized(EXAMPLES / "specs" / "two-entity.json")))
@@ -217,15 +238,20 @@ def test_dynamic_generation_builds_the_contract_then_the_backend_lane(client, he
     manifest = json.loads(
         client.get(
             f"/api/v1/generations/{generation_id}/artifacts/{artifacts['manifest.json']['artifactId']}",
-            headers=headers(),
+            headers=auth,
         ).text
     )
     assert manifest["artifacts"]["contract"] == artifacts["contract.json"]["artifactId"]
+    assert manifest["artifacts"]["frontend"] == artifacts["frontend.zip"]["artifactId"]
+    assert manifest["frontend"]["mode"] == "dynamic" and len(manifest["frontend"]["routes"]) == 4
+    assert manifest["frontend"]["contractSha256"] and manifest["frontend"]["env"] == ["MOCK_TEST_API", "API_BASE_URL"]
 
     stored = events(generation_id)
     lane_changes = [(e.lane, e.status) for e in stored if e.type == "lane.changed"]
-    assert ("frontend", "SKIPPED") in lane_changes and ("backend", "COMPLETED") in lane_changes
+    assert ("integration", "SKIPPED") in lane_changes and ("backend", "COMPLETED") in lane_changes
+    assert ("frontend", "REPAIRING") in lane_changes and ("frontend", "COMPLETED") in lane_changes
     assert {e.lane for e in stored if e.step == "generate_backend"} == {"backend"}
+    assert {e.lane for e in stored if e.step == "generate_frontend"} == {"frontend"}
     assert {e.lane for e in stored if e.step == "build_contract"} == {None}
     ready = next(e for e in stored if e.type == "contract.ready")
     assert ready.payload["operations"] == 10 and len(ready.payload["sha256"]) == 64
@@ -248,26 +274,47 @@ def test_dynamic_generation_with_inconsistent_specs_fails_before_any_engine_call
     assert row.error_summary.startswith("6 input error(s); first: consistency /pages/0/sections/1/data/operationId")
 
 
-def test_static_generation_validates_and_packages_the_frontend_spec(client, headers, tmp_path):
+def test_static_generation_builds_the_site_with_one_repair(client, headers, tmp_path):
     deployed = []
 
     async def on_completed(generation_id):
         deployed.append(generation_id)
 
-    generation_id = _submit(client, headers(), {"mode": "static", "frontendSpec": LANDING})
-    assert run_job(tmp_path, generation_id, on_completed=on_completed) == "COMPLETED_WITH_WARNINGS"
+    auth = headers()
+    generation_id = _submit(client, auth, {"mode": "static", "frontendSpec": LANDING})
+    engine = FakeEngine(tmp_path, demo_scenario(0))
+    assert run_job(tmp_path, generation_id, engine=engine, on_completed=on_completed) == "COMPLETED"
     row = generation(generation_id)
-    assert row.lanes == {"frontend": "SKIPPED"} and "Frontend generation is not available yet" in row.error_summary
-    assert [run.node for run in node_runs(generation_id)] == ["validate_inputs", "package_artifacts"]
-    assert cli_invocations(generation_id) == [] and deployed == []
-    artifacts = _artifacts(client, headers(), generation_id)
-    assert set(artifacts) == {"frontend-spec.json", "report.json", "report.md"}
+    assert row.lanes == {"frontend": "COMPLETED"} and row.error_summary is None
+    assert [run.node for run in node_runs(generation_id)] == [
+        "validate_inputs", "plan_frontend", "scaffold_frontend", "generate_frontend", "validate_frontend",
+        "repair_frontend", "validate_frontend", "package_artifacts",
+    ]  # fmt: skip
+    calls = cli_invocations(generation_id)
+    assert [call.purpose for call in calls].count("generate_frontend") == 6  # the shell, then one per page
+    assert {call.purpose for call in calls} == {"generate_frontend", "repair_frontend"} and deployed == [generation_id]
+    first = next(e for e in events(generation_id) if e.type == "validation.check" and e.status == "failed")
+    assert first.payload["check"] == "frontend:conventions"
+
+    artifacts = _artifacts(client, auth, generation_id)
+    expected = {"frontend-spec.json", "frontend-plan.json", "frontend.zip", "manifest.json", "report.json"}
+    expected |= {"frontend-repair-1.patch", "frontend-validation-1.json", "frontend-validation-2.json"}
+    assert expected <= set(artifacts)
+    assert "backend.zip" not in artifacts and "contract.json" not in artifacts
     report = client.get(
-        f"/api/v1/generations/{generation_id}/artifacts/{artifacts['report.json']['artifactId']}", headers=headers()
+        f"/api/v1/generations/{generation_id}/artifacts/{artifacts['report.json']['artifactId']}", headers=auth
     ).json()
-    assert report["outcome"] == "COMPLETED_WITH_WARNINGS"
-    preview = client.post(f"/api/v1/generations/{generation_id}/preview/start", headers=headers())
-    assert preview.status_code in (409, 404)
+    assert report["outcome"] == "COMPLETED"
+    manifest = client.get(
+        f"/api/v1/generations/{generation_id}/artifacts/{artifacts['manifest.json']['artifactId']}", headers=auth
+    ).json()
+    assert manifest["mode"] == "static" and manifest["frontend"]["routes"][0]["route"] == "/"
+    assert "contractSha256" not in manifest["frontend"]
+    backend = client.post(f"/api/v1/generations/{generation_id}/preview/start", headers=auth)
+    assert backend.status_code == 409
+    frontend = client.post(f"/api/v1/generations/{generation_id}/preview/start?kind=frontend", headers=auth)
+    assert frontend.status_code == 202 and frontend.json()["kind"] == "frontend"
+    JobStore().delete_preview(generation_id, "frontend")  # no worker here; keep other tests' preview counts clean
 
 
 def test_backend_generation_is_unchanged(client, headers, tmp_path):
@@ -277,3 +324,49 @@ def test_backend_generation_is_unchanged(client, headers, tmp_path):
     assert row.mode == "backend" and row.lanes == {"backend": "COMPLETED"} and row.error_summary is None
     assert "contract.json" not in _artifacts(client, headers(), generation_id)
     assert node_runs(generation_id)[0].node == "validate_spec"
+
+
+def test_a_dynamic_generation_gets_a_frontend_preview_the_backend_allows(client, headers, tmp_path):
+    """Story 13.5: the frontend preview starts first (mock API on); the backend preview's CORS allows its origin."""
+    import asyncio
+
+    from preview_fakes import FakePreviewRuntime
+
+    from src.libs.queue import PreviewCommandBus
+    from src.libs.redaction import Redactor
+    from src.modules.generations.infrastructure.adapters import EventPublisher
+    from src.orchestrator.previews import PreviewService
+    from workflow_helpers import redis_client
+
+    auth = headers()
+    body = {"mode": "dynamic", "frontendSpec": TRACKER_FRONTEND, "backendSpec": TWO_ENTITY}
+    response = client.post("/api/v1/generations", json={**body, "options": {"engine": "fake"}}, headers=auth)
+    generation_id = response.json()["generationId"]
+    assert run_job(tmp_path, generation_id, engine=FakeEngine(tmp_path, demo_scenario(0))) == "COMPLETED_WITH_WARNINGS"
+    backend, frontend = FakePreviewRuntime(), FakePreviewRuntime()
+    store = JobStore()
+
+    async def go():
+        redis = redis_client()
+        try:
+            events_ = EventPublisher(redis, Redactor())
+            service = PreviewService(backend, store, events_, PreviewCommandBus(redis), frontend_runtime=frontend)
+            assert service.startable(generation_id) == ["frontend", "backend"]
+            for kind in service.startable(generation_id):
+                await service.start(generation_id, kind)
+        finally:
+            await redis.aclose()
+
+    try:
+        asyncio.run(go())
+        site, api = store.preview(generation_id, "frontend"), store.preview(generation_id, "backend")
+        assert site.status == "RUNNING" and site.mock_api is True and api.status == "RUNNING"
+        assert site.host_port != api.host_port
+        assert frontend.options[generation_id] == {"mode": "dynamic", "mockApi": True, "apiBaseUrl": ""}
+        assert f"http://localhost:{site.host_port}" in backend.options[generation_id]["corsOrigins"].split(",")
+        detail = client.get(f"/api/v1/generations/{generation_id}", headers=auth).json()
+        assert detail["frontendPreview"]["kind"] == "frontend" and detail["frontendPreview"]["mockApi"] is True
+        assert detail["frontendPreview"]["openapiUrl"] is None and detail["preview"]["kind"] == "backend"
+    finally:
+        for kind in ("frontend", "backend"):
+            store.delete_preview(generation_id, kind)

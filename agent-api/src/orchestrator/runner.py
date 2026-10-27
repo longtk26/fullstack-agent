@@ -3,6 +3,7 @@ import hashlib
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from langsmith import tracing_context
 
@@ -12,7 +13,6 @@ from src.modules.generations.infrastructure.adapters import EventPublisher
 from src.modules.shared.domain.enums import TERMINAL_STATUSES, GenerationMode, GenerationStatus, Lane, LaneStatus
 from src.modules.shared.domain.generation_modes import (
     UNAVAILABLE_LANES,
-    backend_ready,
     close_lanes,
     initial_lanes,
     overall_status,
@@ -21,6 +21,8 @@ from src.sandbox import ISandboxProvider, SandboxError
 
 from . import tracing
 from .context import EngineFailure, JobCancelled, JobContext
+from .frontend_scaffold import FrontendTemplateDrift
+from .frontend_validation import StaticFrontendValidationRunner
 from .graph import build_graph
 from .nodes import PROMPT_VERSIONS, write_artifacts
 from .scaffold import TemplateDrift
@@ -56,6 +58,8 @@ class JobRunner:
         sandboxes: ISandboxProvider | None = None,
         template_dir: Path | None = None,
         on_completed: Callable[[str], Awaitable[None]] | None = None,
+        frontend_engine_context: EngineContext | None = None,
+        frontend_validator: Any = None,
     ):
         self.registry = registry
         self.checkpointer = checkpointer
@@ -69,6 +73,8 @@ class JobRunner:
         self.sandboxes = sandboxes
         self.template_dir = template_dir
         self.on_completed = on_completed  # e.g. deploy the preview (Story 7.3); never affects the job status
+        self.frontend_engine_context = frontend_engine_context or engine_context
+        self.frontend_validator = frontend_validator or StaticFrontendValidationRunner()
         self.active: dict[str, JobContext] = {}
 
     async def cancel(self, generation_id: str) -> bool:
@@ -106,6 +112,8 @@ class JobRunner:
             template_dir=self.template_dir,
             mode=GenerationMode(generation.mode),
             lanes=generation.lanes or initial_lanes(GenerationMode(generation.mode)),
+            frontend_engine_context=self.frontend_engine_context,
+            frontend_validator=self.frontend_validator,
         )
         ctx._status = generation.status
         ctx.trace = await self._open_trace(generation)
@@ -174,6 +182,8 @@ class JobRunner:
             self.store.abandon_running(generation.id)
             if snapshot.values.get("last_commit"):
                 self.workspaces.reset_to(workspace, snapshot.values["last_commit"])
+            if snapshot.values.get("frontend_last_commit"):
+                self.workspaces.reset_to(workspace, snapshot.values["frontend_last_commit"], repo="frontend")
             await ctx.emit("job.resumed", resumeCount=generation.resume_count, nextSteps=list(snapshot.next))
             self.store.update_generation(generation.id, worker_id=self.worker_id)
             if not snapshot.next:
@@ -193,6 +203,7 @@ class JobRunner:
                 "options": generation.options,
                 "workspace": str(workspace.root),
                 "repair_attempts": 0,
+                "frontend_repair_attempts": 0,
                 "max_repair_attempts": int(generation.options.get("maxRepairAttempts", 3)),
                 "validation": {},
                 "failed_checks": [],
@@ -215,6 +226,8 @@ class JobRunner:
             return await self._finish(ctx, GenerationStatus.FAILED, str(exc), "DISK_LIMIT")
         except TemplateDrift as exc:
             return await self._finish(ctx, GenerationStatus.FAILED, str(exc)[:500], "TEMPLATE_DRIFT")
+        except FrontendTemplateDrift as exc:
+            return await self._finish(ctx, GenerationStatus.FAILED, str(exc)[:500], "FRONTEND_TEMPLATE_DRIFT")
         except SandboxError as exc:
             return await self._finish(ctx, GenerationStatus.FAILED, f"Sandbox failed: {exc}"[:500], "SANDBOX_ERROR")
         except EngineFailure as exc:
@@ -272,8 +285,8 @@ class JobRunner:
             )
         logger.info("generation finished", extra={"generation_id": ctx.generation_id, "status": status, "code": code})
         generation = self.store.generation(ctx.generation_id)
-        deploy = generation.options.get("deployPreview", True) and backend_ready(status, ctx.lanes)
-        if deploy and self.on_completed:
+        # The preview service decides which previews (backend, frontend) a finished generation gets.
+        if status in (GenerationStatus.COMPLETED, GenerationStatus.COMPLETED_WITH_WARNINGS) and self.on_completed:
             try:
                 await self.on_completed(ctx.generation_id)
             except Exception:

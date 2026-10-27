@@ -50,6 +50,7 @@ export type TExampleIndex = {
   specs?: TExampleFile[];
   frontend?: TExampleFile[];
   "frontend-specs"?: TExampleFile[];
+  requirements?: TExampleFile[];
 };
 
 export type TEngineInfo = {

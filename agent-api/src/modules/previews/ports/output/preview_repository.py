@@ -8,15 +8,15 @@ from src.modules.shared.domain.enums import PreviewStatus
 
 class IPreviewRepository(ABC):
     @abstractmethod
-    def find(self, generation_id: str) -> PreviewEntity | None:
+    def find(self, generation_id: str, kind: str = "backend") -> PreviewEntity | None:
         pass
 
     @abstractmethod
-    def upsert(self, generation_id: str, **fields: Any) -> PreviewEntity:
+    def upsert(self, generation_id: str, kind: str = "backend", **fields: Any) -> PreviewEntity:
         pass
 
     @abstractmethod
-    def delete(self, generation_id: str) -> None:
+    def delete(self, generation_id: str, kind: str = "backend") -> None:
         pass
 
     @abstractmethod

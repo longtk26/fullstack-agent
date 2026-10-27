@@ -16,6 +16,8 @@ class PreviewRequest:
     source_zip: Path
     ports: list[int]  # host ports to try, in order
     seed: bytes | None = None
+    # backend: corsOrigins; frontend: mode (static | dynamic), mockApi, apiBaseUrl
+    options: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass

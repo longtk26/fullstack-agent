@@ -19,16 +19,16 @@ class PreviewQueryUsecase:
         self.preview_repo = preview_repo
         self.bus = bus
 
-    def get(self, generation_id: str, user: UserEntity) -> PreviewEntity:
+    def get(self, generation_id: str, user: UserEntity, kind: str = "backend") -> PreviewEntity:
         self.getter.load(generation_id, user)
-        preview = self.preview_repo.find(generation_id)
+        preview = self.preview_repo.find(generation_id, kind)
         if preview is None:
             raise NotFoundException("Preview not found")
         return preview
 
-    async def logs(self, generation_id: str, user: UserEntity, tail: int) -> dict[str, Any]:
-        self.get(generation_id, user)
-        return await self._call("logs", generation_id, tail=tail)
+    async def logs(self, generation_id: str, user: UserEntity, tail: int, kind: str = "backend") -> dict[str, Any]:
+        self.get(generation_id, user, kind)
+        return await self._call("logs", generation_id, tail=tail, kind=kind)
 
     async def requests(self, generation_id: str, user: UserEntity, after: str | None, limit: int) -> dict[str, Any]:
         self.get(generation_id, user)

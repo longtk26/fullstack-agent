@@ -1,0 +1,655 @@
+{
+  "assets": [],
+  "components": [
+    {
+      "description": "Records as cards",
+      "domain": "sections",
+      "file": "src/components/sections/CardGrid.tsx",
+      "kind": "section",
+      "name": "CardGrid",
+      "propsType": "CardGridProps",
+      "usedBy": [
+        "home"
+      ],
+      "uses": [
+        "badge",
+        "card",
+        "pagination"
+      ]
+    },
+    {
+      "description": "Records as a table",
+      "domain": "sections",
+      "file": "src/components/sections/DataTable.tsx",
+      "kind": "section",
+      "name": "DataTable",
+      "propsType": "DataTableProps",
+      "usedBy": [
+        "projects",
+        "project",
+        "tasks"
+      ],
+      "uses": [
+        "input",
+        "pagination",
+        "select",
+        "table"
+      ]
+    },
+    {
+      "description": "One record",
+      "domain": "sections",
+      "file": "src/components/sections/DetailView.tsx",
+      "kind": "section",
+      "name": "DetailView",
+      "propsType": "DetailViewProps",
+      "usedBy": [
+        "project"
+      ],
+      "uses": [
+        "badge",
+        "card",
+        "separator"
+      ]
+    },
+    {
+      "description": "A form",
+      "domain": "sections",
+      "file": "src/components/sections/Form.tsx",
+      "kind": "section",
+      "name": "Form",
+      "propsType": "FormProps",
+      "usedBy": [
+        "projects",
+        "project"
+      ],
+      "uses": [
+        "button",
+        "checkbox",
+        "field",
+        "input",
+        "select",
+        "textarea"
+      ]
+    }
+  ],
+  "content": [],
+  "conventions": {
+    "colors": "design tokens from globals.css only (bg-primary, text-muted-foreground)",
+    "data": "React Query hooks from @/lib/api/queries only; no other network access",
+    "forms": "React Hook Form + zodResolver with the schemas in @/lib/forms",
+    "hooks": "logic over ~30 lines moves to the component's companion use-*.ts hook",
+    "packageManager": "pnpm",
+    "reactImports": "named imports only, never `import * as React`",
+    "skill": "nextjs-skills",
+    "types": "standalone types T-prefixed (TProduct); props <Name>Props; `type` over `interface`"
+  },
+  "data": [
+    {
+      "action": "list",
+      "fields": [
+        "name",
+        "description"
+      ],
+      "function": "listProjects",
+      "hook": "useListProjects",
+      "kind": "operation",
+      "operationId": "project.list",
+      "pageId": "home",
+      "params": {
+        "limit": 6,
+        "sort": "-createdAt"
+      },
+      "queryKey": "projectKeys.list(params)",
+      "section": "recent"
+    },
+    {
+      "action": "list",
+      "fields": [
+        "name",
+        "createdAt"
+      ],
+      "function": "listProjects",
+      "hook": "useListProjects",
+      "kind": "operation",
+      "operationId": "project.list",
+      "pageId": "projects",
+      "params": {
+        "sort": "name"
+      },
+      "queryKey": "projectKeys.list(params)",
+      "section": "table"
+    },
+    {
+      "action": "get",
+      "fields": [
+        "name",
+        "description",
+        "createdAt"
+      ],
+      "function": "getProject",
+      "hook": "useGetProject",
+      "kind": "operation",
+      "operationId": "project.get",
+      "pageId": "project",
+      "params": {
+        "id": "$route.id"
+      },
+      "queryKey": "projectKeys.detail(params)",
+      "section": "detail"
+    },
+    {
+      "action": "list",
+      "fields": [
+        "title",
+        "status",
+        "priority",
+        "dueDate"
+      ],
+      "function": "listTasks",
+      "hook": "useListTasks",
+      "kind": "operation",
+      "operationId": "task.list",
+      "pageId": "project",
+      "params": {
+        "projectId": "$route.id",
+        "sort": "priority"
+      },
+      "queryKey": "taskKeys.list(params)",
+      "section": "tasks"
+    },
+    {
+      "action": "list",
+      "fields": [
+        "title",
+        "status",
+        "dueDate"
+      ],
+      "function": "listTasks",
+      "hook": "useListTasks",
+      "kind": "operation",
+      "operationId": "task.list",
+      "pageId": "tasks",
+      "params": {
+        "sort": "dueDate",
+        "status": "TODO"
+      },
+      "queryKey": "taskKeys.list(params)",
+      "section": "table"
+    }
+  ],
+  "forms": [
+    {
+      "fields": [
+        {
+          "hidden": false,
+          "label": "Name",
+          "maxLength": 120,
+          "name": "name",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "hidden": false,
+          "label": "Description",
+          "name": "description",
+          "required": false,
+          "type": "text"
+        }
+      ],
+      "file": "src/lib/forms.ts",
+      "function": "createProject",
+      "hook": "useCreateProject",
+      "id": "newProject",
+      "onSuccess": {
+        "toast": "Project created"
+      },
+      "operationId": "project.create",
+      "params": {},
+      "requestFields": [
+        "description",
+        "name"
+      ],
+      "requestSchema": "#/components/schemas/CreateProjectRequest",
+      "schema": "newProjectSchema",
+      "submitLabel": "Create project",
+      "valuesType": "TNewProjectValues"
+    },
+    {
+      "fields": [
+        {
+          "hidden": true,
+          "name": "projectId",
+          "required": true,
+          "type": "string",
+          "value": "$route.id"
+        },
+        {
+          "hidden": false,
+          "label": "Title",
+          "maxLength": 200,
+          "name": "title",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "hidden": false,
+          "label": "Status",
+          "name": "status",
+          "required": false,
+          "type": "enum",
+          "values": [
+            "TODO",
+            "IN_PROGRESS",
+            "DONE"
+          ]
+        },
+        {
+          "hidden": false,
+          "label": "Priority",
+          "max": 5.0,
+          "min": 1.0,
+          "name": "priority",
+          "required": false,
+          "type": "integer"
+        },
+        {
+          "hidden": false,
+          "label": "Due",
+          "name": "dueDate",
+          "required": false,
+          "type": "date"
+        }
+      ],
+      "file": "src/lib/forms.ts",
+      "function": "createTask",
+      "hook": "useCreateTask",
+      "id": "newTask",
+      "onSuccess": {
+        "toast": "Task added"
+      },
+      "operationId": "task.create",
+      "params": {},
+      "requestFields": [
+        "dueDate",
+        "priority",
+        "projectId",
+        "status",
+        "title"
+      ],
+      "requestSchema": "#/components/schemas/CreateTaskRequest",
+      "schema": "newTaskSchema",
+      "submitLabel": "Add task",
+      "valuesType": "TNewTaskValues"
+    }
+  ],
+  "planVersion": "1",
+  "project": {
+    "locale": "en",
+    "mode": "dynamic",
+    "name": "Project Tracker",
+    "slug": "project-tracker"
+  },
+  "routes": [
+    {
+      "file": "src/app/page.tsx",
+      "pageId": "home",
+      "params": [],
+      "purpose": null,
+      "route": "/",
+      "sections": [
+        {
+          "component": "CardGrid",
+          "data": {
+            "action": "list",
+            "fields": [
+              "name",
+              "description"
+            ],
+            "function": "listProjects",
+            "hook": "useListProjects",
+            "kind": "operation",
+            "operationId": "project.list",
+            "params": {
+              "limit": 6,
+              "sort": "-createdAt"
+            },
+            "queryKey": "projectKeys.list(params)"
+          },
+          "id": "recent",
+          "states": {
+            "empty": "Nothing here yet",
+            "error": "Could not load the data",
+            "loading": "Loading…"
+          }
+        }
+      ],
+      "seo": {
+        "title": "Overview"
+      },
+      "title": "Overview"
+    },
+    {
+      "file": "src/app/projects/page.tsx",
+      "pageId": "projects",
+      "params": [],
+      "purpose": null,
+      "route": "/projects",
+      "sections": [
+        {
+          "component": "DataTable",
+          "data": {
+            "action": "list",
+            "fields": [
+              "name",
+              "createdAt"
+            ],
+            "function": "listProjects",
+            "hook": "useListProjects",
+            "kind": "operation",
+            "operationId": "project.list",
+            "params": {
+              "sort": "name"
+            },
+            "queryKey": "projectKeys.list(params)"
+          },
+          "id": "table",
+          "states": {
+            "empty": "Nothing here yet",
+            "error": "Could not load the data",
+            "loading": "Loading…"
+          }
+        },
+        {
+          "component": "Form",
+          "form": "newProject",
+          "id": "new"
+        }
+      ],
+      "seo": {
+        "title": "Projects"
+      },
+      "title": "Projects"
+    },
+    {
+      "file": "src/app/projects/[id]/page.tsx",
+      "pageId": "project",
+      "params": [
+        "id"
+      ],
+      "purpose": null,
+      "route": "/projects/[id]",
+      "sections": [
+        {
+          "component": "DetailView",
+          "data": {
+            "action": "get",
+            "fields": [
+              "name",
+              "description",
+              "createdAt"
+            ],
+            "function": "getProject",
+            "hook": "useGetProject",
+            "kind": "operation",
+            "operationId": "project.get",
+            "params": {
+              "id": "$route.id"
+            },
+            "queryKey": "projectKeys.detail(params)"
+          },
+          "id": "detail",
+          "states": {
+            "empty": "Nothing here yet",
+            "error": "Could not load the data",
+            "loading": "Loading…"
+          }
+        },
+        {
+          "component": "DataTable",
+          "data": {
+            "action": "list",
+            "fields": [
+              "title",
+              "status",
+              "priority",
+              "dueDate"
+            ],
+            "function": "listTasks",
+            "hook": "useListTasks",
+            "kind": "operation",
+            "operationId": "task.list",
+            "params": {
+              "projectId": "$route.id",
+              "sort": "priority"
+            },
+            "queryKey": "taskKeys.list(params)"
+          },
+          "id": "tasks",
+          "states": {
+            "empty": "Nothing here yet",
+            "error": "Could not load the data",
+            "loading": "Loading…"
+          }
+        },
+        {
+          "component": "Form",
+          "form": "newTask",
+          "id": "add-task"
+        }
+      ],
+      "seo": {
+        "title": "Project"
+      },
+      "title": "Project"
+    },
+    {
+      "file": "src/app/tasks/page.tsx",
+      "pageId": "tasks",
+      "params": [],
+      "purpose": null,
+      "route": "/tasks",
+      "sections": [
+        {
+          "component": "DataTable",
+          "data": {
+            "action": "list",
+            "fields": [
+              "title",
+              "status",
+              "dueDate"
+            ],
+            "function": "listTasks",
+            "hook": "useListTasks",
+            "kind": "operation",
+            "operationId": "task.list",
+            "params": {
+              "sort": "dueDate",
+              "status": "TODO"
+            },
+            "queryKey": "taskKeys.list(params)"
+          },
+          "id": "table",
+          "states": {
+            "empty": "Nothing here yet",
+            "error": "Could not load the data",
+            "loading": "Loading…"
+          }
+        }
+      ],
+      "seo": {
+        "title": "Tasks"
+      },
+      "title": "Tasks"
+    }
+  ],
+  "shadcn": [
+    "badge",
+    "button",
+    "card",
+    "checkbox",
+    "field",
+    "input",
+    "label",
+    "navigation-menu",
+    "pagination",
+    "select",
+    "separator",
+    "sheet",
+    "sidebar",
+    "skeleton",
+    "sonner",
+    "table",
+    "textarea",
+    "tooltip"
+  ],
+  "shell": {
+    "file": "src/components/layout/SiteShell.tsx",
+    "footer": {
+      "links": [],
+      "text": null
+    },
+    "logo": null,
+    "logoText": "Project Tracker",
+    "navigation": [
+      {
+        "href": "/projects",
+        "label": "Projects",
+        "page": "projects"
+      },
+      {
+        "href": "/tasks",
+        "label": "Tasks",
+        "page": "tasks"
+      }
+    ],
+    "shell": "sidebar",
+    "themeToggle": true
+  },
+  "tests": [
+    {
+      "expect": "Overview",
+      "file": "tests/e2e/smoke.spec.ts",
+      "id": "route:home",
+      "kind": "route",
+      "pageId": "home",
+      "path": "/"
+    },
+    {
+      "expect": "Projects",
+      "file": "tests/e2e/smoke.spec.ts",
+      "id": "route:projects",
+      "kind": "route",
+      "pageId": "projects",
+      "path": "/projects"
+    },
+    {
+      "expect": "Project",
+      "file": "tests/e2e/smoke.spec.ts",
+      "id": "route:project",
+      "kind": "route",
+      "pageId": "project",
+      "path": "/projects/a3650faa-1ee8-5ee1-a1f1-7bab10838956"
+    },
+    {
+      "expect": "Tasks",
+      "file": "tests/e2e/smoke.spec.ts",
+      "id": "route:tasks",
+      "kind": "route",
+      "pageId": "tasks",
+      "path": "/tasks"
+    },
+    {
+      "file": "tests/e2e/forms.spec.ts",
+      "formId": "newProject",
+      "id": "form:newProject",
+      "kind": "form",
+      "pageId": "projects",
+      "path": "/projects"
+    },
+    {
+      "file": "tests/e2e/forms.spec.ts",
+      "formId": "newTask",
+      "id": "form:newTask",
+      "kind": "form",
+      "pageId": "project",
+      "path": "/projects/a3650faa-1ee8-5ee1-a1f1-7bab10838956"
+    }
+  ],
+  "theme": {
+    "colorScheme": "light-dark",
+    "dark": {
+      "accent": "#0b2e2d",
+      "accent-foreground": "#f8fafc",
+      "background": "#0a0f1b",
+      "border": "#30353f",
+      "card": "#141824",
+      "card-foreground": "#f8fafc",
+      "chart-1": "#2563eb",
+      "chart-2": "#10b981",
+      "chart-3": "#799ff2",
+      "chart-4": "#0e7e5d",
+      "chart-5": "#183983",
+      "destructive": "#dc2626",
+      "foreground": "#f8fafc",
+      "input": "#30353f",
+      "muted": "#222732",
+      "muted-foreground": "#94979e",
+      "popover": "#141824",
+      "popover-foreground": "#f8fafc",
+      "primary": "#2563eb",
+      "primary-foreground": "#ffffff",
+      "ring": "#2563eb",
+      "secondary": "#272b36",
+      "secondary-foreground": "#f8fafc",
+      "sidebar": "#111622",
+      "sidebar-accent": "#1d222d",
+      "sidebar-accent-foreground": "#f8fafc",
+      "sidebar-border": "#30353f",
+      "sidebar-foreground": "#f8fafc",
+      "sidebar-primary": "#2563eb",
+      "sidebar-primary-foreground": "#ffffff",
+      "sidebar-ring": "#2563eb"
+    },
+    "density": "compact",
+    "fonts": {
+      "body": "\"Inter\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+      "heading": "\"Inter\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif"
+    },
+    "light": {
+      "accent": "#dcf2ed",
+      "accent-foreground": "#0f172a",
+      "background": "#f8fafc",
+      "border": "#dcdfe3",
+      "card": "#f8fafc",
+      "card-foreground": "#0f172a",
+      "chart-1": "#2563eb",
+      "chart-2": "#10b981",
+      "chart-3": "#1c459e",
+      "chart-4": "#61d0ac",
+      "chart-5": "#8eaef3",
+      "destructive": "#dc2626",
+      "foreground": "#0f172a",
+      "input": "#dcdfe3",
+      "muted": "#f1f5f9",
+      "muted-foreground": "#717682",
+      "popover": "#f8fafc",
+      "popover-foreground": "#0f172a",
+      "primary": "#2563eb",
+      "primary-foreground": "#ffffff",
+      "ring": "#2563eb",
+      "secondary": "#f1f5f9",
+      "secondary-foreground": "#0f172a",
+      "sidebar": "#f1f3f6",
+      "sidebar-accent": "#e5e8eb",
+      "sidebar-accent-foreground": "#0f172a",
+      "sidebar-border": "#dcdfe3",
+      "sidebar-foreground": "#0f172a",
+      "sidebar-primary": "#2563eb",
+      "sidebar-primary-foreground": "#ffffff",
+      "sidebar-ring": "#2563eb"
+    },
+    "radius": "0.625rem",
+    "scale": "default"
+  }
+}

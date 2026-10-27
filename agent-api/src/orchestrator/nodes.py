@@ -1,6 +1,7 @@
 """The workflow nodes (FR-09; `validate_inputs` and `build_contract` for frontend modes, Epic 12).
 Each is `async (state, ctx) -> (state update, step summary)`."""
 
+import hashlib
 import json
 import uuid
 from pathlib import Path
@@ -19,8 +20,10 @@ from .checks.parity import compare_schema
 from .context import EngineFailure, JobContext
 from .contract import build_contract as contract_for
 from .contract import dump_contract
+from .frontend_nodes import FRONTEND_NODE_FUNCTIONS
 from .migrations import ensure_migration, reflect_schema, verify_migration
 from .packaging import (
+    MANIFEST_VERSION,
     ArtifactWriter,
     build_logs_zip,
     build_manifest,
@@ -323,11 +326,18 @@ async def run_validation(state: GenerationState, ctx: JobContext) -> NodeResult:
         "failure_digest_ref": str(digest_path),
         "implicated_files": outcome.implicated_files,
     }
-    if failed and state.get("repair_attempts", 0) >= state["max_repair_attempts"]:
+    at_limit = failed and state.get("repair_attempts", 0) >= state["max_repair_attempts"]
+    message = f"Validation still failing after {state.get('repair_attempts', 0)} repair attempt(s): {', '.join(failed)}"
+    if state.get("mode") == GenerationMode.DYNAMIC:
+        # Dynamic mode: the backend lane ends here; the frontend lane runs either way (on mocks if this failed).
+        if not failed:
+            await ctx.set_lane("backend", LaneStatus.COMPLETED)
+        elif at_limit:
+            await ctx.set_lane("backend", LaneStatus.FAILED, reason=message)
+            update["backend_error"] = message
+    elif at_limit:
         update["outcome"] = Outcome.REPAIR_LIMIT
-        update["error_summary"] = (
-            f"Validation still failing after {state.get('repair_attempts', 0)} repair attempt(s): {', '.join(failed)}"
-        )
+        update["error_summary"] = message
     return update, {"_status": "failed" if failed else "succeeded", "failedChecks": failed}
 
 
@@ -390,6 +400,17 @@ async def write_artifacts(ctx: JobContext, state: dict[str, Any], completed: boo
         writer.write(name, "patch", diff.encode(), "text/x-diff")
     for path in sorted(workspace.reports.glob("validation-*.json")):
         writer.write(path.name, "validation", path.read_bytes(), "application/json")
+    frontend_plan = _optional_json(workspace.frontend / ".bga" / "frontend-plan.json") or {}
+    if frontend_plan:
+        writer.write_json("frontend-plan.json", "plan", frontend_plan)
+    patches = ctx.workspaces.repair_patches(
+        workspace, repo="frontend", node="repair_frontend", prefix="frontend-repair"
+    )
+    for name, diff in patches:
+        writer.write(name, "patch", diff.encode(), "text/x-diff")
+    for path in sorted(workspace.reports.glob("frontend-validation-*.json")):
+        writer.write(path.name, "validation", path.read_bytes(), "application/json")
+    lanes = generation.lanes or {"backend": "COMPLETED"}
 
     report = build_report(
         generation=generation,
@@ -407,7 +428,10 @@ async def write_artifacts(ctx: JobContext, state: dict[str, Any], completed: boo
     writer.write("report.md", "report", report_markdown(report, project_name).encode(), "text/markdown")
 
     operations = 0
-    if completed and plan:
+    frontend_ready = completed and frontend_plan and lanes.get("frontend") == LaneStatus.COMPLETED.value
+    if frontend_ready:
+        writer.write("frontend.zip", "frontend", build_source_zip(workspace.frontend), "application/zip")
+    if completed and plan and lanes.get("backend") == LaneStatus.COMPLETED.value:
         writer.write("backend.zip", "source", build_source_zip(project), "application/zip")
         openapi = _optional_json(workspace.reports / "openapi.json")
         if openapi:
@@ -422,6 +446,8 @@ async def write_artifacts(ctx: JobContext, state: dict[str, Any], completed: boo
         }
         if _contract_copy(ctx).is_file():
             artifact_ids["contract"] = writer.artifact_id("contract.json")
+        if frontend_ready:
+            artifact_ids["frontend"] = writer.artifact_id("frontend.zip")
         manifest = build_manifest(
             generation=generation,
             generator_version=config.generator_version,
@@ -434,8 +460,24 @@ async def write_artifacts(ctx: JobContext, state: dict[str, Any], completed: boo
             project=project,
         )
         operations = len(manifest["operations"])
+        if frontend_ready:
+            manifest["frontend"] = frontend_manifest(frontend_plan, ctx, state)
         writer.write_json("manifest.json", "manifest", manifest)
-    elif not completed:
+    elif frontend_ready:
+        artifact_ids = {"frontend": writer.artifact_id("frontend.zip"), "report": writer.artifact_id("report.json")}
+        manifest = {
+            "manifestVersion": MANIFEST_VERSION,
+            "generationId": generation.id,
+            "generatorVersion": config.generator_version,
+            "engine": generation.engine,
+            "mode": generation.mode,
+            "createdAt": generation.created_at.isoformat() if generation.created_at else None,
+            "project": frontend_plan.get("project"),
+            "artifacts": artifact_ids,
+            "frontend": frontend_manifest(frontend_plan, ctx, state),
+        }
+        writer.write_json("manifest.json", "manifest", manifest)
+    if not completed:
         logs = build_logs_zip(workspace.state / "logs", default_redactor())
         if logs:
             writer.write("engine-logs.zip", "log", logs, "application/zip")
@@ -450,12 +492,33 @@ async def write_artifacts(ctx: JobContext, state: dict[str, Any], completed: boo
             kind=artifact.kind,
             size=artifact.size,
         )
-    main = {*MAIN_ARTIFACTS.values(), "contract.json"}
+    main = {*MAIN_ARTIFACTS.values(), "contract.json", "frontend.zip"}
     return {artifact.kind: artifact.id for artifact in writer.written if artifact.name in main}, operations
 
 
+def frontend_manifest(plan: dict[str, Any], ctx: JobContext, state: dict[str, Any]) -> dict[str, Any]:
+    """Story 13.5: what the Integration Agent needs to know about the generated frontend."""
+    scaffold = _optional_json(ctx.frontend_path(".bga", "scaffold.json")) or {}
+    contract = ctx.workspace.spec_dir / "contract.json"
+    section: dict[str, Any] = {
+        "mode": plan["project"]["mode"],
+        "framework": "nextjs",
+        "skill": "nextjs-skills",
+        "base": scaffold.get("base"),
+        "routes": [
+            {"pageId": route["pageId"], "route": route["route"], "title": route["title"]} for route in plan["routes"]
+        ],
+        "theme": {key: plan["theme"][key] for key in ("colorScheme", "radius", "density", "fonts")},
+        "validation": state.get("frontend_validation") or {},
+        "env": ["MOCK_TEST_API", "API_BASE_URL"] if plan["project"]["mode"] == "dynamic" else [],
+    }
+    if contract.is_file():
+        section["contractSha256"] = hashlib.sha256(contract.read_bytes()).hexdigest()
+    return section
+
+
 async def package_artifacts(state: GenerationState, ctx: JobContext) -> NodeResult:
-    if state.get("plan_ref"):
+    if ctx.mode == GenerationMode.BACKEND:
         await ctx.set_lane("backend", LaneStatus.COMPLETED)
     artifact_ids, operations = await write_artifacts(ctx, state, completed=True)
     summary = {"artifacts": sorted(artifact_ids), "operations": operations}
@@ -463,6 +526,7 @@ async def package_artifacts(state: GenerationState, ctx: JobContext) -> NodeResu
 
 
 NODE_FUNCTIONS = {
+    **FRONTEND_NODE_FUNCTIONS,
     "validate_inputs": validate_inputs,
     "build_contract": build_contract,
     "validate_spec": validate_spec,

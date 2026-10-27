@@ -15,23 +15,24 @@ class PreviewRepository(IPreviewRepository):
     def __init__(self, session: SessionDep):
         self.session = session
 
-    def _model(self, generation_id: str) -> PreviewModel | None:
-        return self.session.exec(select(PreviewModel).where(PreviewModel.generation_id == generation_id)).first()
+    def _model(self, generation_id: str, kind: str) -> PreviewModel | None:
+        query = select(PreviewModel).where(PreviewModel.generation_id == generation_id, PreviewModel.kind == kind)
+        return self.session.exec(query).first()
 
-    def find(self, generation_id: str) -> PreviewEntity | None:
-        model = self._model(generation_id)
+    def find(self, generation_id: str, kind: str = "backend") -> PreviewEntity | None:
+        model = self._model(generation_id, kind)
         return self.__to_entity(model) if model else None
 
-    def upsert(self, generation_id: str, **fields: Any) -> PreviewEntity:
-        model = self._model(generation_id) or PreviewModel(generation_id=generation_id)
+    def upsert(self, generation_id: str, kind: str = "backend", **fields: Any) -> PreviewEntity:
+        model = self._model(generation_id, kind) or PreviewModel(generation_id=generation_id, kind=kind)
         for key, value in fields.items():
             setattr(model, key, value)
         self.session.add(model)
         self.session.flush()
         return self.__to_entity(model)
 
-    def delete(self, generation_id: str) -> None:
-        model = self._model(generation_id)
+    def delete(self, generation_id: str, kind: str = "backend") -> None:
+        model = self._model(generation_id, kind)
         if model is not None:
             self.session.delete(model)
             self.session.flush()

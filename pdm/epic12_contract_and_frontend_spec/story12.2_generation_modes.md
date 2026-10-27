@@ -44,3 +44,8 @@ with a `backend` lane; downgrade deletes static generations). Rules in
 - UI: mode badge and lane dots in the list, mode and lane badges plus a warnings banner on the detail page, the
   per-mode workflow diagram, readable `lane.changed` / `inputs.valid` / `spec.invalid` / `contract.ready` events.
   Creating static/dynamic jobs from the UI is 9.7.
+
+**Update (2026-10-27, Epic 13):** the frontend lane is real now; only the integration lane (Epic 14) is still
+skipped, so static jobs end `COMPLETED` and dynamic jobs `COMPLETED_WITH_WARNINGS` until the live-API switch exists.
+In dynamic mode the frontend lane runs after the backend lane (14.1 makes them parallel); a backend that hits the
+repair limit no longer ends the job: the frontend still runs on mocks.

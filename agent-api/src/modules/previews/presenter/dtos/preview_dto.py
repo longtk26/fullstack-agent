@@ -8,6 +8,7 @@ from src.modules.shared.domain.enums import PreviewStatus
 
 class PreviewDto(CamelModel):
     generation_id: str
+    kind: str
     status: PreviewStatus
     url: str | None
     openapi_url: str | None
@@ -17,20 +18,23 @@ class PreviewDto(CamelModel):
     last_accessed_at: datetime | None
     expires_at: datetime | None
     error: str | None
+    mock_api: bool | None = None
 
     @classmethod
     def from_entity(cls, preview: PreviewEntity) -> "PreviewDto":
         return cls(
             generation_id=preview.generation_id,
+            kind=preview.kind,
             status=preview.status,
             url=preview.url,
-            openapi_url=f"{preview.url}/openapi.json" if preview.url else None,
-            docs_url=f"{preview.url}/docs" if preview.url else None,
+            openapi_url=f"{preview.url}/openapi.json" if preview.url and preview.kind == "backend" else None,
+            docs_url=f"{preview.url}/docs" if preview.url and preview.kind == "backend" else None,
             host_port=preview.host_port,
             started_at=preview.started_at,
             last_accessed_at=preview.last_accessed_at,
             expires_at=preview.expires_at,
             error=preview.error,
+            mock_api=preview.mock_api,
         )
 
 

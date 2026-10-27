@@ -1,0 +1,782 @@
+{
+  "assets": [
+    {
+      "alt": "Coffee beans in a scoop",
+      "id": "hero",
+      "kind": "image",
+      "source": "placeholder"
+    },
+    {
+      "alt": "Shop front",
+      "id": "shop-front",
+      "kind": "image",
+      "source": "placeholder"
+    }
+  ],
+  "components": [
+    {
+      "description": "Records as cards",
+      "domain": "sections",
+      "file": "src/components/sections/CardGrid.tsx",
+      "kind": "section",
+      "name": "CardGrid",
+      "propsType": "CardGridProps",
+      "usedBy": [
+        "home"
+      ],
+      "uses": [
+        "badge",
+        "card",
+        "pagination"
+      ]
+    },
+    {
+      "description": "Cart lines with quantity and remove",
+      "domain": "cart-items",
+      "file": "src/features/cart-items/components/CartList.tsx",
+      "hook": {
+        "file": "src/features/cart-items/hooks/use-cart-list.ts",
+        "name": "useCartList"
+      },
+      "kind": "composite",
+      "name": "CartList",
+      "propsType": "CartListProps",
+      "usedBy": [
+        "cart"
+      ],
+      "uses": [
+        "button",
+        "input",
+        "item"
+      ]
+    },
+    {
+      "description": "Address, e-mail, phone, map link",
+      "domain": "sections",
+      "file": "src/components/sections/ContactInfo.tsx",
+      "kind": "section",
+      "name": "ContactInfo",
+      "propsType": "ContactInfoProps",
+      "usedBy": [
+        "contact"
+      ],
+      "uses": [
+        "card"
+      ]
+    },
+    {
+      "description": "A form",
+      "domain": "sections",
+      "file": "src/components/sections/Form.tsx",
+      "kind": "section",
+      "name": "Form",
+      "propsType": "FormProps",
+      "usedBy": [
+        "product-detail",
+        "contact"
+      ],
+      "uses": [
+        "button",
+        "checkbox",
+        "field",
+        "input",
+        "select",
+        "textarea"
+      ]
+    },
+    {
+      "description": "Heading, text, image and a call to action",
+      "domain": "sections",
+      "file": "src/components/sections/Hero.tsx",
+      "kind": "section",
+      "name": "Hero",
+      "propsType": "HeroProps",
+      "usedBy": [
+        "home",
+        "about"
+      ],
+      "uses": [
+        "button"
+      ]
+    },
+    {
+      "description": "One product: image, description, price, stock",
+      "domain": "products",
+      "file": "src/features/products/components/ProductDetail.tsx",
+      "hook": {
+        "file": "src/features/products/hooks/use-product-detail.ts",
+        "name": "useProductDetail"
+      },
+      "kind": "composite",
+      "name": "ProductDetail",
+      "propsType": "ProductDetailProps",
+      "usedBy": [
+        "product-detail"
+      ],
+      "uses": [
+        "badge",
+        "card",
+        "separator"
+      ]
+    },
+    {
+      "description": "Product cards with name, price and image; paginated",
+      "domain": "products",
+      "file": "src/features/products/components/ProductGrid.tsx",
+      "hook": {
+        "file": "src/features/products/hooks/use-product-grid.ts",
+        "name": "useProductGrid"
+      },
+      "kind": "composite",
+      "name": "ProductGrid",
+      "propsType": "ProductGridProps",
+      "usedBy": [
+        "products"
+      ],
+      "uses": [
+        "badge",
+        "card",
+        "pagination",
+        "skeleton"
+      ]
+    },
+    {
+      "description": "Quotes with author",
+      "domain": "sections",
+      "file": "src/components/sections/Testimonials.tsx",
+      "kind": "section",
+      "name": "Testimonials",
+      "propsType": "TestimonialsProps",
+      "usedBy": [
+        "about"
+      ],
+      "uses": [
+        "avatar",
+        "card"
+      ]
+    }
+  ],
+  "content": [
+    {
+      "collection": "testimonials",
+      "file": "src/content/testimonials.json",
+      "records": 2
+    }
+  ],
+  "conventions": {
+    "colors": "design tokens from globals.css only (bg-primary, text-muted-foreground)",
+    "data": "React Query hooks from @/lib/api/queries only; no other network access",
+    "forms": "React Hook Form + zodResolver with the schemas in @/lib/forms",
+    "hooks": "logic over ~30 lines moves to the component's companion use-*.ts hook",
+    "packageManager": "pnpm",
+    "reactImports": "named imports only, never `import * as React`",
+    "skill": "nextjs-skills",
+    "types": "standalone types T-prefixed (TProduct); props <Name>Props; `type` over `interface`"
+  },
+  "data": [
+    {
+      "action": "list",
+      "fields": [
+        "name"
+      ],
+      "function": "listCategories",
+      "hook": "useListCategories",
+      "kind": "operation",
+      "operationId": "category.list",
+      "pageId": "home",
+      "params": {
+        "sort": "name"
+      },
+      "queryKey": "categoryKeys.list(params)",
+      "section": "categories"
+    },
+    {
+      "action": "list",
+      "fields": [
+        "name",
+        "price",
+        "imageUrl"
+      ],
+      "function": "listProducts",
+      "hook": "useListProducts",
+      "kind": "operation",
+      "operationId": "product.list",
+      "pageId": "products",
+      "params": {
+        "limit": 12,
+        "sort": "-createdAt"
+      },
+      "queryKey": "productKeys.list(params)",
+      "section": "grid"
+    },
+    {
+      "action": "get",
+      "fields": [
+        "name",
+        "description",
+        "price",
+        "imageUrl",
+        "stock"
+      ],
+      "function": "getProduct",
+      "hook": "useGetProduct",
+      "kind": "operation",
+      "operationId": "product.get",
+      "pageId": "product-detail",
+      "params": {
+        "id": "$route.id"
+      },
+      "queryKey": "productKeys.detail(params)",
+      "section": "detail"
+    },
+    {
+      "action": "list",
+      "fields": [
+        "productId",
+        "quantity"
+      ],
+      "function": "listCartItems",
+      "hook": "useListCartItems",
+      "kind": "operation",
+      "operationId": "cartItem.list",
+      "pageId": "cart",
+      "params": {
+        "sort": "createdAt"
+      },
+      "queryKey": "cartItemKeys.list(params)",
+      "section": "items"
+    }
+  ],
+  "forms": [
+    {
+      "fields": [
+        {
+          "hidden": true,
+          "name": "productId",
+          "required": true,
+          "type": "string",
+          "value": "$route.id"
+        },
+        {
+          "hidden": false,
+          "label": "Quantity",
+          "max": 99.0,
+          "min": 1.0,
+          "name": "quantity",
+          "required": true,
+          "type": "integer",
+          "value": 1
+        }
+      ],
+      "file": "src/lib/forms.ts",
+      "function": "createCartItem",
+      "hook": "useCreateCartItem",
+      "id": "addToCart",
+      "onSuccess": {
+        "navigate": "/cart",
+        "toast": "Added to cart"
+      },
+      "operationId": "cartItem.create",
+      "params": {},
+      "requestFields": [
+        "productId",
+        "quantity"
+      ],
+      "requestSchema": "#/components/schemas/CreateCartItemRequest",
+      "schema": "addToCartSchema",
+      "submitLabel": "Add to cart",
+      "valuesType": "TAddToCartValues"
+    },
+    {
+      "fields": [
+        {
+          "hidden": false,
+          "label": "Name",
+          "maxLength": 120,
+          "name": "name",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "hidden": false,
+          "label": "E-mail",
+          "name": "email",
+          "required": true,
+          "type": "email"
+        },
+        {
+          "hidden": false,
+          "label": "Message",
+          "name": "message",
+          "required": true,
+          "type": "text"
+        }
+      ],
+      "file": "src/lib/forms.ts",
+      "function": "createContactMessage",
+      "hook": "useCreateContactMessage",
+      "id": "contact",
+      "onSuccess": {
+        "toast": "Thanks, we will get back to you"
+      },
+      "operationId": "contactMessage.create",
+      "params": {},
+      "requestFields": [
+        "email",
+        "message",
+        "name"
+      ],
+      "requestSchema": "#/components/schemas/CreateContactMessageRequest",
+      "schema": "contactSchema",
+      "submitLabel": "Send",
+      "valuesType": "TContactValues"
+    }
+  ],
+  "planVersion": "1",
+  "project": {
+    "locale": "en",
+    "mode": "dynamic",
+    "name": "Corner Shop",
+    "slug": "corner-shop"
+  },
+  "routes": [
+    {
+      "file": "src/app/page.tsx",
+      "pageId": "home",
+      "params": [],
+      "purpose": "introduce the shop and lead to the catalogue",
+      "route": "/",
+      "sections": [
+        {
+          "component": "Hero",
+          "content": {
+            "body": "Small batches, shipped the same day.",
+            "cta": {
+              "label": "Shop now",
+              "page": "products"
+            },
+            "heading": "Coffee and tea, roasted down the street",
+            "image": "asset:hero"
+          },
+          "id": "hero"
+        },
+        {
+          "component": "CardGrid",
+          "data": {
+            "action": "list",
+            "fields": [
+              "name"
+            ],
+            "function": "listCategories",
+            "hook": "useListCategories",
+            "kind": "operation",
+            "operationId": "category.list",
+            "params": {
+              "sort": "name"
+            },
+            "queryKey": "categoryKeys.list(params)"
+          },
+          "id": "categories",
+          "states": {
+            "empty": "Nothing here yet",
+            "error": "Could not load the data",
+            "loading": "Loading…"
+          }
+        }
+      ],
+      "seo": {
+        "title": "Home"
+      },
+      "title": "Home"
+    },
+    {
+      "file": "src/app/products/page.tsx",
+      "pageId": "products",
+      "params": [],
+      "purpose": "browse the catalogue",
+      "route": "/products",
+      "sections": [
+        {
+          "component": "ProductGrid",
+          "data": {
+            "action": "list",
+            "fields": [
+              "name",
+              "price",
+              "imageUrl"
+            ],
+            "function": "listProducts",
+            "hook": "useListProducts",
+            "kind": "operation",
+            "operationId": "product.list",
+            "params": {
+              "limit": 12,
+              "sort": "-createdAt"
+            },
+            "queryKey": "productKeys.list(params)"
+          },
+          "id": "grid",
+          "states": {
+            "empty": "No products yet",
+            "error": "Could not load products",
+            "loading": "Loading…"
+          }
+        }
+      ],
+      "seo": {
+        "description": "Coffee, tea and brewing gear",
+        "title": "Shop all products"
+      },
+      "title": "Products"
+    },
+    {
+      "file": "src/app/products/[id]/page.tsx",
+      "pageId": "product-detail",
+      "params": [
+        "id"
+      ],
+      "purpose": null,
+      "route": "/products/[id]",
+      "sections": [
+        {
+          "component": "ProductDetail",
+          "data": {
+            "action": "get",
+            "fields": [
+              "name",
+              "description",
+              "price",
+              "imageUrl",
+              "stock"
+            ],
+            "function": "getProduct",
+            "hook": "useGetProduct",
+            "kind": "operation",
+            "operationId": "product.get",
+            "params": {
+              "id": "$route.id"
+            },
+            "queryKey": "productKeys.detail(params)"
+          },
+          "id": "detail",
+          "states": {
+            "empty": "Nothing here yet",
+            "error": "Could not load the data",
+            "loading": "Loading…"
+          }
+        },
+        {
+          "component": "Form",
+          "form": "addToCart",
+          "id": "add"
+        }
+      ],
+      "seo": {
+        "title": "Product"
+      },
+      "title": "Product"
+    },
+    {
+      "file": "src/app/cart/page.tsx",
+      "pageId": "cart",
+      "params": [],
+      "purpose": null,
+      "route": "/cart",
+      "sections": [
+        {
+          "component": "CartList",
+          "data": {
+            "action": "list",
+            "fields": [
+              "productId",
+              "quantity"
+            ],
+            "function": "listCartItems",
+            "hook": "useListCartItems",
+            "kind": "operation",
+            "operationId": "cartItem.list",
+            "params": {
+              "sort": "createdAt"
+            },
+            "queryKey": "cartItemKeys.list(params)"
+          },
+          "id": "items",
+          "states": {
+            "empty": "Your cart is empty",
+            "error": "Could not load the data",
+            "loading": "Loading…"
+          }
+        }
+      ],
+      "seo": {
+        "title": "Cart"
+      },
+      "title": "Cart"
+    },
+    {
+      "file": "src/app/contact/page.tsx",
+      "pageId": "contact",
+      "params": [],
+      "purpose": null,
+      "route": "/contact",
+      "sections": [
+        {
+          "component": "ContactInfo",
+          "content": {
+            "address": "1 High Street",
+            "email": "hello@corner.shop"
+          },
+          "id": "info"
+        },
+        {
+          "component": "Form",
+          "form": "contact",
+          "id": "form"
+        }
+      ],
+      "seo": {
+        "title": "Contact"
+      },
+      "title": "Contact"
+    },
+    {
+      "file": "src/app/about/page.tsx",
+      "pageId": "about",
+      "params": [],
+      "purpose": null,
+      "route": "/about",
+      "sections": [
+        {
+          "component": "Hero",
+          "content": {
+            "body": "Two friends, one roaster.",
+            "heading": "Our story",
+            "image": "asset:shop-front"
+          },
+          "id": "story"
+        },
+        {
+          "component": "Testimonials",
+          "data": {
+            "collection": "testimonials",
+            "fields": [],
+            "file": "src/content/testimonials.json",
+            "kind": "content",
+            "params": {},
+            "records": 2
+          },
+          "id": "testimonials",
+          "states": {
+            "empty": "Nothing here yet",
+            "error": "Could not load the data",
+            "loading": "Loading…"
+          }
+        }
+      ],
+      "seo": {
+        "title": "About"
+      },
+      "title": "About"
+    }
+  ],
+  "shadcn": [
+    "avatar",
+    "badge",
+    "button",
+    "card",
+    "checkbox",
+    "field",
+    "input",
+    "item",
+    "label",
+    "navigation-menu",
+    "pagination",
+    "select",
+    "separator",
+    "sheet",
+    "skeleton",
+    "sonner",
+    "textarea"
+  ],
+  "shell": {
+    "file": "src/components/layout/SiteShell.tsx",
+    "footer": {
+      "links": [
+        {
+          "href": "/about",
+          "label": "About",
+          "page": "about"
+        },
+        {
+          "href": "/contact",
+          "label": "Contact",
+          "page": "contact"
+        }
+      ],
+      "text": "© Corner Shop"
+    },
+    "logo": null,
+    "logoText": "Corner Shop",
+    "navigation": [
+      {
+        "href": "/products",
+        "label": "Shop",
+        "page": "products"
+      },
+      {
+        "href": "/cart",
+        "label": "Cart",
+        "page": "cart"
+      },
+      {
+        "href": "/contact",
+        "label": "Contact",
+        "page": "contact"
+      }
+    ],
+    "shell": "header-footer",
+    "themeToggle": true
+  },
+  "tests": [
+    {
+      "expect": "Home",
+      "file": "tests/e2e/smoke.spec.ts",
+      "id": "route:home",
+      "kind": "route",
+      "pageId": "home",
+      "path": "/"
+    },
+    {
+      "expect": "Products",
+      "file": "tests/e2e/smoke.spec.ts",
+      "id": "route:products",
+      "kind": "route",
+      "pageId": "products",
+      "path": "/products"
+    },
+    {
+      "expect": "Product",
+      "file": "tests/e2e/smoke.spec.ts",
+      "id": "route:product-detail",
+      "kind": "route",
+      "pageId": "product-detail",
+      "path": "/products/8d2e7a40-1f3b-4c55-8e6a-2b9f4c3d0001"
+    },
+    {
+      "expect": "Cart",
+      "file": "tests/e2e/smoke.spec.ts",
+      "id": "route:cart",
+      "kind": "route",
+      "pageId": "cart",
+      "path": "/cart"
+    },
+    {
+      "expect": "Contact",
+      "file": "tests/e2e/smoke.spec.ts",
+      "id": "route:contact",
+      "kind": "route",
+      "pageId": "contact",
+      "path": "/contact"
+    },
+    {
+      "expect": "About",
+      "file": "tests/e2e/smoke.spec.ts",
+      "id": "route:about",
+      "kind": "route",
+      "pageId": "about",
+      "path": "/about"
+    },
+    {
+      "file": "tests/e2e/forms.spec.ts",
+      "formId": "addToCart",
+      "id": "form:addToCart",
+      "kind": "form",
+      "pageId": "product-detail",
+      "path": "/products/8d2e7a40-1f3b-4c55-8e6a-2b9f4c3d0001"
+    },
+    {
+      "file": "tests/e2e/forms.spec.ts",
+      "formId": "contact",
+      "id": "form:contact",
+      "kind": "form",
+      "pageId": "contact",
+      "path": "/contact"
+    }
+  ],
+  "theme": {
+    "colorScheme": "light-dark",
+    "dark": {
+      "accent": "#312108",
+      "accent-foreground": "#ffffff",
+      "background": "#060607",
+      "border": "#2e2e2f",
+      "card": "#101011",
+      "card-foreground": "#ffffff",
+      "chart-1": "#1d4ed8",
+      "chart-2": "#f59e0b",
+      "chart-3": "#7795e8",
+      "chart-4": "#a1690a",
+      "chart-5": "#122a70",
+      "destructive": "#dc2626",
+      "foreground": "#ffffff",
+      "input": "#2e2e2f",
+      "muted": "#1f1f20",
+      "muted-foreground": "#969697",
+      "popover": "#101011",
+      "popover-foreground": "#ffffff",
+      "primary": "#1d4ed8",
+      "primary-foreground": "#ffffff",
+      "ring": "#1d4ed8",
+      "secondary": "#242425",
+      "secondary-foreground": "#ffffff",
+      "sidebar": "#0d0d0e",
+      "sidebar-accent": "#1a1a1b",
+      "sidebar-accent-foreground": "#ffffff",
+      "sidebar-border": "#2e2e2f",
+      "sidebar-foreground": "#ffffff",
+      "sidebar-primary": "#1d4ed8",
+      "sidebar-primary-foreground": "#ffffff",
+      "sidebar-ring": "#1d4ed8"
+    },
+    "density": "comfortable",
+    "fonts": {
+      "body": "\"Inter\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+      "heading": "\"Inter\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif"
+    },
+    "light": {
+      "accent": "#fef3e2",
+      "accent-foreground": "#09090b",
+      "background": "#ffffff",
+      "border": "#e1e1e2",
+      "card": "#ffffff",
+      "card-foreground": "#09090b",
+      "chart-1": "#1d4ed8",
+      "chart-2": "#f59e0b",
+      "chart-3": "#153286",
+      "chart-4": "#f8c060",
+      "chart-5": "#8ea6ec",
+      "destructive": "#dc2626",
+      "foreground": "#09090b",
+      "input": "#e1e1e2",
+      "muted": "#f4f4f5",
+      "muted-foreground": "#707071",
+      "popover": "#ffffff",
+      "popover-foreground": "#09090b",
+      "primary": "#1d4ed8",
+      "primary-foreground": "#ffffff",
+      "ring": "#1d4ed8",
+      "secondary": "#f4f4f5",
+      "secondary-foreground": "#09090b",
+      "sidebar": "#f8f8f8",
+      "sidebar-accent": "#ebebeb",
+      "sidebar-accent-foreground": "#09090b",
+      "sidebar-border": "#e1e1e2",
+      "sidebar-foreground": "#09090b",
+      "sidebar-primary": "#1d4ed8",
+      "sidebar-primary-foreground": "#ffffff",
+      "sidebar-ring": "#1d4ed8"
+    },
+    "radius": "0.625rem",
+    "scale": "default"
+  }
+}

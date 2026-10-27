@@ -12,6 +12,7 @@ FastAPI backend (on the `fastapi-skills` template) and runs it as its own contai
 | `agent-api/` | FastAPI API + LangGraph worker (one image, targets `api` / `worker`) | `agent-api/CLAUDE.md` |
 | `agent-ui/` | Next.js 16 UI (pnpm, shadcn base-nova, React Query, Zustand) | `agent-ui/AGENTS.md`, `.agents/skills/nextjs-skills` |
 | `docker/runner/` | Sandbox image (`bga-runner`) that executes generated projects | `pdm/epic6_validation_and_repair/` |
+| `docker/runner-node/` | Node sandbox image (`bga-runner-node`) that builds and tests generated frontends | `pdm/epic13_frontend_generation/` |
 | `pdm/` | Backlog: epics and stories (`epicN_<name>/storyN.M_<name>.md`), decisions, open questions | `pdm/README.md` |
 | `requirements.md` | Product requirements (kept in sync with the backlog) | |
 | `docs/` | Engine notes (`docs/engines/`), test doubles (`docs/development/test-doubles.md`) | |
@@ -29,6 +30,9 @@ make dev-api | make dev-worker | make dev-ui
 make test                # agent-api tests (BGA_SANDBOX_TESTS=1 adds the Docker sandbox tests)
 make lint                # ruff (agent-api) + eslint (agent-ui); also run `pnpm exec tsc --noEmit` in agent-ui
 ```
+
+`make up` also builds the Node runner (`bga-runner-node`) for generated frontends; `make frontend-base` regenerates
+the pinned Next.js base (`agent-api/templates/nextjs_base`) and its overlay manifest.
 
 `make up` publishes Postgres (5442) and Redis (6389) on localhost, so `make test` works while the stack runs.
 With `ANTIGRAVITY_AUTH=account` it also starts a host worker for Antigravity (`.data/host-worker.log`); the agy

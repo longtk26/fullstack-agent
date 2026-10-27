@@ -35,6 +35,7 @@ class Config(BaseSettings):
     engine_max_output_bytes: int = 20_000_000
     engine_skills_dir: str = "/opt/bga/skills"
     engine_skills: list[str] = ["fastapi-skills"]
+    frontend_engine_skills: list[str] = ["nextjs-skills"]  # installed into the frontend workspace (Story 13.2)
 
     claude_code_bin: str = "claude"
     claude_code_model: str = "claude-sonnet-5-5"
@@ -70,6 +71,14 @@ class Config(BaseSettings):
     sandbox_command_timeout_seconds: int = 300
     sandbox_output_bytes: int = 2_000_000
     sandbox_egress_network: str = "bga-sbx-egress"
+    # Frontend sandbox (Story 13.4): Node runner, no database; Next.js builds need more memory than pytest.
+    frontend_sandbox_image: str = "bga-runner-node:1"
+    frontend_sandbox_cpus: float = 2.0
+    frontend_sandbox_memory: str = "3g"
+    frontend_sandbox_pids: int = 1024
+    frontend_sandbox_tmp: str = "1g"
+    # Shared pnpm store (named volume, filled from the runner image on first use), so installs run offline.
+    frontend_store_volume: str = "bga-pnpm-store"
 
     generator_version: str = "0.7.0"
     # Shared by worker (writes) and API (downloads); outlives workspaces.

@@ -19,6 +19,10 @@ _GIT = [
 ]
 
 
+# Rebuildable directories that do not count toward the workspace size limit.
+SIZE_EXCLUDES = {".venv", "node_modules", ".next", "out", "test-results", "playwright-report"}
+
+
 class DiskLimitExceeded(RuntimeError):
     pass
 
@@ -30,6 +34,14 @@ class JobWorkspace:
     @property
     def project(self) -> Path:
         return self.root / "project"
+
+    @property
+    def frontend(self) -> Path:
+        """The generated frontend (Epic 13): its own git repository next to the backend project."""
+        return self.root / "frontend"
+
+    def repo(self, name: str = "project") -> Path:
+        return self.frontend if name == "frontend" else self.project
 
     @property
     def spec_dir(self) -> Path:
@@ -63,30 +75,44 @@ class WorkspaceManager:
             self._git(workspace, "commit", "-q", "--allow-empty", "-m", "workspace created")
         return workspace
 
-    def commit(self, workspace: JobWorkspace, message: str) -> str:
-        self._git(workspace, "add", "-A")
-        self._git(workspace, "commit", "-q", "--allow-empty", "-m", message)
-        return self._git(workspace, "rev-parse", "HEAD").strip()
+    def create_frontend(self, workspace: JobWorkspace) -> Path:
+        """The frontend repository, created on first use (static and dynamic modes)."""
+        workspace.frontend.mkdir(parents=True, exist_ok=True)
+        if not (workspace.frontend / ".git").exists():
+            self._git(workspace, "init", "-q", "-b", "main", repo="frontend")
+            self._git(workspace, "commit", "-q", "--allow-empty", "-m", "frontend created", repo="frontend")
+        return workspace.frontend
 
-    def reset_to(self, workspace: JobWorkspace, sha: str) -> None:
-        """Drops anything a crashed node half-wrote, back to the last node that completed."""
-        self._git(workspace, "reset", "-q", "--hard", sha)
-        self._git(workspace, "clean", "-q", "-fdx")
+    def commit(self, workspace: JobWorkspace, message: str, repo: str = "project") -> str:
+        self._git(workspace, "add", "-A", repo=repo)
+        self._git(workspace, "commit", "-q", "--allow-empty", "-m", message, repo=repo)
+        return self._git(workspace, "rev-parse", "HEAD", repo=repo).strip()
 
-    def repair_patches(self, workspace: JobWorkspace) -> list[tuple[str, str]]:
-        """(name, diff) per `node:repair_code` commit, oldest first: what each repair attempt changed."""
-        log = self._git(workspace, "log", "--reverse", "--format=%H %s", "--grep=^node:repair_code ")
+    def reset_to(self, workspace: JobWorkspace, sha: str, repo: str = "project") -> None:
+        """Drops anything a crashed node half-wrote, back to the last node that completed. In the frontend the
+        ignored dependency and build output (node_modules, .next) is kept: it is slow to recreate."""
+        self._git(workspace, "reset", "-q", "--hard", sha, repo=repo)
+        self._git(workspace, "clean", "-q", "-fd" if repo == "frontend" else "-fdx", repo=repo)
+
+    def repair_patches(
+        self, workspace: JobWorkspace, repo: str = "project", node: str = "repair_code", prefix: str = "repair"
+    ) -> list[tuple[str, str]]:
+        """(name, diff) per `node:<node>` commit, oldest first: what each repair attempt changed."""
+        if not (workspace.repo(repo) / ".git").exists():
+            return []
+        log = self._git(workspace, "log", "--reverse", "--format=%H %s", f"--grep=^node:{node} ", repo=repo)
         patches = []
         for line in log.splitlines():
             sha, _, subject = line.partition(" ")
             attempt = subject.rsplit("attempt:", 1)[-1]
-            patches.append((f"repair-{attempt}.patch", self._git(workspace, "show", "--format=", "--binary", sha)))
+            diff = self._git(workspace, "show", "--format=", "--binary", sha, repo=repo)
+            patches.append((f"{prefix}-{attempt}.patch", diff))
         return patches
 
-    def head_stats(self, workspace: JobWorkspace) -> dict[str, int]:
+    def head_stats(self, workspace: JobWorkspace, repo: str = "project") -> dict[str, int]:
         """Files, insertions and deletions of the last commit (a repair attempt's diff stats, Story 8.2)."""
         stats = {"files": 0, "insertions": 0, "deletions": 0}
-        for line in self._git(workspace, "show", "--numstat", "--format=", "HEAD").splitlines():
+        for line in self._git(workspace, "show", "--numstat", "--format=", "HEAD", repo=repo).splitlines():
             added, deleted, _ = (line.split("\t", 2) + ["", ""])[:3]
             stats["files"] += 1
             stats["insertions"] += int(added) if added.isdigit() else 0
@@ -97,7 +123,7 @@ class WorkspaceManager:
         size = sum(
             path.stat().st_size
             for path in workspace.root.rglob("*")
-            if path.is_file() and not path.is_symlink() and ".venv" not in path.parts
+            if path.is_file() and not path.is_symlink() and not SIZE_EXCLUDES & set(path.parts)
         )
         megabytes = size // (1024 * 1024)
         if megabytes > self.max_mb:
@@ -111,9 +137,9 @@ class WorkspaceManager:
         return [path.name for path in self.root.iterdir() if path.is_dir()] if self.root.exists() else []
 
     @staticmethod
-    def _git(workspace: JobWorkspace, *args: str) -> str:
+    def _git(workspace: JobWorkspace, *args: str, repo: str = "project") -> str:
         completed = subprocess.run(
-            [*_GIT, *args], cwd=workspace.project, capture_output=True, text=True, check=False, timeout=120
+            [*_GIT, *args], cwd=workspace.repo(repo), capture_output=True, text=True, check=False, timeout=120
         )
         if completed.returncode != 0:
             raise RuntimeError(f"git {args[0]} failed: {completed.stderr.strip()[:500]}")

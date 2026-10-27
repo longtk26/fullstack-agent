@@ -132,6 +132,7 @@ class GenerationDetailDto(CamelModel):
     usage: UsageTotalsDto
     artifacts: list[ArtifactDto]
     preview: PreviewDto | None
+    frontend_preview: PreviewDto | None = None
     trace: dict[str, Any]
     error: str | None
     created_at: datetime | None
@@ -180,6 +181,7 @@ class GenerationDetailDto(CamelModel):
             ),
             artifacts=[ArtifactDto.from_entity(a) for a in detail.artifacts],
             preview=PreviewDto.from_entity(detail.preview) if detail.preview else None,
+            frontend_preview=PreviewDto.from_entity(detail.frontend_preview) if detail.frontend_preview else None,
             trace={"traceId": generation.trace_id, "langsmithUrl": generation.langsmith_run_url},
             error=generation.error_summary,
             created_at=generation.created_at,

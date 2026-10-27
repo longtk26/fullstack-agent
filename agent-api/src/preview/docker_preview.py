@@ -227,7 +227,7 @@ class DockerPreviewRuntime(IPreviewRuntime):
         environment = {
             "DB_URL": f"postgresql://{DB_USER}:{secret(request.generation_id, 'db')}@{n['db']}:5432/app",
             "JWT_SECRET": secret(request.generation_id, "jwt"),
-            "CORS_ORIGINS": config.preview_cors_origins,
+            "CORS_ORIGINS": request.options.get("corsOrigins") or config.preview_cors_origins,
             "PORT": str(APP_PORT),
             "LOG_LEVEL": "INFO",
         }

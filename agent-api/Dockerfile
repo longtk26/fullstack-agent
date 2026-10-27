@@ -49,12 +49,13 @@ RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
     && npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
     && npm cache clean --force
 
-# Pinned base template for generated backends (Story 5.2) and the skill handed to the engine (Story 3.4).
+# Pinned base template for generated backends (Story 5.2) and the skills handed to the engine (Stories 3.4, 13.2).
 RUN set -eu; . /app/templates/template.lock; \
     git clone --quiet --branch "$branch" "$repo" /opt/bga/fastapi-template; \
     git -C /opt/bga/fastapi-template checkout --quiet "$commit"; \
     rm -rf /opt/bga/fastapi-template/.git
 COPY --from=skills fastapi-skills /opt/bga/skills/fastapi-skills
+COPY --from=skills nextjs-skills /opt/bga/skills/nextjs-skills
 
 # Runs as root: it drives the host Docker socket for sandbox and preview containers (accepted local-only risk, Story 11.3).
 CMD ["python", "-m", "src.worker"]

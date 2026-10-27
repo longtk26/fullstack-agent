@@ -95,6 +95,7 @@ export type TGenerationDetail = TGeneration & {
   trace: { traceId: string | null; langsmithUrl: string | null };
   artifacts: TArtifact[];
   preview: TPreview | null;
+  frontendPreview: TPreview | null;
   error: string | null;
 };
 
@@ -241,6 +242,7 @@ export type TPreviewStatus = "STARTING" | "RUNNING" | "STOPPED" | "FAILED";
 
 export type TPreview = {
   generationId: string;
+  kind: "backend" | "frontend";
   status: TPreviewStatus;
   url: string | null;
   openapiUrl: string | null;
@@ -250,6 +252,7 @@ export type TPreview = {
   lastAccessedAt: string | null;
   expiresAt: string | null;
   error: string | null;
+  mockApi?: boolean | null;
 };
 
 export type TPreviewAction = "start" | "stop" | "restart" | "reset-db" | "touch";

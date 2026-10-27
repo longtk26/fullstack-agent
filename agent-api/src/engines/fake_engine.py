@@ -29,6 +29,10 @@ class FakeStep(BaseModel):
 
     write: dict[str, str] = {}
     copy_from: Path | None = None
+    # Frontend lane: copy the golden frontend matching `.bga/frontend-spec.json` (project name), optionally with
+    # one planted conventions defect (a hard-coded colour in the shell) so the repair loop runs.
+    golden_frontend: bool = False
+    plant_frontend_defect: bool = False
     delete: list[str] = []
     sleep_s: float = 0
     crash: bool = False
@@ -43,6 +47,24 @@ class SimulatedCrash(BaseException):
 
 GOLDEN = Path(__file__).resolve().parent / "golden" / "two_entity"
 _TASK_ROUTER = "src/modules/tasks/presenter/router.py"
+# TESTING / DEMO ONLY (docs/development/test-doubles.md). Golden frontends: hand-written, convention-correct
+# implementations of these FrontendSpec examples only; any other FrontendSpec fails the fake frontend lane.
+GOLDEN_FRONTENDS = {
+    "Northwind Studio": GOLDEN.parent / "frontend" / "static_landing",  # examples/frontend-specs/static-landing.json
+    "Project Tracker": GOLDEN.parent / "frontend" / "project_tracker",  # …/project-tracker-dynamic.json
+}
+FRONTEND_SHELL = "src/components/layout/SiteShell.tsx"
+PLANTED_COLOR = "text-[#b91c1c] "
+
+
+def golden_frontend_for(workdir: Path) -> Path | None:
+    spec_path = workdir / ".bga" / "frontend-spec.json"
+    if not spec_path.is_file():
+        return None
+    import json
+
+    name = (json.loads(spec_path.read_text()).get("project") or {}).get("name")
+    return GOLDEN_FRONTENDS.get(name)
 
 
 def demo_scenario(delay_s: float = 0.3) -> dict[str, list[FakeStep]]:
@@ -70,6 +92,14 @@ def demo_scenario(delay_s: float = 0.3) -> dict[str, list[FakeStep]]:
                 write={_TASK_ROUTER: fixed_router},
                 message="Fixed the syntax error in the tasks router.",
             )
+        ],
+        # First call (the shell) writes the whole golden frontend with one defect; the page calls change nothing.
+        "generate_frontend": [
+            FakeStep(sleep_s=delay_s, golden_frontend=True, plant_frontend_defect=True),
+            FakeStep(sleep_s=delay_s, message="The page is already in place."),
+        ],
+        "repair_frontend": [
+            FakeStep(sleep_s=delay_s, golden_frontend=True, message="Replaced the hard-coded colour with a token."),
         ],
         "*": [FakeStep(write={"FAKE_ENGINE.md": "Written by the fake engine.\n"})],
     }
@@ -142,12 +172,14 @@ class FakeEngine(ICodeEngine):
                 except TimeoutError:
                     pass
             if status != EngineStatus.CANCELLED:
-                if step.copy_from is not None:
-                    shutil.copytree(
-                        step.copy_from, workdir, dirs_exist_ok=True, ignore=shutil.ignore_patterns("__pycache__")
-                    )
-                    await emit(EngineEventKind.TOOL_USE, f"Copy {step.copy_from.name}", tool="Copy")
-                    tools.append(ToolCall(name="Copy", target=step.copy_from.name, started_at=datetime.now(UTC)))
+                source = golden_frontend_for(workdir) if step.golden_frontend else step.copy_from
+                if source is not None:
+                    shutil.copytree(source, workdir, dirs_exist_ok=True, ignore=shutil.ignore_patterns("__pycache__"))
+                    await emit(EngineEventKind.TOOL_USE, f"Copy {source.name}", tool="Copy")
+                    tools.append(ToolCall(name="Copy", target=source.name, started_at=datetime.now(UTC)))
+                if source is not None and step.plant_frontend_defect:
+                    shell = workdir / FRONTEND_SHELL
+                    shell.write_text(shell.read_text().replace('className="', f'className="{PLANTED_COLOR}', 1))
                 for relative, content in step.write.items():
                     target = ensure_inside(workdir / relative, workdir)
                     target.parent.mkdir(parents=True, exist_ok=True)

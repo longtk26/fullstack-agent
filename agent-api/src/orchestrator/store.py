@@ -127,14 +127,14 @@ class JobStore:
 
     # -- previews (Stories 7.3, 7.4) ----------------------------------------------------------------------------
 
-    def preview(self, generation_id: str) -> PreviewEntity | None:
-        return self._with(lambda s: PreviewRepository(s).find(generation_id))
+    def preview(self, generation_id: str, kind: str = "backend") -> PreviewEntity | None:
+        return self._with(lambda s: PreviewRepository(s).find(generation_id, kind))
 
-    def upsert_preview(self, generation_id: str, **fields: Any) -> PreviewEntity:
-        return self._with(lambda s: PreviewRepository(s).upsert(generation_id, **fields))
+    def upsert_preview(self, generation_id: str, kind: str = "backend", **fields: Any) -> PreviewEntity:
+        return self._with(lambda s: PreviewRepository(s).upsert(generation_id, kind, **fields))
 
-    def delete_preview(self, generation_id: str) -> None:
-        self._with(lambda s: PreviewRepository(s).delete(generation_id))
+    def delete_preview(self, generation_id: str, kind: str = "backend") -> None:
+        self._with(lambda s: PreviewRepository(s).delete(generation_id, kind))
 
     def previews(self, statuses: tuple[PreviewStatus, ...] | None = None) -> list[PreviewEntity]:
         if statuses is None:

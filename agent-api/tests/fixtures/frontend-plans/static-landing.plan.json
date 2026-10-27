@@ -1,0 +1,580 @@
+{
+  "assets": [
+    {
+      "alt": "Studio desk with sketches",
+      "id": "hero",
+      "kind": "image",
+      "source": "placeholder"
+    },
+    {
+      "alt": "Bakehouse packaging",
+      "id": "work-1",
+      "kind": "image",
+      "source": "placeholder"
+    },
+    {
+      "alt": "Harbour Books shop sign",
+      "id": "work-2",
+      "kind": "image",
+      "source": "placeholder"
+    }
+  ],
+  "components": [
+    {
+      "description": "Banner with one primary action",
+      "domain": "sections",
+      "file": "src/components/sections/CallToAction.tsx",
+      "kind": "section",
+      "name": "CallToAction",
+      "propsType": "CallToActionProps",
+      "usedBy": [
+        "home"
+      ],
+      "uses": [
+        "button"
+      ]
+    },
+    {
+      "description": "Address, e-mail, phone, map link",
+      "domain": "sections",
+      "file": "src/components/sections/ContactInfo.tsx",
+      "kind": "section",
+      "name": "ContactInfo",
+      "propsType": "ContactInfoProps",
+      "usedBy": [
+        "contact"
+      ],
+      "uses": [
+        "card"
+      ]
+    },
+    {
+      "description": "Questions and answers",
+      "domain": "sections",
+      "file": "src/components/sections/Faq.tsx",
+      "kind": "section",
+      "name": "Faq",
+      "propsType": "FaqProps",
+      "usedBy": [
+        "services"
+      ],
+      "uses": [
+        "accordion"
+      ]
+    },
+    {
+      "description": "Grid of feature cards",
+      "domain": "sections",
+      "file": "src/components/sections/Features.tsx",
+      "kind": "section",
+      "name": "Features",
+      "propsType": "FeaturesProps",
+      "usedBy": [
+        "home",
+        "services"
+      ],
+      "uses": [
+        "card"
+      ]
+    },
+    {
+      "description": "Image grid",
+      "domain": "sections",
+      "file": "src/components/sections/Gallery.tsx",
+      "kind": "section",
+      "name": "Gallery",
+      "propsType": "GalleryProps",
+      "usedBy": [
+        "work"
+      ],
+      "uses": [
+        "aspect-ratio"
+      ]
+    },
+    {
+      "description": "Heading, text, image and a call to action",
+      "domain": "sections",
+      "file": "src/components/sections/Hero.tsx",
+      "kind": "section",
+      "name": "Hero",
+      "propsType": "HeroProps",
+      "usedBy": [
+        "home"
+      ],
+      "uses": [
+        "button"
+      ]
+    },
+    {
+      "description": "Plans side by side",
+      "domain": "sections",
+      "file": "src/components/sections/Pricing.tsx",
+      "kind": "section",
+      "name": "Pricing",
+      "propsType": "PricingProps",
+      "usedBy": [
+        "services"
+      ],
+      "uses": [
+        "badge",
+        "button",
+        "card"
+      ]
+    },
+    {
+      "description": "Formatted text block",
+      "domain": "sections",
+      "file": "src/components/sections/RichText.tsx",
+      "kind": "section",
+      "name": "RichText",
+      "propsType": "RichTextProps",
+      "usedBy": [
+        "about"
+      ],
+      "uses": []
+    },
+    {
+      "description": "Key numbers",
+      "domain": "sections",
+      "file": "src/components/sections/Stats.tsx",
+      "kind": "section",
+      "name": "Stats",
+      "propsType": "StatsProps",
+      "usedBy": [
+        "about"
+      ],
+      "uses": [
+        "card"
+      ]
+    },
+    {
+      "description": "Quotes with author",
+      "domain": "sections",
+      "file": "src/components/sections/Testimonials.tsx",
+      "kind": "section",
+      "name": "Testimonials",
+      "propsType": "TestimonialsProps",
+      "usedBy": [
+        "home"
+      ],
+      "uses": [
+        "avatar",
+        "card"
+      ]
+    }
+  ],
+  "content": [
+    {
+      "collection": "faq",
+      "file": "src/content/faq.json",
+      "records": 2
+    },
+    {
+      "collection": "plans",
+      "file": "src/content/plans.json",
+      "records": 2
+    },
+    {
+      "collection": "projects",
+      "file": "src/content/projects.json",
+      "records": 2
+    },
+    {
+      "collection": "services",
+      "file": "src/content/services.json",
+      "records": 3
+    },
+    {
+      "collection": "testimonials",
+      "file": "src/content/testimonials.json",
+      "records": 1
+    }
+  ],
+  "conventions": {
+    "colors": "design tokens from globals.css only (bg-primary, text-muted-foreground)",
+    "data": "React Query hooks from @/lib/api/queries only; no other network access",
+    "forms": "React Hook Form + zodResolver with the schemas in @/lib/forms",
+    "hooks": "logic over ~30 lines moves to the component's companion use-*.ts hook",
+    "packageManager": "pnpm",
+    "reactImports": "named imports only, never `import * as React`",
+    "skill": "nextjs-skills",
+    "types": "standalone types T-prefixed (TProduct); props <Name>Props; `type` over `interface`"
+  },
+  "data": [],
+  "forms": [],
+  "planVersion": "1",
+  "project": {
+    "locale": "en",
+    "mode": "static",
+    "name": "Northwind Studio",
+    "slug": "northwind-studio"
+  },
+  "routes": [
+    {
+      "file": "src/app/page.tsx",
+      "pageId": "home",
+      "params": [],
+      "purpose": null,
+      "route": "/",
+      "sections": [
+        {
+          "component": "Hero",
+          "content": {
+            "body": "Brand and web design for independent businesses.",
+            "cta": {
+              "label": "See our work",
+              "page": "work"
+            },
+            "heading": "Design that sounds like you",
+            "image": "asset:hero"
+          },
+          "id": "hero"
+        },
+        {
+          "component": "Features",
+          "data": {
+            "collection": "services",
+            "fields": [],
+            "file": "src/content/services.json",
+            "kind": "content",
+            "params": {},
+            "records": 3
+          },
+          "id": "services",
+          "states": {
+            "empty": "Nothing here yet",
+            "error": "Could not load the data",
+            "loading": "Loading…"
+          }
+        },
+        {
+          "component": "Testimonials",
+          "data": {
+            "collection": "testimonials",
+            "fields": [],
+            "file": "src/content/testimonials.json",
+            "kind": "content",
+            "params": {},
+            "records": 1
+          },
+          "id": "quotes",
+          "states": {
+            "empty": "Nothing here yet",
+            "error": "Could not load the data",
+            "loading": "Loading…"
+          }
+        },
+        {
+          "component": "CallToAction",
+          "content": {
+            "cta": {
+              "label": "Get in touch",
+              "page": "contact"
+            },
+            "heading": "Have a project?"
+          },
+          "id": "cta"
+        }
+      ],
+      "seo": {
+        "description": "Brand and web design for independent businesses",
+        "title": "Home"
+      },
+      "title": "Home"
+    },
+    {
+      "file": "src/app/services/page.tsx",
+      "pageId": "services",
+      "params": [],
+      "purpose": null,
+      "route": "/services",
+      "sections": [
+        {
+          "component": "Features",
+          "data": {
+            "collection": "services",
+            "fields": [],
+            "file": "src/content/services.json",
+            "kind": "content",
+            "params": {},
+            "records": 3
+          },
+          "id": "list",
+          "states": {
+            "empty": "Nothing here yet",
+            "error": "Could not load the data",
+            "loading": "Loading…"
+          }
+        },
+        {
+          "component": "Pricing",
+          "data": {
+            "collection": "plans",
+            "fields": [],
+            "file": "src/content/plans.json",
+            "kind": "content",
+            "params": {},
+            "records": 2
+          },
+          "id": "pricing",
+          "states": {
+            "empty": "Nothing here yet",
+            "error": "Could not load the data",
+            "loading": "Loading…"
+          }
+        },
+        {
+          "component": "Faq",
+          "data": {
+            "collection": "faq",
+            "fields": [],
+            "file": "src/content/faq.json",
+            "kind": "content",
+            "params": {},
+            "records": 2
+          },
+          "id": "faq",
+          "states": {
+            "empty": "Nothing here yet",
+            "error": "Could not load the data",
+            "loading": "Loading…"
+          }
+        }
+      ],
+      "seo": {
+        "title": "Services"
+      },
+      "title": "Services"
+    },
+    {
+      "file": "src/app/work/page.tsx",
+      "pageId": "work",
+      "params": [],
+      "purpose": null,
+      "route": "/work",
+      "sections": [
+        {
+          "component": "Gallery",
+          "data": {
+            "collection": "projects",
+            "fields": [],
+            "file": "src/content/projects.json",
+            "kind": "content",
+            "params": {},
+            "records": 2
+          },
+          "id": "gallery",
+          "states": {
+            "empty": "Nothing here yet",
+            "error": "Could not load the data",
+            "loading": "Loading…"
+          }
+        }
+      ],
+      "seo": {
+        "title": "Work"
+      },
+      "title": "Work"
+    },
+    {
+      "file": "src/app/about/page.tsx",
+      "pageId": "about",
+      "params": [],
+      "purpose": null,
+      "route": "/about",
+      "sections": [
+        {
+          "component": "RichText",
+          "content": {
+            "body": "Northwind is a two-person studio. We have helped forty small businesses find their voice since 2019."
+          },
+          "id": "story"
+        },
+        {
+          "component": "Stats",
+          "content": {
+            "items": [
+              {
+                "label": "Clients",
+                "value": "40+"
+              },
+              {
+                "label": "Years",
+                "value": "6"
+              }
+            ]
+          },
+          "id": "stats"
+        }
+      ],
+      "seo": {
+        "title": "About"
+      },
+      "title": "About"
+    },
+    {
+      "file": "src/app/contact/page.tsx",
+      "pageId": "contact",
+      "params": [],
+      "purpose": null,
+      "route": "/contact",
+      "sections": [
+        {
+          "component": "ContactInfo",
+          "content": {
+            "email": "hello@northwind.studio",
+            "phone": "+44 20 7946 0000"
+          },
+          "id": "info"
+        }
+      ],
+      "seo": {
+        "title": "Contact"
+      },
+      "title": "Contact"
+    }
+  ],
+  "shadcn": [
+    "accordion",
+    "aspect-ratio",
+    "avatar",
+    "badge",
+    "button",
+    "card",
+    "navigation-menu",
+    "separator",
+    "sheet",
+    "skeleton",
+    "sonner"
+  ],
+  "shell": {
+    "file": "src/components/layout/SiteShell.tsx",
+    "footer": {
+      "links": [
+        {
+          "external": true,
+          "href": "https://instagram.com/northwind",
+          "label": "Instagram"
+        },
+        {
+          "href": "/contact",
+          "label": "Contact",
+          "page": "contact"
+        }
+      ],
+      "text": "© Northwind Studio"
+    },
+    "logo": null,
+    "logoText": "Northwind",
+    "navigation": [
+      {
+        "href": "/services",
+        "label": "Services",
+        "page": "services"
+      },
+      {
+        "href": "/work",
+        "label": "Work",
+        "page": "work"
+      },
+      {
+        "href": "/about",
+        "label": "About",
+        "page": "about"
+      },
+      {
+        "href": "/contact",
+        "label": "Contact",
+        "page": "contact"
+      }
+    ],
+    "shell": "header-footer",
+    "themeToggle": false
+  },
+  "tests": [
+    {
+      "expect": "Home",
+      "file": "tests/e2e/smoke.spec.ts",
+      "id": "route:home",
+      "kind": "route",
+      "pageId": "home",
+      "path": "/"
+    },
+    {
+      "expect": "Services",
+      "file": "tests/e2e/smoke.spec.ts",
+      "id": "route:services",
+      "kind": "route",
+      "pageId": "services",
+      "path": "/services"
+    },
+    {
+      "expect": "Work",
+      "file": "tests/e2e/smoke.spec.ts",
+      "id": "route:work",
+      "kind": "route",
+      "pageId": "work",
+      "path": "/work"
+    },
+    {
+      "expect": "About",
+      "file": "tests/e2e/smoke.spec.ts",
+      "id": "route:about",
+      "kind": "route",
+      "pageId": "about",
+      "path": "/about"
+    },
+    {
+      "expect": "Contact",
+      "file": "tests/e2e/smoke.spec.ts",
+      "id": "route:contact",
+      "kind": "route",
+      "pageId": "contact",
+      "path": "/contact"
+    }
+  ],
+  "theme": {
+    "colorScheme": "light",
+    "dark": null,
+    "density": "comfortable",
+    "fonts": {
+      "body": "\"Source Serif 4\", ui-serif, Georgia, \"Times New Roman\", serif",
+      "heading": "\"Playfair Display\", ui-serif, Georgia, \"Times New Roman\", serif"
+    },
+    "light": {
+      "accent": "#f6e5db",
+      "accent-foreground": "#1c1917",
+      "background": "#fdfbf7",
+      "border": "#e2e0dc",
+      "card": "#fdfbf7",
+      "card-foreground": "#1c1917",
+      "chart-1": "#1c1917",
+      "chart-2": "#c2410c",
+      "chart-3": "#1c1917",
+      "chart-4": "#d7825e",
+      "chart-5": "#8c8a87",
+      "destructive": "#b91c1c",
+      "foreground": "#1c1917",
+      "input": "#e2e0dc",
+      "muted": "#f5f0e8",
+      "muted-foreground": "#7a7875",
+      "popover": "#fdfbf7",
+      "popover-foreground": "#1c1917",
+      "primary": "#1c1917",
+      "primary-foreground": "#ffffff",
+      "ring": "#1c1917",
+      "secondary": "#f5f0e8",
+      "secondary-foreground": "#1c1917",
+      "sidebar": "#f6f4f0",
+      "sidebar-accent": "#ebe9e5",
+      "sidebar-accent-foreground": "#1c1917",
+      "sidebar-border": "#e2e0dc",
+      "sidebar-foreground": "#1c1917",
+      "sidebar-primary": "#1c1917",
+      "sidebar-primary-foreground": "#ffffff",
+      "sidebar-ring": "#1c1917"
+    },
+    "radius": "0.375rem",
+    "scale": "default"
+  }
+}
