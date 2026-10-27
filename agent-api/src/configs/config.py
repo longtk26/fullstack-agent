@@ -51,6 +51,10 @@ class Config(BaseSettings):
     gemini_api_key: str | None = None
     google_application_credentials: str | None = None
 
+    # USD per 1M tokens, merged over src/engines/pricing.py DEFAULT_PRICES, e.g.
+    # {"gemini-4-argon": {"input": 1.25, "output": 10, "cache_read": 0.125}}. A model without a price has no cost.
+    model_prices: dict[str, dict[str, float]] = {}
+
     workspace_root: str = "/tmp/bga/workspaces"
     workspace_max_mb: int = 500
     workspace_retention_hours: int = 72
@@ -87,6 +91,19 @@ class Config(BaseSettings):
     preview_reconcile_seconds: int = 300
     preview_command_timeout_seconds: float = 8  # API waiting for the worker (logs); below the Redis socket timeout
 
+    # LangSmith tracing (Epic 8). Off unless LANGSMITH_TRACING=true and a key is set; the local trace (node runs,
+    # CLI invocations, model calls, checks) is recorded either way. LANGSMITH_AGENT_ID (beta, enabled per
+    # workspace) sends traces to that agent's environment instead of LANGSMITH_PROJECT.
+    langsmith_tracing: bool = False
+    langsmith_api_key: str | None = None
+    langsmith_endpoint: str = "https://api.smith.langchain.com"
+    langsmith_project: str = "fullstack-generation-agent"
+    langsmith_agent_id: str | None = None
+    langsmith_agent_environment: str = "local"
+    # Model calls and sandbox records of generations finished longer ago are deleted (0 = keep). LangSmith's
+    # own retention is a setting of the LangSmith project.
+    trace_retention_days: int = 30
+
     job_timeout_seconds: int = 1800
     worker_lease_ttl_seconds: int = 30
     worker_max_resumes: int = 2
@@ -104,6 +121,11 @@ class Config(BaseSettings):
     preview_worker: bool = True
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    @field_validator("langsmith_api_key", "langsmith_agent_id", mode="before")
+    @classmethod
+    def _blank_is_unset(cls, value):
+        return value or None
 
     @field_validator("claude_code_model", "antigravity_model", mode="before")
     @classmethod

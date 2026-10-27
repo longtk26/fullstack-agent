@@ -291,3 +291,75 @@ def test_configured_model_is_passed_to_the_cli(root):
 
     assert agy.argv[agy.argv.index("--model") + 1] == "gemini-3.8-flash-medium"
     assert claude.argv[claude.argv.index("--model") + 1] == "claude-sonnet-5-5"
+
+
+# -- model calls and cost (Story 8.4) ---------------------------------------------------------------------------
+
+
+def _parse(parser, name):
+    for line in (FIXTURES / name).read_text().splitlines():
+        parser.feed(line)
+    return parser.run
+
+
+def test_claude_model_calls_add_up_to_the_reported_session():
+    run = _parse(ClaudeStreamParser(max_turns=4), "claude_stream_ok.jsonl")
+
+    calls = run.model_calls
+    assert [call.seq for call in calls] == [1, 2], "one call per message id, not per content block"
+    assert sum(call.cost_usd for call in calls) == pytest.approx(run.usage.cost_usd, abs=1e-6)
+    assert {call.cost_source for call in calls} == {"reported"}
+    assert sum(call.output_tokens for call in calls) == run.usage.output_tokens, "partial counts are scaled"
+    assert sum(call.input_tokens for call in calls) == run.usage.input_tokens
+    assert calls[0].model.startswith("claude-haiku-4-5") and calls[0].duration_ms > 0
+    [write] = calls[0].tools
+    assert (write.name, write.target) == ("Write", "/work/project/hello.py") and write.ended_at >= write.started_at
+
+
+def test_antigravity_model_calls_are_estimated_from_the_price_table():
+    from src.engines.antigravity.stream import AntigravityStreamParser
+
+    run = _parse(AntigravityStreamParser(150, "gemini-3.8-flash-medium", prices=None), "agy_stream_ok.jsonl")
+
+    calls = run.model_calls
+    assert len(calls) == 5 and {call.latency_source for call in calls} == {"reported"}
+    assert sum(call.input_tokens for call in calls) == run.usage.input_tokens == 18188 + 28038
+    assert calls[0].duration_ms == 6194 and calls[1].cache_read_tokens == 6386
+    assert {call.cost_source for call in calls} == {"estimated"}
+    assert (
+        run.usage.cost_usd == pytest.approx(sum(call.cost_usd for call in calls))
+        and run.usage.cost_source == "estimated"
+    )
+    assert [(t.name, t.target) for t in calls[0].tools] == [
+        ("read_file", "/work/project/src/modules/shared/domain/entities/task_entity.py")
+    ], "agy sends tool parameters as a Python repr"
+
+
+def test_unknown_model_has_no_cost():
+    from src.engines.antigravity.stream import AntigravityStreamParser
+
+    run = _parse(AntigravityStreamParser(150, "gemini-4-argon-medium"), "agy_stream_ok.jsonl")
+
+    assert all(call.cost_usd is None for call in run.model_calls) and run.usage.cost_usd is None
+
+
+def test_price_table_matches_prefixes_and_takes_overrides(monkeypatch):
+    from src.configs import config
+    from src.engines.pricing import configured_prices, price_for
+
+    monkeypatch.setattr(config, "model_prices", {"gemini-4-argon": {"input": 1.0, "output": 8.0}})
+    prices = configured_prices()
+
+    assert price_for("gemini-3.8-flash-medium", prices)["input"] == 0.75
+    assert price_for("gemini-4-argon-medium", prices)["output"] == 8.0
+    assert price_for("claude-sonnet-5-5", prices)["cache_read"] == 0.20
+    assert price_for("mystery-model", prices) is None
+
+
+def test_engine_result_carries_model_calls_with_workspace_relative_tools(root):
+    result, _ = _run(_agy(root, model="gemini-3.8-flash-medium"), _request(root))
+
+    [call, _] = result.model_calls
+    assert (call.input_tokens, call.output_tokens, call.cache_read_tokens) == (100, 15, 40)
+    assert [(tool.name, tool.target) for tool in call.tools] == [("write_file", "hello.py")]
+    assert call.cost_source == "estimated" and result.usage.model == "gemini-3.8-flash-medium"

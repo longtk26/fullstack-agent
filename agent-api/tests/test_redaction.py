@@ -25,3 +25,9 @@ def test_redacts_nested_structures():
     redactor = Redactor(["supersecretvalue"])
 
     assert redactor.redact_obj({"a": ["x supersecretvalue"], "n": 3}) == {"a": [f"x {MASK}"], "n": 3}
+
+
+def test_langsmith_keys_are_masked():
+    from src.libs.redaction import Redactor
+
+    assert "lsv2_pt_" + "a" * 32 not in Redactor().redact("key lsv2_pt_" + "a" * 32)

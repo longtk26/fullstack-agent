@@ -1,5 +1,6 @@
 import asyncio
 from abc import abstractmethod
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -14,12 +15,16 @@ from .port import (
     EngineStatus,
     EngineUsage,
     ICodeEngine,
+    ModelCall,
     OnEngineEvent,
+    ToolCall,
 )
+from .pricing import Price, configured_prices
 from .process import ProcessOutcome, ProcessSpec, SubprocessRunner
 from .workspace import changed_files, ensure_inside, snapshot
 
 logger = get_logger(__name__)
+MAX_TOOL_SPANS = 200
 
 
 @dataclass
@@ -36,16 +41,33 @@ class ParsedRun:
     final_message: str | None = None
     turn_limit_hit: bool = False
     events: list[EngineEvent] = field(default_factory=list)
+    model_calls: list[ModelCall] = field(default_factory=list)
+    tools_dropped: int = 0
 
 
 class StreamParser:
-    def __init__(self, max_turns: int | None):
+    def __init__(self, max_turns: int | None, model: str | None = None, prices: Mapping[str, Price] | None = None):
         self.max_turns = max_turns
+        self.model = model  # the configured model, for CLIs whose stream does not name it
+        self.prices = prices
         self.run = ParsedRun()
+        self._tools = 0
 
     @abstractmethod
     def feed(self, line: str) -> list[EngineEvent]:
         """Parses one stdout line; set `self.run.turn_limit_hit` to stop the process."""
+
+    def price_table(self) -> Mapping[str, Price]:
+        return self.prices if self.prices is not None else configured_prices()
+
+    def add_tool(self, call: ModelCall, tool: ToolCall) -> ToolCall | None:
+        """Tool spans are sampled to MAX_TOOL_SPANS per invocation (Story 8.2); the rest are only counted."""
+        self._tools += 1
+        if self._tools > MAX_TOOL_SPANS:
+            self.run.tools_dropped += 1
+            return None
+        call.tools.append(tool)
+        return tool
 
 
 @dataclass
@@ -141,6 +163,9 @@ class CliEngine(ICodeEngine):
 
         result = self._normalize(request, parser.run, outcome, spec)
         result.changed_files = changed_files(before, after)
+        for call in result.model_calls:
+            for tool in call.tools:
+                tool.target = clean(tool.target)
         logger.info(
             "engine run finished",
             extra={
@@ -190,6 +215,8 @@ class CliEngine(ICodeEngine):
             stdout_ref=str(spec.stdout_path),
             stderr_ref=str(spec.stderr_path),
             prompt_ref=request.prompt_ref,
+            model_calls=parsed.model_calls,
+            tools_dropped=parsed.tools_dropped,
         )
 
     @staticmethod

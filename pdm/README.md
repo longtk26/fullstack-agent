@@ -90,14 +90,15 @@ workflow to be built before real generation works.
    client) → E13 dynamic parts (client + mocks) → E14 (parallel lanes, `MOCK_TEST_API` switch, live smoke) →
    E12.4 + 2.4 (requirement drafting for both specs) → E9.7–9.9 (mode choice, parallel view, App tab).
 
-### Status (2026-10-26)
+### Status (2026-10-27)
 
 | Epic | State |
 |---|---|
 | 1, 2 (2.1–2.3, 2.5), 3, 4, 5, 6 (6.1–6.2) | done (merged to `main`); 6.3 repair loop works on real failures |
 | 7 | done (merged to `main`) |
-| 9 | 9.1–9.3 done; 9.5–9.6 done on `feat/epic9-results-and-api-explorer` (in review; 9.6 auth helper waits for Epic 10); 9.4, 9.7–9.10 open |
-| 2.4, 8, 10, 11, 12, 13, 14 | open |
+| 8 | done (8.4 draft-job accounting waits for 2.4 / 12.4) |
+| 9 | 9.1–9.6 and 9.10 done (9.6 auth helper waits for Epic 10); 9.7–9.9 open |
+| 2.4, 10, 11, 12, 13, 14 | open |
 
 ## Decisions (2026-10-23 review)
 

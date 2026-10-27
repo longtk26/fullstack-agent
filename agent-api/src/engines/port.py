@@ -4,7 +4,7 @@ from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -44,9 +44,49 @@ class EngineEvent(BaseModel):
 
 
 class EngineUsage(BaseModel):
+    """Session totals. `input_tokens` counts every input token (cache reads and writes included) and
+    `output_tokens` includes thinking, as LangSmith's usage_metadata does."""
+
     input_tokens: int | None = None
     output_tokens: int | None = None
+    cache_read_tokens: int | None = None
+    cache_write_tokens: int | None = None
+    thinking_tokens: int | None = None
     cost_usd: float | None = None
+    cost_source: Literal["reported", "estimated"] | None = None
+    model: str | None = None
+
+
+class ToolCall(BaseModel):
+    name: str
+    target: str = ""
+    started_at: datetime
+    ended_at: datetime | None = None
+    is_error: bool = False
+
+
+class ModelCall(BaseModel):
+    """One model request inside a CLI session (Story 8.4), reconstructed from the CLI's stream-json output.
+    Token fields follow EngineUsage. `latency_source` is `reported` when the CLI states the duration
+    (Antigravity) and `measured` when it comes from event timestamps (Claude Code)."""
+
+    seq: int
+    model: str | None = None
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
+    thinking_tokens: int | None = None
+    started_at: datetime
+    ended_at: datetime
+    latency_source: Literal["reported", "measured"] = "measured"
+    cost_usd: float | None = None
+    cost_source: Literal["reported", "estimated"] | None = None
+    tools: list[ToolCall] = []
+
+    @property
+    def duration_ms(self) -> int:
+        return max(0, int((self.ended_at - self.started_at).total_seconds() * 1000))
 
 
 class PromptRef(BaseModel):
@@ -91,6 +131,8 @@ class EngineResult(BaseModel):
     stdout_ref: str | None = None
     stderr_ref: str | None = None
     prompt_ref: PromptRef | None = None
+    model_calls: list[ModelCall] = []
+    tools_dropped: int = 0  # tool calls beyond the per-invocation sample (Story 8.2)
 
     @property
     def ok(self) -> bool:

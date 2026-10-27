@@ -1,4 +1,4 @@
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Header, Query, status
 from fastapi.responses import FileResponse
@@ -21,6 +21,7 @@ from src.modules.generations.usecases import (
     CancelGenerationUsecaseDep,
     CreateGenerationUsecaseDep,
     GetGenerationUsecaseDep,
+    GetTraceUsecaseDep,
     GetValidationUsecaseDep,
     GetWorkflowGraphUsecaseDep,
     ListGenerationsUsecaseDep,
@@ -135,3 +136,27 @@ async def browse_files(
     path: Annotated[str, Query(max_length=512)] = "",
 ) -> dict[str, Any]:
     return await usecase.execute(generation_id, user, path)
+
+
+@generation_router.get("/{generation_id}/trace", response_model=dict[str, Any])
+async def get_trace(generation_id: str, user: CurrentUserDep, usecase: GetTraceUsecaseDep) -> dict[str, Any]:
+    """Span tree (node, engine, model call, tool, check, sandbox) plus usage rollups; spans of a running job have
+    `endedAt: null`. `langsmithUrl` deep-links to the LangSmith trace when tracing is on."""
+    return await usecase.trace(generation_id, user)
+
+
+@generation_router.get("/{generation_id}/trace/spans/{span_id}/output", response_model=dict[str, Any])
+async def get_span_output(
+    generation_id: str,
+    span_id: str,
+    user: CurrentUserDep,
+    usecase: GetTraceUsecaseDep,
+    stream: Annotated[Literal["stdout", "stderr"], Query()] = "stdout",
+    tail: Annotated[int, Query(ge=1, le=20000)] = 500,
+) -> dict[str, Any]:
+    return await usecase.output(generation_id, span_id, user, stream, tail)
+
+
+@generation_router.get("/{generation_id}/usage", response_model=dict[str, Any])
+async def get_generation_usage(generation_id: str, user: CurrentUserDep, usecase: GetTraceUsecaseDep) -> dict[str, Any]:
+    return await usecase.usage(generation_id, user)

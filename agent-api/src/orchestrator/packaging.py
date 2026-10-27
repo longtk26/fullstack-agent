@@ -23,15 +23,18 @@ from src.modules.shared.domain.entities import (
     ArtifactEntity,
     CliInvocationEntity,
     GenerationEntity,
+    ModelCallEntity,
     NodeRunEntity,
+    SandboxExecEntity,
     ValidationRunEntity,
 )
+from src.modules.shared.domain.telemetry import ExecutionRecords, rollup
 
 from .checks.parity import IGNORED_PATHS, compare_openapi
 from .validation import CHECKS
 
 MANIFEST_VERSION = "1.0"
-REPORT_VERSION = "1.0"
+REPORT_VERSION = "1.1"  # 1.1: usage rollups (wall/engine/sandbox time, model calls, cost by source, per node/model)
 ZIP_TIME = (1980, 1, 1, 0, 0, 0)
 ZIP_SKIP_DIRS = {
     ".git",
@@ -315,6 +318,8 @@ def build_report(
     node_runs: list[NodeRunEntity],
     validation_runs: list[ValidationRunEntity],
     invocations: list[CliInvocationEntity],
+    model_calls: list[ModelCallEntity] | None = None,
+    sandbox_execs: list[SandboxExecEntity] | None = None,
 ) -> dict[str, Any]:
     steps = [run for run in node_runs if run.node != "package_artifacts"]
     attempts = sorted({run.attempt for run in validation_runs})
@@ -373,6 +378,17 @@ def build_report(
             "outputTokens": sum(b["outputTokens"] for b in by_purpose.values()),
             "costUsd": round(sum(b["costUsd"] for b in by_purpose.values()), 6),
             "byPurpose": by_purpose,
+            # Pinned to the finished steps (packaging runs inside the job), so repackaging gives the same report.
+            **rollup(
+                ExecutionRecords(
+                    generation=generation.model_copy(update={"started_at": first, "finished_at": last}),
+                    node_runs=steps,
+                    invocations=invocations,
+                    model_calls=model_calls or [],
+                    validation_runs=validation_runs,
+                    sandbox_execs=sandbox_execs or [],
+                )
+            ),
         },
     }
 
@@ -388,6 +404,7 @@ def report_markdown(report: dict[str, Any], project_name: str | None) -> str:
         f"- Validation attempts: {report['validationAttempts']}",
         f"- Engine usage: {report['usage']['calls']} call(s), {report['usage']['inputTokens']:,} input / "
         f"{report['usage']['outputTokens']:,} output tokens, ${report['usage']['costUsd']:.2f}",
+        *_cost_lines(report["usage"]),
         "",
         "## Checks (last attempt)",
         "",
@@ -410,6 +427,22 @@ def report_markdown(report: dict[str, Any], project_name: str | None) -> str:
             for r in report["repairs"]
         ]
     return "\n".join(lines) + "\n"
+
+
+def _cost_lines(usage: dict[str, Any]) -> list[str]:
+    cost = usage.get("cost")
+    if not cost:
+        return []
+    line = f"- Model calls: {usage['modelCalls']}, cost ${cost['reported']:.4f} reported"
+    if cost["estimated"]:
+        line += f" + ~${cost['estimated']:.4f} estimated"
+    if cost["unpriced"]:
+        line += f" ({cost['unpriced']} call(s) without a price)"
+    seconds = {key: round((usage.get(key) or 0) / 1000) for key in ("wallMs", "engineMs", "sandboxMs")}
+    return [
+        line,
+        f"- Time: {seconds['wallMs']} s wall, {seconds['engineMs']} s engine, {seconds['sandboxMs']} s sandbox",
+    ]
 
 
 # -- diagnostics -------------------------------------------------------------------------------------------------

@@ -15,6 +15,7 @@ class ValidationRunModel(SQLModel, table=True):
     attempt: int = 0
     check: str = Field(max_length=32)
     status: str = Field(max_length=32)
+    started_at: datetime | None = Field(default=None, sa_type=TZDateTime)
     duration_ms: int | None = None
     output_ref: str | None = None
     details: dict[str, Any] = Field(default_factory=dict, sa_type=Json)

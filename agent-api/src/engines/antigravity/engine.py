@@ -107,7 +107,7 @@ class AntigravityEngine(CliEngine):
         )
         message = {"event": "user", "message": {"content": request.prompt}}
         stdin = (json.dumps(message) + "\n").encode()  # stdin is closed after this one turn, so agy exits
-        return Invocation(argv=argv, env=env, stdin=stdin, parser=AntigravityStreamParser(max_turns))
+        return Invocation(argv=argv, env=env, stdin=stdin, parser=AntigravityStreamParser(max_turns, self.model))
 
     def redact_argv(self, argv: list[str]) -> list[str]:
         return list(argv)

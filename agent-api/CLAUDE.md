@@ -25,6 +25,9 @@ Agent-specific notes:
 - PostgreSQL enums: add an explicit `sa.Enum(name=...).drop(...)` to migration downgrades.
 - Only the worker talks to Docker (sandboxes `src/sandbox/`, previews `src/preview/`). The API reaches previews
   through `PreviewCommandBus` (Redis); artifacts are files under `ARTIFACT_ROOT`, resolved only from DB rows.
+- Tracing (Epic 8): spans come from `src/orchestrator/tracing.py` (RunTree API; LangGraph's own tracer is off).
+  Use `tracing.span(...)` / `tracing.current().child(...)`; record what the local trace needs in the DB too
+  (`model_calls`, `sandbox_execs`), since `/trace` and `/usage` are built from records, not from LangSmith.
 - Test doubles (fake engine, golden two-entity project, static validator, fake CLIs, opt-in test flags) are listed in
   `docs/development/test-doubles.md`; add any new fake there and mark it at its definition.
 

@@ -28,6 +28,9 @@ if mode == "many_turns":
         time.sleep(0.2)
     sys.exit(0)
 
+out({"event": "step_update", "step_update": {"conversation_id": "c-1", "step_index": 0, "state": "DONE",
+     "step_type": "agent_response", "duration_seconds": 0.5,
+     "usage": {"input_tokens": 60, "output_tokens": 10, "thinking_tokens": 5, "cache_read_tokens": 40}}})
 pathlib.Path("hello.py").write_text("def hello():\n    return 'hi'\n")
 out({"event": "step_update", "step_update": {"conversation_id": "c-1", "step_index": 1, "state": "DONE",
      "step_type": "tool", "tool_name": "write_file",

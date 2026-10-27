@@ -61,3 +61,6 @@ Code: `agent-ui/src/features/{auth,generations,specs}`, `agent-ui/src/app/api/pr
 - From the UI alone, a user can paste the two-entity spec, generate, watch the steps live, see the repair
   loop if one happens, open the trace, download the ZIP, and successfully call `POST /tasks` then `GET /tasks`
   on the running preview.
+
+**Status (2026-10-27):** 9.4 (Trace tab: totals, per-node table, span waterfall with filters and a span drawer) and
+9.10 (Usage & traces page) done on top of Epic 8.

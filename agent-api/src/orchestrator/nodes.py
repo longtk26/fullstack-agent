@@ -196,6 +196,7 @@ async def run_validation(state: GenerationState, ctx: JobContext) -> NodeResult:
                 attempt=attempt,
                 check=check.check,
                 status=check.status,
+                started_at=check.started_at,
                 duration_ms=check.duration_ms,
                 details={"summary": check.summary, "items": check.details[:50], "output": check.output[-4000:]},
             )
@@ -289,6 +290,8 @@ async def write_artifacts(ctx: JobContext, state: dict[str, Any], completed: boo
         node_runs=ctx.store.node_runs(ctx.generation_id),
         validation_runs=ctx.store.validation_runs(ctx.generation_id),
         invocations=ctx.store.cli_invocations(ctx.generation_id),
+        model_calls=ctx.store.model_calls(ctx.generation_id),
+        sandbox_execs=ctx.store.sandbox_execs(ctx.generation_id),
     )
     writer.write_json("report.json", "report", report)
     project_name = (spec.get("project") or {}).get("name")

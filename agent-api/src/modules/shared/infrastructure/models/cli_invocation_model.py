@@ -22,6 +22,15 @@ class CliInvocationModel(SQLModel, table=True):
     input_tokens: int | None = None
     output_tokens: int | None = None
     cost_usd: float | None = None
+    cost_source: str | None = Field(default=None, max_length=16)
+    model: str | None = Field(default=None, max_length=128)
+    cache_read_tokens: int | None = None
+    cache_write_tokens: int | None = None
+    thinking_tokens: int | None = None
+    prompt_ref: str | None = Field(default=None, max_length=128)
+    error_reason: str | None = Field(default=None, max_length=32)
+    changed_files: list[str] = Field(default_factory=list, sa_type=Json)
+    finished_at: datetime | None = Field(default=None, sa_type=TZDateTime)
     stdout_ref: str | None = None
     stderr_ref: str | None = None
     created_at: datetime = Field(default_factory=utcnow, sa_type=TZDateTime)

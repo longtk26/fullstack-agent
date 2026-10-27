@@ -20,7 +20,9 @@ import re
 import time
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
+from contextlib import contextmanager
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +30,7 @@ from pydantic import BaseModel
 
 from src.sandbox import ExecResult, ISandbox
 
+from . import tracing
 from .checks.conventions import check_conventions
 from .checks.parity import compare_openapi, compare_schema, missing_tests
 from .checks.parsers import junit_failures, last_lines, ruff_failures, traceback_frames
@@ -48,6 +51,7 @@ DIGEST_LIMIT = 30_000
 class CheckResult(BaseModel):
     check: str
     status: str  # passed | failed | skipped | not_run
+    started_at: datetime | None = None
     duration_ms: int = 0
     summary: str = ""
     details: list[dict] = []
@@ -75,6 +79,22 @@ class ValidationRequest:
     run_tests: bool
     sandbox: ISandbox | None = None
     artifacts: dict[str, Any] = field(default_factory=dict)  # filled by checks (schema, openapi)
+
+
+@contextmanager
+def traced_check(check: str):
+    """A `check:<name>` span around one check; the caller hands the result to `slot.append` (Story 8.2)."""
+    started = datetime.now(UTC)
+    slot: list[CheckResult] = []
+    with tracing.span(f"check:{check}", "chain", inputs={"check": check}) as span:
+        yield slot
+        result = slot[0] if slot else None
+        if result is not None:
+            result.started_at = started
+            span.end(
+                outputs={"status": result.status, "summary": result.summary, "durationMs": result.duration_ms},
+                error=f"failed: {result.summary}" if result.status == "failed" else None,
+            )
 
 
 class IValidationRunner(ABC):
@@ -164,18 +184,23 @@ class StaticValidationRunner(IValidationRunner):
     Everything that runs generated code is reported `not_run`, never `passed`."""
 
     async def run(self, request: ValidationRequest) -> ValidationOutcome:
-        results = [syntax_check(request.project)]
-        for check in CHECKS[1:]:
-            if check == "conventions" and request.plan.get("modules") is not None:
-                results.append(
-                    conventions_check(request.project, request.plan)
-                    if results[0].status == "passed"
-                    else CheckResult(check=check, status="skipped", summary="skipped: syntax failed")
-                )
-            elif check == "tests" and not request.run_tests:
-                results.append(CheckResult(check=check, status="skipped", summary="runTests=false"))
-            else:
-                results.append(CheckResult(check=check, status="not_run", summary="requires the sandbox runner"))
+        results: list[CheckResult] = []
+        for check in CHECKS:
+            with traced_check(check) as slot:
+                if check == "syntax":
+                    result = syntax_check(request.project)
+                elif check == "conventions" and request.plan.get("modules") is not None:
+                    result = (
+                        conventions_check(request.project, request.plan)
+                        if results[0].status == "passed"
+                        else CheckResult(check=check, status="skipped", summary="skipped: syntax failed")
+                    )
+                elif check == "tests" and not request.run_tests:
+                    result = CheckResult(check=check, status="skipped", summary="runTests=false")
+                else:
+                    result = CheckResult(check=check, status="not_run", summary="requires the sandbox runner")
+                slot.append(result)
+            results.append(result)
         return _outcome(results)
 
 
@@ -195,18 +220,21 @@ class SandboxValidationRunner(IValidationRunner):
         }
         for check in CHECKS:
             blocked = [d for d in DEPENDS_ON.get(check, ()) if results[d].status != "passed"]
-            if check == "tests" and not request.run_tests:
-                results[check] = CheckResult(check=check, status="skipped", summary="runTests=false")
-            elif blocked:
-                results[check] = CheckResult(
-                    check=check, status="skipped", summary=f"skipped: {', '.join(blocked)} did not pass"
-                )
-            elif check == "syntax":
-                results[check] = syntax_check(request.project)
-            elif check == "conventions":
-                results[check] = conventions_check(request.project, request.plan)
-            else:
-                results[check] = await steps[check](request)
+            with traced_check(check) as slot:
+                if check == "tests" and not request.run_tests:
+                    result = CheckResult(check=check, status="skipped", summary="runTests=false")
+                elif blocked:
+                    result = CheckResult(
+                        check=check, status="skipped", summary=f"skipped: {', '.join(blocked)} did not pass"
+                    )
+                elif check == "syntax":
+                    result = syntax_check(request.project)
+                elif check == "conventions":
+                    result = conventions_check(request.project, request.plan)
+                else:
+                    result = await steps[check](request)
+                slot.append(result)
+            results[check] = result
         return _outcome([results[check] for check in CHECKS])
 
     @staticmethod
@@ -325,4 +353,4 @@ class SandboxValidationRunner(IValidationRunner):
 
 def write_report(path: Path, outcome: ValidationOutcome) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(outcome.model_dump(), indent=2))
+    path.write_text(json.dumps(outcome.model_dump(mode="json"), indent=2))

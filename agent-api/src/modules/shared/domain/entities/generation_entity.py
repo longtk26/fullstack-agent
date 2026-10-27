@@ -18,6 +18,7 @@ class GenerationEntity(BaseModel):
     repair_attempts: int = 0
     trace_id: str | None = None
     langsmith_run_url: str | None = None
+    trace_parent: str | None = None
     error_summary: str | None = None
     cancel_requested: bool = False
     resume_count: int = 0

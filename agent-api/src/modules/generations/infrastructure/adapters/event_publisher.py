@@ -27,6 +27,11 @@ class EventPublisher:
         self.cap = cap
         self._counts: dict[str, int] = {}
         self._skipped: dict[str, int] = {}
+        self._trace_ids: dict[str, str] = {}
+
+    def bind_trace(self, generation_id: str, trace_id: str) -> None:
+        """Events published for this generation from now on carry its trace id (NFR 8.5 correlation)."""
+        self._trace_ids[generation_id] = trace_id
 
     def _count(self, session: Session, generation_id: str) -> int:
         if generation_id not in self._counts:
@@ -52,7 +57,7 @@ class EventPublisher:
                     type=type,
                     step=step,
                     status=status,
-                    payload=self.redactor.redact_obj(payload or {}),
+                    payload=self.redactor.redact_obj(self._with_trace(generation_id, payload)),
                 )
             )
             session.commit()
@@ -63,9 +68,14 @@ class EventPublisher:
             logger.warning("event publish to redis failed", extra={"generation_id": generation_id})
         return event
 
+    def _with_trace(self, generation_id: str, payload: dict[str, Any] | None) -> dict[str, Any]:
+        trace_id = self._trace_ids.get(generation_id)
+        return {**(payload or {}), "traceId": trace_id} if trace_id else payload or {}
+
     def forget(self, generation_id: str) -> None:
         self._counts.pop(generation_id, None)
         self._skipped.pop(generation_id, None)
+        self._trace_ids.pop(generation_id, None)
 
 
 def event_json(event: GenerationEventEntity) -> str:

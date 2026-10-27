@@ -72,6 +72,15 @@ class GenerationRepository(IGenerationRepository):
         )
         return list(self.session.exec(query))
 
+    def list_created_between(self, owner_id, start, end, limit) -> list[GenerationEntity]:
+        query = select(GenerationModel).where(
+            col(GenerationModel.created_at) >= start, col(GenerationModel.created_at) < end
+        )
+        if owner_id is not None:
+            query = query.where(GenerationModel.owner_id == owner_id)
+        query = query.order_by(col(GenerationModel.created_at).desc()).limit(limit)
+        return [self.__to_entity(model) for model in self.session.exec(query)]
+
     def __to_entity(self, model: GenerationModel) -> GenerationEntity:
         return GenerationEntity.model_validate(model.model_dump())
 

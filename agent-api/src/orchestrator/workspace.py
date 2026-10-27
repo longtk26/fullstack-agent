@@ -83,6 +83,16 @@ class WorkspaceManager:
             patches.append((f"repair-{attempt}.patch", self._git(workspace, "show", "--format=", "--binary", sha)))
         return patches
 
+    def head_stats(self, workspace: JobWorkspace) -> dict[str, int]:
+        """Files, insertions and deletions of the last commit (a repair attempt's diff stats, Story 8.2)."""
+        stats = {"files": 0, "insertions": 0, "deletions": 0}
+        for line in self._git(workspace, "show", "--numstat", "--format=", "HEAD").splitlines():
+            added, deleted, _ = (line.split("\t", 2) + ["", ""])[:3]
+            stats["files"] += 1
+            stats["insertions"] += int(added) if added.isdigit() else 0
+            stats["deletions"] += int(deleted) if deleted.isdigit() else 0
+        return stats
+
     def check_size(self, workspace: JobWorkspace) -> int:
         size = sum(
             path.stat().st_size

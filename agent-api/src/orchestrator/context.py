@@ -1,5 +1,7 @@
 import asyncio
+import re
 import uuid
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -11,20 +13,25 @@ from src.engines import (
     EngineResult,
     EngineStatus,
     ICodeEngine,
+    ModelCall,
     PromptLibrary,
     RenderedPrompt,
 )
+from src.libs.redaction import default_redactor
 from src.modules.generations.infrastructure.adapters import EventPublisher
-from src.modules.shared.domain.entities import CliInvocationEntity
+from src.modules.shared.domain.entities import CliInvocationEntity, ModelCallEntity, SandboxExecEntity
 from src.modules.shared.domain.enums import GenerationStatus
-from src.sandbox import ISandbox, ISandboxProvider
+from src.sandbox import ExecResult, ISandbox, ISandboxProvider
 
+from . import tracing
 from .state import status_for
 from .store import JobStore
 from .validation import IValidationRunner
 from .workspace import JobWorkspace, WorkspaceManager
 
 logger = get_logger(__name__)
+PROVIDERS = {"claude_code": "anthropic", "antigravity": "google"}
+_TOOL_SCRIPT = re.compile(r"/opt/bga/bin/([\w-]+)")
 
 
 class JobCancelled(Exception):
@@ -70,6 +77,7 @@ class JobContext:
         self.template_dir = template_dir or Path(config.template_dir)
         self._sandbox: ISandbox | None = None
         self._status: GenerationStatus | None = None
+        self.trace: tracing.GenerationTrace | None = None
 
     async def emit(self, type: str, step: str | None = None, status: str | None = None, **payload: Any) -> None:
         await self.events.publish(self.generation_id, type, step=step, status=status, payload=payload)
@@ -117,6 +125,7 @@ class JobContext:
             prompt=prompt.text,
             prompt_ref=prompt.ref,
         )
+        prompt_id = f"{prompt.ref.id}@{prompt.ref.version}"
         record_id = self.store.add_cli_invocation(
             CliInvocationEntity(
                 generation_id=self.generation_id,
@@ -124,9 +133,22 @@ class JobContext:
                 engine=self.engine.name,
                 purpose=purpose,
                 status="running",
+                prompt_ref=prompt_id,
             )
         )
         await self.emit("engine.started", step=node, engine=self.engine.name, purpose=purpose, prompt=prompt.ref.id)
+        engine_span = tracing.current().child(
+            f"engine:{self.engine.name}",
+            "tool",
+            inputs={
+                "purpose": purpose,
+                "prompt": prompt_id,
+                "promptSha256": prompt.ref.sha256,
+                "workdir": "project",
+                "maxTurns": request.max_turns,
+            },
+            metadata={"engine": self.engine.name, "purpose": purpose},
+        )
 
         async def forward(event: EngineEvent) -> None:
             await self.emit("engine.event", step=node, kind=event.kind, summary=event.summary)
@@ -134,6 +156,9 @@ class JobContext:
         self.current_invocation = request.invocation_id
         try:
             result = await self.engine.run(request, forward)
+        except BaseException as exc:
+            engine_span.end(error=f"{type(exc).__name__}: {exc}"[:500])
+            raise
         finally:
             self.current_invocation = None
         usage = result.usage
@@ -145,10 +170,33 @@ class JobContext:
             turns=result.turns,
             input_tokens=usage.input_tokens if usage else None,
             output_tokens=usage.output_tokens if usage else None,
+            cache_read_tokens=usage.cache_read_tokens if usage else None,
+            cache_write_tokens=usage.cache_write_tokens if usage else None,
+            thinking_tokens=usage.thinking_tokens if usage else None,
             cost_usd=usage.cost_usd if usage else None,
+            cost_source=usage.cost_source if usage else None,
+            model=(usage.model if usage else None) or next((c.model for c in result.model_calls if c.model), None),
+            error_reason=result.error_reason,
+            changed_files=[default_redactor().redact(path) for path in result.changed_files[:200]],
+            finished_at=datetime.now(UTC),
             argv_redacted=result.argv_redacted,
             stdout_ref=result.stdout_ref,
             stderr_ref=result.stderr_ref,
+        )
+        self._record_model_calls(record_id, result.model_calls, engine_span)
+        engine_span.end(
+            outputs={
+                "status": result.status,
+                "exitCode": result.exit_code,
+                "durationMs": result.duration_ms,
+                "turns": result.turns,
+                "usage": usage.model_dump() if usage else None,
+                "costUsd": usage.cost_usd if usage else None,
+                "modelCalls": len(result.model_calls),
+                "toolsDropped": result.tools_dropped,
+                "changedFiles": result.changed_files[:50],
+            },
+            error=None if result.ok else f"{result.status}: {result.error_message or result.error_reason}",
         )
         await self.emit(
             "engine.finished",
@@ -167,6 +215,68 @@ class JobContext:
             raise EngineFailure(result)
         return result
 
+    def _record_model_calls(self, invocation_id: uuid.UUID, calls: list[ModelCall], parent: tracing.Span) -> None:
+        """Stores the model calls (Story 8.4) and hangs them, with their tools, under the engine span."""
+        redactor = default_redactor()
+        for call in calls:
+            for tool in call.tools:
+                tool.target = redactor.redact(tool.target)  # span names are not covered by the client's hooks
+        self.store.add_model_calls(
+            [
+                ModelCallEntity(
+                    generation_id=self.generation_id,
+                    cli_invocation_id=invocation_id,
+                    node_run_id=self.current_run_id,
+                    duration_ms=call.duration_ms,
+                    tools=[tool.model_dump(mode="json") for tool in call.tools],
+                    **call.model_dump(exclude={"tools"}),
+                )
+                for call in calls
+            ]
+        )
+        provider = PROVIDERS.get(self.engine.name, self.engine.name)
+        for call in calls:
+            llm = parent.child(
+                f"llm:{call.model or 'unknown'} #{call.seq}",
+                "llm",
+                inputs={"seq": call.seq},
+                metadata={
+                    "ls_model_name": call.model,
+                    "ls_provider": provider,
+                    "cost_source": call.cost_source,
+                    "latency_source": call.latency_source,
+                },
+                start_time=call.started_at,
+                end_time=call.ended_at,
+            )
+            for tool in call.tools:
+                ended = tool.ended_at or tool.started_at
+                llm.child(
+                    f"tool:{tool.name} {tool.target}".strip(),
+                    "tool",
+                    inputs={"target": tool.target},
+                    start_time=tool.started_at,
+                    end_time=ended,
+                ).end(outputs={"isError": tool.is_error}, error="tool error" if tool.is_error else None, end_time=ended)
+            usage: dict[str, Any] = {
+                "input_tokens": call.input_tokens,
+                "output_tokens": call.output_tokens,
+                "total_tokens": call.input_tokens + call.output_tokens,
+                "input_token_details": {
+                    "cache_read": call.cache_read_tokens,
+                    "cache_creation": call.cache_write_tokens,
+                },
+            }
+            if call.thinking_tokens is not None:
+                usage["output_token_details"] = {"reasoning": call.thinking_tokens}
+            if call.cost_usd is not None:
+                usage["total_cost"] = call.cost_usd
+            llm.end(
+                outputs={"tools": [tool.name for tool in call.tools], "costSource": call.cost_source},
+                usage=usage,
+                end_time=call.ended_at,
+            )
+
     @property
     def sandbox_enabled(self) -> bool:
         return self.sandboxes is not None
@@ -176,7 +286,7 @@ class JobContext:
         if self.sandboxes is None:
             return None
         if self._sandbox is None:
-            self._sandbox = self.sandboxes.for_job(self.generation_id, self.workspace.project)
+            self._sandbox = RecordingSandbox(self.sandboxes.for_job(self.generation_id, self.workspace.project), self)
         await self._sandbox.start()
         return self._sandbox
 
@@ -202,3 +312,75 @@ class JobContext:
 
     def project_path(self, *parts: str) -> Path:
         return self.workspace.project.joinpath(*parts)
+
+
+def exec_label(command: str) -> str:
+    """`ruff check …` → `ruff check`, `python /opt/bga/bin/startup_check.py` → `startup_check`."""
+    script = _TOOL_SCRIPT.search(command)
+    if script:
+        return script.group(1)
+    words = [w for w in command.replace(";", " ").split() if w not in ("set", "-e")]
+    if not words:
+        return "sh"
+    label = words[0].rsplit("/", 1)[-1]
+    if len(words) > 1 and words[1].isalpha():
+        label += f" {words[1]}"
+    return label[:64]
+
+
+class RecordingSandbox(ISandbox):
+    """Records every sandbox command for the local trace and as a `sandbox:*` span (Stories 8.2, 8.3)."""
+
+    def __init__(self, inner: ISandbox, ctx: JobContext):
+        self.inner = inner
+        self.ctx = ctx
+        self._redactor = default_redactor()
+
+    @property
+    def db_url(self) -> str:
+        return self.inner.db_url
+
+    @property
+    def test_db_url(self) -> str:
+        return self.inner.test_db_url
+
+    async def start(self) -> None:
+        await self.inner.start()
+
+    async def stop(self) -> None:
+        await self.inner.stop()
+
+    async def reset_database(self, name: str) -> None:
+        await self.inner.reset_database(name)
+
+    async def exec(
+        self, command: str, timeout_s: int | None = None, env: dict[str, str] | None = None, egress: bool = False
+    ) -> ExecResult:
+        started = datetime.now(UTC)
+        result = await self.inner.exec(command, timeout_s=timeout_s, env=env, egress=egress)
+        name = exec_label(command)
+        status = "timeout" if result.timed_out else ("ok" if result.ok else "failed")
+        ended = started + timedelta(milliseconds=result.duration_ms)
+        try:
+            self.ctx.store.add_sandbox_exec(
+                SandboxExecEntity(
+                    generation_id=self.ctx.generation_id,
+                    node_run_id=self.ctx.current_run_id,
+                    name=name,
+                    command=self._redactor.redact(command)[:500],
+                    status=status,
+                    exit_code=result.exit_code,
+                    started_at=started,
+                    duration_ms=result.duration_ms,
+                )
+            )
+        except Exception:  # bookkeeping must not fail the job
+            logger.warning("could not record a sandbox exec", extra={"generation_id": self.ctx.generation_id})
+        tracing.current().child(
+            f"sandbox:{name}", "tool", inputs={"command": command[:500]}, start_time=started, end_time=ended
+        ).end(
+            outputs={"exitCode": result.exit_code, "durationMs": result.duration_ms, "status": status},
+            error=None if result.ok else f"exit {result.exit_code}",
+            end_time=ended,
+        )
+        return result

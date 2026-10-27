@@ -269,6 +269,11 @@ class WorkerService:
         expired = set(self.store.finished_before(cutoff)) & set(self.workspaces.existing_ids())
         for generation_id in expired:
             self.workspaces.delete(generation_id)
+        if config.trace_retention_days:
+            # Trace detail (model calls, sandbox commands) goes; node runs, invocations and report.json stay.
+            old = self.store.finished_before(datetime.now(UTC) - timedelta(days=config.trace_retention_days))
+            if old and self.store.prune_trace_details(old):
+                logger.info("pruned trace details", extra={"generations": len(old)})
 
     async def _shutdown(self) -> None:
         if not self.tasks:

@@ -8,7 +8,7 @@ import { Stack } from "@/components/layout/Stack";
 import { useGenerationDetail } from "../../hooks/use-generation-detail";
 import { ApiTab } from "../api-explorer/ApiTab";
 import { ResultsTab } from "../results/ResultsTab";
-import { ComingSoonPanel } from "./ComingSoonPanel";
+import { TraceTab } from "../trace/TraceTab";
 import { EventLog } from "./EventLog";
 import { GenerationHeader } from "./GenerationHeader";
 import { StepDrawer } from "./StepDrawer";
@@ -70,11 +70,7 @@ export function GenerationDetailView({ id }: GenerationDetailViewProps) {
           </div>
         </TabsContent>
         <TabsContent value="trace" className="pt-2">
-          <ComingSoonPanel
-            icon={Waypoints}
-            title="Trace viewer"
-            description="A span waterfall of every node and engine call arrives with tracing (Epic 8, Story 9.4)."
-          />
+          <TraceTab detail={detail} events={view.events} />
         </TabsContent>
         <TabsContent value="results" className="pt-2">
           <ResultsTab detail={detail} />

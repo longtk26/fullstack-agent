@@ -11,6 +11,7 @@ class ValidationRunEntity(BaseModel):
     attempt: int = 0
     check: str
     status: str
+    started_at: datetime | None = None
     duration_ms: int | None = None
     output_ref: str | None = None
     details: dict[str, Any] = {}

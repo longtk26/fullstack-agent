@@ -1,6 +1,7 @@
 import asyncio
 import shutil
 import time
+from datetime import UTC, datetime
 from pathlib import Path
 
 from pydantic import BaseModel
@@ -16,7 +17,9 @@ from .port import (
     EngineStatus,
     EngineUsage,
     ICodeEngine,
+    ModelCall,
     OnEngineEvent,
+    ToolCall,
 )
 from .workspace import changed_files, ensure_inside, install_skills, snapshot, write_managed_section
 
@@ -120,7 +123,9 @@ class FakeEngine(ICodeEngine):
         if step.crash:
             raise SimulatedCrash(f"simulated crash during {request.purpose}")
         started = time.monotonic()
+        started_at = datetime.now(UTC)
         before = snapshot(workdir)
+        tools: list[ToolCall] = []
 
         async def emit(kind: EngineEventKind, summary: str, **data) -> None:
             if on_event is not None:
@@ -142,20 +147,31 @@ class FakeEngine(ICodeEngine):
                         step.copy_from, workdir, dirs_exist_ok=True, ignore=shutil.ignore_patterns("__pycache__")
                     )
                     await emit(EngineEventKind.TOOL_USE, f"Copy {step.copy_from.name}", tool="Copy")
+                    tools.append(ToolCall(name="Copy", target=step.copy_from.name, started_at=datetime.now(UTC)))
                 for relative, content in step.write.items():
                     target = ensure_inside(workdir / relative, workdir)
                     target.parent.mkdir(parents=True, exist_ok=True)
                     target.write_text(content)
                     await emit(EngineEventKind.TOOL_USE, f"Write {relative}", tool="Write", target=relative)
+                    tools.append(ToolCall(name="Write", target=relative, started_at=datetime.now(UTC)))
                     await emit(EngineEventKind.TOOL_RESULT, "ok: written", isError=False)
                 for relative in step.delete:
                     ensure_inside(workdir / relative, workdir).unlink(missing_ok=True)
                     await emit(EngineEventKind.TOOL_USE, f"Delete {relative}", tool="Delete", target=relative)
+                    tools.append(ToolCall(name="Delete", target=relative, started_at=datetime.now(UTC)))
                 await emit(EngineEventKind.MESSAGE, step.message)
         finally:
             self._cancels.pop(request.invocation_id, None)
 
-        usage = EngineUsage(input_tokens=1000, output_tokens=200, cost_usd=0.0)
+        usage = EngineUsage(
+            input_tokens=1000,
+            output_tokens=200,
+            cache_read_tokens=400,
+            cost_usd=0.0,
+            cost_source="reported",
+            model="fake",
+        )
+        model_calls = _fake_calls(started_at, datetime.now(UTC), tools)
         await emit(EngineEventKind.USAGE, "1 turns, 200 output tokens", **usage.model_dump())
         return EngineResult(
             invocation_id=request.invocation_id,
@@ -173,4 +189,27 @@ class FakeEngine(ICodeEngine):
             changed_files=changed_files(before, snapshot(workdir)),
             argv_redacted=["fake"],
             prompt_ref=request.prompt_ref,
+            model_calls=model_calls,
         )
+
+
+def _fake_calls(started: datetime, ended: datetime, tools: list[ToolCall]) -> list[ModelCall]:
+    """Two scripted model calls that add up to the reported usage: one issues the tools, one answers."""
+    middle = started + (ended - started) / 2
+    for tool in tools:
+        tool.ended_at = tool.started_at
+    common = {"model": "fake", "cost_usd": 0.0, "cost_source": "reported", "latency_source": "measured"}
+    return [
+        ModelCall(
+            seq=1, input_tokens=600, output_tokens=150, started_at=started, ended_at=middle, tools=tools, **common
+        ),
+        ModelCall(
+            seq=2,
+            input_tokens=400,
+            output_tokens=50,
+            cache_read_tokens=400,
+            started_at=middle,
+            ended_at=ended,
+            **common,
+        ),
+    ]

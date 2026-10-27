@@ -27,6 +27,8 @@ class GenerationModel(SQLModel, table=True):
     repair_attempts: int = 0
     trace_id: str | None = Field(default=None, max_length=64)
     langsmith_run_url: str | None = None
+    # LangSmith dotted order of the root run, so a resumed job keeps adding to the same trace (Story 8.1)
+    trace_parent: str | None = Field(default=None, max_length=128)
     error_summary: str | None = Field(default=None, sa_type=Text)
     cancel_requested: bool = False
     resume_count: int = 0

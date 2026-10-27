@@ -1,17 +1,21 @@
 import asyncio
+import hashlib
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from pathlib import Path
 
-from src.configs import config, get_logger
+from langsmith import tracing_context
+
+from src.configs import config, get_logger, log_context
 from src.engines import EngineContext, EngineRegistry, PromptLibrary, UnknownEngineError
 from src.modules.generations.infrastructure.adapters import EventPublisher
 from src.modules.shared.domain.enums import GenerationStatus
 from src.sandbox import ISandboxProvider, SandboxError
 
+from . import tracing
 from .context import EngineFailure, JobCancelled, JobContext
 from .graph import build_graph
-from .nodes import write_artifacts
+from .nodes import PROMPT_VERSION, write_artifacts
 from .scaffold import TemplateDrift
 from .state import GenerationState, Outcome
 from .store import JobStore
@@ -20,6 +24,7 @@ from .workspace import DiskLimitExceeded, WorkspaceManager
 
 logger = get_logger(__name__)
 TERMINAL = {GenerationStatus.COMPLETED, GenerationStatus.FAILED, GenerationStatus.CANCELLED}
+PROMPTS = ("generate_database", "generate_backend", "generate_tests", "repair_code")
 
 
 def job_timeout(engine: str) -> int:
@@ -94,22 +99,55 @@ class JobRunner:
             template_dir=self.template_dir,
         )
         ctx._status = generation.status
-        if generation.cancel_requested:
-            return await self._finish(ctx, GenerationStatus.CANCELLED, None)
-        self.active[generation_id] = ctx
+        ctx.trace = await self._open_trace(generation)
+        token = log_context.set({"generation_id": generation_id, "trace_id": ctx.trace.trace_id})
         try:
-            return await self._execute(ctx, generation, workspace)
+            if generation.cancel_requested:
+                return await self._finish(ctx, GenerationStatus.CANCELLED, None)
+            self.active[generation_id] = ctx
+            try:
+                return await self._execute(ctx, generation, workspace)
+            finally:
+                await ctx.close_sandbox()
+                self.active.pop(generation_id, None)
+                self.events.forget(generation_id)
         finally:
-            await ctx.close_sandbox()
-            self.active.pop(generation_id, None)
-            self.events.forget(generation_id)
+            log_context.reset(token)
+            await tracing.GenerationTrace.flush()
+
+    async def _open_trace(self, generation) -> tracing.GenerationTrace:
+        """One trace per generation (Story 8.1): created on the first run, reattached when a job resumes."""
+        spec = self.store.spec(generation.spec_id)
+        trace = tracing.GenerationTrace.open(
+            generation.id,
+            trace_id=generation.trace_id,
+            parent=generation.trace_parent,
+            inputs={"generationId": generation.id, "specId": str(generation.spec_id), "options": generation.options},
+            metadata={
+                "generation_id": generation.id,
+                "owner_id": str(generation.owner_id),
+                "engine": generation.engine,
+                "mode": "backend",
+                "spec_sha256": hashlib.sha256(spec.raw_json.encode()).hexdigest() if spec else None,
+                "prompt_versions": dict.fromkeys(PROMPTS, PROMPT_VERSION),
+                "generator_version": config.generator_version,
+            },
+            tags=[generation.engine, f"spec:{spec.spec_version if spec else '?'}"],
+        )
+        fields = {"trace_id": trace.trace_id, "trace_parent": trace.parent}
+        if trace.root.enabled and not generation.langsmith_run_url:
+            fields["langsmith_run_url"] = await trace.url()
+        self.store.update_generation(generation.id, **fields)
+        self.events.bind_trace(generation.id, trace.trace_id)
+        return trace
 
     async def _execute(self, ctx: JobContext, generation, workspace) -> GenerationStatus:
         graph = build_graph(ctx).compile(checkpointer=self.checkpointer)
         run_config = {
             "configurable": {"thread_id": generation.id},
-            "run_name": "backend-generation",
-            "metadata": {"generation_id": generation.id, "engine": generation.engine},
+            "run_name": tracing.ROOT_NAME,
+            "tags": [generation.engine],
+            "metadata": {"generation_id": generation.id, "engine": generation.engine, "trace_id": ctx.trace.trace_id},
         }
         snapshot = await graph.aget_state(run_config)
         inputs: GenerationState | None
@@ -141,8 +179,10 @@ class JobRunner:
             }
 
         try:
-            async with asyncio.timeout(generation.options.get("timeoutSeconds") or job_timeout(generation.engine)):
-                final = await graph.ainvoke(inputs, run_config)
+            # LangGraph's callback tracer stays off: the spans come from tracing.py, under the generation's root.
+            with tracing_context(enabled=False), tracing.under(ctx.trace.root):
+                async with asyncio.timeout(generation.options.get("timeoutSeconds") or job_timeout(generation.engine)):
+                    final = await graph.ainvoke(inputs, run_config)
         except JobCancelled:
             return await self._finish(ctx, GenerationStatus.CANCELLED, None)
         except TimeoutError:
@@ -190,6 +230,18 @@ class JobRunner:
             error_summary=error,
             finished_at=datetime.now(UTC),
         )
+        if ctx.trace is not None:
+            generation = self.store.generation(ctx.generation_id)
+            ctx.trace.close(
+                outputs={
+                    "status": status,
+                    "errorCode": code,
+                    "errorSummary": error,
+                    "validation": validation_summary(self.store.validation_runs(ctx.generation_id)),
+                    "repairAttempts": generation.repair_attempts if generation else None,
+                },
+                error=f"{code}: {error}" if status == GenerationStatus.FAILED else None,
+            )
         logger.info("generation finished", extra={"generation_id": ctx.generation_id, "status": status, "code": code})
         generation = self.store.generation(ctx.generation_id)
         if status == GenerationStatus.COMPLETED and self.on_completed and generation.options.get("deployPreview", True):
@@ -210,3 +262,9 @@ class JobRunner:
             payload={"errorCode": code, "errorSummary": message},
         )
         return GenerationStatus.FAILED
+
+
+def validation_summary(runs) -> dict[str, str]:
+    """Status per check in the last validation attempt."""
+    last = max((run.attempt for run in runs), default=None)
+    return {run.check: run.status for run in runs if run.attempt == last}

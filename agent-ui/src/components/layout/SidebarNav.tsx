@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FilePlus2, ListChecks } from "lucide-react";
+import { ChartColumn, FilePlus2, ListChecks } from "lucide-react";
 import { Stack } from "@/components/layout/Stack";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { label: "Generations", href: "/generations", icon: ListChecks },
   { label: "New generation", href: "/generations/new", icon: FilePlus2 },
+  { label: "Usage & traces", href: "/usage", icon: ChartColumn },
 ];
 
 function isActive(pathname: string | null, href: string): boolean {

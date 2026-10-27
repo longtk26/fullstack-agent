@@ -30,6 +30,12 @@ Engines (default models: `claude-sonnet-5-5` and `gemini-3.8-flash-medium`; over
 desktop keyring, which containers cannot reach, so `make up` also starts a host worker for Antigravity jobs only
 (needs `uv` and `agy` on the host; log in `.data/host-worker.log`). With `GEMINI_API_KEY` or ADC it runs in Docker.
 
+Tracing: every generation has a **Trace** tab (span waterfall: nodes, engine runs, model calls, tools, checks,
+sandbox commands) and **Usage & traces** (`/usage`) sums time, model calls, tokens and cost per period. Claude Code
+reports its cost; Antigravity's is *estimated* from list prices (`MODEL_PRICES` overrides them). Set
+`LANGSMITH_TRACING=true` and `LANGSMITH_API_KEY` to also send each generation to LangSmith as one trace, to
+`LANGSMITH_PROJECT` or, with `LANGSMITH_AGENT_ID`, to that agent's environment (beta, enabled per workspace).
+
 `make down` stops the stack (and the host worker, and preview containers); `make down-all` also removes volumes.
 
 ## Develop

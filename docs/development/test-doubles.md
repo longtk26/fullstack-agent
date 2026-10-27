@@ -8,7 +8,7 @@ test-only flag, add it here and mark it at its definition.
 
 | What | Where | Used by | Real-generation behaviour it replaces |
 |---|---|---|---|
-| **Fake engine** (`engine: "fake"`) | `agent-api/src/engines/fake_engine.py` | unit/workflow tests, UI demos, `make up` smoke runs | The LLM CLI. It replays scripted file writes (`FakeStep`s) and never calls a model. Shown in the engine list only when `ENABLE_FAKE_ENGINE=true`. |
+| **Fake engine** (`engine: "fake"`) | `agent-api/src/engines/fake_engine.py` | unit/workflow tests, UI demos, `make up` smoke runs | The LLM CLI. It replays scripted file writes (`FakeStep`s) and never calls a model. Shown in the engine list only when `ENABLE_FAKE_ENGINE=true`. Each run reports two scripted model calls (model `fake`, $0, 1000 in / 200 out tokens) so traces and usage rollups have data (Epic 8). |
 | **Golden two-entity project** | `agent-api/src/engines/golden/two_entity/` | the fake engine's script (`demo_scenario`); tests (`tests/generation_helpers.golden_project`) | A hand-written, convention-correct implementation of **`examples/specs/two-entity.json` only**. The fake engine copies it one module per call and plants one syntax error in the tasks router so the repair loop runs. With any other spec a fake run **fails validation** — that is expected. |
 | **Static validation runner** | `StaticValidationRunner` in `agent-api/src/orchestrator/validation.py` | `SANDBOX_ENABLED=false` (the default in `tests/conftest.py`) | The sandbox pipeline. It only runs the syntax and conventions checks; every check that would execute code is reported `not_run`, never `passed`. |
 
@@ -20,6 +20,8 @@ test-only flag, add it here and mark it at its definition.
 |---|---|---|
 | Fake CLI binaries | `agent-api/tests/fixtures/engines/bin/fake_claude`, `fake_agy` | Stand in for the real `claude` / `agy` executables in adapter tests (argv, stream parsing, timeouts). |
 | Recorded Claude stream | `agent-api/tests/fixtures/engines/claude_stream_ok.jsonl` | Sanitized stream-json output for parser tests. |
+| Recorded Antigravity stream | `agent-api/tests/fixtures/engines/agy_stream_ok.jsonl` | A real `agy` 1.4 run (a one-line ruff fix), host paths replaced by `/work/project`; model-call and cost parsing tests. |
+| Recording LangSmith client | `agent-api/tests/tracing_fakes.py` (`RecordingLangSmithClient`) | Replaces `langsmith.Client` in `tests/test_tracing.py`: keeps every posted/patched run after the same hide hooks, so the span tree and secret masking are tested without sending anything. `tests/conftest.py` also forces `LANGSMITH_TRACING=false`, so no test run reaches LangSmith. |
 | Invalid / base specs | `agent-api/tests/fixtures/specs/` | One invalid spec per validator error code. |
 | Plan snapshots | `agent-api/tests/fixtures/plans/*.plan.json` | Expected planner output; refresh deliberately with `UPDATE_SNAPSHOTS=1`. |
 | Frontend site snapshot | `agent-api/tests/fixtures/frontend/` | Importer regression input. |

@@ -102,7 +102,9 @@ class ClaudeCodeEngine(CliEngine):
             CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC="1",
             DISABLE_AUTOUPDATER="1",
         )
-        return Invocation(argv=argv, env=env, stdin=request.prompt.encode(), parser=ClaudeStreamParser(max_turns))
+        return Invocation(
+            argv=argv, env=env, stdin=request.prompt.encode(), parser=ClaudeStreamParser(max_turns, self.model)
+        )
 
     def redact_argv(self, argv: list[str]) -> list[str]:
         return ["<guardrails>" if arg == GUARDRAILS else arg for arg in argv]

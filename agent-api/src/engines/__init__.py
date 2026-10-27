@@ -10,7 +10,9 @@ from .port import (
     EngineStatus,
     EngineUsage,
     ICodeEngine,
+    ModelCall,
     PromptRef,
+    ToolCall,
 )
 from .prompts import PromptLibrary, RenderedPrompt
 from .registry import (
@@ -36,9 +38,11 @@ __all__ = [
     "EngineStatus",
     "EngineUsage",
     "ICodeEngine",
+    "ModelCall",
     "PromptLibrary",
     "PromptRef",
     "RenderedPrompt",
+    "ToolCall",
     "UnknownEngineError",
     "build_engine_context",
     "build_engine_registry",

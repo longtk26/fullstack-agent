@@ -10,6 +10,9 @@ import type {
   TPreview,
   TPreviewAction,
   TPreviewRequest,
+  TSpanOutput,
+  TSpanStream,
+  TTrace,
   TValidationHistory,
   TWorkflowGraph,
 } from "../types";
@@ -84,5 +87,17 @@ export function fetchPreviewLogs(id: string, tail = 300) {
 export function fetchPreviewRequests(id: string) {
   return apiClient.get<{ items: TPreviewRequest[]; cursor: string | null }>(`/generations/${id}/preview/requests`, {
     query: { limit: 500 },
+  });
+}
+
+// -- trace (Story 9.4) --------------------------------------------------------------------------------------------
+
+export function fetchTrace(id: string) {
+  return apiClient.get<TTrace>(`/generations/${id}/trace`);
+}
+
+export function fetchSpanOutput(id: string, spanId: string, stream: TSpanStream, tail: number) {
+  return apiClient.get<TSpanOutput>(`/generations/${id}/trace/spans/${encodeURIComponent(spanId)}/output`, {
+    query: { stream, tail },
   });
 }

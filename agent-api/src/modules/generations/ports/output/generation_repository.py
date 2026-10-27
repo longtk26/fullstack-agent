@@ -41,3 +41,9 @@ class IGenerationRepository(ABC):
     @abstractmethod
     def find_finished_before(self, finished_before: datetime) -> list[str]:
         pass
+
+    @abstractmethod
+    def list_created_between(
+        self, owner_id: uuid.UUID | None, start: datetime, end: datetime, limit: int
+    ) -> list[GenerationEntity]:
+        """Newest first, for usage reports (Story 9.10)."""

@@ -1,16 +1,22 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { deriveNodeStates } from "../lib/node-states";
 import type { TDetailTab } from "../types";
 import { useGeneration, useWorkflowGraph } from "./use-generation";
 import { useGenerationStream } from "./use-generation-stream";
 
+const DETAIL_TABS: TDetailTab[] = ["steps", "trace", "results", "api"];
+
 export function useGenerationDetail(id: string) {
   const detail = useGeneration(id);
   const graph = useWorkflowGraph();
   const { events, state: streamState } = useGenerationStream(id);
-  const [tab, setTab] = useState<TDetailTab>("steps");
+  const requestedTab = useSearchParams().get("tab");
+  const [tab, setTab] = useState<TDetailTab>(() =>
+    DETAIL_TABS.includes(requestedTab as TDetailTab) ? (requestedTab as TDetailTab) : "steps",
+  );
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
 
   const status = detail.data?.status;

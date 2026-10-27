@@ -6,6 +6,7 @@ MASK = "[REDACTED]"
 _PATTERNS = [
     (re.compile(r"sk-ant-[A-Za-z0-9_\-]{8,}"), MASK),
     (re.compile(r"AIza[0-9A-Za-z_\-]{20,}"), MASK),
+    (re.compile(r"lsv2_[a-z]{2}_[0-9A-Za-z_]{20,}"), MASK),  # LangSmith keys
     (re.compile(r"(?i)(bearer\s+)[A-Za-z0-9._\-~+/=]{8,}"), r"\g<1>" + MASK),
     (re.compile(r"(?i)((?:postgres(?:ql)?|redis|mysql)(?:\+\w+)?://[^:/\s@]+:)[^@\s]+(@)"), r"\g<1>" + MASK + r"\g<2>"),
     (re.compile(r'(?i)("?(?:password|passwd|secret|api[_-]?key|token)"?\s*[:=]\s*"?)[^"\s,}]{4,}'), r"\g<1>" + MASK),
@@ -41,4 +42,4 @@ class Redactor:
 def default_redactor() -> Redactor:
     from src.configs import config
 
-    return Redactor([config.jwt_secret, config.anthropic_api_key, config.gemini_api_key])
+    return Redactor([config.jwt_secret, config.anthropic_api_key, config.gemini_api_key, config.langsmith_api_key])

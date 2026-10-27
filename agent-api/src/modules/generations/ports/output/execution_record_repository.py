@@ -2,11 +2,18 @@ import uuid
 from abc import ABC, abstractmethod
 from typing import Any
 
-from src.modules.shared.domain.entities import CliInvocationEntity, NodeRunEntity, ValidationRunEntity
+from src.modules.shared.domain.entities import (
+    CliInvocationEntity,
+    ModelCallEntity,
+    NodeRunEntity,
+    SandboxExecEntity,
+    ValidationRunEntity,
+)
 
 
 class IExecutionRecordRepository(ABC):
-    """node_runs, cli_invocations and validation_runs: what the worker did, step by step."""
+    """node_runs, cli_invocations, model_calls, validation_runs and sandbox_execs: what the worker did, step by
+    step. The local trace (Story 8.3) and the usage rollups (8.4) are built from these."""
 
     @abstractmethod
     def start_node_run(self, run: NodeRunEntity) -> NodeRunEntity:
@@ -43,3 +50,28 @@ class IExecutionRecordRepository(ABC):
     @abstractmethod
     def list_cli_invocations(self, generation_id: str) -> list[CliInvocationEntity]:
         pass
+
+    @abstractmethod
+    def add_model_calls(self, calls: list[ModelCallEntity]) -> None:
+        pass
+
+    @abstractmethod
+    def list_model_calls(self, generation_id: str) -> list[ModelCallEntity]:
+        pass
+
+    @abstractmethod
+    def add_sandbox_exec(self, run: SandboxExecEntity) -> None:
+        pass
+
+    @abstractmethod
+    def list_sandbox_execs(self, generation_id: str) -> list[SandboxExecEntity]:
+        pass
+
+    @abstractmethod
+    def prune_details(self, generation_ids: list[str]) -> int:
+        """Deletes model calls and sandbox records of these generations (trace retention)."""
+
+    @abstractmethod
+    def records_for(self, generation_ids: list[str]) -> dict[str, dict[str, list]]:
+        """Every record of these generations at once, keyed by generation id and then by kind (`node_runs`,
+        `invocations`, `model_calls`, `validation_runs`, `sandbox_execs`)."""

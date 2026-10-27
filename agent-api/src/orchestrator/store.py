@@ -18,8 +18,10 @@ from src.modules.shared.domain.entities import (
     BackendSpecEntity,
     CliInvocationEntity,
     GenerationEntity,
+    ModelCallEntity,
     NodeRunEntity,
     PreviewEntity,
+    SandboxExecEntity,
     ValidationRunEntity,
 )
 from src.modules.shared.domain.enums import PreviewStatus
@@ -87,6 +89,22 @@ class JobStore:
 
     def cli_invocations(self, generation_id: str) -> list[CliInvocationEntity]:
         return self._with(lambda s: ExecutionRecordRepository(s).list_cli_invocations(generation_id))
+
+    def add_model_calls(self, calls: list[ModelCallEntity]) -> None:
+        if calls:
+            self._with(lambda s: ExecutionRecordRepository(s).add_model_calls(calls))
+
+    def model_calls(self, generation_id: str) -> list[ModelCallEntity]:
+        return self._with(lambda s: ExecutionRecordRepository(s).list_model_calls(generation_id))
+
+    def add_sandbox_exec(self, run: SandboxExecEntity) -> None:
+        self._with(lambda s: ExecutionRecordRepository(s).add_sandbox_exec(run))
+
+    def sandbox_execs(self, generation_id: str) -> list[SandboxExecEntity]:
+        return self._with(lambda s: ExecutionRecordRepository(s).list_sandbox_execs(generation_id))
+
+    def prune_trace_details(self, generation_ids: list[str]) -> int:
+        return self._with(lambda s: ExecutionRecordRepository(s).prune_details(generation_ids))
 
     # -- artifacts (Story 7.1) ----------------------------------------------------------------------------------
 

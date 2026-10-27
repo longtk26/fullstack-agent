@@ -1,3 +1,5 @@
+import type { TUsageRollup } from "@/types/usage";
+
 export type TGenerationStatus = "PENDING" | "RUNNING" | "VALIDATING" | "REPAIRING" | "COMPLETED" | "FAILED" | "CANCELLED";
 
 export type TEngineName = "claude_code" | "antigravity" | "fake";
@@ -235,4 +237,41 @@ export type TPreviewRequest = {
   operationId: string | null;
   status: number;
   durationMs: number | null;
+};
+
+// -- trace (Stories 8.3, 9.4) -------------------------------------------------------------------------------------
+
+export type TSpanKind = "generation" | "lane" | "node" | "engine" | "llm" | "tool" | "check" | "sandbox";
+
+export type TTraceSpan = {
+  spanId: string;
+  parentId: string | null;
+  kind: TSpanKind;
+  name: string;
+  lane: string;
+  status: string;
+  error: boolean;
+  startedAt: string | null;
+  endedAt: string | null;
+  durationMs: number | null;
+  attrs: Record<string, unknown>;
+  refs: { stdout?: string; stderr?: string; patch?: string; output?: string };
+};
+
+export type TTrace = {
+  generationId: string;
+  status: TGenerationStatus;
+  traceId: string | null;
+  langsmithUrl: string | null;
+  spans: TTraceSpan[];
+  usage: TUsageRollup;
+};
+
+export type TSpanStream = "stdout" | "stderr";
+
+export type TSpanOutput = {
+  spanId: string;
+  stream: TSpanStream | "patch";
+  text: string;
+  truncated: boolean;
 };
