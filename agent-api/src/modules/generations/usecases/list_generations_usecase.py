@@ -10,7 +10,9 @@ from src.libs.exceptions import BadRequestException, ForbiddenException
 from src.modules.generations.ports.output import IGenerationRepoDep
 from src.modules.shared.domain.entities import GenerationEntity, UserEntity
 from src.modules.shared.domain.enums import GenerationStatus
-from src.modules.specs.ports.output import IBackendSpecRepoDep
+from src.modules.specs.ports.output import IBackendSpecRepoDep, IFrontendSpecRepoDep
+
+from .project_names import project_names
 
 
 class GenerationListItem(BaseModel):
@@ -37,9 +39,15 @@ def decode_cursor(cursor: str) -> tuple[datetime, str]:
 
 
 class ListGenerationsUsecase:
-    def __init__(self, generation_repo: IGenerationRepoDep, spec_repo: IBackendSpecRepoDep):
+    def __init__(
+        self,
+        generation_repo: IGenerationRepoDep,
+        spec_repo: IBackendSpecRepoDep,
+        frontend_spec_repo: IFrontendSpecRepoDep,
+    ):
         self.generation_repo = generation_repo
         self.spec_repo = spec_repo
+        self.frontend_spec_repo = frontend_spec_repo
 
     async def execute(
         self,
@@ -54,14 +62,9 @@ class ListGenerationsUsecase:
         before = decode_cursor(cursor) if cursor else None
         rows = self.generation_repo.list_page(None if all_owners else user.id, status, before, limit + 1)
         page, has_more = rows[:limit], len(rows) > limit
-        specs = self.spec_repo.find_by_ids(list({row.spec_id for row in page}))
-
-        def name(generation: GenerationEntity) -> str | None:
-            spec = specs.get(generation.spec_id)
-            return ((spec.normalized_json or {}).get("project") or {}).get("name") if spec else None
-
+        names = project_names(page, self.spec_repo, self.frontend_spec_repo)
         return GenerationPage(
-            items=[GenerationListItem(generation=row, project_name=name(row)) for row in page],
+            items=[GenerationListItem(generation=row, project_name=names[row.id]) for row in page],
             next_cursor=encode_cursor(page[-1]) if has_more else None,
         )
 

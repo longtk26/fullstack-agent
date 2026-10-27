@@ -1,0 +1,73 @@
+{
+  "specVersion": "1.0",
+  "project": {
+    "name": "Project Tracker",
+    "description": "Projects and their tasks (frontend of specs/two-entity.json; the fake engine can run its backend lane)",
+    "mode": "dynamic"
+  },
+  "theme": { "style": "dashboard", "colorScheme": "light-dark" },
+  "layout": {
+    "shell": "sidebar",
+    "header": { "navigation": [{ "label": "Projects", "page": "projects" }, { "label": "Tasks", "page": "tasks" }] }
+  },
+  "pages": [
+    {
+      "route": "/",
+      "title": "Overview",
+      "sections": [
+        { "id": "recent", "component": "CardGrid",
+          "data": { "operationId": "project.list", "params": { "limit": 6, "sort": "-createdAt" }, "fields": ["name", "description"] } }
+      ]
+    },
+    {
+      "route": "/projects",
+      "title": "Projects",
+      "sections": [
+        { "id": "table", "component": "DataTable",
+          "data": { "operationId": "project.list", "params": { "sort": "name" }, "fields": ["name", "createdAt"] } },
+        { "id": "new", "component": "Form", "form": "newProject" }
+      ]
+    },
+    {
+      "id": "project",
+      "route": "/projects/[id]",
+      "title": "Project",
+      "sections": [
+        { "id": "detail", "component": "DetailView",
+          "data": { "operationId": "project.get", "params": { "id": "$route.id" }, "fields": ["name", "description", "createdAt"] } },
+        { "id": "tasks", "component": "DataTable",
+          "data": { "operationId": "task.list", "params": { "projectId": "$route.id", "sort": "priority" },
+                    "fields": ["title", "status", "priority", "dueDate"] } },
+        { "id": "add-task", "component": "Form", "form": "newTask" }
+      ]
+    },
+    {
+      "route": "/tasks",
+      "title": "Tasks",
+      "sections": [
+        { "id": "table", "component": "DataTable",
+          "data": { "operationId": "task.list", "params": { "status": "TODO", "sort": "dueDate" }, "fields": ["title", "status", "dueDate"] } }
+      ]
+    }
+  ],
+  "forms": [
+    { "id": "newProject", "operationId": "project.create",
+      "fields": [
+        { "name": "name", "label": "Name", "required": true, "maxLength": 120 },
+        { "name": "description", "type": "text", "label": "Description" }
+      ],
+      "submitLabel": "Create project",
+      "onSuccess": { "toast": "Project created" } },
+    { "id": "newTask", "operationId": "task.create",
+      "fields": [
+        { "name": "projectId", "hidden": true, "required": true, "value": "$route.id" },
+        { "name": "title", "label": "Title", "required": true, "maxLength": 200 },
+        { "name": "status", "type": "enum", "values": ["TODO", "IN_PROGRESS", "DONE"], "label": "Status" },
+        { "name": "priority", "type": "integer", "label": "Priority", "min": 1, "max": 5 },
+        { "name": "dueDate", "type": "date", "label": "Due" }
+      ],
+      "submitLabel": "Add task",
+      "onSuccess": { "toast": "Task added" } }
+  ],
+  "x-backendSpec": "examples/specs/two-entity.json"
+}

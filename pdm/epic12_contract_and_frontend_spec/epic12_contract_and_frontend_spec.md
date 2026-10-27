@@ -34,6 +34,13 @@ start immediately against mocks of that contract while the backend is being buil
 | 12.4 | [Requirement → FrontendSpec (+ BackendSpec) drafting](story12.4_requirement_drafting.md) | 12.1, 2.4, 3.2 |
 | 12.5 | [Frontend ↔ contract consistency check](story12.5_consistency_check.md) | 12.1, 12.3 |
 
+## Status (2026-10-27)
+
+12.1, 12.2, 12.3 and 12.5 done; 12.4 (requirement drafting) waits for 2.4, as planned. Until Epic 13 the
+frontend lane is skipped: dynamic jobs build the contract and the backend lane and end
+`COMPLETED_WITH_WARNINGS`; static jobs validate and package the FrontendSpec. The epic acceptance below needs
+12.4 (drafting from a requirement).
+
 ## Epic acceptance
 
 - A requirement such as "a small shop: product catalogue, product detail, cart, contact page" drafted in

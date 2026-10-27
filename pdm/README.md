@@ -98,7 +98,8 @@ workflow to be built before real generation works.
 | 7 | done (merged to `main`) |
 | 8 | done (8.4 draft-job accounting waits for 2.4 / 12.4) |
 | 9 | 9.1–9.6 and 9.10 done (9.6 auth helper waits for Epic 10); 9.7–9.9 open |
-| 2.4, 10, 11, 12, 13, 14 | open |
+| 12 | 12.1–12.3 and 12.5 done (frontend lane skipped until Epic 13; 12.1 example loading waits for 9.7); 12.4 open |
+| 2.4, 10, 11, 13, 14 | open |
 
 ## Decisions (2026-10-23 review)
 

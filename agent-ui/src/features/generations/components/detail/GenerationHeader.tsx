@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import type { TStreamState } from "../../hooks/use-generation-stream";
 import { elapsedMs, formatDuration, formatStep, isTerminal } from "../../lib/status";
 import type { TGenerationDetail } from "../../types";
+import { ModeLaneBadges } from "../ModeLaneBadges";
 import { StatusBadge } from "../StatusBadge";
 import { CancelGenerationButton } from "./CancelGenerationButton";
 
@@ -47,6 +48,7 @@ export function GenerationHeader({ detail, streamState }: GenerationHeaderProps)
           <Stack direction="row" gap="sm" align="center" wrap>
             <h1 className="text-2xl font-semibold tracking-tight">{detail.projectName ?? "Untitled project"}</h1>
             <StatusBadge status={detail.status} />
+            <ModeLaneBadges mode={detail.mode} lanes={detail.lanes} />
             <Tooltip>
               <TooltipTrigger render={<span />}>
                 <Radio

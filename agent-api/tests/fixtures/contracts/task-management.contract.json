@@ -1,0 +1,277 @@
+{
+  "components": {
+    "schemas": {
+      "CreateTaskRequest": {
+        "properties": {
+          "status": {
+            "default": "TODO",
+            "enum": [
+              "TODO",
+              "IN_PROGRESS",
+              "DONE",
+              null
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "type": "object"
+      },
+      "ErrorResponse": {
+        "properties": {
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "details": {},
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "type": "object"
+      },
+      "ListTasksResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TaskResponse"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "offset": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "type": "object"
+      },
+      "TaskResponse": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "TODO",
+              "IN_PROGRESS",
+              "DONE",
+              null
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "status"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Backend for task management",
+    "title": "Task Management",
+    "version": "1.0.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/tasks": {
+      "get": {
+        "operationId": "task.list",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "synthesized": {
+                    "value": {
+                      "items": [
+                        {
+                          "id": "567c4d88-fa22-5bb3-b951-f34ef70b9636",
+                          "status": "TODO",
+                          "title": "Task title 1"
+                        },
+                        {
+                          "id": "33041fe8-1fc9-562e-bc1c-b6923bd7fb9e",
+                          "status": "IN_PROGRESS",
+                          "title": "Task title 2"
+                        },
+                        {
+                          "id": "4073cd57-4cbf-592d-941f-054239fd71ac",
+                          "status": "DONE",
+                          "title": "Task title 3"
+                        }
+                      ],
+                      "limit": 20,
+                      "offset": 0,
+                      "total": 3
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ListTasksResponse"
+                }
+              }
+            },
+            "description": "Page of Task records"
+          }
+        },
+        "summary": "list Task",
+        "tags": [
+          "tasks"
+        ],
+        "x-bga": {
+          "action": "list",
+          "entity": "Task",
+          "module": "tasks"
+        }
+      },
+      "post": {
+        "operationId": "task.create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "examples": {
+                "synthesized": {
+                  "value": {
+                    "status": "TODO",
+                    "title": "Task title 1"
+                  }
+                }
+              },
+              "schema": {
+                "$ref": "#/components/schemas/CreateTaskRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "synthesized": {
+                    "value": {
+                      "id": "567c4d88-fa22-5bb3-b951-f34ef70b9636",
+                      "status": "TODO",
+                      "title": "Task title 1"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/TaskResponse"
+                }
+              }
+            },
+            "description": "The Task"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "VALIDATION_ERROR"
+          }
+        },
+        "summary": "create Task",
+        "tags": [
+          "tasks"
+        ],
+        "x-bga": {
+          "action": "create",
+          "entity": "Task",
+          "module": "tasks"
+        }
+      }
+    }
+  },
+  "x-bga": {
+    "contractVersion": "1",
+    "fixtures": {
+      "Task": [
+        {
+          "id": "567c4d88-fa22-5bb3-b951-f34ef70b9636",
+          "status": "TODO",
+          "title": "Task title 1"
+        },
+        {
+          "id": "33041fe8-1fc9-562e-bc1c-b6923bd7fb9e",
+          "status": "IN_PROGRESS",
+          "title": "Task title 2"
+        },
+        {
+          "id": "4073cd57-4cbf-592d-941f-054239fd71ac",
+          "status": "DONE",
+          "title": "Task title 3"
+        }
+      ]
+    },
+    "planVersion": "1",
+    "specSha256": "173d9becf7a59f5468794ac29ec008eaf7eb76768d34cc8f66a7ebb4c6051608"
+  }
+}

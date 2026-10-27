@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { fetchGeneration, fetchWorkflowGraph } from "../api/generations-api";
 import { generationKeys } from "../query-keys";
+import type { TGenerationMode } from "../types";
 
 export function useGeneration(id: string) {
   return useQuery({
@@ -11,10 +12,11 @@ export function useGeneration(id: string) {
   });
 }
 
-export function useWorkflowGraph() {
+export function useWorkflowGraph(mode: TGenerationMode | undefined) {
   return useQuery({
-    queryKey: generationKeys.graph(),
-    queryFn: fetchWorkflowGraph,
+    queryKey: generationKeys.graph(mode ?? "backend"),
+    queryFn: () => fetchWorkflowGraph(mode ?? "backend"),
+    enabled: mode !== undefined,
     staleTime: Infinity,
   });
 }

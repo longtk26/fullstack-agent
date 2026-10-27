@@ -2,18 +2,30 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Literal
 
-from pydantic import ConfigDict, Field, model_validator
+from pydantic import ConfigDict, Field
 
 from src.libs.dtos import CamelModel
 from src.modules.previews.presenter.dtos import PreviewDto
 from src.modules.shared.domain.entities import ArtifactEntity
-from src.modules.shared.domain.enums import GenerationStatus
+from src.modules.shared.domain.enums import GenerationMode, GenerationStatus
 
 if TYPE_CHECKING:
     from src.modules.generations.usecases.get_generation_usecase import GenerationDetail
 
 
+class FrontendOptionsDto(CamelModel):
+    """Frontend lane options (Story 12.2); used from Epic 13 on."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    run_tests: bool = True
+    generate_preview: bool = True
+    mock_api: bool = True
+
+
 class GenerationOptionsDto(CamelModel):
+    """Backend lane options (unchanged), the engine for every lane, and `frontend` for the frontend lane."""
+
     model_config = ConfigDict(extra="forbid")
 
     max_repair_attempts: int = Field(default=3, ge=0, le=10)
@@ -22,18 +34,19 @@ class GenerationOptionsDto(CamelModel):
     deploy_preview: bool = True
     engine: Literal["claude_code", "antigravity", "fake"] | None = None
     timeout_seconds: int | None = Field(default=None, ge=60, le=7200)
+    frontend: FrontendOptionsDto | None = None
 
 
 class CreateGenerationRequestDto(CamelModel):
+    """Inputs per mode (checked by the use case, 422 MODE_INPUT_MISMATCH otherwise):
+    backend: `backendSpec` | `specId`; static: `frontendSpec` | `frontendSpecId`; dynamic: one of each."""
+
+    mode: GenerationMode = GenerationMode.BACKEND
     backend_spec: dict[str, Any] | None = None
     spec_id: uuid.UUID | None = None
+    frontend_spec: dict[str, Any] | None = None
+    frontend_spec_id: uuid.UUID | None = None
     options: GenerationOptionsDto = GenerationOptionsDto()
-
-    @model_validator(mode="after")
-    def _exactly_one_spec_source(self):
-        if (self.backend_spec is None) == (self.spec_id is None):
-            raise ValueError("Provide exactly one of 'backendSpec' or 'specId'")
-        return self
 
 
 class CreateGenerationResponseDto(CamelModel):
@@ -102,9 +115,12 @@ class ArtifactListDto(CamelModel):
 
 class GenerationDetailDto(CamelModel):
     generation_id: str
-    spec_id: str
+    mode: GenerationMode
+    spec_id: str | None
+    frontend_spec_id: str | None
     project_name: str | None
     status: GenerationStatus
+    lanes: dict[str, str]
     current_step: str | None
     engine: str
     options: dict[str, Any]
@@ -131,9 +147,12 @@ class GenerationDetailDto(CamelModel):
             invocations.setdefault(dto.node_run_id, []).append(dto)
         return cls(
             generation_id=generation.id,
-            spec_id=str(generation.spec_id),
+            mode=generation.mode,
+            spec_id=str(generation.spec_id) if generation.spec_id else None,
+            frontend_spec_id=str(generation.frontend_spec_id) if generation.frontend_spec_id else None,
             project_name=detail.project_name,
             status=generation.status,
+            lanes=generation.lanes,
             current_step=generation.current_step,
             engine=generation.engine,
             options=generation.options,
@@ -171,8 +190,10 @@ class GenerationDetailDto(CamelModel):
 
 class GenerationSummaryDto(CamelModel):
     generation_id: str
+    mode: GenerationMode
     project_name: str | None
     status: GenerationStatus
+    lanes: dict[str, str]
     current_step: str | None
     engine: str
     repair_attempts: int

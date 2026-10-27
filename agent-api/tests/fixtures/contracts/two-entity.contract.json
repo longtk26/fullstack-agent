@@ -1,0 +1,1109 @@
+{
+  "components": {
+    "schemas": {
+      "CreateProjectRequest": {
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "maxLength": 120,
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "CreateTaskRequest": {
+        "properties": {
+          "dueDate": {
+            "format": "date",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "priority": {
+            "default": 3,
+            "maximum": 5,
+            "minimum": 1,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "projectId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "default": "TODO",
+            "enum": [
+              "TODO",
+              "IN_PROGRESS",
+              "DONE",
+              null
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "maxLength": 200,
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId",
+          "title"
+        ],
+        "type": "object"
+      },
+      "ErrorResponse": {
+        "properties": {
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "details": {},
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "type": "object"
+      },
+      "ListProjectsResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectResponse"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "offset": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "type": "object"
+      },
+      "ListTasksResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TaskResponse"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "offset": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "type": "object"
+      },
+      "ProjectResponse": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 120,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "TaskResponse": {
+        "properties": {
+          "dueDate": {
+            "format": "date",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "priority": {
+            "maximum": 5,
+            "minimum": 1,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "projectId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "TODO",
+              "IN_PROGRESS",
+              "DONE",
+              null
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "maxLength": 200,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "title",
+          "status",
+          "priority",
+          "dueDate"
+        ],
+        "type": "object"
+      },
+      "UpdateProjectRequest": {
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "maxLength": 120,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "UpdateTaskRequest": {
+        "properties": {
+          "dueDate": {
+            "format": "date",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "priority": {
+            "default": 3,
+            "maximum": 5,
+            "minimum": 1,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "projectId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "default": "TODO",
+            "enum": [
+              "TODO",
+              "IN_PROGRESS",
+              "DONE",
+              null
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "maxLength": 200,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Projects with tasks: the MVP definition-of-done scenario (two related entities)",
+    "title": "Project Tracker",
+    "version": "1.0.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/projects": {
+      "get": {
+        "operationId": "project.list",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "enum": [
+                "name",
+                "-name",
+                "createdAt",
+                "-createdAt"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "synthesized": {
+                    "value": {
+                      "items": [
+                        {
+                          "createdAt": "2026-01-01T09:00:00Z",
+                          "description": "Example description of Project 1.",
+                          "id": "a3650faa-1ee8-5ee1-a1f1-7bab10838956",
+                          "name": "Project name 1"
+                        },
+                        {
+                          "createdAt": "2026-01-02T09:00:00Z",
+                          "description": "Example description of Project 2.",
+                          "id": "35dba4a1-f1f8-54f0-bed1-d9eba9d9d30f",
+                          "name": "Project name 2"
+                        },
+                        {
+                          "createdAt": "2026-01-03T09:00:00Z",
+                          "description": "Example description of Project 3.",
+                          "id": "edf347ae-6beb-5d58-b894-0a897c345322",
+                          "name": "Project name 3"
+                        }
+                      ],
+                      "limit": 20,
+                      "offset": 0,
+                      "total": 3
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ListProjectsResponse"
+                }
+              }
+            },
+            "description": "Page of Project records"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "VALIDATION_ERROR"
+          }
+        },
+        "summary": "list Project",
+        "tags": [
+          "projects"
+        ],
+        "x-bga": {
+          "action": "list",
+          "entity": "Project",
+          "module": "projects"
+        }
+      },
+      "post": {
+        "operationId": "project.create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "examples": {
+                "synthesized": {
+                  "value": {
+                    "description": "Example description of Project 1.",
+                    "name": "Project name 1"
+                  }
+                }
+              },
+              "schema": {
+                "$ref": "#/components/schemas/CreateProjectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "synthesized": {
+                    "value": {
+                      "createdAt": "2026-01-01T09:00:00Z",
+                      "description": "Example description of Project 1.",
+                      "id": "a3650faa-1ee8-5ee1-a1f1-7bab10838956",
+                      "name": "Project name 1"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectResponse"
+                }
+              }
+            },
+            "description": "The Project"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "CONFLICT"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "VALIDATION_ERROR"
+          }
+        },
+        "summary": "create Project",
+        "tags": [
+          "projects"
+        ],
+        "x-bga": {
+          "action": "create",
+          "entity": "Project",
+          "module": "projects"
+        }
+      }
+    },
+    "/projects/{id}": {
+      "delete": {
+        "operationId": "project.delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "NOT_FOUND"
+          }
+        },
+        "summary": "delete Project",
+        "tags": [
+          "projects"
+        ],
+        "x-bga": {
+          "action": "delete",
+          "entity": "Project",
+          "module": "projects"
+        }
+      },
+      "get": {
+        "operationId": "project.get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "synthesized": {
+                    "value": {
+                      "createdAt": "2026-01-01T09:00:00Z",
+                      "description": "Example description of Project 1.",
+                      "id": "a3650faa-1ee8-5ee1-a1f1-7bab10838956",
+                      "name": "Project name 1"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectResponse"
+                }
+              }
+            },
+            "description": "The Project"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "NOT_FOUND"
+          }
+        },
+        "summary": "get Project",
+        "tags": [
+          "projects"
+        ],
+        "x-bga": {
+          "action": "get",
+          "entity": "Project",
+          "module": "projects"
+        }
+      },
+      "patch": {
+        "operationId": "project.update",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "examples": {
+                "synthesized": {
+                  "value": {
+                    "description": "Example description of Project 1.",
+                    "name": "Project name 1"
+                  }
+                }
+              },
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProjectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "synthesized": {
+                    "value": {
+                      "createdAt": "2026-01-01T09:00:00Z",
+                      "description": "Example description of Project 1.",
+                      "id": "a3650faa-1ee8-5ee1-a1f1-7bab10838956",
+                      "name": "Project name 1"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectResponse"
+                }
+              }
+            },
+            "description": "The Project"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "NOT_FOUND"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "CONFLICT"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "VALIDATION_ERROR"
+          }
+        },
+        "summary": "update Project",
+        "tags": [
+          "projects"
+        ],
+        "x-bga": {
+          "action": "update",
+          "entity": "Project",
+          "module": "projects"
+        }
+      }
+    },
+    "/tasks": {
+      "get": {
+        "operationId": "task.list",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "projectId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "TODO",
+                "IN_PROGRESS",
+                "DONE"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "enum": [
+                "priority",
+                "-priority",
+                "dueDate",
+                "-dueDate"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "synthesized": {
+                    "value": {
+                      "items": [
+                        {
+                          "dueDate": "2026-01-01",
+                          "id": "4317d1d8-2a48-53da-8a05-b180ae7652c9",
+                          "priority": 3,
+                          "projectId": "a3650faa-1ee8-5ee1-a1f1-7bab10838956",
+                          "status": "TODO",
+                          "title": "Task title 1"
+                        },
+                        {
+                          "dueDate": "2026-01-02",
+                          "id": "c05c494a-de8e-54ee-b35a-743397bad0fc",
+                          "priority": 3,
+                          "projectId": "35dba4a1-f1f8-54f0-bed1-d9eba9d9d30f",
+                          "status": "IN_PROGRESS",
+                          "title": "Task title 2"
+                        },
+                        {
+                          "dueDate": "2026-01-03",
+                          "id": "ab73b69b-09ad-5a0f-91ac-33aa09a6230a",
+                          "priority": 3,
+                          "projectId": "edf347ae-6beb-5d58-b894-0a897c345322",
+                          "status": "DONE",
+                          "title": "Task title 3"
+                        }
+                      ],
+                      "limit": 20,
+                      "offset": 0,
+                      "total": 3
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ListTasksResponse"
+                }
+              }
+            },
+            "description": "Page of Task records"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "VALIDATION_ERROR"
+          }
+        },
+        "summary": "list Task",
+        "tags": [
+          "tasks"
+        ],
+        "x-bga": {
+          "action": "list",
+          "entity": "Task",
+          "module": "tasks"
+        }
+      },
+      "post": {
+        "operationId": "task.create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "examples": {
+                "synthesized": {
+                  "value": {
+                    "dueDate": "2026-01-01",
+                    "priority": 3,
+                    "projectId": "a3650faa-1ee8-5ee1-a1f1-7bab10838956",
+                    "status": "TODO",
+                    "title": "Task title 1"
+                  }
+                }
+              },
+              "schema": {
+                "$ref": "#/components/schemas/CreateTaskRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "synthesized": {
+                    "value": {
+                      "dueDate": "2026-01-01",
+                      "id": "4317d1d8-2a48-53da-8a05-b180ae7652c9",
+                      "priority": 3,
+                      "projectId": "a3650faa-1ee8-5ee1-a1f1-7bab10838956",
+                      "status": "TODO",
+                      "title": "Task title 1"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/TaskResponse"
+                }
+              }
+            },
+            "description": "The Task"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "REFERENCE_NOT_FOUND"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "VALIDATION_ERROR"
+          }
+        },
+        "summary": "create Task",
+        "tags": [
+          "tasks"
+        ],
+        "x-bga": {
+          "action": "create",
+          "entity": "Task",
+          "module": "tasks"
+        }
+      }
+    },
+    "/tasks/{id}": {
+      "delete": {
+        "operationId": "task.delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "NOT_FOUND"
+          }
+        },
+        "summary": "delete Task",
+        "tags": [
+          "tasks"
+        ],
+        "x-bga": {
+          "action": "delete",
+          "entity": "Task",
+          "module": "tasks"
+        }
+      },
+      "get": {
+        "operationId": "task.get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "synthesized": {
+                    "value": {
+                      "dueDate": "2026-01-01",
+                      "id": "4317d1d8-2a48-53da-8a05-b180ae7652c9",
+                      "priority": 3,
+                      "projectId": "a3650faa-1ee8-5ee1-a1f1-7bab10838956",
+                      "status": "TODO",
+                      "title": "Task title 1"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/TaskResponse"
+                }
+              }
+            },
+            "description": "The Task"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "NOT_FOUND"
+          }
+        },
+        "summary": "get Task",
+        "tags": [
+          "tasks"
+        ],
+        "x-bga": {
+          "action": "get",
+          "entity": "Task",
+          "module": "tasks"
+        }
+      },
+      "patch": {
+        "operationId": "task.update",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "examples": {
+                "synthesized": {
+                  "value": {
+                    "dueDate": "2026-01-01",
+                    "priority": 3,
+                    "projectId": "a3650faa-1ee8-5ee1-a1f1-7bab10838956",
+                    "status": "TODO",
+                    "title": "Task title 1"
+                  }
+                }
+              },
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTaskRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "synthesized": {
+                    "value": {
+                      "dueDate": "2026-01-01",
+                      "id": "4317d1d8-2a48-53da-8a05-b180ae7652c9",
+                      "priority": 3,
+                      "projectId": "a3650faa-1ee8-5ee1-a1f1-7bab10838956",
+                      "status": "TODO",
+                      "title": "Task title 1"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/TaskResponse"
+                }
+              }
+            },
+            "description": "The Task"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "REFERENCE_NOT_FOUND"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "NOT_FOUND"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "VALIDATION_ERROR"
+          }
+        },
+        "summary": "update Task",
+        "tags": [
+          "tasks"
+        ],
+        "x-bga": {
+          "action": "update",
+          "entity": "Task",
+          "module": "tasks"
+        }
+      }
+    }
+  },
+  "x-bga": {
+    "contractVersion": "1",
+    "fixtures": {
+      "Project": [
+        {
+          "createdAt": "2026-01-01T09:00:00Z",
+          "description": "Example description of Project 1.",
+          "id": "a3650faa-1ee8-5ee1-a1f1-7bab10838956",
+          "name": "Project name 1"
+        },
+        {
+          "createdAt": "2026-01-02T09:00:00Z",
+          "description": "Example description of Project 2.",
+          "id": "35dba4a1-f1f8-54f0-bed1-d9eba9d9d30f",
+          "name": "Project name 2"
+        },
+        {
+          "createdAt": "2026-01-03T09:00:00Z",
+          "description": "Example description of Project 3.",
+          "id": "edf347ae-6beb-5d58-b894-0a897c345322",
+          "name": "Project name 3"
+        }
+      ],
+      "Task": [
+        {
+          "dueDate": "2026-01-01",
+          "id": "4317d1d8-2a48-53da-8a05-b180ae7652c9",
+          "priority": 3,
+          "projectId": "a3650faa-1ee8-5ee1-a1f1-7bab10838956",
+          "status": "TODO",
+          "title": "Task title 1"
+        },
+        {
+          "dueDate": "2026-01-02",
+          "id": "c05c494a-de8e-54ee-b35a-743397bad0fc",
+          "priority": 3,
+          "projectId": "35dba4a1-f1f8-54f0-bed1-d9eba9d9d30f",
+          "status": "IN_PROGRESS",
+          "title": "Task title 2"
+        },
+        {
+          "dueDate": "2026-01-03",
+          "id": "ab73b69b-09ad-5a0f-91ac-33aa09a6230a",
+          "priority": 3,
+          "projectId": "edf347ae-6beb-5d58-b894-0a897c345322",
+          "status": "DONE",
+          "title": "Task title 3"
+        }
+      ]
+    },
+    "planVersion": "1",
+    "specSha256": "028ff358ddfa65e8580709d35fb144621729ed8797302fa18547085b57910b00"
+  }
+}

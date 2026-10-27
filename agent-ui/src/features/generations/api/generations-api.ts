@@ -5,6 +5,7 @@ import type {
   TCreateGenerationResult,
   TFileNode,
   TGenerationDetail,
+  TGenerationMode,
   TGenerationPage,
   TListFilters,
   TPreview,
@@ -27,8 +28,8 @@ export function fetchGeneration(id: string) {
   return apiClient.get<TGenerationDetail>(`/generations/${id}`);
 }
 
-export function fetchWorkflowGraph() {
-  return apiClient.get<TWorkflowGraph>("/generations/graph");
+export function fetchWorkflowGraph(mode: TGenerationMode) {
+  return apiClient.get<TWorkflowGraph>("/generations/graph", { query: { mode } });
 }
 
 export function createGeneration(payload: TCreateGenerationPayload, idempotencyKey: string) {

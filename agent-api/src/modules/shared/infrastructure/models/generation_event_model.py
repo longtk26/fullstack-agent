@@ -17,4 +17,5 @@ class GenerationEventModel(SQLModel, table=True):
     type: str = Field(max_length=64)
     step: str | None = Field(default=None, max_length=64)
     status: str | None = Field(default=None, max_length=32)
+    lane: str | None = Field(default=None, max_length=16)  # backend | frontend | integration (12.2)
     payload: dict[str, Any] = Field(default_factory=dict, sa_type=Json)

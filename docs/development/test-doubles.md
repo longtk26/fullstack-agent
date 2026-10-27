@@ -24,11 +24,15 @@ test-only flag, add it here and mark it at its definition.
 | Recording LangSmith client | `agent-api/tests/tracing_fakes.py` (`RecordingLangSmithClient`) | Replaces `langsmith.Client` in `tests/test_tracing.py`: keeps every posted/patched run after the same hide hooks, so the span tree and secret masking are tested without sending anything. `tests/conftest.py` also forces `LANGSMITH_TRACING=false`, so no test run reaches LangSmith. |
 | Invalid / base specs | `agent-api/tests/fixtures/specs/` | One invalid spec per validator error code. |
 | Plan snapshots | `agent-api/tests/fixtures/plans/*.plan.json` | Expected planner output; refresh deliberately with `UPDATE_SNAPSHOTS=1`. |
+| Contract snapshots | `agent-api/tests/fixtures/contracts/*.contract.json` | Expected API contract per example spec (Story 12.3); refresh with `UPDATE_SNAPSHOTS=1`. |
+| Exported OpenAPI documents | `agent-api/tests/fixtures/openapi/two-entity.{golden,engine}.json` | Real `openapi.json` exports of two generated two-entity backends (the golden project, and an engine-generated one); the contract conformance check is tested against them and against mutated copies. |
 | Frontend site snapshot | `agent-api/tests/fixtures/frontend/` | Importer regression input. |
 | Fake preview runtime | `agent-api/tests/preview_fakes.py` (`FakePreviewRuntime`) | In-memory stand-in for `DockerPreviewRuntime` so the preview lifecycle (start, limits, TTL, reconcile, commands) is tested without Docker. The real containers are covered by `tests/sandbox/test_preview_docker.py`. |
 
 `examples/` (repo root) is **not** test-only: the UI serves it for "Load example" / "Load sample". The golden
 project above is written against `examples/specs/two-entity.json`, so change both together.
+`examples/frontend-specs/project-tracker-dynamic.json` is the frontend for that spec: it exists so a `dynamic`
+job can run its backend lane with the fake engine (the other FrontendSpec examples need a real engine).
 
 ## Local-development defaults (never production values)
 

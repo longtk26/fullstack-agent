@@ -4,13 +4,16 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from src.modules.shared.domain.enums import GenerationStatus
+from src.modules.shared.domain.enums import GenerationMode, GenerationStatus
 
 
 class GenerationEntity(BaseModel):
     id: str
     owner_id: uuid.UUID
-    spec_id: uuid.UUID
+    mode: GenerationMode = GenerationMode.BACKEND
+    spec_id: uuid.UUID | None = None  # BackendSpec; none in static mode
+    frontend_spec_id: uuid.UUID | None = None
+    lanes: dict[str, str] = {}
     options: dict[str, Any] = {}
     engine: str
     status: GenerationStatus = GenerationStatus.PENDING

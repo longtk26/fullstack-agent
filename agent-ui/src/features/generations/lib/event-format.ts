@@ -1,4 +1,4 @@
-import { Activity, Ban, Bot, CirclePlay, Flag, RotateCcw, ShieldCheck, Terminal, TriangleAlert } from "lucide-react";
+import { Activity, Ban, Bot, CirclePlay, FileCheck, FileJson, Flag, Layers, RotateCcw, ShieldCheck, Terminal, TriangleAlert } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { TGenerationEvent } from "../types";
 import { formatDuration, formatStep } from "./status";
@@ -15,7 +15,7 @@ export const EVENT_CATEGORIES: { value: TEventCategory | "all"; label: string }[
 ];
 
 export function eventCategory(event: TGenerationEvent): TEventCategory {
-  if (event.type === "status.changed") return "status";
+  if (event.type === "status.changed" || event.type === "lane.changed") return "status";
   if (event.type.startsWith("step.")) return "step";
   if (event.type.startsWith("engine.")) return "engine";
   if (event.type.startsWith("validation.")) return "validation";
@@ -34,6 +34,10 @@ export const EVENT_ICONS: Record<string, LucideIcon> = {
   "engine.retry": TriangleAlert,
   "cancel.requested": Ban,
   "validation.check": ShieldCheck,
+  "lane.changed": Layers,
+  "inputs.valid": FileCheck,
+  "spec.invalid": TriangleAlert,
+  "contract.ready": FileJson,
 };
 
 function text(value: unknown): string | null {
@@ -84,6 +88,20 @@ export function describeEvent(event: TGenerationEvent): string {
     }
     case "cancel.requested":
       return "Cancel requested";
+    case "lane.changed": {
+      const reason = text(p.reason);
+      return `${event.lane ?? "lane"} lane → ${(event.status ?? "?").toLowerCase()}${reason ? ` (${reason})` : ""}`;
+    }
+    case "inputs.valid":
+      return `Inputs valid: ${num(p.pages) ?? "?"} page(s), ${num(p.warnings) ?? 0} warning(s)`;
+    case "spec.invalid": {
+      const errors = Array.isArray(p.errors) ? (p.errors as Record<string, unknown>[]) : [];
+      const first = errors[0];
+      const where = first ? ` first: ${[text(first.spec), text(first.path), text(first.message)].filter(Boolean).join(" ")}` : "";
+      return `${num(p.total) ?? errors.length} input error(s);${where}`;
+    }
+    case "contract.ready":
+      return `API contract ready: ${num(p.operations) ?? "?"} operation(s), sha256 ${(text(p.sha256) ?? "").slice(0, 12)}`;
     default:
       return `${event.type} ${JSON.stringify(p).slice(0, 120)}`;
   }
@@ -105,6 +123,7 @@ export function isProblem(event: TGenerationEvent): boolean {
     event.status === "failed" ||
     event.status === "FAILED" ||
     event.type === "engine.retry" ||
+    event.type === "spec.invalid" ||
     (event.type === "validation.check" && event.status === "failed") ||
     (event.type === "engine.finished" && event.status !== "ok")
   );

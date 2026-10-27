@@ -6,10 +6,11 @@ from fastapi import Depends
 
 from src.libs.exceptions import BadRequestException, ForbiddenException
 from src.modules.generations.ports.output import IExecutionRecordRepoDep, IGenerationRepoDep
+from src.modules.generations.usecases.project_names import project_names
 from src.modules.shared.domain.entities import GenerationEntity, UserEntity
 from src.modules.shared.domain.enums import GenerationStatus
 from src.modules.shared.domain.telemetry import ExecutionRecords, rollup
-from src.modules.specs.ports.output import IBackendSpecRepoDep
+from src.modules.specs.ports.output import IBackendSpecRepoDep, IFrontendSpecRepoDep
 
 MAX_GENERATIONS = 1000
 MAX_DAYS = 366
@@ -26,14 +27,24 @@ def _add_tokens(target: dict[str, int], tokens: dict[str, int]) -> None:
         target[key] = target.get(key, 0) + value
 
 
+SUCCEEDED = (GenerationStatus.COMPLETED, GenerationStatus.COMPLETED_WITH_WARNINGS)
+
+
 class GetUsageUsecase:
     """Usage & traces page (Story 9.10): the 8.4 rollups of every generation in a period, aggregated by day,
     engine, model, node and lane. No LangSmith dependency."""
 
-    def __init__(self, generations: IGenerationRepoDep, records: IExecutionRecordRepoDep, specs: IBackendSpecRepoDep):
+    def __init__(
+        self,
+        generations: IGenerationRepoDep,
+        records: IExecutionRecordRepoDep,
+        specs: IBackendSpecRepoDep,
+        frontend_specs: IFrontendSpecRepoDep,
+    ):
         self.generations = generations
         self.records = records
         self.specs = specs
+        self.frontend_specs = frontend_specs
 
     async def execute(
         self, user: UserEntity, start: date | None, end: date | None, all_owners: bool = False
@@ -51,7 +62,7 @@ class GetUsageUsecase:
             MAX_GENERATIONS,
         )
         loaded = self.records.records_for([row.id for row in rows])
-        specs = self.specs.find_by_ids(list({row.spec_id for row in rows}))
+        names = project_names(rows, self.specs, self.frontend_specs)
         items = [(row, rollup(ExecutionRecords(generation=row, **loaded[row.id]))) for row in rows]
         return {
             "from": start.isoformat(),
@@ -60,17 +71,17 @@ class GetUsageUsecase:
             "totals": _totals(items),
             "byDay": _by_day(items, start, end),
             "byEngine": _by_key(items, lambda row: row.engine, "engine"),
-            "byMode": _by_key(items, lambda row: "backend", "mode"),
+            "byMode": _by_key(items, lambda row: str(row.mode), "mode"),
             "byModel": _by_model(items),
             "byNode": _by_node(items),
             "byLane": _by_lane(items),
-            "generations": [_row(row, usage, specs) for row, usage in items],
+            "generations": [_row(row, usage, names) for row, usage in items],
         }
 
 
 def _totals(items) -> dict[str, Any]:
-    completed = [usage for row, usage in items if row.status == GenerationStatus.COMPLETED]
-    finished = [row for row, _ in items if row.status in (GenerationStatus.COMPLETED, GenerationStatus.FAILED)]
+    completed = [usage for row, usage in items if row.status in SUCCEEDED]
+    finished = [row for row, _ in items if row.status in (*SUCCEEDED, GenerationStatus.FAILED)]
     cost: dict[str, Any] = {}
     tokens: dict[str, int] = {}
     for _, usage in items:
@@ -119,7 +130,7 @@ def _by_key(items, key, label: str) -> list[dict[str, Any]]:
             key(row), {label: key(row), "generations": 0, "completed": 0, "wallMs": 0, "modelCalls": 0, "cost": {}}
         )
         group["generations"] += 1
-        group["completed"] += row.status == GenerationStatus.COMPLETED
+        group["completed"] += row.status in SUCCEEDED
         group["wallMs"] += usage["wallMs"] or 0
         group["modelCalls"] += usage["modelCalls"]
         _add_cost(group["cost"], usage["cost"])
@@ -186,12 +197,11 @@ def _by_lane(items) -> list[dict[str, Any]]:
     return list(groups.values())
 
 
-def _row(row: GenerationEntity, usage: dict[str, Any], specs) -> dict[str, Any]:
-    spec = specs.get(row.spec_id)
+def _row(row: GenerationEntity, usage: dict[str, Any], names: dict[str, str | None]) -> dict[str, Any]:
     return {
         "generationId": row.id,
-        "projectName": ((spec.normalized_json or {}).get("project") or {}).get("name") if spec else None,
-        "mode": "backend",
+        "projectName": names.get(row.id),
+        "mode": str(row.mode),
         "engine": row.engine,
         "status": row.status,
         "repairAttempts": row.repair_attempts,

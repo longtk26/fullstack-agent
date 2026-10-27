@@ -14,7 +14,8 @@ from src.configs import config, get_logger
 from src.libs.queue import PreviewCommandBus
 from src.modules.generations.infrastructure.adapters import EventPublisher
 from src.modules.shared.domain.entities import ArtifactEntity, PreviewEntity
-from src.modules.shared.domain.enums import GenerationStatus, PreviewStatus
+from src.modules.shared.domain.enums import PreviewStatus
+from src.modules.shared.domain.generation_modes import backend_ready
 from src.preview import IPreviewRuntime, PreviewError, PreviewRequest
 
 from .packaging import ArtifactWriter
@@ -69,8 +70,8 @@ class PreviewService:
     async def start(self, generation_id: str) -> None:
         generation = self.store.generation(generation_id)
         source = self.store.artifact_by_name(generation_id, "backend.zip")
-        if generation is None or generation.status != GenerationStatus.COMPLETED or source is None:
-            await self._fail(generation_id, "only COMPLETED generations with a packaged source can be previewed")
+        if generation is None or not backend_ready(generation.status, generation.lanes) or source is None:
+            await self._fail(generation_id, "only generations with a completed, packaged backend can be previewed")
             return
         current = self.store.upsert_preview(generation_id, status=PreviewStatus.STARTING, started_at=_now(), error=None)
         await self._event(generation_id, PreviewStatus.STARTING)

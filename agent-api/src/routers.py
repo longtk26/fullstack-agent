@@ -3,7 +3,7 @@ from src.modules.engines.presenter import engine_router
 from src.modules.generations.presenter import generation_router
 from src.modules.health.presenter import health_router
 from src.modules.previews.presenter import preview_router, previews_router
-from src.modules.specs.presenter import spec_import_router, spec_router
+from src.modules.specs.presenter import frontend_spec_router, spec_import_router, spec_router
 from src.modules.usage.presenter import usage_router
 
 all_router = [
@@ -12,6 +12,7 @@ all_router = [
     me_router,
     spec_router,
     spec_import_router,
+    frontend_spec_router,
     engine_router,
     generation_router,
     preview_router,

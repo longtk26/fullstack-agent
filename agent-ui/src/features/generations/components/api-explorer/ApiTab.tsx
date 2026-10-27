@@ -4,6 +4,7 @@ import { PlugZap } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Stack } from "@/components/layout/Stack";
 import { useApiTab } from "../../hooks/use-api-tab";
+import { isSucceeded } from "../../lib/status";
 import type { TGenerationDetail } from "../../types";
 import { ComingSoonPanel } from "../detail/ComingSoonPanel";
 import { ApiExplorer } from "./ApiExplorer";
@@ -24,7 +25,9 @@ export function ApiTab({ detail }: ApiTabProps) {
         icon={PlugZap}
         title="No API description yet"
         description={
-          detail.status === "COMPLETED"
+          detail.mode === "static"
+            ? "Static sites have no API."
+            : isSucceeded(detail.status)
             ? "This generation has no exported OpenAPI (it ran without the sandbox)."
             : "The OpenAPI explorer appears when the generation completes."
         }

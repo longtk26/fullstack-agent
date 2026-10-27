@@ -1,6 +1,22 @@
 import type { TUsageRollup } from "@/types/usage";
 
-export type TGenerationStatus = "PENDING" | "RUNNING" | "VALIDATING" | "REPAIRING" | "COMPLETED" | "FAILED" | "CANCELLED";
+export type TGenerationStatus =
+  | "PENDING"
+  | "RUNNING"
+  | "VALIDATING"
+  | "REPAIRING"
+  | "COMPLETED"
+  | "COMPLETED_WITH_WARNINGS"
+  | "FAILED"
+  | "CANCELLED";
+
+export type TGenerationMode = "backend" | "static" | "dynamic";
+
+export type TLane = "backend" | "frontend" | "integration";
+
+export type TLaneStatus = "PENDING" | "RUNNING" | "VALIDATING" | "REPAIRING" | "COMPLETED" | "FAILED" | "SKIPPED";
+
+export type TLanes = Partial<Record<TLane, TLaneStatus>>;
 
 export type TEngineName = "claude_code" | "antigravity" | "fake";
 
@@ -11,12 +27,15 @@ export type TGenerationOptions = {
   deployPreview: boolean;
   engine?: TEngineName | null;
   timeoutSeconds?: number | null;
+  frontend?: { runTests: boolean; generatePreview: boolean; mockApi: boolean } | null;
 };
 
 export type TGeneration = {
   generationId: string;
+  mode: TGenerationMode;
   projectName: string | null;
   status: TGenerationStatus;
+  lanes: TLanes;
   currentStep: string | null;
   engine: string;
   repairAttempts: number;
@@ -65,7 +84,8 @@ export type TUsageTotals = {
 };
 
 export type TGenerationDetail = TGeneration & {
-  specId: string;
+  specId: string | null;
+  frontendSpecId: string | null;
   options: TGenerationOptions;
   resumeCount: number;
   cancelRequested: boolean;
@@ -79,8 +99,11 @@ export type TGenerationDetail = TGeneration & {
 };
 
 export type TCreateGenerationPayload = {
+  mode?: TGenerationMode;
   backendSpec?: unknown;
   specId?: string;
+  frontendSpec?: unknown;
+  frontendSpecId?: string;
   options: TGenerationOptions;
 };
 
@@ -109,11 +132,13 @@ export type TGenerationEvent = {
   type: TGenerationEventType;
   step: string | null;
   status: string | null;
+  lane?: TLane | null;
   payload: Record<string, unknown>;
 };
 
 export type TWorkflowGraph = {
-  nodes: { id: string; label: string; status?: string }[];
+  mode?: TGenerationMode;
+  nodes: { id: string; label: string; status?: string; lane?: TLane | null }[];
   edges: { source: string; target: string; conditional: boolean; label: string | null }[];
 };
 

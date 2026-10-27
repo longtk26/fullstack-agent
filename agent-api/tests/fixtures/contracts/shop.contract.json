@@ -1,0 +1,1052 @@
+{
+  "components": {
+    "schemas": {
+      "CartItemResponse": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "productId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "quantity": {
+            "maximum": 99,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "productId",
+          "quantity",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "CategoryResponse": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 80,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "type": "object"
+      },
+      "ContactMessageResponse": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "email": {
+            "maxLength": 254,
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 120,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "email",
+          "message",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "CreateCartItemRequest": {
+        "properties": {
+          "productId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "quantity": {
+            "maximum": 99,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "productId",
+          "quantity"
+        ],
+        "type": "object"
+      },
+      "CreateContactMessageRequest": {
+        "properties": {
+          "email": {
+            "maxLength": 254,
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 120,
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "email",
+          "message"
+        ],
+        "type": "object"
+      },
+      "ErrorResponse": {
+        "properties": {
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "details": {},
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "type": "object"
+      },
+      "ListCartItemsResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CartItemResponse"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "offset": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "type": "object"
+      },
+      "ListCategoriesResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CategoryResponse"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "offset": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "type": "object"
+      },
+      "ListProductsResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ProductResponse"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "offset": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "type": "object"
+      },
+      "ProductResponse": {
+        "properties": {
+          "categoryId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "imageUrl": {
+            "maxLength": 500,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "maxLength": 120,
+            "type": "string"
+          },
+          "price": {
+            "format": "decimal",
+            "minimum": 0,
+            "type": [
+              "number",
+              "string"
+            ]
+          },
+          "stock": {
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "categoryId",
+          "name",
+          "description",
+          "price",
+          "imageUrl",
+          "stock",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "UpdateCartItemRequest": {
+        "properties": {
+          "productId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "quantity": {
+            "maximum": 99,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Product catalogue with categories, a cart and a contact form (backend of frontend-specs/shop-dynamic.json)",
+    "title": "Corner Shop",
+    "version": "1.0.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/cart-items": {
+      "get": {
+        "operationId": "cartItem.list",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "enum": [
+                "createdAt",
+                "-createdAt"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "synthesized": {
+                    "value": {
+                      "items": [
+                        {
+                          "createdAt": "2026-01-01T09:00:00Z",
+                          "id": "b539ff2c-844c-5ba8-b3ac-6b3b352a3b8b",
+                          "productId": "8d2e7a40-1f3b-4c55-8e6a-2b9f4c3d0001",
+                          "quantity": 1
+                        },
+                        {
+                          "createdAt": "2026-01-02T09:00:00Z",
+                          "id": "e543540e-76e5-5587-b34e-059be938461d",
+                          "productId": "8d2e7a40-1f3b-4c55-8e6a-2b9f4c3d0002",
+                          "quantity": 2
+                        },
+                        {
+                          "createdAt": "2026-01-03T09:00:00Z",
+                          "id": "694524e2-3616-5ef8-9042-9a0c431c9f52",
+                          "productId": "8d2e7a40-1f3b-4c55-8e6a-2b9f4c3d0003",
+                          "quantity": 3
+                        }
+                      ],
+                      "limit": 20,
+                      "offset": 0,
+                      "total": 3
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ListCartItemsResponse"
+                }
+              }
+            },
+            "description": "Page of CartItem records"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "VALIDATION_ERROR"
+          }
+        },
+        "summary": "list CartItem",
+        "tags": [
+          "cart_items"
+        ],
+        "x-bga": {
+          "action": "list",
+          "entity": "CartItem",
+          "module": "cart_items"
+        }
+      },
+      "post": {
+        "operationId": "cartItem.create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "examples": {
+                "synthesized": {
+                  "value": {
+                    "productId": "8d2e7a40-1f3b-4c55-8e6a-2b9f4c3d0001",
+                    "quantity": 1
+                  }
+                }
+              },
+              "schema": {
+                "$ref": "#/components/schemas/CreateCartItemRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "synthesized": {
+                    "value": {
+                      "createdAt": "2026-01-01T09:00:00Z",
+                      "id": "b539ff2c-844c-5ba8-b3ac-6b3b352a3b8b",
+                      "productId": "8d2e7a40-1f3b-4c55-8e6a-2b9f4c3d0001",
+                      "quantity": 1
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/CartItemResponse"
+                }
+              }
+            },
+            "description": "The CartItem"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "REFERENCE_NOT_FOUND"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "VALIDATION_ERROR"
+          }
+        },
+        "summary": "create CartItem",
+        "tags": [
+          "cart_items"
+        ],
+        "x-bga": {
+          "action": "create",
+          "entity": "CartItem",
+          "module": "cart_items"
+        }
+      }
+    },
+    "/cart-items/{id}": {
+      "delete": {
+        "operationId": "cartItem.delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "NOT_FOUND"
+          }
+        },
+        "summary": "delete CartItem",
+        "tags": [
+          "cart_items"
+        ],
+        "x-bga": {
+          "action": "delete",
+          "entity": "CartItem",
+          "module": "cart_items"
+        }
+      },
+      "patch": {
+        "operationId": "cartItem.update",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "examples": {
+                "synthesized": {
+                  "value": {
+                    "productId": "8d2e7a40-1f3b-4c55-8e6a-2b9f4c3d0001",
+                    "quantity": 1
+                  }
+                }
+              },
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCartItemRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "synthesized": {
+                    "value": {
+                      "createdAt": "2026-01-01T09:00:00Z",
+                      "id": "b539ff2c-844c-5ba8-b3ac-6b3b352a3b8b",
+                      "productId": "8d2e7a40-1f3b-4c55-8e6a-2b9f4c3d0001",
+                      "quantity": 1
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/CartItemResponse"
+                }
+              }
+            },
+            "description": "The CartItem"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "REFERENCE_NOT_FOUND"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "NOT_FOUND"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "VALIDATION_ERROR"
+          }
+        },
+        "summary": "update CartItem",
+        "tags": [
+          "cart_items"
+        ],
+        "x-bga": {
+          "action": "update",
+          "entity": "CartItem",
+          "module": "cart_items"
+        }
+      }
+    },
+    "/categories": {
+      "get": {
+        "operationId": "category.list",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "enum": [
+                "name",
+                "-name"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "seed": {
+                    "value": {
+                      "items": [
+                        {
+                          "id": "5b0f3c9e-6c1a-4d3e-9a51-0c7d2a1e0001",
+                          "name": "Coffee"
+                        },
+                        {
+                          "id": "5b0f3c9e-6c1a-4d3e-9a51-0c7d2a1e0002",
+                          "name": "Tea"
+                        }
+                      ],
+                      "limit": 20,
+                      "offset": 0,
+                      "total": 2
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ListCategoriesResponse"
+                }
+              }
+            },
+            "description": "Page of Category records"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "VALIDATION_ERROR"
+          }
+        },
+        "summary": "list Category",
+        "tags": [
+          "categories"
+        ],
+        "x-bga": {
+          "action": "list",
+          "entity": "Category",
+          "module": "categories"
+        }
+      }
+    },
+    "/contact-messages": {
+      "post": {
+        "operationId": "contactMessage.create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "examples": {
+                "synthesized": {
+                  "value": {
+                    "email": "user1@example.com",
+                    "message": "Example message of ContactMessage 1.",
+                    "name": "ContactMessage name 1"
+                  }
+                }
+              },
+              "schema": {
+                "$ref": "#/components/schemas/CreateContactMessageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "synthesized": {
+                    "value": {
+                      "createdAt": "2026-01-01T09:00:00Z",
+                      "email": "user1@example.com",
+                      "id": "646edffc-040c-51f9-973c-f66ae78bf736",
+                      "message": "Example message of ContactMessage 1.",
+                      "name": "ContactMessage name 1"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ContactMessageResponse"
+                }
+              }
+            },
+            "description": "The ContactMessage"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "VALIDATION_ERROR"
+          }
+        },
+        "summary": "create ContactMessage",
+        "tags": [
+          "contact_messages"
+        ],
+        "x-bga": {
+          "action": "create",
+          "entity": "ContactMessage",
+          "module": "contact_messages"
+        }
+      }
+    },
+    "/products": {
+      "get": {
+        "operationId": "product.list",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "categoryId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "enum": [
+                "name",
+                "-name",
+                "price",
+                "-price",
+                "createdAt",
+                "-createdAt"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Case-insensitive match on name, description",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "seed": {
+                    "value": {
+                      "items": [
+                        {
+                          "categoryId": "5b0f3c9e-6c1a-4d3e-9a51-0c7d2a1e0001",
+                          "createdAt": "2026-01-01T09:00:00Z",
+                          "description": "Medium roast, chocolate and hazelnut.",
+                          "id": "8d2e7a40-1f3b-4c55-8e6a-2b9f4c3d0001",
+                          "imageUrl": null,
+                          "name": "House blend, 250 g",
+                          "price": 9.5,
+                          "stock": 40
+                        },
+                        {
+                          "categoryId": "5b0f3c9e-6c1a-4d3e-9a51-0c7d2a1e0001",
+                          "createdAt": "2026-01-01T09:00:00Z",
+                          "description": "Light roast, floral and citrus.",
+                          "id": "8d2e7a40-1f3b-4c55-8e6a-2b9f4c3d0002",
+                          "imageUrl": null,
+                          "name": "Single origin Ethiopia, 250 g",
+                          "price": 13.0,
+                          "stock": 12
+                        },
+                        {
+                          "categoryId": "5b0f3c9e-6c1a-4d3e-9a51-0c7d2a1e0002",
+                          "createdAt": "2026-01-01T09:00:00Z",
+                          "description": "Grassy Japanese green tea.",
+                          "id": "8d2e7a40-1f3b-4c55-8e6a-2b9f4c3d0003",
+                          "imageUrl": null,
+                          "name": "Sencha, 100 g",
+                          "price": 7.25,
+                          "stock": 25
+                        }
+                      ],
+                      "limit": 20,
+                      "offset": 0,
+                      "total": 3
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ListProductsResponse"
+                }
+              }
+            },
+            "description": "Page of Product records"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "VALIDATION_ERROR"
+          }
+        },
+        "summary": "list Product",
+        "tags": [
+          "products"
+        ],
+        "x-bga": {
+          "action": "list",
+          "entity": "Product",
+          "module": "products"
+        }
+      }
+    },
+    "/products/{id}": {
+      "get": {
+        "operationId": "product.get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "seed": {
+                    "value": {
+                      "categoryId": "5b0f3c9e-6c1a-4d3e-9a51-0c7d2a1e0001",
+                      "createdAt": "2026-01-01T09:00:00Z",
+                      "description": "Medium roast, chocolate and hazelnut.",
+                      "id": "8d2e7a40-1f3b-4c55-8e6a-2b9f4c3d0001",
+                      "imageUrl": null,
+                      "name": "House blend, 250 g",
+                      "price": 9.5,
+                      "stock": 40
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ProductResponse"
+                }
+              }
+            },
+            "description": "The Product"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "NOT_FOUND"
+          }
+        },
+        "summary": "get Product",
+        "tags": [
+          "products"
+        ],
+        "x-bga": {
+          "action": "get",
+          "entity": "Product",
+          "module": "products"
+        }
+      }
+    }
+  },
+  "x-bga": {
+    "contractVersion": "1",
+    "fixtures": {
+      "CartItem": [
+        {
+          "createdAt": "2026-01-01T09:00:00Z",
+          "id": "b539ff2c-844c-5ba8-b3ac-6b3b352a3b8b",
+          "productId": "8d2e7a40-1f3b-4c55-8e6a-2b9f4c3d0001",
+          "quantity": 1
+        },
+        {
+          "createdAt": "2026-01-02T09:00:00Z",
+          "id": "e543540e-76e5-5587-b34e-059be938461d",
+          "productId": "8d2e7a40-1f3b-4c55-8e6a-2b9f4c3d0002",
+          "quantity": 2
+        },
+        {
+          "createdAt": "2026-01-03T09:00:00Z",
+          "id": "694524e2-3616-5ef8-9042-9a0c431c9f52",
+          "productId": "8d2e7a40-1f3b-4c55-8e6a-2b9f4c3d0003",
+          "quantity": 3
+        }
+      ],
+      "Category": [
+        {
+          "id": "5b0f3c9e-6c1a-4d3e-9a51-0c7d2a1e0001",
+          "name": "Coffee"
+        },
+        {
+          "id": "5b0f3c9e-6c1a-4d3e-9a51-0c7d2a1e0002",
+          "name": "Tea"
+        }
+      ],
+      "ContactMessage": [
+        {
+          "createdAt": "2026-01-01T09:00:00Z",
+          "email": "user1@example.com",
+          "id": "646edffc-040c-51f9-973c-f66ae78bf736",
+          "message": "Example message of ContactMessage 1.",
+          "name": "ContactMessage name 1"
+        },
+        {
+          "createdAt": "2026-01-02T09:00:00Z",
+          "email": "user2@example.com",
+          "id": "c4cd7ba4-a8b9-515d-8d42-9d06fddb27e4",
+          "message": "Example message of ContactMessage 2.",
+          "name": "ContactMessage name 2"
+        },
+        {
+          "createdAt": "2026-01-03T09:00:00Z",
+          "email": "user3@example.com",
+          "id": "7451a025-d574-5b4f-ae07-66a14922b2b8",
+          "message": "Example message of ContactMessage 3.",
+          "name": "ContactMessage name 3"
+        }
+      ],
+      "Product": [
+        {
+          "categoryId": "5b0f3c9e-6c1a-4d3e-9a51-0c7d2a1e0001",
+          "createdAt": "2026-01-01T09:00:00Z",
+          "description": "Medium roast, chocolate and hazelnut.",
+          "id": "8d2e7a40-1f3b-4c55-8e6a-2b9f4c3d0001",
+          "imageUrl": null,
+          "name": "House blend, 250 g",
+          "price": 9.5,
+          "stock": 40
+        },
+        {
+          "categoryId": "5b0f3c9e-6c1a-4d3e-9a51-0c7d2a1e0001",
+          "createdAt": "2026-01-01T09:00:00Z",
+          "description": "Light roast, floral and citrus.",
+          "id": "8d2e7a40-1f3b-4c55-8e6a-2b9f4c3d0002",
+          "imageUrl": null,
+          "name": "Single origin Ethiopia, 250 g",
+          "price": 13.0,
+          "stock": 12
+        },
+        {
+          "categoryId": "5b0f3c9e-6c1a-4d3e-9a51-0c7d2a1e0002",
+          "createdAt": "2026-01-01T09:00:00Z",
+          "description": "Grassy Japanese green tea.",
+          "id": "8d2e7a40-1f3b-4c55-8e6a-2b9f4c3d0003",
+          "imageUrl": null,
+          "name": "Sencha, 100 g",
+          "price": 7.25,
+          "stock": 25
+        }
+      ]
+    },
+    "planVersion": "1",
+    "specSha256": "bb1711383a8b9d4b2b30cdb2048fb4745e401d9223dc0efba8cf2c5806bbe9d6"
+  }
+}

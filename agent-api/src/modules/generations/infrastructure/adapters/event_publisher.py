@@ -45,6 +45,7 @@ class EventPublisher:
         step: str | None = None,
         status: str | None = None,
         payload: dict[str, Any] | None = None,
+        lane: str | None = None,
     ) -> GenerationEventEntity | None:
         with Session(db_session_manager.engine) as session:
             if type in SAMPLED_TYPES and self._count(session, generation_id) >= self.cap:
@@ -57,6 +58,7 @@ class EventPublisher:
                     type=type,
                     step=step,
                     status=status,
+                    lane=lane,
                     payload=self.redactor.redact_obj(self._with_trace(generation_id, payload)),
                 )
             )
@@ -87,6 +89,7 @@ def event_json(event: GenerationEventEntity) -> str:
             "type": event.type,
             "step": event.step,
             "status": event.status,
+            "lane": event.lane,
             "payload": event.payload,
         },
         default=str,

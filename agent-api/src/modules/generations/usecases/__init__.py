@@ -1,6 +1,6 @@
 from .artifact_usecases import ArtifactUsecaseDep, BrowseFilesUsecaseDep
 from .cancel_generation_usecase import CancelGenerationUsecaseDep
-from .create_generation_usecase import CreateGenerationUsecaseDep
+from .create_generation_usecase import CreateGenerationUsecaseDep, GenerationInputs
 from .get_generation_usecase import GetGenerationUsecaseDep
 from .get_trace_usecase import GetTraceUsecaseDep
 from .get_validation_usecase import GetValidationUsecaseDep
@@ -13,6 +13,7 @@ __all__ = [
     "BrowseFilesUsecaseDep",
     "CancelGenerationUsecaseDep",
     "CreateGenerationUsecaseDep",
+    "GenerationInputs",
     "GetGenerationUsecaseDep",
     "GetTraceUsecaseDep",
     "GetValidationUsecaseDep",

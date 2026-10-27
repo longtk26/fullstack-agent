@@ -11,4 +11,5 @@ class GenerationEventEntity(BaseModel):
     type: str
     step: str | None = None
     status: str | None = None
+    lane: str | None = None
     payload: dict[str, Any] = {}

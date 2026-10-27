@@ -1,6 +1,7 @@
 from .artifact_model import ArtifactModel
 from .backend_spec_model import BackendSpecModel
 from .cli_invocation_model import CliInvocationModel
+from .frontend_spec_model import FrontendSpecModel
 from .generation_event_model import GenerationEventModel
 from .generation_model import GenerationModel
 from .model_call_model import ModelCallModel
@@ -15,6 +16,7 @@ __all__ = [
     "ArtifactModel",
     "BackendSpecModel",
     "CliInvocationModel",
+    "FrontendSpecModel",
     "GenerationEventModel",
     "GenerationModel",
     "ModelCallModel",

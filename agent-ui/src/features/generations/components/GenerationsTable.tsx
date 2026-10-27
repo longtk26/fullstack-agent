@@ -5,6 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useNow } from "@/hooks/use-now";
 import { elapsedMs, formatDuration, formatStep, isTerminal } from "../lib/status";
 import type { TGeneration } from "../types";
+import { ModeLaneBadges } from "./ModeLaneBadges";
 import { StatusBadge } from "./StatusBadge";
 
 type GenerationsTableProps = {
@@ -23,6 +24,7 @@ export function GenerationsTable({ items }: GenerationsTableProps) {
         <TableRow>
           <TableHead>ID</TableHead>
           <TableHead>Project</TableHead>
+          <TableHead>Mode</TableHead>
           <TableHead>Engine</TableHead>
           <TableHead>Status</TableHead>
           <TableHead>Current step</TableHead>
@@ -44,6 +46,9 @@ export function GenerationsTable({ items }: GenerationsTableProps) {
             >
               <TableCell className="font-mono text-xs">{item.generationId}</TableCell>
               <TableCell className="font-medium">{item.projectName ?? "—"}</TableCell>
+              <TableCell>
+                <ModeLaneBadges mode={item.mode} lanes={item.lanes} compact />
+              </TableCell>
               <TableCell className="text-muted-foreground">{item.engine}</TableCell>
               <TableCell>
                 <StatusBadge status={item.status} />

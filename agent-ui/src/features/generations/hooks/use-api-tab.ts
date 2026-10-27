@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchArtifactJson } from "../api/generations-api";
+import { isSucceeded } from "../lib/status";
 import { generationKeys } from "../query-keys";
 import type { TGenerationDetail, TManifest } from "../types";
 import { usePreview } from "./use-preview";
@@ -52,7 +53,7 @@ export function useApiTab(detail: TGenerationDetail) {
 
   return {
     ...preview,
-    canPreview: detail.status === "COMPLETED" && detail.artifacts.some((a) => a.name === "backend.zip"),
+    canPreview: isSucceeded(detail.status) && detail.artifacts.some((a) => a.name === "backend.zip"),
     hasOpenapi: Boolean(openapiArtifact),
     document,
     loadingDocument: openapi.isLoading,

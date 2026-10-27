@@ -1,0 +1,105 @@
+{
+  "specVersion": "1.0",
+  "project": {
+    "name": "Northwind Studio",
+    "description": "Landing site for a small design studio: home, services, work, about, contact",
+    "mode": "static",
+    "locale": "en"
+  },
+  "theme": {
+    "style": "editorial",
+    "colorScheme": "light",
+    "colors": { "accent": "#c2410c" },
+    "radius": "sm"
+  },
+  "layout": {
+    "shell": "header-footer",
+    "header": {
+      "logoText": "Northwind",
+      "navigation": [
+        { "label": "Services", "page": "services" },
+        { "label": "Work", "page": "work" },
+        { "label": "About", "page": "about" },
+        { "label": "Contact", "page": "contact" }
+      ]
+    },
+    "footer": {
+      "text": "© Northwind Studio",
+      "links": [{ "label": "Instagram", "href": "https://instagram.com/northwind" }, { "label": "Contact", "page": "contact" }]
+    }
+  },
+  "pages": [
+    {
+      "route": "/",
+      "title": "Home",
+      "seo": { "description": "Brand and web design for independent businesses" },
+      "sections": [
+        { "id": "hero", "component": "Hero",
+          "content": { "heading": "Design that sounds like you", "body": "Brand and web design for independent businesses.",
+                       "image": "asset:hero", "cta": { "label": "See our work", "page": "work" } } },
+        { "id": "services", "component": "Features", "data": { "collection": "services" } },
+        { "id": "quotes", "component": "Testimonials", "data": { "collection": "testimonials" } },
+        { "id": "cta", "component": "CallToAction", "content": { "heading": "Have a project?", "cta": { "label": "Get in touch", "page": "contact" } } }
+      ]
+    },
+    {
+      "route": "/services",
+      "title": "Services",
+      "sections": [
+        { "id": "list", "component": "Features", "data": { "collection": "services" } },
+        { "id": "pricing", "component": "Pricing", "data": { "collection": "plans" } },
+        { "id": "faq", "component": "Faq", "data": { "collection": "faq" } }
+      ]
+    },
+    {
+      "route": "/work",
+      "title": "Work",
+      "sections": [
+        { "id": "gallery", "component": "Gallery", "data": { "collection": "projects" } }
+      ]
+    },
+    {
+      "route": "/about",
+      "title": "About",
+      "sections": [
+        { "id": "story", "component": "RichText",
+          "content": { "body": "Northwind is a two-person studio. We have helped forty small businesses find their voice since 2019." } },
+        { "id": "stats", "component": "Stats", "content": { "items": [{ "label": "Clients", "value": "40+" }, { "label": "Years", "value": "6" }] } }
+      ]
+    },
+    {
+      "route": "/contact",
+      "title": "Contact",
+      "sections": [
+        { "id": "info", "component": "ContactInfo", "content": { "email": "hello@northwind.studio", "phone": "+44 20 7946 0000" } }
+      ]
+    }
+  ],
+  "content": [
+    { "collection": "services", "records": [
+      { "title": "Brand identity", "body": "Logo, palette, type and a short guide." },
+      { "title": "Websites", "body": "Fast, accessible sites you can edit yourself." },
+      { "title": "Print", "body": "Menus, packaging, signage." }
+    ] },
+    { "collection": "plans", "records": [
+      { "name": "Starter", "price": "£1,500", "features": ["Logo", "Palette", "One-page site"] },
+      { "name": "Studio", "price": "£4,000", "features": ["Full identity", "Five-page site", "Print kit"] }
+    ] },
+    { "collection": "faq", "records": [
+      { "question": "How long does a project take?", "answer": "Four to eight weeks." },
+      { "question": "Do you work remotely?", "answer": "Yes, with clients anywhere." }
+    ] },
+    { "collection": "projects", "records": [
+      { "title": "Bakehouse", "image": "asset:work-1" },
+      { "title": "Harbour Books", "image": "asset:work-2" }
+    ] },
+    { "collection": "testimonials", "records": [
+      { "author": "Priya, Bakehouse", "quote": "They understood us in one meeting." }
+    ] }
+  ],
+  "assets": [
+    { "id": "hero", "kind": "image", "alt": "Studio desk with sketches", "source": "placeholder" },
+    { "id": "work-1", "kind": "image", "alt": "Bakehouse packaging", "source": "placeholder" },
+    { "id": "work-2", "kind": "image", "alt": "Harbour Books shop sign", "source": "placeholder" }
+  ]
+}

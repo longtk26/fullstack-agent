@@ -9,13 +9,20 @@ from langsmith import tracing_context
 from src.configs import config, get_logger, log_context
 from src.engines import EngineContext, EngineRegistry, PromptLibrary, UnknownEngineError
 from src.modules.generations.infrastructure.adapters import EventPublisher
-from src.modules.shared.domain.enums import GenerationStatus
+from src.modules.shared.domain.enums import TERMINAL_STATUSES, GenerationMode, GenerationStatus, Lane, LaneStatus
+from src.modules.shared.domain.generation_modes import (
+    UNAVAILABLE_LANES,
+    backend_ready,
+    close_lanes,
+    initial_lanes,
+    overall_status,
+)
 from src.sandbox import ISandboxProvider, SandboxError
 
 from . import tracing
 from .context import EngineFailure, JobCancelled, JobContext
 from .graph import build_graph
-from .nodes import PROMPT_VERSION, write_artifacts
+from .nodes import PROMPT_VERSIONS, write_artifacts
 from .scaffold import TemplateDrift
 from .state import GenerationState, Outcome
 from .store import JobStore
@@ -23,7 +30,7 @@ from .validation import IValidationRunner
 from .workspace import DiskLimitExceeded, WorkspaceManager
 
 logger = get_logger(__name__)
-TERMINAL = {GenerationStatus.COMPLETED, GenerationStatus.FAILED, GenerationStatus.CANCELLED}
+TERMINAL = TERMINAL_STATUSES
 PROMPTS = ("generate_database", "generate_backend", "generate_tests", "repair_code")
 
 
@@ -97,6 +104,8 @@ class JobRunner:
             workspace,
             sandboxes=self.sandboxes,
             template_dir=self.template_dir,
+            mode=GenerationMode(generation.mode),
+            lanes=generation.lanes or initial_lanes(GenerationMode(generation.mode)),
         )
         ctx._status = generation.status
         ctx.trace = await self._open_trace(generation)
@@ -118,21 +127,31 @@ class JobRunner:
     async def _open_trace(self, generation) -> tracing.GenerationTrace:
         """One trace per generation (Story 8.1): created on the first run, reattached when a job resumes."""
         spec = self.store.spec(generation.spec_id)
+        frontend = self.store.frontend_spec(generation.frontend_spec_id)
+        inputs = {"generationId": generation.id, "mode": generation.mode, "options": generation.options}
+        inputs |= {"specId": str(generation.spec_id)} if generation.spec_id else {}
+        inputs |= {"frontendSpecId": str(generation.frontend_spec_id)} if generation.frontend_spec_id else {}
         trace = tracing.GenerationTrace.open(
             generation.id,
             trace_id=generation.trace_id,
             parent=generation.trace_parent,
-            inputs={"generationId": generation.id, "specId": str(generation.spec_id), "options": generation.options},
+            inputs=inputs,
             metadata={
                 "generation_id": generation.id,
                 "owner_id": str(generation.owner_id),
                 "engine": generation.engine,
-                "mode": "backend",
+                "mode": generation.mode,
                 "spec_sha256": hashlib.sha256(spec.raw_json.encode()).hexdigest() if spec else None,
-                "prompt_versions": dict.fromkeys(PROMPTS, PROMPT_VERSION),
+                "frontend_spec_sha256": hashlib.sha256(frontend.raw_json.encode()).hexdigest() if frontend else None,
+                "prompt_versions": {name: PROMPT_VERSIONS[name] for name in PROMPTS},
                 "generator_version": config.generator_version,
             },
-            tags=[generation.engine, f"spec:{spec.spec_version if spec else '?'}"],
+            tags=[
+                generation.engine,
+                f"mode:{generation.mode}",
+                *([f"spec:{spec.spec_version}"] if spec else []),
+                *([f"frontend-spec:{frontend.spec_version}"] if frontend else []),
+            ],
         )
         fields = {"trace_id": trace.trace_id, "trace_parent": trace.parent}
         if trace.root.enabled and not generation.langsmith_run_url:
@@ -142,7 +161,7 @@ class JobRunner:
         return trace
 
     async def _execute(self, ctx: JobContext, generation, workspace) -> GenerationStatus:
-        graph = build_graph(ctx).compile(checkpointer=self.checkpointer)
+        graph = build_graph(ctx, ctx.mode).compile(checkpointer=self.checkpointer)
         run_config = {
             "configurable": {"thread_id": generation.id},
             "run_name": tracing.ROOT_NAME,
@@ -162,10 +181,14 @@ class JobRunner:
             inputs = None
         else:
             self.store.update_generation(generation.id, worker_id=self.worker_id, started_at=datetime.now(UTC))
-            await ctx.emit("job.started", engine=generation.engine, options=generation.options)
+            await ctx.emit("job.started", engine=generation.engine, mode=generation.mode, options=generation.options)
+            for lane, reason in UNAVAILABLE_LANES.items():
+                await ctx.set_lane(lane.value, LaneStatus.SKIPPED, reason)
             inputs = {
                 "generation_id": generation.id,
-                "spec_id": str(generation.spec_id),
+                "mode": generation.mode,
+                "spec_id": str(generation.spec_id) if generation.spec_id else None,
+                "frontend_spec_id": str(generation.frontend_spec_id) if generation.frontend_spec_id else None,
                 "engine": generation.engine,
                 "options": generation.options,
                 "workspace": str(workspace.root),
@@ -209,7 +232,10 @@ class JobRunner:
     async def _finish_from_state(self, ctx: JobContext, state: dict) -> GenerationStatus:
         outcome = state.get("outcome")
         if outcome == Outcome.COMPLETED:
-            return await self._finish(ctx, GenerationStatus.COMPLETED, None)
+            status = overall_status(ctx.mode, ctx.lanes)
+            if status == GenerationStatus.COMPLETED_WITH_WARNINGS:
+                return await self._finish(ctx, status, _lane_warnings(ctx.lanes), "LANES_INCOMPLETE")
+            return await self._finish(ctx, status, None)
         if outcome == Outcome.SPEC_INVALID:
             return await self._finish(ctx, GenerationStatus.FAILED, state.get("error_summary"), "SPEC_INVALID")
         if outcome == Outcome.REPAIR_LIMIT:
@@ -219,6 +245,8 @@ class JobRunner:
     async def _finish(
         self, ctx: JobContext, status: GenerationStatus, error: str | None, code: str | None = None
     ) -> GenerationStatus:
+        if status in (GenerationStatus.FAILED, GenerationStatus.CANCELLED):
+            await ctx.replace_lanes(close_lanes(ctx.lanes, failed=status == GenerationStatus.FAILED))
         if status == GenerationStatus.FAILED:
             try:
                 await write_artifacts(ctx, {}, completed=False, error=error)
@@ -244,7 +272,8 @@ class JobRunner:
             )
         logger.info("generation finished", extra={"generation_id": ctx.generation_id, "status": status, "code": code})
         generation = self.store.generation(ctx.generation_id)
-        if status == GenerationStatus.COMPLETED and self.on_completed and generation.options.get("deployPreview", True):
+        deploy = generation.options.get("deployPreview", True) and backend_ready(status, ctx.lanes)
+        if deploy and self.on_completed:
             try:
                 await self.on_completed(ctx.generation_id)
             except Exception:
@@ -252,8 +281,13 @@ class JobRunner:
         return status
 
     async def _fail_early(self, generation_id: str, code: str, message: str) -> GenerationStatus:
+        generation = self.store.generation(generation_id)
         self.store.update_generation(
-            generation_id, status=GenerationStatus.FAILED, error_summary=message, finished_at=datetime.now(UTC)
+            generation_id,
+            status=GenerationStatus.FAILED,
+            error_summary=message,
+            finished_at=datetime.now(UTC),
+            lanes=close_lanes(generation.lanes, failed=False),
         )
         await self.events.publish(
             generation_id,
@@ -262,6 +296,17 @@ class JobRunner:
             payload={"errorCode": code, "errorSummary": message},
         )
         return GenerationStatus.FAILED
+
+
+def _lane_warnings(lanes: dict[str, str]) -> str:
+    """Why a job that finished is COMPLETED_WITH_WARNINGS."""
+    notes = []
+    for lane, status in lanes.items():
+        if status == LaneStatus.SKIPPED.value:
+            notes.append(UNAVAILABLE_LANES.get(Lane(lane), f"The {lane} lane was skipped"))
+        elif status == LaneStatus.FAILED.value:
+            notes.append(f"The {lane} lane failed")
+    return "; ".join(notes)
 
 
 def validation_summary(runs) -> dict[str, str]:

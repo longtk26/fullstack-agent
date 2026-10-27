@@ -12,12 +12,51 @@ class GenerationStatus(StrEnum):
     VALIDATING = "VALIDATING"
     REPAIRING = "REPAIRING"
     COMPLETED = "COMPLETED"
+    COMPLETED_WITH_WARNINGS = "COMPLETED_WITH_WARNINGS"  # a lane was skipped or failed but the result works (12.2)
     FAILED = "FAILED"
     CANCELLED = "CANCELLED"
 
     @property
     def is_terminal(self) -> bool:
-        return self in {GenerationStatus.COMPLETED, GenerationStatus.FAILED, GenerationStatus.CANCELLED}
+        return self in TERMINAL_STATUSES
+
+
+TERMINAL_STATUSES = frozenset(
+    {
+        GenerationStatus.COMPLETED,
+        GenerationStatus.COMPLETED_WITH_WARNINGS,
+        GenerationStatus.FAILED,
+        GenerationStatus.CANCELLED,
+    }
+)
+
+
+class GenerationMode(StrEnum):
+    """Story 12.2: what a generation builds."""
+
+    BACKEND = "backend"  # FastAPI backend only
+    STATIC = "static"  # frontend only, content baked in
+    DYNAMIC = "dynamic"  # frontend + backend from one API contract
+
+
+class Lane(StrEnum):
+    BACKEND = "backend"
+    FRONTEND = "frontend"
+    INTEGRATION = "integration"
+
+
+class LaneStatus(StrEnum):
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    VALIDATING = "VALIDATING"
+    REPAIRING = "REPAIRING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+    SKIPPED = "SKIPPED"
+
+    @property
+    def is_terminal(self) -> bool:
+        return self in {LaneStatus.COMPLETED, LaneStatus.FAILED, LaneStatus.SKIPPED}
 
 
 class PreviewStatus(StrEnum):

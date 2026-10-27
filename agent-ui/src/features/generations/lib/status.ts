@@ -6,11 +6,16 @@ export const GENERATION_STATUSES: TGenerationStatus[] = [
   "VALIDATING",
   "REPAIRING",
   "COMPLETED",
+  "COMPLETED_WITH_WARNINGS",
   "FAILED",
   "CANCELLED",
 ];
 
-const TERMINAL: ReadonlySet<string> = new Set(["COMPLETED", "FAILED", "CANCELLED"]);
+const TERMINAL: ReadonlySet<string> = new Set(["COMPLETED", "COMPLETED_WITH_WARNINGS", "FAILED", "CANCELLED"]);
+
+export function isSucceeded(status: string | null | undefined): boolean {
+  return status === "COMPLETED" || status === "COMPLETED_WITH_WARNINGS";
+}
 
 export function isTerminal(status: string | null | undefined): boolean {
   return status != null && TERMINAL.has(status);

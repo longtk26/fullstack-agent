@@ -11,6 +11,7 @@ from src.modules.generations.ports.output import IGenerationRepoDep
 from src.modules.generations.usecases.get_generation_usecase import GetGenerationUsecaseDep
 from src.modules.shared.domain.entities import GenerationEntity, UserEntity
 from src.modules.shared.domain.enums import GenerationStatus
+from src.modules.shared.domain.generation_modes import close_lanes
 
 
 class CancelGenerationUsecase:
@@ -32,9 +33,14 @@ class CancelGenerationUsecase:
             raise ConflictException(f"Generation is already {generation.status}", code=ErrorCode.ALREADY_FINISHED)
         if generation.status == GenerationStatus.PENDING and await self.queue.remove_queued(generation_id):
             cancelled = await self._mark(
-                generation_id, status=GenerationStatus.CANCELLED, finished_at=datetime.now(UTC)
+                generation_id,
+                status=GenerationStatus.CANCELLED,
+                finished_at=datetime.now(UTC),
+                lanes=close_lanes(generation.lanes, failed=False),
             )
-            await self.events.publish(generation_id, "status.changed", status=GenerationStatus.CANCELLED)
+            await self.events.publish(
+                generation_id, "status.changed", status=GenerationStatus.CANCELLED, payload={"lanes": cancelled.lanes}
+            )
             return cancelled
         # Running (or just picked up): the worker stops the engine and finishes the job as CANCELLED.
         updated = await self._mark(generation_id, cancel_requested=True)

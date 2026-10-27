@@ -11,7 +11,8 @@ from src.modules.generations.usecases.get_generation_usecase import GetGeneratio
 from src.modules.previews.infrastructure.adapters import PreviewCommandBusDep
 from src.modules.previews.ports.output import IPreviewRepoDep
 from src.modules.shared.domain.entities import PreviewEntity, UserEntity
-from src.modules.shared.domain.enums import GenerationStatus, PreviewStatus
+from src.modules.shared.domain.enums import PreviewStatus
+from src.modules.shared.domain.generation_modes import backend_ready
 
 PreviewAction = Literal["start", "stop", "restart", "delete", "reset-db"]
 SOURCE_ARTIFACT = "backend.zip"
@@ -45,9 +46,9 @@ class PreviewActionUsecase:
             await self.bus.send(action, generation_id)
             return preview if action == "stop" else None
 
-        if generation.status != GenerationStatus.COMPLETED:
+        if not backend_ready(generation.status, generation.lanes):
             raise ConflictException(
-                f"Only COMPLETED generations have a preview (status {generation.status})",
+                f"Only generations with a completed backend have a preview (status {generation.status})",
                 code=ErrorCode.GENERATION_NOT_COMPLETED,
             )
         if self.artifact_repo.find_by_name(generation_id, SOURCE_ARTIFACT) is None:

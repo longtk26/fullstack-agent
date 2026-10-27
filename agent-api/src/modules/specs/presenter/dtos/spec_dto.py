@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any
 
 from src.libs.dtos import CamelModel
-from src.modules.shared.domain.entities import BackendSpecEntity
+from src.modules.shared.domain.entities import BackendSpecEntity, FrontendSpecEntity
 from src.modules.shared.domain.enums import SpecSource
 
 from .validation_report_dto import SpecIssueDto
@@ -27,6 +27,28 @@ class GetSpecResponseDto(CamelModel):
         return cls(
             id=str(spec.id),
             spec_version=spec.spec_version,
+            source=spec.source,
+            raw=spec.raw_json,
+            normalized=spec.normalized_json,
+            created_at=spec.created_at,
+        )
+
+
+class GetFrontendSpecResponseDto(CamelModel):
+    id: str
+    spec_version: str
+    mode: str | None
+    source: SpecSource
+    raw: str
+    normalized: dict[str, Any] | None
+    created_at: datetime | None
+
+    @classmethod
+    def from_entity(cls, spec: FrontendSpecEntity) -> "GetFrontendSpecResponseDto":
+        return cls(
+            id=str(spec.id),
+            spec_version=spec.spec_version,
+            mode=spec.mode,
             source=spec.source,
             raw=spec.raw_json,
             normalized=spec.normalized_json,

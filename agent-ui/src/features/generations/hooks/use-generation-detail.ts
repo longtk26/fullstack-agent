@@ -11,7 +11,7 @@ const DETAIL_TABS: TDetailTab[] = ["steps", "trace", "results", "api"];
 
 export function useGenerationDetail(id: string) {
   const detail = useGeneration(id);
-  const graph = useWorkflowGraph();
+  const graph = useWorkflowGraph(detail.data?.mode);
   const { events, state: streamState } = useGenerationStream(id);
   const requestedTab = useSearchParams().get("tab");
   const [tab, setTab] = useState<TDetailTab>(() =>

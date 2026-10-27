@@ -1,4 +1,4 @@
-import { CircleCheck, CircleDashed, CircleX, Ban, Loader2, ShieldCheck, Wrench } from "lucide-react";
+import { CircleCheck, CircleDashed, CircleX, Ban, Loader2, ShieldCheck, TriangleAlert, Wrench } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -10,6 +10,7 @@ const STATUS_STYLE: Record<TGenerationStatus, { icon: LucideIcon; className: str
   VALIDATING: { icon: ShieldCheck, className: "bg-info/15 text-info" },
   REPAIRING: { icon: Wrench, className: "bg-warning/20 text-warning-foreground dark:text-warning" },
   COMPLETED: { icon: CircleCheck, className: "bg-success/15 text-success" },
+  COMPLETED_WITH_WARNINGS: { icon: TriangleAlert, className: "bg-warning/20 text-warning-foreground dark:text-warning" },
   FAILED: { icon: CircleX, className: "bg-destructive/10 text-destructive" },
   CANCELLED: { icon: Ban, className: "bg-muted text-muted-foreground" },
 };
@@ -24,7 +25,7 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
   return (
     <Badge variant="secondary" className={cn(tone, className)}>
       <Icon className={cn(spin && "animate-spin")} />
-      {status.toLowerCase()}
+      {status.toLowerCase().replaceAll("_", " ")}
     </Badge>
   );
 }

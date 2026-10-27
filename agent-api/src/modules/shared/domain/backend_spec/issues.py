@@ -39,11 +39,15 @@ class Severity(StrEnum):
 
 
 class SpecIssue(BaseModel):
-    code: SpecIssueCode
+    """One finding. `code` is a SpecIssueCode, or a FrontendIssueCode for FrontendSpecs (Story 12.1).
+    `backend_path` points into the BackendSpec when the finding is about both specs (Story 12.5)."""
+
+    code: str
     path: str
     message: str
     hint: str | None = None
     severity: Severity = Severity.ERROR
+    backend_path: str | None = None
 
 
 class ValidationReport(BaseModel):

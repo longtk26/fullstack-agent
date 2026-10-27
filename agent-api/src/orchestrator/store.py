@@ -17,6 +17,7 @@ from src.modules.shared.domain.entities import (
     ArtifactEntity,
     BackendSpecEntity,
     CliInvocationEntity,
+    FrontendSpecEntity,
     GenerationEntity,
     ModelCallEntity,
     NodeRunEntity,
@@ -25,7 +26,7 @@ from src.modules.shared.domain.entities import (
     ValidationRunEntity,
 )
 from src.modules.shared.domain.enums import PreviewStatus
-from src.modules.specs.infrastructure.persistence import BackendSpecRepository
+from src.modules.specs.infrastructure.persistence import BackendSpecRepository, FrontendSpecRepository
 
 T = TypeVar("T")
 
@@ -59,8 +60,15 @@ class JobStore:
     def finished_before(self, finished_before: datetime) -> list[str]:
         return self._with(lambda s: GenerationRepository(s).find_finished_before(finished_before))
 
-    def spec(self, spec_id: uuid.UUID) -> BackendSpecEntity | None:
+    def spec(self, spec_id: uuid.UUID | None) -> BackendSpecEntity | None:
+        if spec_id is None:
+            return None
         return self._with(lambda s: BackendSpecRepository(s).find_by_id(spec_id))
+
+    def frontend_spec(self, spec_id: uuid.UUID | None) -> FrontendSpecEntity | None:
+        if spec_id is None:
+            return None
+        return self._with(lambda s: FrontendSpecRepository(s).find_by_id(spec_id))
 
     def start_node(self, generation_id: str, node: str, attempt: int) -> uuid.UUID:
         run = NodeRunEntity(generation_id=generation_id, node=node, attempt=attempt, status="running")

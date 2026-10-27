@@ -2,6 +2,7 @@ from src.modules.shared.infrastructure.models import (  # noqa: F401
     ArtifactModel,
     BackendSpecModel,
     CliInvocationModel,
+    FrontendSpecModel,
     GenerationEventModel,
     GenerationModel,
     ModelCallModel,

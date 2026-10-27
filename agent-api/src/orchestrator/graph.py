@@ -3,14 +3,25 @@ from typing import Any
 
 from langgraph.graph import END, START, StateGraph
 
+from src.modules.shared.domain.enums import GenerationMode
+
 from . import tracing
 from .context import JobCancelled, JobContext
 from .nodes import NODE_FUNCTIONS
-from .state import GenerationState
+from .state import MODE_NODES, GenerationState
 
 ATTEMPT_NODES = {"run_validation", "repair_code"}
 # State that goes into a node span: identifiers and refs only (Story 8.1); files stay in the workspace.
-TRACED_STATE = ("spec_ref", "plan_ref", "repair_attempts", "failed_checks", "implicated_files", "validation")
+TRACED_STATE = (
+    "spec_ref",
+    "frontend_ref",
+    "contract_ref",
+    "plan_ref",
+    "repair_attempts",
+    "failed_checks",
+    "implicated_files",
+    "validation",
+)
 
 
 def route_after_spec(state: GenerationState) -> str:
@@ -62,12 +73,25 @@ def _node(name: str, ctx: JobContext | None):
     return run
 
 
-def build_graph(ctx: JobContext | None) -> StateGraph:
+def build_graph(ctx: JobContext | None, mode: GenerationMode = GenerationMode.BACKEND) -> StateGraph:
+    """backend: today's graph. dynamic: both specs + consistency (validate_inputs) → contract → the backend lane.
+    static: validate_inputs → package (the frontend lane arrives with Epic 13). Story 14.1 runs the lanes in
+    parallel."""
     graph = StateGraph(GenerationState)
-    for name in NODE_FUNCTIONS:
+    for name in MODE_NODES[mode]:
         graph.add_node(name, _node(name, ctx))
-    graph.add_edge(START, "validate_spec")
-    graph.add_conditional_edges("validate_spec", route_after_spec, {"valid": "plan_architecture", "invalid": END})
+    if mode == GenerationMode.BACKEND:
+        graph.add_edge(START, "validate_spec")
+        graph.add_conditional_edges("validate_spec", route_after_spec, {"valid": "plan_architecture", "invalid": END})
+    else:
+        graph.add_edge(START, "validate_inputs")
+        after_inputs = "build_contract" if mode == GenerationMode.DYNAMIC else "package_artifacts"
+        graph.add_conditional_edges("validate_inputs", route_after_spec, {"valid": after_inputs, "invalid": END})
+    if mode == GenerationMode.STATIC:
+        graph.add_edge("package_artifacts", END)
+        return graph
+    if mode == GenerationMode.DYNAMIC:
+        graph.add_edge("build_contract", "plan_architecture")
     graph.add_edge("plan_architecture", "generate_database")
     graph.add_edge("generate_database", "generate_backend")
     graph.add_edge("generate_backend", "generate_tests")
@@ -82,8 +106,8 @@ def build_graph(ctx: JobContext | None) -> StateGraph:
     return graph
 
 
-def describe_graph() -> dict[str, Any]:
-    drawable = build_graph(None).compile().get_graph()
+def describe_graph(mode: GenerationMode = GenerationMode.BACKEND) -> dict[str, Any]:
+    drawable = build_graph(None, mode).compile().get_graph()
     nodes = [{"id": node_id, "label": node_id.strip("_")} for node_id in drawable.nodes]
     edges = [
         {

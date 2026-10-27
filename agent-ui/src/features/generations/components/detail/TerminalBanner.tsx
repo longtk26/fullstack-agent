@@ -1,4 +1,4 @@
-import { Ban, CircleCheck, CircleX } from "lucide-react";
+import { Ban, CircleCheck, CircleX, TriangleAlert } from "lucide-react";
 import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import type { TDetailTab, TGenerationDetail, TGenerationEvent } from "../../types";
@@ -25,6 +25,26 @@ export function TerminalBanner({ detail, events, onOpenTab }: TerminalBannerProp
           <Button size="sm" onClick={() => onOpenTab("api")}>
             API
           </Button>
+        </AlertAction>
+      </Alert>
+    );
+  }
+  if (detail.status === "COMPLETED_WITH_WARNINGS") {
+    const backendDone = detail.lanes.backend === "COMPLETED";
+    return (
+      <Alert>
+        <TriangleAlert className="text-warning" />
+        <AlertTitle>{backendDone ? "Backend generated, with warnings" : "Finished with warnings"}</AlertTitle>
+        <AlertDescription>{detail.error ?? "Some lanes did not complete."}</AlertDescription>
+        <AlertAction className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => onOpenTab("results")}>
+            Results
+          </Button>
+          {backendDone && (
+            <Button size="sm" onClick={() => onOpenTab("api")}>
+              API
+            </Button>
+          )}
         </AlertAction>
       </Alert>
     );

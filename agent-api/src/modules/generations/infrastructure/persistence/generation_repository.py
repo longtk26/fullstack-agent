@@ -8,11 +8,11 @@ from sqlmodel import col, select
 from src.libs.database.session import SessionDep
 from src.modules.generations.ports.output import IGenerationRepository
 from src.modules.shared.domain.entities import GenerationEntity
-from src.modules.shared.domain.enums import GenerationStatus
+from src.modules.shared.domain.enums import TERMINAL_STATUSES, GenerationStatus
 from src.modules.shared.infrastructure.models import GenerationModel
 
 ACTIVE = (GenerationStatus.RUNNING, GenerationStatus.VALIDATING, GenerationStatus.REPAIRING)
-TERMINAL = (GenerationStatus.COMPLETED, GenerationStatus.FAILED, GenerationStatus.CANCELLED)
+TERMINAL = tuple(TERMINAL_STATUSES)
 
 
 class GenerationRepository(IGenerationRepository):

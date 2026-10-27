@@ -8,6 +8,7 @@ class SpecIssueDto(CamelModel):
     message: str
     hint: str | None = None
     severity: str
+    backend_path: str | None = None
 
     @classmethod
     def from_domain(cls, issue: SpecIssue) -> "SpecIssueDto":

@@ -36,6 +36,12 @@ reports its cost; Antigravity's is *estimated* from list prices (`MODEL_PRICES` 
 `LANGSMITH_TRACING=true` and `LANGSMITH_API_KEY` to also send each generation to LangSmith as one trace, to
 `LANGSMITH_PROJECT` or, with `LANGSMITH_AGENT_ID`, to that agent's environment (beta, enabled per workspace).
 
+Modes (Epic 12): `POST /api/v1/generations` takes `mode: backend | static | dynamic`. `static` takes a
+FrontendSpec (`examples/frontend-specs/`, schema at `GET /api/v1/frontend-specs/schema`); `dynamic` takes a
+FrontendSpec and a BackendSpec, checks that every page binding and form exists in the API contract derived from
+the BackendSpec, stores that `contract.json`, and generates the backend against it. Frontend generation itself
+arrives with Epic 13, so for now those jobs end *completed with warnings* (the frontend lane is skipped).
+
 `make down` stops the stack (and the host worker, and preview containers); `make down-all` also removes volumes.
 
 ## Develop

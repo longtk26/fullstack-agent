@@ -20,6 +20,7 @@ from src.modules.generations.usecases import (
     BrowseFilesUsecaseDep,
     CancelGenerationUsecaseDep,
     CreateGenerationUsecaseDep,
+    GenerationInputs,
     GetGenerationUsecaseDep,
     GetTraceUsecaseDep,
     GetValidationUsecaseDep,
@@ -27,7 +28,7 @@ from src.modules.generations.usecases import (
     ListGenerationsUsecaseDep,
     StreamGenerationEventsUsecaseDep,
 )
-from src.modules.shared.domain.enums import GenerationStatus
+from src.modules.shared.domain.enums import GenerationMode, GenerationStatus
 
 generation_router = APIRouter(prefix="/api/v1/generations", tags=["generations"])
 
@@ -40,7 +41,16 @@ async def create_generation(
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key", max_length=128)] = None,
 ) -> CreateGenerationResponseDto:
     generation = await usecase.execute(
-        user, body.backend_spec, body.spec_id, body.options.model_dump(by_alias=True), idempotency_key
+        user,
+        GenerationInputs(
+            mode=body.mode,
+            backend_spec=body.backend_spec,
+            spec_id=body.spec_id,
+            frontend_spec=body.frontend_spec,
+            frontend_spec_id=body.frontend_spec_id,
+        ),
+        body.options.model_dump(by_alias=True),
+        idempotency_key,
     )
     return CreateGenerationResponseDto(
         generation_id=generation.id, status=generation.status, created_at=generation.created_at
@@ -61,8 +71,10 @@ async def list_generations(
         items=[
             GenerationSummaryDto(
                 generation_id=item.generation.id,
+                mode=item.generation.mode,
                 project_name=item.project_name,
                 status=item.generation.status,
+                lanes=item.generation.lanes,
                 current_step=item.generation.current_step,
                 engine=item.generation.engine,
                 repair_attempts=item.generation.repair_attempts,
@@ -77,8 +89,12 @@ async def list_generations(
 
 
 @generation_router.get("/graph", response_model=dict[str, Any])
-async def get_workflow_graph(_: CurrentUserDep, usecase: GetWorkflowGraphUsecaseDep) -> dict[str, Any]:
-    return await usecase.execute()
+async def get_workflow_graph(
+    _: CurrentUserDep,
+    usecase: GetWorkflowGraphUsecaseDep,
+    mode: Annotated[GenerationMode, Query()] = GenerationMode.BACKEND,
+) -> dict[str, Any]:
+    return await usecase.execute(mode)
 
 
 @generation_router.get("/{generation_id}", response_model=GenerationDetailDto)

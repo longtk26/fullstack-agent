@@ -49,7 +49,7 @@ def test_a_generation_is_one_trace_with_the_epic_8_shape(client, user_headers, t
     assert root.get("parent_run_id") is None and root["session_name"] == config.langsmith_project
     metadata = root["extra"]["metadata"]
     assert metadata["generation_id"] == generation_id and metadata["engine"] == "fake"
-    assert len(metadata["spec_sha256"]) == 64 and metadata["prompt_versions"]["repair_code"] == "v2"
+    assert len(metadata["spec_sha256"]) == 64 and metadata["prompt_versions"]["repair_code"] == "v3"
     assert root["outputs"]["status"] == "COMPLETED" and root["outputs"]["validation"]["syntax"] == "passed"
     assert "fake" in root["tags"]
 

@@ -17,7 +17,11 @@ class GenerationModel(SQLModel, table=True):
 
     id: str = Field(primary_key=True, max_length=32)
     owner_id: uuid.UUID = Field(foreign_key="users.id", ondelete="CASCADE")
-    spec_id: uuid.UUID = Field(foreign_key="backend_specs.id", ondelete="RESTRICT", index=True)
+    mode: str = Field(default="backend", max_length=16, sa_column_kwargs={"server_default": "backend"})
+    spec_id: uuid.UUID | None = Field(default=None, foreign_key="backend_specs.id", ondelete="RESTRICT", index=True)
+    frontend_spec_id: uuid.UUID | None = Field(default=None, foreign_key="frontend_specs.id", ondelete="RESTRICT")
+    # lane → LaneStatus (Story 12.2)
+    lanes: dict[str, str] = Field(default_factory=dict, sa_type=Json, sa_column_kwargs={"server_default": "{}"})
     options: dict[str, Any] = Field(default_factory=dict, sa_type=Json)
     engine: str = Field(max_length=32)
     status: GenerationStatus = Field(

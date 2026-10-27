@@ -1,0 +1,132 @@
+{
+  "specVersion": "1.0",
+  "project": {
+    "name": "Corner Shop",
+    "description": "A small shop: product catalogue, product detail, cart and contact page",
+    "mode": "dynamic",
+    "locale": "en"
+  },
+  "theme": {
+    "style": "minimal",
+    "colorScheme": "light-dark",
+    "colors": { "primary": "#1d4ed8", "accent": "#f59e0b" },
+    "typography": { "headingFont": "Inter", "bodyFont": "Inter", "scale": "default" },
+    "radius": "md",
+    "density": "comfortable"
+  },
+  "layout": {
+    "shell": "header-footer",
+    "header": {
+      "logoText": "Corner Shop",
+      "navigation": [
+        { "label": "Shop", "page": "products" },
+        { "label": "Cart", "page": "cart" },
+        { "label": "Contact", "page": "contact" }
+      ]
+    },
+    "footer": { "text": "© Corner Shop", "links": [{ "label": "About", "page": "about" }, { "label": "Contact", "page": "contact" }] }
+  },
+  "pages": [
+    {
+      "route": "/",
+      "title": "Home",
+      "purpose": "introduce the shop and lead to the catalogue",
+      "sections": [
+        { "id": "hero", "component": "Hero",
+          "content": { "heading": "Coffee and tea, roasted down the street", "body": "Small batches, shipped the same day.",
+                       "image": "asset:hero", "cta": { "label": "Shop now", "page": "products" } } },
+        { "id": "categories", "component": "CardGrid",
+          "data": { "operationId": "category.list", "params": { "sort": "name" }, "fields": ["name"] } }
+      ]
+    },
+    {
+      "id": "products",
+      "route": "/products",
+      "title": "Products",
+      "purpose": "browse the catalogue",
+      "seo": { "title": "Shop all products", "description": "Coffee, tea and brewing gear" },
+      "sections": [
+        { "id": "grid", "component": "ProductGrid",
+          "data": { "operationId": "product.list", "params": { "limit": 12, "sort": "-createdAt" },
+                    "fields": ["name", "price", "imageUrl"] },
+          "states": { "empty": "No products yet", "error": "Could not load products" } }
+      ]
+    },
+    {
+      "id": "product-detail",
+      "route": "/products/[id]",
+      "title": "Product",
+      "sections": [
+        { "id": "detail", "component": "ProductDetail",
+          "data": { "operationId": "product.get", "params": { "id": "$route.id" },
+                    "fields": ["name", "description", "price", "imageUrl", "stock"] } },
+        { "id": "add", "component": "Form", "form": "addToCart" }
+      ]
+    },
+    {
+      "id": "cart",
+      "route": "/cart",
+      "title": "Cart",
+      "sections": [
+        { "id": "items", "component": "CartList",
+          "data": { "operationId": "cartItem.list", "params": { "sort": "createdAt" }, "fields": ["productId", "quantity"] },
+          "states": { "empty": "Your cart is empty" } }
+      ]
+    },
+    {
+      "id": "contact",
+      "route": "/contact",
+      "title": "Contact",
+      "sections": [
+        { "id": "info", "component": "ContactInfo", "content": { "email": "hello@corner.shop", "address": "1 High Street" } },
+        { "id": "form", "component": "Form", "form": "contact" }
+      ]
+    },
+    {
+      "id": "about",
+      "route": "/about",
+      "title": "About",
+      "sections": [
+        { "id": "story", "component": "Hero", "content": { "heading": "Our story", "body": "Two friends, one roaster.", "image": "asset:shop-front" } },
+        { "id": "testimonials", "component": "Testimonials", "data": { "collection": "testimonials" } }
+      ]
+    }
+  ],
+  "components": [
+    { "name": "ProductGrid", "kind": "composite", "uses": ["card", "badge", "pagination", "skeleton"],
+      "description": "Product cards with name, price and image; paginated" },
+    { "name": "ProductDetail", "kind": "composite", "uses": ["card", "badge", "separator"],
+      "description": "One product: image, description, price, stock" },
+    { "name": "CartList", "kind": "composite", "uses": ["item", "button", "input"],
+      "description": "Cart lines with quantity and remove" }
+  ],
+  "forms": [
+    { "id": "addToCart", "operationId": "cartItem.create",
+      "fields": [
+        { "name": "productId", "type": "string", "hidden": true, "required": true, "value": "$route.id" },
+        { "name": "quantity", "type": "integer", "label": "Quantity", "required": true, "min": 1, "max": 99, "value": 1 }
+      ],
+      "submitLabel": "Add to cart",
+      "onSuccess": { "toast": "Added to cart", "navigate": "/cart" } },
+    { "id": "contact", "operationId": "contactMessage.create",
+      "fields": [
+        { "name": "name", "type": "string", "label": "Name", "required": true, "maxLength": 120 },
+        { "name": "email", "type": "email", "label": "E-mail", "required": true },
+        { "name": "message", "type": "text", "label": "Message", "required": true }
+      ],
+      "submitLabel": "Send",
+      "onSuccess": { "toast": "Thanks, we will get back to you" } }
+  ],
+  "content": [
+    { "collection": "testimonials", "records": [
+      { "author": "Sam", "quote": "Best beans in town." },
+      { "author": "Lee", "quote": "The sencha is wonderful." }
+    ] }
+  ],
+  "assets": [
+    { "id": "hero", "kind": "image", "alt": "Coffee beans in a scoop", "source": "placeholder" },
+    { "id": "shop-front", "kind": "image", "alt": "Shop front", "source": "placeholder" }
+  ],
+  "auth": null,
+  "x-backendSpec": "examples/specs/shop.json"
+}

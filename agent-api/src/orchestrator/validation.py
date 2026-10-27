@@ -10,6 +10,7 @@ Order and dependencies (a failed check skips its dependents; independent checks 
     6 conventions  fastapi-skills AST checker (static)                1
     7 tests        pytest + planned test ids present                  4, 5
     8 openapi      OpenAPI of the started app == planned operations   4
+                   (and conforms to the API contract in dynamic mode, Story 12.3)
 
 Every validation re-runs all checks (they take seconds), so a repair can never hide a regression.
 """
@@ -31,6 +32,7 @@ from pydantic import BaseModel
 from src.sandbox import ExecResult, ISandbox
 
 from . import tracing
+from .checks.conformance import compare_contract
 from .checks.conventions import check_conventions
 from .checks.parity import compare_openapi, compare_schema, missing_tests
 from .checks.parsers import junit_failures, last_lines, ruff_failures, traceback_frames
@@ -78,6 +80,7 @@ class ValidationRequest:
     plan: dict[str, Any]
     run_tests: bool
     sandbox: ISandbox | None = None
+    contract: dict[str, Any] | None = None  # the API contract (dynamic mode)
     artifacts: dict[str, Any] = field(default_factory=dict)  # filled by checks (schema, openapi)
 
 
@@ -346,8 +349,12 @@ class SandboxValidationRunner(IValidationRunner):
             return self._result("openapi", False, "OpenAPI output is not JSON", run)
         request.artifacts["openapi"] = document
         problems = compare_openapi(request.plan, document)
+        target = "the plan"
+        if request.contract is not None:
+            problems += compare_contract(request.contract, document)
+            target = "the plan and the API contract"
         count = sum(len(item) for item in document.get("paths", {}).values())
-        summary = f"{len(problems)} operation mismatch(es)" if problems else f"{count} operation(s) match the plan"
+        summary = f"{len(problems)} mismatch(es) with {target}" if problems else f"{count} operation(s) match {target}"
         return self._result("openapi", not problems, summary, None, details=problems)
 
 

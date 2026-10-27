@@ -28,6 +28,10 @@ Agent-specific notes:
 - Tracing (Epic 8): spans come from `src/orchestrator/tracing.py` (RunTree API; LangGraph's own tracer is off).
   Use `tracing.span(...)` / `tracing.current().child(...)`; record what the local trace needs in the DB too
   (`model_calls`, `sandbox_execs`), since `/trace` and `/usage` are built from records, not from LangSmith.
+- Modes (Epic 12): `generations.mode` + `lanes`; graph per mode in `orchestrator/graph.py`; lane rules in
+  `modules/shared/domain/generation_modes.py`. FrontendSpec lives in `modules/shared/domain/frontend_spec/`;
+  the API contract (`orchestrator/contract.py`) and its checks (`checks/conformance.py`, `checks/consistency.py`)
+  are pure functions with snapshot tests (`UPDATE_SNAPSHOTS=1`).
 - Test doubles (fake engine, golden two-entity project, static validator, fake CLIs, opt-in test flags) are listed in
   `docs/development/test-doubles.md`; add any new fake there and mark it at its definition.
 

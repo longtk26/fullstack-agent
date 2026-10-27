@@ -15,7 +15,9 @@ from src.modules.shared.domain.entities import (
     PreviewEntity,
     UserEntity,
 )
-from src.modules.specs.ports.output import IBackendSpecRepoDep
+from src.modules.specs.ports.output import IBackendSpecRepoDep, IFrontendSpecRepoDep
+
+from .project_names import project_names
 
 
 class GenerationDetail(BaseModel):
@@ -34,9 +36,11 @@ class GetGenerationUsecase:
         generation_repo: IGenerationRepoDep,
         records: IExecutionRecordRepoDep,
         spec_repo: IBackendSpecRepoDep,
+        frontend_spec_repo: IFrontendSpecRepoDep,
         artifact_repo: IArtifactRepoDep,
         preview_repo: IPreviewRepoDep,
     ):
+        self.frontend_spec_repo = frontend_spec_repo
         self.generation_repo = generation_repo
         self.records = records
         self.spec_repo = spec_repo
@@ -55,11 +59,9 @@ class GetGenerationUsecase:
         validation: dict[str, str] = {}
         for run in self.records.list_validation_runs(generation_id):  # oldest first, so the latest attempt wins
             validation[run.check] = run.status
-        spec = self.spec_repo.find_by_id(generation.spec_id)
-        project = ((spec.normalized_json or {}).get("project") or {}) if spec else {}
         return GenerationDetail(
             generation=generation,
-            project_name=project.get("name"),
+            project_name=project_names([generation], self.spec_repo, self.frontend_spec_repo)[generation.id],
             validation=validation,
             steps=self.records.list_node_runs(generation_id),
             invocations=self.records.list_cli_invocations(generation_id),

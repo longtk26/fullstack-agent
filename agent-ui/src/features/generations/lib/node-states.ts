@@ -1,4 +1,5 @@
 import type { TGenerationEvent, TGenerationStatus } from "../types";
+import { isSucceeded, isTerminal } from "./status";
 
 export type TNodeState = "pending" | "running" | "passed" | "failed" | "skipped" | "cancelled";
 
@@ -36,7 +37,7 @@ export function deriveNodeStates(
     }
   }
 
-  const terminal = jobStatus === "COMPLETED" || jobStatus === "FAILED" || jobStatus === "CANCELLED";
+  const terminal = isTerminal(jobStatus);
   if (terminal) {
     for (const node of Object.values(progress)) {
       if (node.state === "running") node.state = jobStatus === "CANCELLED" ? "cancelled" : "failed";
@@ -46,7 +47,10 @@ export function deriveNodeStates(
     progress[START_NODE] = { state: "passed", attempts: 1 };
   }
   if (terminal) {
-    progress[END_NODE] = { state: jobStatus === "COMPLETED" ? "passed" : jobStatus === "CANCELLED" ? "cancelled" : "failed", attempts: 1 };
+    progress[END_NODE] = {
+      state: isSucceeded(jobStatus) ? "passed" : jobStatus === "CANCELLED" ? "cancelled" : "failed",
+      attempts: 1,
+    };
   }
   return progress;
 }

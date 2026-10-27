@@ -12,6 +12,7 @@ from src.engines import EngineHealthStore, EngineRegistry
 from src.libs.queue import CANCEL_PREFIX, JobQueue
 from src.modules.generations.infrastructure.adapters import EventPublisher
 from src.modules.shared.domain.enums import GenerationStatus
+from src.modules.shared.domain.generation_modes import close_lanes
 
 from .previews import PreviewService
 from .runner import JobRunner
@@ -224,7 +225,11 @@ class WorkerService:
             if generation.resume_count >= config.worker_max_resumes:
                 message = f"Worker lost {generation.resume_count + 1} times; giving up"
                 self.store.update_generation(
-                    generation.id, status=GenerationStatus.FAILED, error_summary=message, finished_at=now
+                    generation.id,
+                    status=GenerationStatus.FAILED,
+                    error_summary=message,
+                    finished_at=now,
+                    lanes=close_lanes(generation.lanes, failed=True),
                 )
                 await self.events.publish(
                     generation.id,

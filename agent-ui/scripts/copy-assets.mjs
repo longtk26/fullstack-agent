@@ -1,5 +1,5 @@
 // Copies static assets the UI serves from public/: Monaco's AMD build (self-hosted, so the JSON editor works
-// offline) and the repo's examples/ (BackendSpec and frontend site samples) plus an index of them.
+// offline) and the repo's examples/ (BackendSpecs, Frontend-Agent site JSON, FrontendSpecs) plus an index of them.
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -27,7 +27,7 @@ function copyExamples() {
   rmSync(target, { recursive: true, force: true });
   mkdirSync(target, { recursive: true });
   const index = {};
-  for (const kind of ["specs", "frontend"]) {
+  for (const kind of ["specs", "frontend", "frontend-specs"]) {
     const dir = join(source, kind);
     if (!existsSync(dir)) continue;
     cpSync(dir, join(target, kind), { recursive: true });

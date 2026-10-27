@@ -49,6 +49,7 @@ export type TExampleFile = { name: string; path: string };
 export type TExampleIndex = {
   specs?: TExampleFile[];
   frontend?: TExampleFile[];
+  "frontend-specs"?: TExampleFile[];
 };
 
 export type TEngineInfo = {

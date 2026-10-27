@@ -20,11 +20,11 @@ from src.engines import (
 from src.libs.redaction import default_redactor
 from src.modules.generations.infrastructure.adapters import EventPublisher
 from src.modules.shared.domain.entities import CliInvocationEntity, ModelCallEntity, SandboxExecEntity
-from src.modules.shared.domain.enums import GenerationStatus
+from src.modules.shared.domain.enums import GenerationMode, GenerationStatus, LaneStatus
 from src.sandbox import ExecResult, ISandbox, ISandboxProvider
 
 from . import tracing
-from .state import status_for
+from .state import NODE_LANE, lane_status_for, status_for
 from .store import JobStore
 from .validation import IValidationRunner
 from .workspace import JobWorkspace, WorkspaceManager
@@ -60,8 +60,13 @@ class JobContext:
         workspace: JobWorkspace,
         sandboxes: ISandboxProvider | None = None,
         template_dir: Path | None = None,
+        mode: GenerationMode = GenerationMode.BACKEND,
+        lanes: dict[str, str] | None = None,
     ):
         self.generation_id = generation_id
+        self.mode = mode
+        self.lanes: dict[str, str] = dict(lanes or {})
+        self.current_lane: str | None = None
         self.engine = engine
         self.engine_context = engine_context
         self.prompts = prompts
@@ -80,7 +85,9 @@ class JobContext:
         self.trace: tracing.GenerationTrace | None = None
 
     async def emit(self, type: str, step: str | None = None, status: str | None = None, **payload: Any) -> None:
-        await self.events.publish(self.generation_id, type, step=step, status=status, payload=payload)
+        await self.events.publish(
+            self.generation_id, type, step=step, status=status, payload=payload, lane=self.current_lane
+        )
 
     async def set_status(
         self, status: GenerationStatus, step: str | None = None, payload: dict[str, Any] | None = None, **fields: Any
@@ -88,7 +95,22 @@ class JobContext:
         self.store.update_generation(self.generation_id, status=status, **fields)
         if status != self._status:
             self._status = status
-            await self.emit("status.changed", step=step, status=status, **(payload or {}))
+            await self.emit("status.changed", step=step, status=status, **(payload or {}), lanes=self.lanes)
+
+    async def set_lane(self, lane: str, status: LaneStatus, reason: str | None = None) -> None:
+        """Story 12.2: one status per lane, stored on the generation and announced as `lane.changed`."""
+        if lane not in self.lanes or self.lanes[lane] == status.value:
+            return
+        self.lanes[lane] = status.value
+        self.store.update_generation(self.generation_id, lanes=dict(self.lanes))
+        payload: dict[str, Any] = {"lanes": dict(self.lanes)}
+        if reason:
+            payload["reason"] = reason
+        await self.events.publish(self.generation_id, "lane.changed", status=status.value, payload=payload, lane=lane)
+
+    async def replace_lanes(self, lanes: dict[str, str]) -> None:
+        for lane, status in lanes.items():
+            await self.set_lane(lane, LaneStatus(status))
 
     async def check_cancel(self) -> None:
         if not self.cancel_requested.is_set():
@@ -105,6 +127,10 @@ class JobContext:
 
     async def enter_node(self, node: str, attempt: int) -> uuid.UUID:
         await self.check_cancel()
+        lane = NODE_LANE.get(node)
+        self.current_lane = lane.value if lane else None
+        if lane is not None:
+            await self.set_lane(lane.value, lane_status_for(node))
         await self.set_status(status_for(node), step=node, current_step=node)
         run_id = self.store.start_node(self.generation_id, node, attempt)
         self.current_run_id = run_id
@@ -227,6 +253,7 @@ class JobContext:
                     generation_id=self.generation_id,
                     cli_invocation_id=invocation_id,
                     node_run_id=self.current_run_id,
+                    lane=self.current_lane or "backend",
                     duration_ms=call.duration_ms,
                     tools=[tool.model_dump(mode="json") for tool in call.tools],
                     **call.model_dump(exclude={"tools"}),

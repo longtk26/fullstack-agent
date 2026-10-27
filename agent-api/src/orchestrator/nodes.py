@@ -1,4 +1,5 @@
-"""The eight workflow nodes (FR-09). Each is `async (state, ctx) -> (state update, step summary)`."""
+"""The workflow nodes (FR-09; `validate_inputs` and `build_contract` for frontend modes, Epic 12).
+Each is `async (state, ctx) -> (state update, step summary)`."""
 
 import json
 import uuid
@@ -7,11 +8,17 @@ from typing import Any
 
 from src.configs import config
 from src.libs.redaction import default_redactor
-from src.modules.shared.domain.backend_spec import validate_spec_text
+from src.modules.shared.domain.backend_spec import SpecIssue, validate_spec_text
 from src.modules.shared.domain.entities import ValidationRunEntity
+from src.modules.shared.domain.enums import GenerationMode, LaneStatus
+from src.modules.shared.domain.frontend_spec import validate_frontend_spec_text
+from src.modules.shared.domain.generation_modes import overall_status
 
+from .checks.consistency import check_spec_pair
 from .checks.parity import compare_schema
 from .context import EngineFailure, JobContext
+from .contract import build_contract as contract_for
+from .contract import dump_contract
 from .migrations import ensure_migration, reflect_schema, verify_migration
 from .packaging import (
     ArtifactWriter,
@@ -28,7 +35,8 @@ from .state import GenerationState, Outcome
 from .validation import ValidationRequest, write_report
 
 DIGEST_LIMIT = 30_000
-PROMPT_VERSION = "v2"
+PROMPT_VERSIONS = {"generate_database": "v2", "generate_backend": "v3", "generate_tests": "v2", "repair_code": "v3"}
+CONTRACT_REF = ".bga/contract.json"
 # kind → name of the artifacts the manifest and the generation detail point at
 MAIN_ARTIFACTS = {
     "source": "backend.zip",
@@ -48,11 +56,18 @@ def _write_json(path, data) -> None:
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
 
 
-async def validate_spec(state: GenerationState, ctx: JobContext) -> NodeResult:
+def _check_backend_spec(state: GenerationState, ctx: JobContext):
     spec = ctx.store.spec(uuid.UUID(state["spec_id"]))
     result = validate_spec_text(spec.raw_json)
     _write_json(ctx.workspace.spec_dir / "validation-report.json", result.report.model_dump(mode="json"))
     (ctx.workspace.spec_dir / "spec.raw.json").write_text(spec.raw_json)
+    if result.report.valid:
+        _write_json(ctx.project_path(".bga", "spec.json"), result.normalized)
+    return result
+
+
+async def validate_spec(state: GenerationState, ctx: JobContext) -> NodeResult:
+    result = _check_backend_spec(state, ctx)
     if not result.report.valid:
         errors = result.report.errors
         await ctx.emit(
@@ -66,8 +81,88 @@ async def validate_spec(state: GenerationState, ctx: JobContext) -> NodeResult:
             "_status": "failed",
             "errors": len(errors),
         }
-    _write_json(ctx.project_path(".bga", "spec.json"), result.normalized)
     return {"spec_valid": True, "spec_ref": ".bga/spec.json"}, {"warnings": len(result.report.warnings)}
+
+
+def _issue_dump(issue: SpecIssue, spec: str) -> dict[str, Any]:
+    data = issue.model_dump(mode="json", exclude_none=True)
+    if "backend_path" in data:
+        data["backendPath"] = data.pop("backend_path")
+    return {"spec": spec, **data}
+
+
+async def validate_inputs(state: GenerationState, ctx: JobContext) -> NodeResult:
+    """Static and dynamic modes (Stories 12.1, 12.5): the FrontendSpec, in dynamic mode also the BackendSpec and
+    the frontend ↔ contract consistency check, all before any engine time is spent."""
+    frontend = ctx.store.frontend_spec(uuid.UUID(state["frontend_spec_id"]))
+    result = validate_frontend_spec_text(frontend.raw_json)
+    spec_dir = ctx.workspace.spec_dir
+    (spec_dir / "frontend-spec.raw.json").write_text(frontend.raw_json)
+    _write_json(spec_dir / "frontend-validation-report.json", result.report.model_dump(mode="json"))
+    errors = [_issue_dump(issue, "frontend") for issue in result.report.errors]
+    warnings = len(result.report.warnings)
+    if result.normalized is not None and result.normalized["project"]["mode"] != state["mode"]:
+        errors.append(
+            {
+                "spec": "frontend",
+                "code": "MODE_INPUT_MISMATCH",
+                "path": "/project/mode",
+                "message": f"The FrontendSpec is for a '{result.normalized['project']['mode']}' site, "
+                f"the generation is '{state['mode']}'",
+            }
+        )
+
+    update: dict[str, Any] = {}
+    if state["mode"] == GenerationMode.DYNAMIC:
+        backend = _check_backend_spec(state, ctx)
+        errors += [_issue_dump(issue, "backend") for issue in backend.report.errors]
+        warnings += len(backend.report.warnings)
+        if result.normalized is not None and backend.normalized is not None:
+            consistency = check_spec_pair(result.normalized, backend.normalized)
+            _write_json(spec_dir / "consistency-report.json", [i.model_dump(mode="json") for i in consistency])
+            errors += [_issue_dump(issue, "consistency") for issue in consistency]
+        update["spec_ref"] = ".bga/spec.json"
+
+    if errors:
+        await ctx.emit("spec.invalid", step="validate_inputs", errors=errors[:20], total=len(errors))
+        first = errors[0]
+        summary = f"{len(errors)} input error(s); first: {first['spec']} {first['path']} {first['message']}"
+        return {"spec_valid": False, "outcome": Outcome.SPEC_INVALID, "error_summary": summary}, {
+            "_status": "failed",
+            "errors": len(errors),
+        }
+    _write_json(spec_dir / "frontend-spec.json", result.normalized)
+    pages = len(result.normalized["pages"])
+    await ctx.emit("inputs.valid", step="validate_inputs", pages=pages, warnings=warnings)
+    return {**update, "spec_valid": True, "frontend_ref": str(spec_dir / "frontend-spec.json")}, {
+        "pages": pages,
+        "warnings": warnings,
+    }
+
+
+def _contract_copy(ctx: JobContext):
+    """The canonical contract, outside the project (engines cannot edit it)."""
+    return ctx.workspace.spec_dir / "contract.json"
+
+
+async def build_contract(state: GenerationState, ctx: JobContext) -> NodeResult:
+    """Story 12.3: the API contract, before either lane starts; stored as an artifact and in the workspace."""
+    spec = _read_json(ctx, state["spec_ref"])
+    plan = build_plan(spec)
+    text = dump_contract(contract_for(spec, plan))
+    _contract_copy(ctx).write_text(text)
+    project_copy = ctx.project_path(*CONTRACT_REF.split("/"))
+    project_copy.parent.mkdir(parents=True, exist_ok=True)
+    project_copy.write_text(text)
+    writer = ArtifactWriter(
+        Path(config.artifact_root), ctx.generation_id, {a.name: a.id for a in ctx.store.artifacts(ctx.generation_id)}
+    )
+    artifact = writer.write("contract.json", "contract", text.encode(), "application/json")
+    ctx.store.replace_artifacts(ctx.generation_id, [artifact])
+    operations = sum(len(module["operations"]) for module in plan["modules"])
+    summary = {"operations": operations, "sha256": artifact.sha256, "bytes": artifact.size}
+    await ctx.emit("contract.ready", step="build_contract", artifactId=artifact.id, **summary)
+    return {"contract_ref": CONTRACT_REF}, summary
 
 
 async def plan_architecture(state: GenerationState, ctx: JobContext) -> NodeResult:
@@ -132,7 +227,7 @@ async def generate_database(state: GenerationState, ctx: JobContext) -> NodeResu
     await _scaffold(state, ctx, spec["project"]["name"])
     prompt = ctx.prompts.render(
         "generate_database",
-        PROMPT_VERSION,
+        PROMPT_VERSIONS["generate_database"],
         project_name=spec["project"]["name"],
         spec_path=state["spec_ref"],
         plan_path=state["plan_ref"],
@@ -149,11 +244,12 @@ async def generate_backend(state: GenerationState, ctx: JobContext) -> NodeResul
     for module in plan["modules"]:
         prompt = ctx.prompts.render(
             "generate_backend",
-            PROMPT_VERSION,
+            PROMPT_VERSIONS["generate_backend"],
             module=module,
             module_json=json.dumps({k: v for k, v in module.items() if k != "tests"}, indent=2, sort_keys=True),
             spec_path=state["spec_ref"],
             plan_path=state["plan_ref"],
+            contract_path=state.get("contract_ref"),
             file_tree=ctx.file_tree(),
         )
         result = await ctx.run_engine("generate_backend", "generate_backend", prompt)
@@ -168,7 +264,7 @@ async def generate_tests(state: GenerationState, ctx: JobContext) -> NodeResult:
     for module in plan["modules"]:
         prompt = ctx.prompts.render(
             "generate_tests",
-            PROMPT_VERSION,
+            PROMPT_VERSIONS["generate_tests"],
             module=module,
             test_cases=module["tests"],
             spec_path=state["spec_ref"],
@@ -180,11 +276,17 @@ async def generate_tests(state: GenerationState, ctx: JobContext) -> NodeResult:
 
 async def run_validation(state: GenerationState, ctx: JobContext) -> NodeResult:
     attempt = state.get("repair_attempts", 0) + 1
+    contract = None
+    if state.get("contract_ref"):
+        canonical = _contract_copy(ctx).read_text()
+        ctx.project_path(*CONTRACT_REF.split("/")).write_text(canonical)  # undo any edit by the engine
+        contract = json.loads(canonical)
     request = ValidationRequest(
         project=ctx.workspace.project,
         plan=_read_json(ctx, state["plan_ref"]),
         run_tests=bool(state["options"].get("runTests", True)),
         sandbox=await ctx.sandbox(),
+        contract=contract,
     )
     outcome = await ctx.validator.run(request)
     for name, document in request.artifacts.items():
@@ -243,13 +345,14 @@ async def repair_code(state: GenerationState, ctx: JobContext) -> NodeResult:
     digest = open(digest_ref).read() if digest_ref else ""
     prompt = ctx.prompts.render(
         "repair_code",
-        PROMPT_VERSION,
+        PROMPT_VERSIONS["repair_code"],
         attempt=attempt,
         max_attempts=state["max_repair_attempts"],
         failed_checks=state.get("failed_checks", []),
         implicated_files=state.get("implicated_files", []),
         failure_digest=digest or "(no output captured)",
         plan_path=state["plan_ref"],
+        contract_path=state.get("contract_ref"),
     )
     try:
         result = await ctx.run_engine("repair_code", "repair_code", prompt)
@@ -276,6 +379,11 @@ async def write_artifacts(ctx: JobContext, state: dict[str, Any], completed: boo
 
     if (workspace.spec_dir / "spec.raw.json").is_file():
         writer.write("spec.json", "spec", (workspace.spec_dir / "spec.raw.json").read_bytes(), "application/json")
+    if (workspace.spec_dir / "frontend-spec.raw.json").is_file():
+        raw = (workspace.spec_dir / "frontend-spec.raw.json").read_bytes()
+        writer.write("frontend-spec.json", "spec", raw, "application/json")
+    if _contract_copy(ctx).is_file():
+        writer.write("contract.json", "contract", _contract_copy(ctx).read_bytes(), "application/json")
     if plan:
         writer.write_json("plan.json", "plan", plan)
     for name, diff in ctx.workspaces.repair_patches(workspace):
@@ -285,7 +393,7 @@ async def write_artifacts(ctx: JobContext, state: dict[str, Any], completed: boo
 
     report = build_report(
         generation=generation,
-        outcome="COMPLETED" if completed else "FAILED",
+        outcome=overall_status(GenerationMode(generation.mode), generation.lanes).value if completed else "FAILED",
         error=error,
         node_runs=ctx.store.node_runs(ctx.generation_id),
         validation_runs=ctx.store.validation_runs(ctx.generation_id),
@@ -294,11 +402,12 @@ async def write_artifacts(ctx: JobContext, state: dict[str, Any], completed: boo
         sandbox_execs=ctx.store.sandbox_execs(ctx.generation_id),
     )
     writer.write_json("report.json", "report", report)
-    project_name = (spec.get("project") or {}).get("name")
+    frontend = _optional_json(workspace.spec_dir / "frontend-spec.json") or {}
+    project_name = (spec.get("project") or frontend.get("project") or {}).get("name")
     writer.write("report.md", "report", report_markdown(report, project_name).encode(), "text/markdown")
 
     operations = 0
-    if completed:
+    if completed and plan:
         writer.write("backend.zip", "source", build_source_zip(project), "application/zip")
         openapi = _optional_json(workspace.reports / "openapi.json")
         if openapi:
@@ -311,6 +420,8 @@ async def write_artifacts(ctx: JobContext, state: dict[str, Any], completed: boo
             for kind, name in MAIN_ARTIFACTS.items()
             if kind != "openapi" or openapi is not None
         }
+        if _contract_copy(ctx).is_file():
+            artifact_ids["contract"] = writer.artifact_id("contract.json")
         manifest = build_manifest(
             generation=generation,
             generator_version=config.generator_version,
@@ -324,7 +435,7 @@ async def write_artifacts(ctx: JobContext, state: dict[str, Any], completed: boo
         )
         operations = len(manifest["operations"])
         writer.write_json("manifest.json", "manifest", manifest)
-    else:
+    elif not completed:
         logs = build_logs_zip(workspace.state / "logs", default_redactor())
         if logs:
             writer.write("engine-logs.zip", "log", logs, "application/zip")
@@ -339,17 +450,21 @@ async def write_artifacts(ctx: JobContext, state: dict[str, Any], completed: boo
             kind=artifact.kind,
             size=artifact.size,
         )
-    main = set(MAIN_ARTIFACTS.values())
+    main = {*MAIN_ARTIFACTS.values(), "contract.json"}
     return {artifact.kind: artifact.id for artifact in writer.written if artifact.name in main}, operations
 
 
 async def package_artifacts(state: GenerationState, ctx: JobContext) -> NodeResult:
+    if state.get("plan_ref"):
+        await ctx.set_lane("backend", LaneStatus.COMPLETED)
     artifact_ids, operations = await write_artifacts(ctx, state, completed=True)
     summary = {"artifacts": sorted(artifact_ids), "operations": operations}
     return {"outcome": Outcome.COMPLETED, "artifact_ids": artifact_ids}, summary
 
 
 NODE_FUNCTIONS = {
+    "validate_inputs": validate_inputs,
+    "build_contract": build_contract,
     "validate_spec": validate_spec,
     "plan_architecture": plan_architecture,
     "generate_database": generate_database,

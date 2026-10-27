@@ -1,0 +1,91 @@
+{
+  "specVersion": "1.0",
+  "project": {
+    "name": "Corner Shop",
+    "description": "Product catalogue with categories, a cart and a contact form (backend of frontend-specs/shop-dynamic.json)"
+  },
+  "stack": {
+    "framework": "fastapi",
+    "database": "postgresql",
+    "orm": "sqlalchemy",
+    "migration": "alembic"
+  },
+  "entities": [
+    {
+      "name": "Category",
+      "fields": [
+        { "name": "id", "type": "uuid", "primary": true },
+        { "name": "name", "type": "string", "required": true, "unique": true, "maxLength": 80 }
+      ]
+    },
+    {
+      "name": "Product",
+      "fields": [
+        { "name": "id", "type": "uuid", "primary": true },
+        { "name": "categoryId", "type": "uuid", "required": true, "index": true },
+        { "name": "name", "type": "string", "required": true, "maxLength": 120 },
+        { "name": "description", "type": "text" },
+        { "name": "price", "type": "decimal", "required": true, "min": 0 },
+        { "name": "imageUrl", "type": "string", "maxLength": 500 },
+        { "name": "stock", "type": "integer", "default": 0, "min": 0 },
+        { "name": "createdAt", "type": "datetime", "required": true, "default": "now" }
+      ]
+    },
+    {
+      "name": "CartItem",
+      "fields": [
+        { "name": "id", "type": "uuid", "primary": true },
+        { "name": "productId", "type": "uuid", "required": true, "index": true },
+        { "name": "quantity", "type": "integer", "required": true, "min": 1, "max": 99 },
+        { "name": "createdAt", "type": "datetime", "required": true, "default": "now" }
+      ]
+    },
+    {
+      "name": "ContactMessage",
+      "fields": [
+        { "name": "id", "type": "uuid", "primary": true },
+        { "name": "name", "type": "string", "required": true, "maxLength": 120 },
+        { "name": "email", "type": "string", "required": true, "maxLength": 254 },
+        { "name": "message", "type": "text", "required": true },
+        { "name": "createdAt", "type": "datetime", "required": true, "default": "now" }
+      ]
+    }
+  ],
+  "relationships": [
+    { "name": "categoryProducts", "type": "one-to-many", "from": "Category", "to": "Product", "onDelete": "RESTRICT" },
+    { "name": "productCartItems", "type": "one-to-many", "from": "Product", "to": "CartItem", "onDelete": "CASCADE" }
+  ],
+  "operations": [
+    { "operationId": "category.list", "type": "crud", "action": "list", "entity": "Category", "method": "GET", "path": "/categories",
+      "pagination": true, "sort": ["name"] },
+    { "operationId": "product.list", "type": "crud", "action": "list", "entity": "Product", "method": "GET", "path": "/products",
+      "pagination": true, "filters": ["categoryId"], "sort": ["name", "price", "createdAt"], "search": ["name", "description"] },
+    { "operationId": "product.get", "type": "crud", "action": "get", "entity": "Product", "method": "GET", "path": "/products/{id}" },
+    { "operationId": "cartItem.list", "type": "crud", "action": "list", "entity": "CartItem", "method": "GET", "path": "/cart-items",
+      "pagination": true, "sort": ["createdAt"] },
+    { "operationId": "cartItem.create", "type": "crud", "action": "create", "entity": "CartItem", "method": "POST", "path": "/cart-items" },
+    { "operationId": "cartItem.update", "type": "crud", "action": "update", "entity": "CartItem", "method": "PATCH", "path": "/cart-items/{id}" },
+    { "operationId": "cartItem.delete", "type": "crud", "action": "delete", "entity": "CartItem", "method": "DELETE", "path": "/cart-items/{id}" },
+    { "operationId": "contactMessage.create", "type": "crud", "action": "create", "entity": "ContactMessage", "method": "POST", "path": "/contact-messages" }
+  ],
+  "seed": [
+    {
+      "entity": "Category",
+      "records": [
+        { "id": "5b0f3c9e-6c1a-4d3e-9a51-0c7d2a1e0001", "name": "Coffee" },
+        { "id": "5b0f3c9e-6c1a-4d3e-9a51-0c7d2a1e0002", "name": "Tea" }
+      ]
+    },
+    {
+      "entity": "Product",
+      "records": [
+        { "id": "8d2e7a40-1f3b-4c55-8e6a-2b9f4c3d0001", "categoryId": "5b0f3c9e-6c1a-4d3e-9a51-0c7d2a1e0001",
+          "name": "House blend, 250 g", "description": "Medium roast, chocolate and hazelnut.", "price": 9.5, "stock": 40 },
+        { "id": "8d2e7a40-1f3b-4c55-8e6a-2b9f4c3d0002", "categoryId": "5b0f3c9e-6c1a-4d3e-9a51-0c7d2a1e0001",
+          "name": "Single origin Ethiopia, 250 g", "description": "Light roast, floral and citrus.", "price": 13.0, "stock": 12 },
+        { "id": "8d2e7a40-1f3b-4c55-8e6a-2b9f4c3d0003", "categoryId": "5b0f3c9e-6c1a-4d3e-9a51-0c7d2a1e0002",
+          "name": "Sencha, 100 g", "description": "Grassy Japanese green tea.", "price": 7.25, "stock": 25 }
+      ]
+    }
+  ]
+}

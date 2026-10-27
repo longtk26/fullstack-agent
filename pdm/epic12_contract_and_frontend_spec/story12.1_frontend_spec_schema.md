@@ -75,11 +75,32 @@ explicit; `content` and `assets` let `static` mode work without any backend.
 
 ## Acceptance criteria
 
-- [ ] Pydantic models + exported JSON Schema (`GET /api/v1/frontend-specs/schema`), same conventions as
+- [x] Pydantic models + exported JSON Schema (`GET /api/v1/frontend-specs/schema`), same conventions as
       BackendSpec (camelCase, `extra="forbid"`, versioned `specVersion`).
-- [ ] Semantic validation with stable error codes (`FE_DUPLICATE_ROUTE`, `FE_UNKNOWN_COMPONENT`,
+- [x] Semantic validation with stable error codes (`FE_DUPLICATE_ROUTE`, `FE_UNKNOWN_COMPONENT`,
       `FE_UNKNOWN_PAGE` in navigation, `FE_UNKNOWN_FORM`, `FE_STATIC_HAS_BINDING` (static mode must not reference
       operations), `FE_ROUTE_PARAM_UNBOUND` (`$route.x` must be a route segment), invalid colour/token values).
-- [ ] `POST /api/v1/frontend-specs/validate` and `POST /api/v1/frontend-specs` (stored like BackendSpecs, owner-scoped).
-- [ ] Normalizer fills defaults (theme preset values, component catalogue derived from sections, page ids).
+- [x] `POST /api/v1/frontend-specs/validate` and `POST /api/v1/frontend-specs` (stored like BackendSpecs, owner-scoped).
+- [x] Normalizer fills defaults (theme preset values, component catalogue derived from sections, page ids).
 - [ ] Example specs in `examples/frontend-specs/` (`static-landing.json`, `shop-dynamic.json`), loadable in the UI.
+
+**Status (2026-10-27):** done. `src/modules/shared/domain/frontend_spec/` (schema, catalogue, validator,
+normalizer); `GET /api/v1/frontend-specs/schema`, `POST …/validate`, `POST /api/v1/frontend-specs`,
+`GET …/{id}` (owner-scoped, admin can read); table `frontend_specs`. Notes and deviations:
+- Codes beyond the list: `FE_DUPLICATE_ID` (page, section, form, form field, component, asset, content ids),
+  `FE_UNKNOWN_ASSET` (`asset:<id>` in content), `FE_UNKNOWN_CONTENT` (`data.collection`), and the warnings
+  `FE_LOW_CONTRAST` (foreground/background below WCAG AA 4.5:1), `FE_NO_HOME_PAGE`, `FE_UNSUPPORTED_FEATURE`
+  (`auth`, reserved for Epic 10). Colour values: hex or rgb()/hsl()/oklch()/oklab()/lab()/lch().
+- A section binds data with `data.operationId` (dynamic) **or** `data.collection` (static content, both modes);
+  `data.fields` lists displayed fields (checked in 12.5). Forms take `params` (path parameters) and fields can be
+  `hidden` with a fixed or `$route.<param>` `value`. Links in content use `{"page": "<id>"}` and are checked.
+- `FE_UNKNOWN_COMPONENT`: a section component must be built in (Hero, Features, CallToAction, Testimonials, Faq,
+  Pricing, Stats, Gallery, RichText, ContactInfo, Form, CardGrid, DataTable, DetailView, List) or declared in
+  `components`; `components[].uses` must be shadcn primitives or known components.
+- Normalizer: theme preset values (5 presets: colours, fonts, radius, density), page ids from routes
+  (`/products/[id]` → `products-id`), SEO title, built-in components added to the catalogue, default
+  loading/empty/error states for data sections, submit labels, `locales` ⊇ `locale`.
+- Examples: `static-landing.json`, `shop-dynamic.json` (with its BackendSpec `examples/specs/shop.json`) and
+  `project-tracker-dynamic.json` (frontend for `specs/two-entity.json`, so the fake engine can run a dynamic
+  job). The UI serves them (`/examples/index.json`, key `frontend-specs`), but there is no FrontendSpec editor to load
+  them into until 9.7, so that criterion stays open.
