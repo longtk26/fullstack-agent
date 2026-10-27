@@ -103,4 +103,4 @@ normalizer); `GET /api/v1/frontend-specs/schema`, `POST …/validate`, `POST /ap
 - Examples: `static-landing.json`, `shop-dynamic.json` (with its BackendSpec `examples/specs/shop.json`) and
   `project-tracker-dynamic.json` (frontend for `specs/two-entity.json`, so the fake engine can run a dynamic
   job). The UI serves them (`/examples/index.json`, key `frontend-specs`), but there is no FrontendSpec editor to load
-  them into until 9.7, so that criterion stays open.
+  them into until 9.7a, so that criterion stays open.

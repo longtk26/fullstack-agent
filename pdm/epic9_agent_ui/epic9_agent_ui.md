@@ -15,7 +15,7 @@ the generated OpenAPI with try-it calls against the running preview container.
  /login
  /generations                     list + status badges + "New generation"
  /usage                           Usage & traces: time, model calls, tokens, cost by engine / model / node (9.10)
- /generations/new                 mode: [Static website] [Dynamic web app] [Backend API only] (9.7)
+ /generations/new                 mode: [Static website] [Dynamic web app] [Backend API only] (9.7a)
                                   → [Requirement] [Import frontend JSON] [JSON] / [FrontendSpec] tabs → options → Submit
  /generations/[id]                header (status, engine, duration, cost, Cancel, LangSmith link)
      ├── Steps     (default)      live LangGraph diagram + event log
@@ -45,7 +45,8 @@ the generated OpenAPI with try-it calls against the running preview container.
 | 9.4 | [Trace viewer](story9.4_trace_viewer.md) | 9.3, 8.3 |
 | 9.5 | [Results: validation, artifacts & source](story9.5_results_view.md) | 9.3, 7.2 |
 | 9.6 | [OpenAPI explorer & try-it against preview](story9.6_openapi_explorer.md) | 9.5, 7.3 |
-| 9.7 | [Mode selection & FrontendSpec review](story9.7_mode_selection_frontend_spec.md) | 9.2, 12.1, 12.2, 12.4 |
+| 9.7a | [Generate a frontend from the UI](story9.7a_generate_frontend_from_ui.md) | 9.2, 12.1, 12.2, 12.5, 13.5 |
+| 9.7b | [FrontendSpec review aids](story9.7b_frontend_spec_review.md) | 9.7a, 12.4 |
 | 9.8 | [Parallel run view & live-API switch](story9.8_parallel_run_view.md) | 9.3, 14.1, 14.2 |
 | 9.9 | [App tab: use the generated web app](story9.9_app_preview_tab.md) | 13.5, 14.2, 9.8 |
 | 9.10 | [Usage & traces page](story9.10_usage_and_traces_page.md) | 8.4, 9.4 |

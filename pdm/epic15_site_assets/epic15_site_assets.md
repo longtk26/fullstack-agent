@@ -47,7 +47,7 @@ validate_frontend ⇄ repair_frontend`.
 | 15.1 | [Asset sources in the FrontendSpec](story15.1_asset_sources.md) | 12.1, 13.1 |
 | 15.2 | [SVG illustrations from the code engine](story15.2_svg_illustrations.md) | 15.1, 13.3 |
 | 15.3 | [Asset checks & placeholder fallback](story15.3_asset_checks.md) | 15.2, 13.4 |
-| 15.4 | [Uploaded & linked images](story15.4_uploads_and_links.md) | 15.1, 13.5, 9.7 |
+| 15.4 | [Uploaded & linked images](story15.4_uploads_and_links.md) | 15.1, 13.5, 9.7a |
 | 15.5 | [AI raster images (optional)](story15.5_raster_images.md) | 15.3, 8.2 |
 
 ## Epic acceptance

@@ -1,6 +1,10 @@
-# Story 9.7 — Mode selection & FrontendSpec review
+# Story 9.7b — FrontendSpec review aids
 
-**Epic:** [9 — Agent UI](epic9_agent_ui.md) · **Requirements:** FR-18, FR-21, FR-22 · **Depends on:** 9.2, 12.1, 12.2, 12.4
+**Epic:** [9 — Agent UI](epic9_agent_ui.md) · **Requirements:** FR-18, FR-21, FR-22 · **Depends on:** 9.7a, 12.4
+
+> Split from 9.7 on 2026-10-27. Mode cards, the FrontendSpec editor with live validation and example loading,
+> the dynamic pair with its consistency list, and submit are in [9.7a](story9.7a_generate_frontend_from_ui.md);
+> those criteria below are ticked there and kept here for context.
 
 ## User story
 

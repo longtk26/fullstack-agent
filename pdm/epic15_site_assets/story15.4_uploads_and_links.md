@@ -1,6 +1,6 @@
 # Story 15.4 — Uploaded & linked images
 
-**Epic:** [15 — Site images & illustrations](epic15_site_assets.md) · **Requirements:** FR-28, §8.1 · **Depends on:** 15.1, 13.5, 9.7
+**Epic:** [15 — Site images & illustrations](epic15_site_assets.md) · **Requirements:** FR-28, §8.1 · **Depends on:** 15.1, 13.5, 9.7a
 
 ## User story
 
@@ -25,7 +25,7 @@ As a user, I want to use my own logo and photos — uploaded or already hosted �
       images.
 - [ ] Uploads referenced by a generation are kept as long as its artifacts; unreferenced uploads are deleted after
       `UPLOAD_RETENTION_DAYS` (default 30).
-- [ ] UI (FrontendSpec tab, 9.7): an **Assets** panel — drag-and-drop upload, thumbnails, each asset's source, a
+- [ ] UI (FrontendSpec tab, 9.7a): an **Assets** panel — drag-and-drop upload, thumbnails, each asset's source, a
       button that sets `source: "upload:<id>"` on an asset or adds a new one.
 - [ ] Tests: type sniffing (a `.png` that is really HTML is refused), EXIF stripped, quota, ownership, scaffold
       copies the files, ZIP builds with them.

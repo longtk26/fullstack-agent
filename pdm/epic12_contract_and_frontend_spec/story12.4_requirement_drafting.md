@@ -18,4 +18,4 @@ matching BackendSpec) that I can review, instead of writing JSON.
 - [ ] In `dynamic` mode the BackendSpec is derived from the FrontendSpec's data needs (every `operationId` used
       by a page or form exists as an operation), reusing the deterministic rules of 2.5 where possible.
 - [ ] `static` mode never produces a BackendSpec or bindings; data shown on pages goes into `content`.
-- [ ] Prompt versions and outputs are stored; the draft can be edited in the UI (9.7) before generation.
+- [ ] Prompt versions and outputs are stored; the draft can be edited in the UI (9.7b) before generation.
