@@ -1,7 +1,8 @@
 # Fullstack Generation Agent — Product Backlog
 
-Source: [requirements.md](../requirements.md) (v1.2, updated to match this backlog). Created 2026-10-23,
-extended 2026-10-26 with frontend generation (Epics 12–14, Stories 9.7–9.8).
+Source: [requirements.md](../requirements.md) (v1.3, updated to match this backlog). Created 2026-10-23,
+extended 2026-10-26 with frontend generation (Epics 12–14, Stories 9.7–9.8) and 2026-10-27 with site images and
+revisions (Epics 15–16).
 
 ## What we are building
 
@@ -75,6 +76,8 @@ lane, tracing, results, and an OpenAPI explorer that sends test calls to the run
 | 12 | [Generation modes, FrontendSpec & API contract](epic12_contract_and_frontend_spec/epic12_contract_and_frontend_spec.md) | Phase 6 | 5 |
 | 13 | [Frontend generation (Next.js on nextjs-skills)](epic13_frontend_generation/epic13_frontend_generation.md) | Phase 6 | 5 |
 | 14 | [Parallel generation & live-API switch](epic14_parallel_generation/epic14_parallel_generation.md) | Phase 6 | 3 |
+| 15 | [Site images & illustrations](epic15_site_assets/epic15_site_assets.md) | Phase 7 | 5 |
+| 16 | [Site revisions & feedback](epic16_site_revisions/epic16_site_revisions.md) | Phase 7 | 5 |
 
 ### Suggested delivery order
 
@@ -89,6 +92,9 @@ workflow to be built before real generation works.
    E12.1–12.3 + 12.5 (FrontendSpec, modes, contract) → E13 (static mode first: 13.1–13.5 without the API
    client) → E13 dynamic parts (client + mocks) → E14 (parallel lanes, `MOCK_TEST_API` switch, live smoke) →
    E12.4 + 2.4 (requirement drafting for both specs) → E9.7–9.9 (mode choice, parallel view, App tab).
+6. **Site images and revisions (added 2026-10-27):** 9.7 (spec editor, both epics build on it) → E14 →
+   E15 (15.1–15.3 generated SVGs, then 15.4 uploads; 15.5 only if asked) → E16 (16.1 revisions → 16.2 spec
+   edits → 16.3 feedback → 16.4 inspect mode → 16.5 history). E11 (hardening & release) stays last.
 
 ### Status (2026-10-27)
 
@@ -100,7 +106,7 @@ workflow to be built before real generation works.
 | 9 | 9.1–9.6 and 9.10 done (9.6 auth helper waits for Epic 10); 9.7–9.9 open |
 | 12 | 12.1–12.3 and 12.5 done (12.1 example loading waits for 9.7); 12.4 open |
 | 13 | done (frontend lane after the backend lane; parallel lanes and the live-API switch are Epic 14) |
-| 2.4, 10, 11, 14 | open |
+| 2.4, 10, 11, 14, 15, 16 | open |
 
 ## Decisions (2026-10-23 review)
 
@@ -117,6 +123,8 @@ workflow to be built before real generation works.
 | Q13 (2026-10-26) | **v0-style preview:** when a generation completes, the user sees the generated site running and can click through it inside the agent UI (App tab, real backend in dynamic mode). Dynamic: Node standalone server (runtime `MOCK_TEST_API` switch); static: nginx serving the export | 13.5, 9.9 (auto-opens the App tab on completion) |
 | Q14 (2026-10-26) | Backend lane fails in dynamic mode → **`COMPLETED_WITH_WARNINGS`** (frontend usable on mocks) | 14.1, 14.2 |
 | Q11 (2026-10-26) | Frontend base = **`pnpx create-next-app`** exactly as nextjs-skills prescribes (versions pinned by the lock file) + our overlay; no template repo | 13.2 |
+| IMG (2026-10-27) | Site images: **SVG illustrations drawn by the code engine** in the theme's colour variables (no new provider or key); uploads and links for photos and logos; AI raster images only as an optional, opt-in provider; icons from `lucide-react` | New Epic 15; FrontendSpec `assets[]` gains sources `generate` / `upload:` / `lucide:` (additive, still 1.0) |
+| REV (2026-10-27) | Feedback becomes **revisions**: small jobs on the finished frontend, one commit each, validated and redeployed; spec edits (theme, content, assets) need no engine call; frontend only; the contract stays fixed | New Epic 16; artifacts gain `frontend.bundle` and per-revision ZIPs |
 | Q15 (2026-10-26) | Product renamed **Fullstack Generation Agent** (docs, UI, `APP_NAME`, LangSmith project). Internal identifiers stay: `bga-runner`, `.bga/`, compose project `bga`, schema `$id`s, repo folder | – |
 
 ## Changes from requirements v1.0 (accepted via Q1; now part of v1.1)
@@ -137,4 +145,6 @@ workflow to be built before real generation works.
 | Q2 | Agent API auth: seeded local users + JWT (meets FR-14 ownership), or a single static API key for local use? | Seeded users + JWT (Story 1.4) |
 | Q7 | Do you have a LangSmith API key and project? Tracing is a no-op without one. | Optional. Works without it, and the local trace store (8.3) still feeds the UI. |
 | Q9 | Template fixes such as tests, ruff, `ConflictException` and the migrate-on-start entrypoint live in our overlay. Should they go upstream into `longtk26/template-frameworks@feat/fastapi` instead, so the overlay shrinks? | Overlay now; upstream later as a separate PR to your template repo |
+| Q16 | Which raster image provider for 15.5, if any? | Build 15.5 only when asked; Gemini image model first (key already used by Antigravity), behind a port |
+| Q17 | Should revisions also cover the backend (and contract changes in dynamic mode)? | Not in Epic 16; a later epic once frontend revisions prove out |
 | Q10 | The template registers routers inside `lifespan`, so `app.openapi()` is empty unless the app has started. Should the overlay move router registration to module level? | No. Keep the template as-is and export OpenAPI inside a started app (6.2). |
