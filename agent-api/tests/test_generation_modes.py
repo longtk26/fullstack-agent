@@ -98,6 +98,43 @@ def test_validate_against_a_backend_spec_runs_the_consistency_check(client, head
     assert other.status_code == 404
 
 
+def test_check_pair_compares_unsaved_specs(client, headers):
+    url = "/api/v1/frontend-specs/check-pair"
+    assert client.post(url, json={"frontendSpec": TRACKER_FRONTEND, "backendSpec": TWO_ENTITY}).status_code == 401
+    auth = headers()
+
+    def check(frontend: dict, backend: dict) -> dict:
+        response = client.post(url, json={"frontendSpec": frontend, "backendSpec": backend}, headers=auth)
+        assert response.status_code == 200, response.text
+        return response.json()
+
+    assert check(TRACKER_FRONTEND, TWO_ENTITY) == {
+        "valid": True,
+        "specVersion": "1.0",
+        "errors": [],
+        "warnings": [],
+        "checked": True,
+    }
+    assert check(SHOP_FRONTEND, SHOP)["valid"] is True
+
+    mismatch = check(SHOP_FRONTEND, TWO_ENTITY)
+    assert mismatch["checked"] and not mismatch["valid"]
+    first = mismatch["errors"][0]
+    assert first["code"] == "CONTRACT_UNKNOWN_OPERATION"
+    assert first["path"] == "/pages/0/sections/1/data/operationId" and first["backendPath"] == "/operations"
+
+    # An invalid spec is reported by its own /validate; the pair is not compared.
+    for frontend, backend in [({**TRACKER_FRONTEND, "pages": []}, TWO_ENTITY), (TRACKER_FRONTEND, {"entities": []})]:
+        skipped = check(frontend, backend)
+        assert skipped["checked"] is False and not skipped["valid"] and skipped["errors"] == []
+
+    static = check(LANDING, TWO_ENTITY)
+    assert static["checked"] is False and static["valid"] and static["warnings"][0]["code"] == "FE_UNSUPPORTED_FEATURE"
+
+    missing = client.post(url, json={"frontendSpec": TRACKER_FRONTEND}, headers=auth)
+    assert missing.status_code == 422
+
+
 def test_frontend_specs_are_stored_and_owner_scoped(client, headers):
     created = _post_json(client, "/api/v1/frontend-specs", SHOP_FRONTEND, headers())
     assert created.status_code == 201, created.text

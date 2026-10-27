@@ -6,6 +6,8 @@ export type TSpecIssue = {
   message: string;
   hint: string | null;
   severity: TIssueSeverity;
+  /** Consistency issues only: where the BackendSpec would have to change instead (JSON pointer). */
+  backendPath?: string | null;
 };
 
 export type TValidationReport = {
@@ -14,6 +16,9 @@ export type TValidationReport = {
   errors: TSpecIssue[];
   warnings: TSpecIssue[];
 };
+
+/** `checked` is false when a spec is invalid (its own validation says why) or the FrontendSpec is static. */
+export type TSpecPairReport = TValidationReport & { checked: boolean };
 
 export type TImportNote = {
   path: string;
@@ -66,4 +71,6 @@ export type TEngineList = {
   reportedAt: string | null;
 };
 
-export type TSpecTab = "requirement" | "import" | "json";
+export type TSpecKind = "backend" | "frontend";
+
+export type TSpecTab = "requirement" | "import" | "json" | "frontend";

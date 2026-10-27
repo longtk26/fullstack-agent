@@ -13,6 +13,7 @@ import {
   generationOptionsSchema,
   type TGenerationOptionsFormValues,
 } from "../schemas/generation-options-schema";
+import type { TCreateGenerationPayload, TGenerationMode } from "../types";
 import { useCreateGeneration } from "./use-generation-mutations";
 
 const DEFAULT_OPTIONS: TGenerationOptionsFormValues = {
@@ -21,7 +22,28 @@ const DEFAULT_OPTIONS: TGenerationOptionsFormValues = {
   runTests: true,
   generateDockerfile: true,
   deployPreview: true,
+  frontend: { runTests: true, generatePreview: true, mockApi: true },
 };
+
+type TNewGenerationInput = {
+  mode: TGenerationMode;
+  backendSpec: unknown;
+  frontendSpec: unknown;
+  canSubmit: boolean;
+  onCreated: () => void;
+};
+
+/** The request body per mode (the API answers 422 MODE_INPUT_MISMATCH to any other combination). */
+function buildPayload(
+  mode: TGenerationMode,
+  backendSpec: unknown,
+  frontendSpec: unknown,
+  { frontend, ...options }: TGenerationOptionsFormValues,
+): TCreateGenerationPayload {
+  if (mode === "backend") return { backendSpec, options };
+  if (mode === "static") return { mode, frontendSpec, options: { ...options, frontend } };
+  return { mode, frontendSpec, backendSpec, options: { ...options, frontend } };
+}
 
 function isEngineName(value: string): value is TGenerationOptionsFormValues["engine"] {
   return (ENGINE_NAMES as readonly string[]).includes(value);
@@ -31,7 +53,7 @@ function isEngineName(value: string): value is TGenerationOptionsFormValues["eng
  * Options form + submit. The Idempotency-Key is reused while the payload is unchanged, so a double click
  * (or a retry after a network error) cannot create two generations.
  */
-export function useNewGeneration(spec: unknown, canSubmit: boolean, onCreated: () => void) {
+export function useNewGeneration({ mode, backendSpec, frontendSpec, canSubmit, onCreated }: TNewGenerationInput) {
   const router = useRouter();
   const engines = useEngines();
   const create = useCreateGeneration();
@@ -51,7 +73,7 @@ export function useNewGeneration(spec: unknown, canSubmit: boolean, onCreated: (
 
   const submitOptions = async (options: TGenerationOptionsFormValues) => {
     if (!canSubmit) return;
-    const payload = { backendSpec: spec, options };
+    const payload = buildPayload(mode, backendSpec, frontendSpec, options);
     const body = JSON.stringify(payload);
     if (lastSubmission.current?.body !== body) {
       lastSubmission.current = { body, key: crypto.randomUUID() };

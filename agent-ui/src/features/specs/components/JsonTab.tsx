@@ -11,28 +11,36 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Stack } from "@/components/layout/Stack";
 import { downloadText, pickFile, prettyJson } from "@/lib/files";
-import { useSpecDraftStore } from "@/store/spec-draft-store";
 import { fetchExampleText } from "../api/specs-api";
 import type { TEditorHandle } from "../hooks/use-json-editor";
 import { useExampleIndex, useSpecSchema } from "../hooks/use-spec-queries";
 import type { TEditorIssue } from "../hooks/use-spec-validation";
+import { SPEC_KINDS } from "../lib/spec-kinds";
+import type { TSpecKind } from "../types";
 import { JsonEditor } from "./JsonEditor";
 
 type JsonTabProps = {
+  kind: TSpecKind;
+  text: string;
+  onTextChange: (text: string) => void;
   editor: TEditorHandle;
   issues: TEditorIssue[];
   parsed: unknown;
+  /** Called after an example was loaded, with its name (file name without `.json`). */
+  onExampleLoaded?: (name: string) => void;
 };
 
-export function JsonTab({ editor, issues, parsed }: JsonTabProps) {
-  const specText = useSpecDraftStore((state) => state.specText);
-  const setSpecText = useSpecDraftStore((state) => state.setSpecText);
-  const { data: schema } = useSpecSchema();
+/** Monaco editor bound to the BackendSpec or FrontendSpec JSON Schema, with its toolbar. */
+export function JsonTab({ kind, text, onTextChange, editor, issues, parsed, onExampleLoaded }: JsonTabProps) {
+  const { fileName, exampleKey } = SPEC_KINDS[kind];
+  const { data: schema } = useSpecSchema(kind);
   const { data: examples } = useExampleIndex();
+  const exampleFiles = examples?.[exampleKey] ?? [];
 
-  const loadExample = async (path: string) => {
+  const loadExample = async (name: string, path: string) => {
     try {
-      setSpecText(await fetchExampleText(path));
+      onTextChange(await fetchExampleText(path));
+      onExampleLoaded?.(name);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not load the example");
     }
@@ -40,7 +48,7 @@ export function JsonTab({ editor, issues, parsed }: JsonTabProps) {
 
   const upload = async () => {
     const file = await pickFile("application/json,.json");
-    if (file) setSpecText(await file.text());
+    if (file) onTextChange(await file.text());
   };
 
   return (
@@ -51,37 +59,32 @@ export function JsonTab({ editor, issues, parsed }: JsonTabProps) {
             <FileJson /> Load example <ChevronDown />
           </DropdownMenuTrigger>
           <DropdownMenuContent>
-            {(examples?.specs ?? []).map((example) => (
-              <DropdownMenuItem key={example.path} onClick={() => loadExample(example.path)}>
+            {exampleFiles.map((example) => (
+              <DropdownMenuItem key={example.path} onClick={() => loadExample(example.name, example.path)}>
                 {example.name}
               </DropdownMenuItem>
             ))}
-            {!examples?.specs?.length && <DropdownMenuItem disabled>No examples found</DropdownMenuItem>}
+            {!exampleFiles.length && <DropdownMenuItem disabled>No examples found</DropdownMenuItem>}
           </DropdownMenuContent>
         </DropdownMenu>
         <Button variant="outline" size="sm" onClick={upload}>
           <Upload /> Upload .json
         </Button>
-        <Button variant="outline" size="sm" disabled={parsed === undefined} onClick={() => setSpecText(prettyJson(parsed))}>
+        <Button variant="outline" size="sm" disabled={parsed === undefined} onClick={() => onTextChange(prettyJson(parsed))}>
           <WandSparkles /> Format
         </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={!specText.trim()}
-          onClick={() => downloadText("backend-spec.json", specText)}
-        >
+        <Button variant="outline" size="sm" disabled={!text.trim()} onClick={() => downloadText(fileName, text)}>
           <Download /> Download
         </Button>
-        <Button variant="ghost" size="sm" disabled={!specText} onClick={() => setSpecText("")}>
+        <Button variant="ghost" size="sm" disabled={!text} onClick={() => onTextChange("")}>
           <Eraser /> Clear
         </Button>
       </Stack>
       <div className="overflow-hidden rounded-lg border">
         <JsonEditor
-          path="backend-spec.json"
-          value={specText}
-          onChange={setSpecText}
+          path={fileName}
+          value={text}
+          onChange={onTextChange}
           issues={issues}
           schema={schema}
           onMount={editor.onMount}

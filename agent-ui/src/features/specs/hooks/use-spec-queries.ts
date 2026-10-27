@@ -3,9 +3,10 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { fetchEngines, fetchExampleIndex, fetchSpecSchema, importFrontendSite } from "../api/specs-api";
 import { specKeys } from "../query-keys";
+import type { TSpecKind } from "../types";
 
-export function useSpecSchema() {
-  return useQuery({ queryKey: specKeys.schema(), queryFn: fetchSpecSchema, staleTime: Infinity });
+export function useSpecSchema(kind: TSpecKind) {
+  return useQuery({ queryKey: specKeys.schema(kind), queryFn: () => fetchSpecSchema(kind), staleTime: Infinity });
 }
 
 export function useExampleIndex() {

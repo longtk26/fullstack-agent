@@ -9,31 +9,62 @@ import {
   FieldError,
   FieldGroup,
   FieldLabel,
+  FieldLegend,
+  FieldSet,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import type { TEngineInfo } from "@/features/specs/types";
 import type { TGenerationOptionsFormValues } from "../schemas/generation-options-schema";
+import type { TGenerationMode } from "../types";
 
 const ENGINE_LABELS: Record<string, string> = {
   claude_code: "Claude Code",
   antigravity: "Antigravity",
-  fake: "Fake (test/demo: two-entity example only)",
+  fake: "Fake (test/demo: bundled examples only)",
 };
 
-const TOGGLES: { name: "runTests" | "generateDockerfile" | "deployPreview"; label: string; description: string }[] = [
+type TToggle = {
+  name: "runTests" | "generateDockerfile" | "deployPreview" | "frontend.runTests" | "frontend.generatePreview" | "frontend.mockApi";
+  label: string;
+  description: string;
+};
+
+const BACKEND_TOGGLES: TToggle[] = [
   { name: "runTests", label: "Run tests", description: "Generate and run pytest in the sandbox" },
   { name: "generateDockerfile", label: "Generate Dockerfile", description: "Package the backend as an image" },
   { name: "deployPreview", label: "Deploy preview", description: "Start a container clients can call" },
 ];
 
+const FRONTEND_TOGGLES: TToggle[] = [
+  { name: "frontend.runTests", label: "Run tests", description: "Build, lint and test the site in the sandbox" },
+  { name: "frontend.generatePreview", label: "Preview site", description: "Start a container to open the site" },
+];
+
+const MOCK_API_TOGGLE: TToggle = {
+  name: "frontend.mockApi",
+  label: "Mock API",
+  description: "The site calls mocks generated from the API contract",
+};
+
+/** Toggle groups per mode; the heading is shown only when both lanes have options. */
+function toggleGroups(mode: TGenerationMode): { heading: string | null; toggles: TToggle[] }[] {
+  if (mode === "backend") return [{ heading: null, toggles: BACKEND_TOGGLES }];
+  if (mode === "static") return [{ heading: null, toggles: FRONTEND_TOGGLES }];
+  return [
+    { heading: "Backend", toggles: BACKEND_TOGGLES },
+    { heading: "Frontend", toggles: [...FRONTEND_TOGGLES, MOCK_API_TOGGLE] },
+  ];
+}
+
 type GenerationOptionsFormProps = {
   form: UseFormReturn<TGenerationOptionsFormValues>;
   engines: TEngineInfo[];
+  mode: TGenerationMode;
 };
 
-export function GenerationOptionsForm({ form, engines }: GenerationOptionsFormProps) {
+export function GenerationOptionsForm({ form, engines, mode }: GenerationOptionsFormProps) {
   const engineItems = engines.map((engine) => ({ value: engine.name, label: ENGINE_LABELS[engine.name] ?? engine.name }));
 
   return (
@@ -86,29 +117,34 @@ export function GenerationOptionsForm({ form, engines }: GenerationOptionsFormPr
           </Field>
         )}
       />
-      {TOGGLES.map((toggle) => (
-        <Controller
-          key={toggle.name}
-          name={toggle.name}
-          control={form.control}
-          render={({ field, fieldState }) => (
-            <Field orientation="horizontal" data-invalid={fieldState.invalid}>
-              <FieldContent>
-                <FieldLabel htmlFor={toggle.name}>{toggle.label}</FieldLabel>
-                <FieldDescription>{toggle.description}</FieldDescription>
-                <FieldError errors={[fieldState.error]} />
-              </FieldContent>
-              <Switch
-                id={toggle.name}
-                checked={field.value}
-                onCheckedChange={(checked) => {
-                  field.onChange(checked);
-                  form.trigger(["deployPreview"]);
-                }}
-              />
-            </Field>
-          )}
-        />
+      {toggleGroups(mode).map((group) => (
+        <FieldSet key={group.heading ?? "options"}>
+          {group.heading && <FieldLegend variant="label">{group.heading}</FieldLegend>}
+          {group.toggles.map((toggle) => (
+            <Controller
+              key={toggle.name}
+              name={toggle.name}
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field orientation="horizontal" data-invalid={fieldState.invalid}>
+                  <FieldContent>
+                    <FieldLabel htmlFor={toggle.name}>{toggle.label}</FieldLabel>
+                    <FieldDescription>{toggle.description}</FieldDescription>
+                    <FieldError errors={[fieldState.error]} />
+                  </FieldContent>
+                  <Switch
+                    id={toggle.name}
+                    checked={field.value}
+                    onCheckedChange={(checked) => {
+                      field.onChange(checked);
+                      form.trigger(["deployPreview"]);
+                    }}
+                  />
+                </Field>
+              )}
+            />
+          ))}
+        </FieldSet>
       ))}
     </FieldGroup>
   );

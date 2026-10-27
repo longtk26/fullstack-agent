@@ -103,8 +103,8 @@ workflow to be built before real generation works.
 | 1, 2 (2.1–2.3, 2.5), 3, 4, 5, 6 (6.1–6.2) | done (merged to `main`); 6.3 repair loop works on real failures |
 | 7 | done (merged to `main`) |
 | 8 | done (8.4 draft-job accounting waits for 2.4 / 12.4) |
-| 9 | 9.1–9.6 and 9.10 done (9.6 auth helper waits for Epic 10); 9.7a next; 9.7b, 9.8, 9.9 open |
-| 12 | 12.1–12.3 and 12.5 done (12.1 example loading waits for 9.7a); 12.4 open |
+| 9 | 9.1–9.6, 9.7a and 9.10 done (9.6 auth helper waits for Epic 10); 9.7b, 9.8, 9.9 open |
+| 12 | 12.1–12.3 and 12.5 done; 12.4 open |
 | 13 | done (frontend lane after the backend lane; parallel lanes and the live-API switch are Epic 14) |
 | 2.4, 10, 11, 14, 15, 16 | open |
 

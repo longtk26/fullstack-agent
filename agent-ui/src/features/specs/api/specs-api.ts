@@ -1,12 +1,25 @@
 import { apiClient } from "@/lib/api-client";
-import type { TEngineList, TExampleIndex, TFrontendImportResult, TValidationReport } from "../types";
+import type {
+  TEngineList,
+  TExampleIndex,
+  TFrontendImportResult,
+  TSpecKind,
+  TSpecPairReport,
+  TValidationReport,
+} from "../types";
 
-export function validateSpec(raw: string, signal?: AbortSignal) {
-  return apiClient.post<TValidationReport>("/specs/validate", { rawBody: raw, signal });
+const SPEC_ROUTES: Record<TSpecKind, string> = { backend: "/specs", frontend: "/frontend-specs" };
+
+export function validateSpec(kind: TSpecKind, raw: string, signal?: AbortSignal) {
+  return apiClient.post<TValidationReport>(`${SPEC_ROUTES[kind]}/validate`, { rawBody: raw, signal });
 }
 
-export function fetchSpecSchema() {
-  return apiClient.get<Record<string, unknown>>("/specs/schema");
+export function fetchSpecSchema(kind: TSpecKind) {
+  return apiClient.get<Record<string, unknown>>(`${SPEC_ROUTES[kind]}/schema`);
+}
+
+export function checkSpecPair(frontendSpec: unknown, backendSpec: unknown, signal?: AbortSignal) {
+  return apiClient.post<TSpecPairReport>("/frontend-specs/check-pair", { json: { frontendSpec, backendSpec }, signal });
 }
 
 export function importFrontendSite(raw: string, includeAdminCrud: boolean) {

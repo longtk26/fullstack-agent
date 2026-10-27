@@ -82,7 +82,8 @@ explicit; `content` and `assets` let `static` mode work without any backend.
       operations), `FE_ROUTE_PARAM_UNBOUND` (`$route.x` must be a route segment), invalid colour/token values).
 - [x] `POST /api/v1/frontend-specs/validate` and `POST /api/v1/frontend-specs` (stored like BackendSpecs, owner-scoped).
 - [x] Normalizer fills defaults (theme preset values, component catalogue derived from sections, page ids).
-- [ ] Example specs in `examples/frontend-specs/` (`static-landing.json`, `shop-dynamic.json`), loadable in the UI.
+- [x] Example specs in `examples/frontend-specs/` (`static-landing.json`, `shop-dynamic.json`), loadable in the UI
+      *(UI loading: 9.7a, 2026-10-27)*.
 
 **Status (2026-10-27):** done. `src/modules/shared/domain/frontend_spec/` (schema, catalogue, validator,
 normalizer); `GET /api/v1/frontend-specs/schema`, `POST …/validate`, `POST /api/v1/frontend-specs`,

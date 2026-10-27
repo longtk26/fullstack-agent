@@ -11,11 +11,18 @@ type IssueListProps = {
   isChecking: boolean;
   isEmpty: boolean;
   onSelect: (issue: TEditorIssue) => void;
+  emptyText?: string;
 };
 
-export function IssueList({ issues, isChecking, isEmpty, onSelect }: IssueListProps) {
+export function IssueList({
+  issues,
+  isChecking,
+  isEmpty,
+  onSelect,
+  emptyText = "Paste, load or import a BackendSpec to validate it.",
+}: IssueListProps) {
   if (isEmpty) {
-    return <p className="text-sm text-muted-foreground">Paste, load or import a BackendSpec to validate it.</p>;
+    return <p className="text-sm text-muted-foreground">{emptyText}</p>;
   }
   if (issues.length === 0) {
     return (

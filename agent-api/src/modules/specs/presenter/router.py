@@ -10,14 +10,17 @@ from src.modules.shared.domain.backend_spec import LATEST_SPEC_VERSION
 from src.modules.shared.domain.enums import SpecSource
 from src.modules.shared.domain.frontend_spec import LATEST_FRONTEND_SPEC_VERSION
 from src.modules.specs.presenter.dtos import (
+    CheckSpecPairRequestDto,
     CreateSpecResponseDto,
     FrontendImportResponseDto,
     GetFrontendSpecResponseDto,
     GetSpecResponseDto,
     SpecIssueDto,
+    SpecPairReportDto,
     ValidationReportDto,
 )
 from src.modules.specs.usecases import (
+    CheckSpecPairUsecaseDep,
     CreateFrontendSpecUsecaseDep,
     CreateSpecUsecaseDep,
     GetFrontendSpecSchemaUsecaseDep,
@@ -114,6 +117,18 @@ async def validate_frontend_spec(
     contract (dynamic mode). Consistency issues carry `backendPath`, a pointer into the BackendSpec."""
     raw = await read_body_limited(request, config.spec_max_bytes)
     return ValidationReportDto.from_domain(await usecase.execute(raw, user, backend_spec_id))
+
+
+@frontend_spec_router.post("/check-pair", response_model=SpecPairReportDto)
+async def check_spec_pair(
+    body: CheckSpecPairRequestDto, _: CurrentUserDep, usecase: CheckSpecPairUsecaseDep
+) -> SpecPairReportDto:
+    """Consistency of an unsaved FrontendSpec + BackendSpec pair (Story 9.7a), so editor text can be checked
+    before either is stored. Only the consistency issues are returned; each spec's own errors come from its
+    `/validate`. Issues carry `path` (FrontendSpec) and, where known, `backendPath` (BackendSpec)."""
+    result = await usecase.execute(body.frontend_spec, body.backend_spec)
+    report = ValidationReportDto.from_domain(result.report)
+    return SpecPairReportDto(**report.model_dump(), checked=result.checked)
 
 
 @frontend_spec_router.post(

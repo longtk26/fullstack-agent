@@ -1,3 +1,4 @@
+from .check_spec_pair_usecase import CheckSpecPairUsecaseDep
 from .create_frontend_spec_usecase import CreateFrontendSpecUsecaseDep
 from .create_spec_usecase import CreateSpecUsecaseDep
 from .get_frontend_spec_schema_usecase import GetFrontendSpecSchemaUsecaseDep
@@ -9,6 +10,7 @@ from .validate_frontend_spec_usecase import ValidateFrontendSpecUsecaseDep
 from .validate_spec_usecase import ValidateSpecUsecaseDep
 
 __all__ = [
+    "CheckSpecPairUsecaseDep",
     "CreateFrontendSpecUsecaseDep",
     "CreateSpecUsecaseDep",
     "GetFrontendSpecSchemaUsecaseDep",

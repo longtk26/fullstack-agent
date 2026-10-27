@@ -9,6 +9,12 @@ export const generationOptionsSchema = z
     runTests: z.boolean(),
     generateDockerfile: z.boolean(),
     deployPreview: z.boolean(),
+    // Frontend lane (static and dynamic modes); not sent for backend-only generations.
+    frontend: z.object({
+      runTests: z.boolean(),
+      generatePreview: z.boolean(),
+      mockApi: z.boolean(),
+    }),
   })
   // Mirrors the API's OPTIONS_CONFLICT rule.
   .refine((options) => !options.deployPreview || options.generateDockerfile, {

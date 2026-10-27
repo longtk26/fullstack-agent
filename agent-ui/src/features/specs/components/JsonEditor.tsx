@@ -12,7 +12,8 @@ import type { TEditorIssue } from "../hooks/use-spec-validation";
 loader.config({ paths: { vs: "/monaco/vs" } });
 
 const MARKER_OWNER = "bga-spec";
-const SCHEMA_URI = "bga://schemas/backend-spec.json";
+
+type TSchemaAssociation = { uri: string; fileMatch: string[]; schema: unknown };
 
 type TJsonDefaults = {
   setDiagnosticsOptions: (options: {
@@ -27,6 +28,18 @@ function jsonDefaults(monaco: Monaco): TJsonDefaults | undefined {
   const withJson = monaco as Monaco & { json?: { jsonDefaults?: TJsonDefaults } };
   const legacy = monaco.languages as unknown as { json?: { jsonDefaults?: TJsonDefaults } };
   return withJson.json?.jsonDefaults ?? legacy.json?.jsonDefaults;
+}
+
+// Monaco's JSON diagnostics options are global, so every mounted editor's schema is kept here and re-applied
+// together; otherwise the FrontendSpec and BackendSpec editors (dynamic mode) would replace each other's schema.
+const schemaAssociations = new Map<string, TSchemaAssociation>();
+
+function applySchemas(monaco: Monaco) {
+  jsonDefaults(monaco)?.setDiagnosticsOptions({
+    validate: true,
+    enableSchemaRequest: false,
+    schemas: [...schemaAssociations.values()],
+  });
 }
 
 type JsonEditorProps = {
@@ -46,14 +59,15 @@ export function JsonEditor({ path, value, onChange, readOnly, height = 520, issu
   const emitted = useRef(value);
 
   useEffect(() => {
-    if (!instance || !schema) return;
-    const modelUri = instance.editor.getModel()?.uri.toString();
-    jsonDefaults(instance.monaco)?.setDiagnosticsOptions({
-      validate: true,
-      enableSchemaRequest: false,
-      schemas: [{ uri: SCHEMA_URI, fileMatch: modelUri ? [modelUri] : ["*"], schema }],
-    });
-  }, [instance, schema]);
+    const modelUri = instance?.editor.getModel()?.uri.toString();
+    if (!instance || !schema || !modelUri) return;
+    schemaAssociations.set(modelUri, { uri: `bga://schemas/${path}`, fileMatch: [modelUri], schema });
+    applySchemas(instance.monaco);
+    return () => {
+      schemaAssociations.delete(modelUri);
+      applySchemas(instance.monaco);
+    };
+  }, [instance, schema, path]);
 
   // Uncontrolled: typing never round-trips through React (a stale `value` would overwrite newer keystrokes).
   // Only values the editor did not emit itself (load, format, clear, import) are pushed in, as an undoable edit.
