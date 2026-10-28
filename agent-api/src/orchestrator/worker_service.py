@@ -59,6 +59,8 @@ class WorkerService:
         self.workspaces = workspaces
         self.worker_id = worker_id
         self.concurrency = concurrency
+        self.slots = asyncio.Semaphore(self.concurrency)
+        self.runner.worker_slots = self.slots
         self.previews = previews
         self.tasks: dict[str, asyncio.Task] = {}
         self.preview_tasks: set[asyncio.Task] = set()
@@ -89,7 +91,7 @@ class WorkerService:
         logger.info("worker stopped", extra={"worker_id": self.worker_id})
 
     async def _consume(self, stop: asyncio.Event) -> None:
-        slots = asyncio.Semaphore(self.concurrency)
+        slots = self.slots
         backoff = 0.5
         while not stop.is_set():
             await slots.acquire()

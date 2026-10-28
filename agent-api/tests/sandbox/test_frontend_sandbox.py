@@ -61,3 +61,63 @@ def test_a_type_error_fails_typecheck_and_skips_build(landing):
     typecheck = next(result for result in outcome.results if result.check == "typecheck")
     assert typecheck.details[0]["file"] == "src/app/work/page.tsx"
     assert "src/app/work/page.tsx" in outcome.implicated_files
+
+
+def test_dynamic_generation_switches_to_live_and_passes_live_smoke(client, user_headers):
+    """Stories 14.1–14.3: parallel backend + frontend sandboxes, live preview switch and live Playwright smoke."""
+    import json
+
+    from src.engines.fake_engine import FakeEngine, demo_scenario
+    from src.libs.queue import PreviewCommandBus
+    from src.libs.redaction import Redactor
+    from src.modules.generations.infrastructure.adapters import EventPublisher
+    from src.orchestrator.previews import PreviewService
+    from src.orchestrator.store import JobStore
+    from src.orchestrator.validation import SandboxValidationRunner
+    from src.preview.docker_frontend_preview import DockerFrontendPreviewRuntime
+    from src.preview.docker_preview import DockerPreviewRuntime
+    from tests.workflow_helpers import TWO_ENTITY, generation, redis_client, runner_ctx
+
+    root = REPO / ".data" / "test-sandbox" / uuid.uuid4().hex[:10]
+    root.mkdir(parents=True)
+    tracker = json.loads((EXAMPLES / "frontend-specs" / "project-tracker-dynamic.json").read_text())
+    resp = client.post(
+        "/api/v1/generations",
+        json={"mode": "dynamic", "frontendSpec": tracker, "backendSpec": TWO_ENTITY, "options": {"engine": "fake"}},
+        headers=user_headers,
+    )
+    assert resp.status_code == 202, resp.text
+    generation_id = resp.json()["generationId"]
+    backend_rt, frontend_rt = DockerPreviewRuntime(), DockerFrontendPreviewRuntime()
+    store = JobStore()
+
+    async def go():
+        redis = redis_client()
+        try:
+            events = EventPublisher(redis, Redactor())
+            previews = PreviewService(backend_rt, store, events, PreviewCommandBus(redis), frontend_runtime=frontend_rt)
+            async with runner_ctx(
+                root,
+                engine=FakeEngine(root, demo_scenario(0)),
+                validator=SandboxValidationRunner(),
+                frontend_validator=SandboxFrontendValidationRunner(),
+                sandboxes=DockerSandboxProvider(),
+                previews=previews,
+                on_completed=previews.request_start,
+            ) as runner:
+                try:
+                    return await runner.run(generation_id)
+                finally:
+                    for kind in ("frontend", "backend"):
+                        await previews.delete(generation_id, kind)
+        finally:
+            await redis.aclose()
+
+    try:
+        status = asyncio.run(go())
+        row = generation(generation_id)
+        assert status == "COMPLETED", row.error_summary
+        assert row.lanes == {"backend": "COMPLETED", "frontend": "COMPLETED", "integration": "COMPLETED"}
+    finally:
+        if not os.environ.get("BGA_KEEP_SANDBOX_DIRS"):
+            shutil.rmtree(root, ignore_errors=True)

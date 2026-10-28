@@ -23,7 +23,7 @@ from docker.errors import APIError, BuildError, ImageNotFound, NotFound
 from docker.models.containers import Container
 
 from src.configs import config, get_logger
-from src.sandbox.docker_sandbox import INSTANCE_LABEL, instance_id
+from src.sandbox.docker_sandbox import INSTANCE_LABEL, ensure_egress_network, instance_id
 
 from .port import IPreviewRuntime, PreviewError, PreviewHandle, PreviewRequest, PreviewState
 
@@ -147,6 +147,7 @@ class DockerFrontendPreviewRuntime(IPreviewRuntime):
                 "API_BASE_URL": request.options.get("apiBaseUrl", ""),
             }
         labels = {**_labels(request.generation_id, "app", mode), "bga.frontend.env": self._env_key(request)}
+        ensure_egress_network(self.client)
         last_error: Exception | None = None
         for host_port in request.ports:
             container = self.client.containers.create(
@@ -164,6 +165,10 @@ class DockerFrontendPreviewRuntime(IPreviewRuntime):
             )
             try:
                 container.start()
+                try:
+                    self.client.networks.get(config.sandbox_egress_network).connect(container)
+                except APIError:
+                    pass
                 return container
             except APIError as exc:
                 container.remove(force=True)
@@ -252,3 +257,37 @@ class DockerFrontendPreviewRuntime(IPreviewRuntime):
             return result
 
         return await asyncio.to_thread(run)
+
+    async def probe(self, generation_id: str, method: str, path: str, body: Any = None) -> tuple[int, Any, bytes]:
+        status, parsed, raw = await super().probe(generation_id, method, path, body)
+        if status != 0:
+            return status, parsed, raw
+
+        def run_exec() -> tuple[int, Any, bytes]:
+            import json
+
+            app = self._get(names(generation_id)["app"])
+            if app is None or app.status != "running":
+                return 0, None, b""
+            mode = (app.labels or {}).get("bga.frontend.mode", "dynamic")
+            port = PORTS.get(mode, 3000)
+            script = (
+                f"fetch('http://127.0.0.1:{port}{path}', {{method: {method!r}}}).then(async r => {{"
+                "const t = await r.text(); process.stdout.write(r.status + '\\n' + t);"
+                "}).catch(() => process.exit(1))"
+            )
+            res = app.exec_run(["node", "-e", script])
+            if res.exit_code != 0 or not res.output:
+                return 0, None, b""
+            code_line, _, rest = res.output.partition(b"\n")
+            try:
+                code = int(code_line.strip())
+            except ValueError:
+                return 0, None, b""
+            try:
+                doc = json.loads(rest.decode("utf-8", "replace"))
+            except Exception:
+                doc = rest.decode("utf-8", "replace")
+            return code, doc, rest
+
+        return await asyncio.to_thread(run_exec)

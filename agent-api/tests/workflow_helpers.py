@@ -44,6 +44,9 @@ def build_runner(
     sandboxes=None,
     engine_context=None,
     on_completed=None,
+    frontend_validator=None,
+    previews=None,
+    worker_slots=None,
 ):
     engine = engine or FakeEngine(allowed_root=root)
     store = JobStore()
@@ -59,6 +62,9 @@ def build_runner(
         worker_id=worker_id,
         sandboxes=sandboxes,
         on_completed=on_completed,
+        frontend_validator=frontend_validator,
+        previews=previews,
+        worker_slots=worker_slots,
     )
 
 

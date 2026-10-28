@@ -222,9 +222,16 @@ def test_workflow_graph_per_mode(client, headers):
     assert set(frontend_lane) <= set(ids["d"]) and not set(frontend_lane) & set(ids["b"])
     lanes = {node["id"]: node["lane"] for node in dynamic["nodes"] if not node["id"].startswith("__")}
     assert lanes["generate_backend"] == "backend" and lanes["build_contract"] is None
-    assert lanes["generate_frontend"] == "frontend"
+    assert lanes["generate_frontend"] == "frontend" and lanes["integrate"] == "integration"
     edges = {(edge["source"], edge["target"]) for edge in dynamic["edges"]}
-    assert ("run_validation", "plan_frontend") in edges and ("run_validation", "__end__") not in edges
+    assert {("build_contract", "plan_architecture"), ("build_contract", "plan_frontend")} <= edges
+    expected_converge = {
+        ("run_validation", "integrate"),
+        ("validate_frontend", "integrate"),
+        ("integrate", "package_artifacts"),
+    }
+    assert expected_converge <= edges
+    assert ("run_validation", "plan_frontend") not in edges and ("run_validation", "__end__") not in edges
 
 
 # -- running them ------------------------------------------------------------------------------------------------
@@ -244,12 +251,26 @@ def test_dynamic_generation_runs_contract_backend_and_frontend_lanes(client, hea
 
     row = generation(generation_id)
     assert row.lanes == {"backend": "COMPLETED", "frontend": "COMPLETED", "integration": "SKIPPED"}
-    assert "Epic 14" in row.error_summary
+    assert "backend preview is not running" in row.error_summary
     nodes = [run.node for run in node_runs(generation_id)]
-    assert nodes[:3] == ["validate_inputs", "build_contract", "plan_architecture"] and "validate_spec" not in nodes
-    backend_done = nodes.index("plan_frontend")
-    assert nodes[backend_done - 1] == "run_validation" and nodes[-1] == "package_artifacts"
-    assert nodes[backend_done:-1] == [
+    assert nodes[:2] == ["validate_inputs", "build_contract"] and "validate_spec" not in nodes
+    assert nodes[-2:] == ["integrate", "package_artifacts"]
+    backend_lane_nodes = (
+        "plan_architecture",
+        "generate_database",
+        "generate_backend",
+        "generate_tests",
+        "run_validation",
+    )
+    frontend_lane_nodes = (
+        "plan_frontend",
+        "scaffold_frontend",
+        "generate_frontend",
+        "validate_frontend",
+        "repair_frontend",
+    )
+    assert [n for n in nodes if n in backend_lane_nodes] == list(backend_lane_nodes)
+    assert [n for n in nodes if n in frontend_lane_nodes] == [
         "plan_frontend", "scaffold_frontend", "generate_frontend", "validate_frontend", "repair_frontend",
         "validate_frontend",
     ]  # fmt: skip

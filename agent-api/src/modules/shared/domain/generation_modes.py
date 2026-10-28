@@ -18,11 +18,8 @@ LANES: dict[GenerationMode, tuple[Lane, ...]] = {
 }
 
 # Lanes this build cannot run yet, with the reason the job reports. Epic 14 brings the integration lane (the
-# switch from mocks to the live backend); until then it is SKIPPED and a dynamic job ends COMPLETED_WITH_WARNINGS.
-UNAVAILABLE_LANES: dict[Lane, str] = {
-    Lane.INTEGRATION: "The switch from the mock API to the live backend is not available yet (Epic 14); "
-    "the frontend runs on mocks",
-}
+# switch from mocks to the live backend), so every lane is now runnable.
+UNAVAILABLE_LANES: dict[Lane, str] = {}
 
 
 def initial_lanes(mode: GenerationMode) -> dict[str, str]:
@@ -35,8 +32,9 @@ def overall_status(mode: GenerationMode, lanes: dict[str, str]) -> GenerationSta
         return GenerationStatus.COMPLETED
     if (
         mode == GenerationMode.DYNAMIC
-        and statuses[Lane.BACKEND] == LaneStatus.FAILED
         and statuses[Lane.FRONTEND] == LaneStatus.COMPLETED
+        and statuses[Lane.BACKEND] in (LaneStatus.COMPLETED, LaneStatus.FAILED, LaneStatus.SKIPPED)
+        and statuses[Lane.INTEGRATION] in (LaneStatus.COMPLETED, LaneStatus.FAILED, LaneStatus.SKIPPED)
     ):
         return GenerationStatus.COMPLETED_WITH_WARNINGS
     if any(status not in (LaneStatus.COMPLETED, LaneStatus.SKIPPED) for status in statuses.values()):
@@ -60,8 +58,8 @@ def close_lanes(lanes: dict[str, str], failed: bool) -> dict[str, str]:
 
 def backend_ready(status: GenerationStatus, lanes: dict[str, str]) -> bool:
     """A generation whose backend was built, packaged and can be previewed."""
-    if status not in (GenerationStatus.COMPLETED, GenerationStatus.COMPLETED_WITH_WARNINGS):
-        return False
     if not lanes:  # rows written without lanes are backend jobs
-        return True
+        return status in (GenerationStatus.COMPLETED, GenerationStatus.COMPLETED_WITH_WARNINGS)
+    if status in (GenerationStatus.FAILED, GenerationStatus.CANCELLED):
+        return False
     return lanes.get(Lane.BACKEND.value) == LaneStatus.COMPLETED.value

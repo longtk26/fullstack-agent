@@ -58,6 +58,7 @@ async def build_worker_service(worker_id: str | None = None):
             on_completed=previews.request_start if previews else None,
             frontend_engine_context=build_frontend_engine_context(prompts),
             frontend_validator=SandboxFrontendValidationRunner() if sandboxes else StaticFrontendValidationRunner(),
+            previews=previews if config.preview_worker else None,
         )
         # Every worker requests previews for its finished jobs; only a preview worker drives the containers.
         yield WorkerService(

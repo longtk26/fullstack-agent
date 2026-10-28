@@ -68,3 +68,24 @@ class IPreviewRuntime(ABC):
     @abstractmethod
     async def states(self) -> dict[str, PreviewState]:
         """Every preview this deployment owns, by generation id."""
+
+    async def probe(self, generation_id: str, method: str, path: str, body: Any = None) -> tuple[int, Any, bytes]:
+        """HTTP request against a running preview container: returns (status_code, json_or_text, raw_bytes)."""
+        import httpx
+
+        from src.configs import config
+
+        state = (await self.states()).get(generation_id)
+        if state is None or state.app != "running" or not state.host_port:
+            return 0, None, b""
+        url = f"http://{config.preview_bind_host}:{state.host_port}{path}"
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.request(method, url, json=body)
+                try:
+                    parsed = response.json()
+                except Exception:
+                    parsed = response.text
+                return response.status_code, parsed, response.content
+        except httpx.HTTPError:
+            return 0, None, b""

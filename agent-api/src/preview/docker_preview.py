@@ -31,7 +31,7 @@ from docker.models.containers import Container
 
 from src.configs import config, get_logger
 from src.libs.redaction import Redactor, default_redactor
-from src.sandbox.docker_sandbox import INSTANCE_LABEL, instance_id
+from src.sandbox.docker_sandbox import INSTANCE_LABEL, ensure_egress_network, instance_id
 
 from .port import IPreviewRuntime, PreviewError, PreviewHandle, PreviewRequest, PreviewState
 
@@ -134,6 +134,10 @@ class DockerPreviewRuntime(IPreviewRuntime):
         self._ensure_network(request.generation_id)
         db = self._ensure_db(request.generation_id)
         app = self._get(n["app"])
+        cors = request.options.get("corsOrigins") or config.preview_cors_origins
+        if app is not None and (app.labels or {}).get("bga.backend.cors") not in (None, cors):
+            app.remove(force=True)
+            app = None
         if app is None:
             app = self._create_app(request)
         elif app.status != "running":
@@ -224,22 +228,25 @@ class DockerPreviewRuntime(IPreviewRuntime):
 
     def _create_app(self, request: PreviewRequest) -> Container:
         n = names(request.generation_id)
+        cors = request.options.get("corsOrigins") or config.preview_cors_origins
         environment = {
             "DB_URL": f"postgresql://{DB_USER}:{secret(request.generation_id, 'db')}@{n['db']}:5432/app",
             "JWT_SECRET": secret(request.generation_id, "jwt"),
-            "CORS_ORIGINS": request.options.get("corsOrigins") or config.preview_cors_origins,
+            "CORS_ORIGINS": cors,
             "PORT": str(APP_PORT),
             "LOG_LEVEL": "INFO",
         }
         if request.seed is not None:
             environment["SEED_FILE"] = SEED_PATH
+        labels = {**_labels(request.generation_id, "app"), "bga.backend.cors": cors}
+        ensure_egress_network(self.client)
         last_error: Exception | None = None
         for port in request.ports:
             container = self.client.containers.create(
                 n["image"],
                 name=n["app"],
                 network=n["network"],
-                labels=_labels(request.generation_id, "app"),
+                labels=labels,
                 environment=environment,
                 ports={f"{APP_PORT}/tcp": (config.preview_bind_host, port)},
                 restart_policy={"Name": "unless-stopped"},
@@ -253,6 +260,10 @@ class DockerPreviewRuntime(IPreviewRuntime):
                 container.put_archive("/app", _tar("seed.json", request.seed))
             try:
                 container.start()
+                try:
+                    self.client.networks.get(config.sandbox_egress_network).connect(container)
+                except APIError:
+                    pass
                 return container
             except APIError as exc:
                 container.remove(force=True)
@@ -381,6 +392,46 @@ class DockerPreviewRuntime(IPreviewRuntime):
             return result
 
         return await asyncio.to_thread(run)
+
+    async def probe(self, generation_id: str, method: str, path: str, body: Any = None) -> tuple[int, Any, bytes]:
+        status, parsed, raw = await super().probe(generation_id, method, path, body)
+        if status != 0:
+            return status, parsed, raw
+
+        def run_exec() -> tuple[int, Any, bytes]:
+            app = self._get(names(generation_id)["app"])
+            if app is None or app.status != "running":
+                return 0, None, b""
+            payload = json.dumps(body) if body is not None else "None"
+            script = (
+                "import json, sys, urllib.error, urllib.request\n"
+                f"data = {payload!r}.encode() if {body is not None} else None\n"
+                f"headers = {{'content-type': 'application/json'}} if data else {{}}\n"
+                f"url = 'http://127.0.0.1:{APP_PORT}{path}'\n"
+                f"req = urllib.request.Request(url, data=data, headers=headers, method={method!r})\n"
+                "try:\n"
+                "    with urllib.request.urlopen(req, timeout=10) as r:\n"
+                "        sys.stdout.write(str(r.status) + '\\n' + r.read().decode('utf-8', 'replace'))\n"
+                "except urllib.error.HTTPError as e:\n"
+                "    sys.stdout.write(str(e.code) + '\\n' + e.read().decode('utf-8', 'replace'))\n"
+                "except Exception:\n"
+                "    sys.exit(1)\n"
+            )
+            res = app.exec_run(["python", "-c", script])
+            if res.exit_code != 0 or not res.output:
+                return 0, None, b""
+            code_line, _, rest = res.output.partition(b"\n")
+            try:
+                code = int(code_line.strip())
+            except ValueError:
+                return 0, None, b""
+            try:
+                doc = json.loads(rest.decode("utf-8", "replace"))
+            except Exception:
+                doc = rest.decode("utf-8", "replace")
+            return code, doc, rest
+
+        return await asyncio.to_thread(run_exec)
 
 
 def _tar(name: str, data: bytes) -> bytes:

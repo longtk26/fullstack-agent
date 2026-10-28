@@ -96,7 +96,7 @@ workflow to be built before real generation works.
    E15 (15.1–15.3 generated SVGs, then 15.4 uploads; 15.5 only if asked) → E16 (16.1 revisions → 16.2 spec
    edits → 16.3 feedback → 16.4 inspect mode → 16.5 history). E11 (hardening & release) stays last.
 
-### Status (2026-10-27)
+### Status (2026-10-28)
 
 | Epic | State |
 |---|---|
@@ -105,8 +105,9 @@ workflow to be built before real generation works.
 | 8 | done (8.4 draft-job accounting waits for 2.4 / 12.4) |
 | 9 | 9.1–9.6, 9.7a and 9.10 done (9.6 auth helper waits for Epic 10); 9.7b, 9.8, 9.9 open |
 | 12 | 12.1–12.3 and 12.5 done; 12.4 open |
-| 13 | done (frontend lane after the backend lane; parallel lanes and the live-API switch are Epic 14) |
-| 2.4, 10, 11, 14, 15, 16 | open |
+| 13 | done |
+| 14 | done (14.1 parallel lanes, 14.2 live-API switch + `/integration/{recheck,use-mocks}`, 14.3 live contract & Playwright smoke checks) |
+| 2.4, 10, 11, 15, 16 | open |
 
 ### Next up (agreed 2026-10-27)
 

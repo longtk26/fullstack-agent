@@ -60,6 +60,8 @@ class JobRunner:
         on_completed: Callable[[str], Awaitable[None]] | None = None,
         frontend_engine_context: EngineContext | None = None,
         frontend_validator: Any = None,
+        previews: Any = None,
+        worker_slots: asyncio.Semaphore | None = None,
     ):
         self.registry = registry
         self.checkpointer = checkpointer
@@ -75,6 +77,8 @@ class JobRunner:
         self.on_completed = on_completed  # e.g. deploy the preview (Story 7.3); never affects the job status
         self.frontend_engine_context = frontend_engine_context or engine_context
         self.frontend_validator = frontend_validator or StaticFrontendValidationRunner()
+        self.previews = previews
+        self.worker_slots = worker_slots
         self.active: dict[str, JobContext] = {}
 
     async def cancel(self, generation_id: str) -> bool:
@@ -114,6 +118,8 @@ class JobRunner:
             lanes=generation.lanes or initial_lanes(GenerationMode(generation.mode)),
             frontend_engine_context=self.frontend_engine_context,
             frontend_validator=self.frontend_validator,
+            previews=self.previews,
+            worker_slots=self.worker_slots,
         )
         ctx._status = generation.status
         ctx.trace = await self._open_trace(generation)
@@ -176,15 +182,16 @@ class JobRunner:
             "tags": [generation.engine],
             "metadata": {"generation_id": generation.id, "engine": generation.engine, "trace_id": ctx.trace.trace_id},
         }
-        snapshot = await graph.aget_state(run_config)
+        snapshot = await graph.aget_state(run_config, subgraphs=True)
         inputs: GenerationState | None
         if snapshot.values:
             self.store.abandon_running(generation.id)
-            if snapshot.values.get("last_commit"):
-                self.workspaces.reset_to(workspace, snapshot.values["last_commit"])
-            if snapshot.values.get("frontend_last_commit"):
-                self.workspaces.reset_to(workspace, snapshot.values["frontend_last_commit"], repo="frontend")
-            await ctx.emit("job.resumed", resumeCount=generation.resume_count, nextSteps=list(snapshot.next))
+            last_commit, frontend_last_commit, next_steps = _checkpoint_state(snapshot)
+            if last_commit:
+                self.workspaces.reset_to(workspace, last_commit)
+            if frontend_last_commit and workspace.frontend.joinpath(".git").exists():
+                self.workspaces.reset_to(workspace, frontend_last_commit, repo="frontend")
+            await ctx.emit("job.resumed", resumeCount=generation.resume_count, nextSteps=next_steps)
             self.store.update_generation(generation.id, worker_id=self.worker_id)
             if not snapshot.next:
                 return await self._finish_from_state(ctx, snapshot.values)
@@ -247,7 +254,7 @@ class JobRunner:
         if outcome == Outcome.COMPLETED:
             status = overall_status(ctx.mode, ctx.lanes)
             if status == GenerationStatus.COMPLETED_WITH_WARNINGS:
-                return await self._finish(ctx, status, _lane_warnings(ctx.lanes), "LANES_INCOMPLETE")
+                return await self._finish(ctx, status, _lane_warnings(ctx.lanes, state), "LANES_INCOMPLETE")
             return await self._finish(ctx, status, None)
         if outcome == Outcome.SPEC_INVALID:
             return await self._finish(ctx, GenerationStatus.FAILED, state.get("error_summary"), "SPEC_INVALID")
@@ -311,14 +318,41 @@ class JobRunner:
         return GenerationStatus.FAILED
 
 
-def _lane_warnings(lanes: dict[str, str]) -> str:
+def _checkpoint_state(snapshot) -> tuple[str | None, str | None, list[str]]:
+    last_commit = snapshot.values.get("last_commit")
+    frontend_last_commit = snapshot.values.get("frontend_last_commit")
+    next_steps: list[str] = []
+    for task in getattr(snapshot, "tasks", ()) or ():
+        sub = getattr(task, "state", None)
+        if sub is not None and getattr(sub, "values", None):
+            if task.name == "backend_lane" and sub.values.get("last_commit"):
+                last_commit = sub.values["last_commit"]
+            elif task.name == "frontend_lane" and sub.values.get("frontend_last_commit"):
+                frontend_last_commit = sub.values["frontend_last_commit"]
+            if getattr(sub, "next", None):
+                next_steps.extend(sub.next)
+                continue
+        next_steps.append(task.name)
+    if not next_steps:
+        next_steps = list(snapshot.next)
+    return last_commit, frontend_last_commit, next_steps
+
+
+def _lane_warnings(lanes: dict[str, str], state: dict[str, Any] | None = None) -> str:
     """Why a job that finished is COMPLETED_WITH_WARNINGS."""
     notes = []
+    state = state or {}
     for lane, status in lanes.items():
         if status == LaneStatus.SKIPPED.value:
-            notes.append(UNAVAILABLE_LANES.get(Lane(lane), f"The {lane} lane was skipped"))
+            reason = state.get("integration_reason") if lane == "integration" else None
+            notes.append(reason or UNAVAILABLE_LANES.get(Lane(lane), f"The {lane} lane was skipped"))
         elif status == LaneStatus.FAILED.value:
-            notes.append(f"The {lane} lane failed")
+            reason = (
+                state.get("backend_error")
+                if lane == "backend"
+                else (state.get("integration_reason") if lane == "integration" else None)
+            )
+            notes.append(f"The {lane} lane failed: {reason}" if reason else f"The {lane} lane failed")
     return "; ".join(notes)
 
 

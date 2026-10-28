@@ -49,3 +49,8 @@ with a `backend` lane; downgrade deletes static generations). Rules in
 skipped, so static jobs end `COMPLETED` and dynamic jobs `COMPLETED_WITH_WARNINGS` until the live-API switch exists.
 In dynamic mode the frontend lane runs after the backend lane (14.1 makes them parallel); a backend that hits the
 repair limit no longer ends the job: the frontend still runs on mocks.
+
+**Update (2026-10-28, Epic 14):** `UNAVAILABLE_LANES` is now empty. In dynamic mode both lanes run in parallel after
+`build_contract`, followed by `integrate` (`Lane.INTEGRATION`). When `backend`, `frontend`, and `integration` all
+complete, a dynamic job finishes `COMPLETED`; if `backend` or `integration` is `FAILED` or `SKIPPED` while `frontend`
+is `COMPLETED`, it finishes `COMPLETED_WITH_WARNINGS`.

@@ -14,6 +14,7 @@ from src.modules.previews.usecases import (
 )
 
 preview_router = APIRouter(prefix="/api/v1/generations/{generation_id}/preview", tags=["previews"])
+integration_router = APIRouter(prefix="/api/v1/generations/{generation_id}/integration", tags=["previews"])
 previews_router = APIRouter(prefix="/api/v1/previews", tags=["previews"])
 
 
@@ -102,3 +103,15 @@ async def list_previews(
     scope: Annotated[str, Query(pattern="^(mine|all)$")] = "mine",
 ) -> PreviewListDto:
     return PreviewListDto(items=[PreviewDto.from_entity(p) for p in await usecase.execute(user, scope == "all")])
+
+
+@integration_router.post("/recheck", response_model=PreviewDto, status_code=status.HTTP_202_ACCEPTED)
+async def recheck_integration(generation_id: str, user: CurrentUserDep, usecase: PreviewActionUsecaseDep) -> PreviewDto:
+    return PreviewDto.from_entity(await usecase.execute_integration(generation_id, user, "recheck"))
+
+
+@integration_router.post("/use-mocks", response_model=PreviewDto, status_code=status.HTTP_202_ACCEPTED)
+async def use_mocks_integration(
+    generation_id: str, user: CurrentUserDep, usecase: PreviewActionUsecaseDep
+) -> PreviewDto:
+    return PreviewDto.from_entity(await usecase.execute_integration(generation_id, user, "use-mocks"))

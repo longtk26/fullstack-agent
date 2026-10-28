@@ -307,6 +307,21 @@ def build_seed(spec: dict[str, Any], plan: dict[str, Any], generation_id: str, t
     return blocks
 
 
+def build_contract_seed(contract: dict[str, Any], plan: dict[str, Any]) -> list[dict[str, Any]]:
+    """In dynamic mode, seeds the backend preview database with `x-bga.fixtures` from the contract so the live API
+    serves the exact records the frontend and its Playwright smoke tests expect."""
+    fixtures = (contract.get("x-bga") or {}).get("fixtures") or {}
+    blocks = []
+    for model in plan.get("models", []):
+        records = fixtures.get(model.get("entity")) or []
+        if not records:
+            continue
+        columns = {column["field"]: column["attr"] for column in model["columns"]}
+        rows = [{columns[k]: v for k, v in record.items() if k in columns} for record in records]
+        blocks.append({"table": model["table"], "rows": rows})
+    return blocks
+
+
 # -- report ------------------------------------------------------------------------------------------------------
 
 
@@ -324,10 +339,17 @@ def build_report(
     invocations: list[CliInvocationEntity],
     model_calls: list[ModelCallEntity] | None = None,
     sandbox_execs: list[SandboxExecEntity] | None = None,
+    integration: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     steps = [run for run in node_runs if run.node != "package_artifacts"]
     attempts = sorted({run.attempt for run in validation_runs})
-    latest = [run for run in validation_runs if attempts and run.attempt == attempts[-1]]
+    by_check: dict[str, ValidationRunEntity] = {}
+    for run in validation_runs:
+        prev = by_check.get(run.check)
+        if prev is None or run.attempt >= prev.attempt:
+            by_check[run.check] = run
+    latest = list(by_check.values())
+    integration_runs = [run for run in latest if run.check.startswith("integration:")]
     by_purpose: dict[str, dict[str, Any]] = {}
     for invocation in invocations:
         bucket = by_purpose.setdefault(
@@ -340,7 +362,7 @@ def build_report(
         bucket["durationMs"] += invocation.duration_ms or 0
     first = min((run.started_at for run in steps if run.started_at), default=None)
     last = max((run.finished_at for run in steps if run.finished_at), default=None)
-    return {
+    report: dict[str, Any] = {
         "reportVersion": REPORT_VERSION,
         "generationId": generation.id,
         "outcome": outcome,
@@ -353,6 +375,16 @@ def build_report(
                 "status": run.status,
                 "durationMs": run.duration_ms,
                 "summary": run.details.get("summary"),
+                **(
+                    {"items": run.details["items"]}
+                    if run.check.startswith("integration:") and run.details.get("items")
+                    else {}
+                ),
+                **(
+                    {"output": run.details["output"]}
+                    if run.check.startswith("integration:") and run.details.get("output")
+                    else {}
+                ),
             }
             for run in latest
         ],
@@ -395,6 +427,22 @@ def build_report(
             ),
         },
     }
+    if integration is not None or integration_runs:
+        report["integration"] = {
+            **(integration or {}),
+            "checks": [
+                {
+                    "check": run.check.removeprefix("integration:"),
+                    "status": run.status,
+                    "durationMs": run.duration_ms,
+                    "summary": run.details.get("summary"),
+                    "items": run.details.get("items", []),
+                    **({"output": run.details["output"]} if run.details.get("output") else {}),
+                }
+                for run in integration_runs
+            ],
+        }
+    return report
 
 
 def report_markdown(report: dict[str, Any], project_name: str | None) -> str:

@@ -35,3 +35,9 @@ and the job reports why.
   show the backend's seed data with `MOCK_TEST_API=false`; the live smoke test passes.
 - Killing the backend preview before the switch leaves the frontend on mocks, with the overall status
   `COMPLETED_WITH_WARNINGS` and a re-check button in the UI.
+
+**Status (2026-10-28):** done (Stories 14.1, 14.2, 14.3). Dynamic generations run the `backend` and `frontend` lanes in
+parallel after `build_contract`, converge on `integrate` to verify backend readiness and switch the frontend preview to
+`MOCK_TEST_API=false`, validate live contract responses and run Playwright smoke tests against the live stack, and
+expose `POST /api/v1/generations/{id}/integration/{recheck,use-mocks}`. The UI controls for the parallel lane view and
+Mock/Live switch are Story 9.8.

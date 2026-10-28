@@ -46,31 +46,69 @@ class SimulatedCrash(BaseException):
 
 
 GOLDEN = Path(__file__).resolve().parent / "golden" / "two_entity"
+GOLDEN_SHOP = GOLDEN.parent / "shop"
 _TASK_ROUTER = "src/modules/tasks/presenter/router.py"
+_CONTACT_ROUTER = "src/modules/contact_messages/presenter/router.py"
 # TESTING / DEMO ONLY (docs/development/test-doubles.md). Golden frontends: hand-written, convention-correct
 # implementations of these FrontendSpec examples only; any other FrontendSpec fails the fake frontend lane.
 GOLDEN_FRONTENDS = {
     "Northwind Studio": GOLDEN.parent / "frontend" / "static_landing",  # examples/frontend-specs/static-landing.json
     "Project Tracker": GOLDEN.parent / "frontend" / "project_tracker",  # …/project-tracker-dynamic.json
+    "Corner Shop": GOLDEN.parent / "frontend" / "corner_shop",  # examples/frontend-specs/shop-dynamic.json
 }
 FRONTEND_SHELL = "src/components/layout/SiteShell.tsx"
 PLANTED_COLOR = "text-[#b91c1c] "
 
 
-def golden_frontend_for(workdir: Path) -> Path | None:
-    spec_path = workdir / ".bga" / "frontend-spec.json"
+def _project_name(spec_path: Path) -> str | None:
     if not spec_path.is_file():
         return None
     import json
 
-    name = (json.loads(spec_path.read_text()).get("project") or {}).get("name")
-    return GOLDEN_FRONTENDS.get(name)
+    return (json.loads(spec_path.read_text()).get("project") or {}).get("name")
+
+
+def golden_frontend_for(workdir: Path) -> Path | None:
+    return GOLDEN_FRONTENDS.get(_project_name(workdir / ".bga" / "frontend-spec.json"))
+
+
+def shop_demo_scenario(delay_s: float = 0.3) -> dict[str, list[FakeStep]]:
+    """Replays a recorded, convention-correct implementation of `examples/specs/shop.json` (`golden/shop`,
+    one step per planned module) with one deliberate defect in the contact_messages router so the repair loop runs."""
+    fixed_router = (GOLDEN_SHOP / "contact_messages" / _CONTACT_ROUTER).read_text()
+    return {
+        "generate_database": [FakeStep(sleep_s=delay_s, copy_from=GOLDEN_SHOP / "database")],
+        "generate_backend": [
+            FakeStep(sleep_s=delay_s, copy_from=GOLDEN_SHOP / "categories"),
+            FakeStep(sleep_s=delay_s, copy_from=GOLDEN_SHOP / "products"),
+            FakeStep(sleep_s=delay_s, copy_from=GOLDEN_SHOP / "cart_items"),
+            FakeStep(
+                sleep_s=delay_s,
+                copy_from=GOLDEN_SHOP / "contact_messages",
+                write={_CONTACT_ROUTER: fixed_router + "\n\ndef broken(:\n"},
+            ),
+        ],
+        "generate_tests": [
+            FakeStep(sleep_s=delay_s, copy_from=GOLDEN_SHOP / "tests_categories"),
+            FakeStep(sleep_s=delay_s, copy_from=GOLDEN_SHOP / "tests_products"),
+            FakeStep(sleep_s=delay_s, copy_from=GOLDEN_SHOP / "tests_cart_items"),
+            FakeStep(sleep_s=delay_s, copy_from=GOLDEN_SHOP / "tests_contact_messages"),
+        ],
+        "repair_code": [
+            FakeStep(
+                sleep_s=delay_s,
+                write={_CONTACT_ROUTER: fixed_router},
+                message="Fixed the syntax error in the contact_messages router.",
+            )
+        ],
+    }
 
 
 def demo_scenario(delay_s: float = 0.3) -> dict[str, list[FakeStep]]:
     """Replays a recorded, convention-correct implementation of `examples/specs/two-entity.json`
-    (`golden/two_entity`, one step per planned module) with one deliberate defect: the tasks router is written
-    with a syntax error, so validation fails once and the repair loop runs. Any other spec fails validation."""
+    (`golden/two_entity`, one step per planned module; or `golden/shop` when `.bga/spec.json` is `Corner Shop`)
+    with one deliberate defect: the last module router is written with a syntax error, so validation fails once
+    and the repair loop runs. Any other spec fails validation."""
     fixed_router = (GOLDEN / "tasks" / _TASK_ROUTER).read_text()
     return {
         "generate_database": [FakeStep(sleep_s=delay_s, copy_from=GOLDEN / "database")],
@@ -109,6 +147,11 @@ DEMO_SCENARIO = demo_scenario()
 DEFAULT_SCENARIO = DEMO_SCENARIO
 
 
+def _is_demo_backend(scenario: dict[str, list[FakeStep]]) -> bool:
+    db_steps = scenario.get("generate_database") or []
+    return len(db_steps) == 1 and db_steps[0].copy_from == GOLDEN / "database"
+
+
 class FakeEngine(ICodeEngine):
     """TESTING / DEMO ONLY (docs/development/test-doubles.md). Deterministic engine for tests and UI work:
     replays FakeSteps per purpose, never calls a model.
@@ -122,6 +165,10 @@ class FakeEngine(ICodeEngine):
     def __init__(self, allowed_root: Path, scenario: dict[str, list[FakeStep]] | None = None):
         self.allowed_root = allowed_root
         self.scenario = {purpose: list(steps) for purpose, steps in (scenario or DEFAULT_SCENARIO).items()}
+        self._shop_scenario: dict[str, list[FakeStep]] | None = None
+        if _is_demo_backend(self.scenario):
+            delay_s = self.scenario["generate_database"][0].sleep_s
+            self._shop_scenario = shop_demo_scenario(delay_s=delay_s)
         self.calls: list[EngineRequest] = []
         self._counts: dict[tuple[str, str], int] = {}
         self._cancels: dict[str, asyncio.Event] = {}
@@ -139,7 +186,14 @@ class FakeEngine(ICodeEngine):
         return True
 
     def _next_step(self, workdir: Path, purpose: str) -> FakeStep:
-        steps = self.scenario.get(purpose) or self.scenario.get("*") or [FakeStep()]
+        active = self.scenario
+        if (
+            self._shop_scenario is not None
+            and purpose in self._shop_scenario
+            and _project_name(workdir / ".bga" / "spec.json") == "Corner Shop"
+        ):
+            active = self._shop_scenario
+        steps = active.get(purpose) or self.scenario.get("*") or [FakeStep()]
         key = (str(workdir), purpose)
         index = self._counts.get(key, 0)
         self._counts[key] = index + 1

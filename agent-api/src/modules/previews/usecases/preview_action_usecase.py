@@ -11,10 +11,11 @@ from src.modules.generations.usecases.get_generation_usecase import GetGeneratio
 from src.modules.previews.infrastructure.adapters import PreviewCommandBusDep
 from src.modules.previews.ports.output import IPreviewRepoDep
 from src.modules.shared.domain.entities import PreviewEntity, UserEntity
-from src.modules.shared.domain.enums import LaneStatus, PreviewStatus
+from src.modules.shared.domain.enums import GenerationMode, LaneStatus, PreviewStatus
 from src.modules.shared.domain.generation_modes import backend_ready
 
 PreviewAction = Literal["start", "stop", "restart", "delete", "reset-db"]
+IntegrationAction = Literal["recheck", "use-mocks"]
 PreviewKind = Literal["backend", "frontend"]
 SOURCE_ARTIFACTS = {"backend": "backend.zip", "frontend": "frontend.zip"}
 ACTIVE = (PreviewStatus.STARTING, PreviewStatus.RUNNING)
@@ -82,6 +83,25 @@ class PreviewActionUsecase:
         return self.preview_repo.upsert(
             generation_id, kind, status=PreviewStatus.STARTING, started_at=datetime.now(UTC), error=None
         )
+
+    async def execute_integration(
+        self, generation_id: str, user: UserEntity, action: IntegrationAction
+    ) -> PreviewEntity:
+        generation = self.getter.load(generation_id, user)
+        if not config.preview_enabled:
+            raise ConflictException("Previews are disabled (PREVIEW_ENABLED=false)", code=ErrorCode.PREVIEWS_DISABLED)
+        if generation.mode != GenerationMode.DYNAMIC.value:
+            raise ConflictException("Only dynamic generations have live API integration", code=ErrorCode.BAD_REQUEST)
+        if generation.lanes.get("frontend") != LaneStatus.COMPLETED.value:
+            raise ConflictException(
+                f"Only generations with a completed frontend have a frontend preview (status {generation.status})",
+                code=ErrorCode.GENERATION_NOT_COMPLETED,
+            )
+        if self.artifact_repo.find_by_name(generation_id, SOURCE_ARTIFACTS["frontend"]) is None:
+            raise ConflictException("The generation has no packaged source", code=ErrorCode.ARTIFACT_MISSING)
+        preview = await self._mark_starting(generation_id, "frontend")
+        await self.bus.send(action, generation_id, kind="frontend")
+        return preview
 
 
 class TouchPreviewUsecase:

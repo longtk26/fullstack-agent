@@ -1,6 +1,7 @@
 """TESTING ONLY (docs/development/test-doubles.md): an in-memory preview runtime, so the preview lifecycle
-(Stories 7.3, 7.4) can be tested without Docker. The real runtime is src/preview/docker_preview.py."""
+(Stories 7.3, 7.4, 14.2, 14.3) can be tested without Docker. The real runtime is src/preview/docker_preview.py."""
 
+import json
 from typing import Any
 
 from src.preview import IPreviewRuntime, PreviewError, PreviewHandle, PreviewRequest, PreviewState
@@ -15,6 +16,8 @@ class FakePreviewRuntime(IPreviewRuntime):
         self.requests: dict[str, list[dict[str, Any]]] = {}
         self.seeds: dict[str, bytes | None] = {}
         self.options: dict[str, dict[str, Any]] = {}
+        self.responses: dict[Any, Any] = {}
+        self.probes: list[tuple[str, str, str, dict[str, Any] | None]] = []
 
     async def deploy(self, request: PreviewRequest) -> PreviewHandle:
         self.calls.append(("deploy", request.generation_id))
@@ -66,3 +69,29 @@ class FakePreviewRuntime(IPreviewRuntime):
 
     async def states(self) -> dict[str, PreviewState]:
         return dict(self.containers)
+
+    async def probe(
+        self, generation_id: str, method: str, path: str, body: dict[str, Any] | None = None
+    ) -> tuple[int, Any, bytes]:
+        method = method.upper()
+        self.probes.append((generation_id, method, path, body))
+        state = self.containers.get(generation_id)
+        if state is None or state.app != "running":
+            return 0, None, b"container not running"
+        for key in ((generation_id, method, path), (method, path), path):
+            if key in self.responses:
+                entry = self.responses[key]
+                status, payload = entry(generation_id, method, path, body) if callable(entry) else entry
+                raw = payload if isinstance(payload, bytes) else json.dumps(payload).encode()
+                parsed = None if isinstance(payload, bytes) else payload
+                return status, parsed, raw
+        if path == "/health":
+            payload = {"status": "ok"}
+            return 200, payload, json.dumps(payload).encode()
+        if path == "/api/runtime-config":
+            opts = self.options.get(generation_id) or {}
+            payload = {"mockApi": bool(opts.get("mockApi", True)), "apiBaseUrl": opts.get("apiBaseUrl", "")}
+            return 200, payload, json.dumps(payload).encode()
+        if method == "GET" and path.startswith("/"):
+            return 200, None, b"<!doctype html><html><body>ok</body></html>"
+        return 404, {"detail": "not found"}, b'{"detail":"not found"}'

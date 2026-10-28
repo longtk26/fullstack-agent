@@ -21,10 +21,12 @@ from .context import EngineFailure, JobContext
 from .contract import build_contract as contract_for
 from .contract import dump_contract
 from .frontend_nodes import FRONTEND_NODE_FUNCTIONS
+from .integration import integrate, package_lane_preview
 from .migrations import ensure_migration, reflect_schema, verify_migration
 from .packaging import (
     MANIFEST_VERSION,
     ArtifactWriter,
+    build_contract_seed,
     build_logs_zip,
     build_manifest,
     build_report,
@@ -332,6 +334,7 @@ async def run_validation(state: GenerationState, ctx: JobContext) -> NodeResult:
         # Dynamic mode: the backend lane ends here; the frontend lane runs either way (on mocks if this failed).
         if not failed:
             await ctx.set_lane("backend", LaneStatus.COMPLETED)
+            await package_lane_preview(state, ctx, "backend")
         elif at_limit:
             await ctx.set_lane("backend", LaneStatus.FAILED, reason=message)
             update["backend_error"] = message
@@ -410,6 +413,13 @@ async def write_artifacts(ctx: JobContext, state: dict[str, Any], completed: boo
         writer.write(name, "patch", diff.encode(), "text/x-diff")
     for path in sorted(workspace.reports.glob("frontend-validation-*.json")):
         writer.write(path.name, "validation", path.read_bytes(), "application/json")
+    if (workspace.reports / "integration-validation.json").is_file():
+        writer.write(
+            "integration-validation.json",
+            "validation",
+            (workspace.reports / "integration-validation.json").read_bytes(),
+            "application/json",
+        )
     lanes = generation.lanes or {"backend": "COMPLETED"}
 
     report = build_report(
@@ -421,6 +431,7 @@ async def write_artifacts(ctx: JobContext, state: dict[str, Any], completed: boo
         invocations=ctx.store.cli_invocations(ctx.generation_id),
         model_calls=ctx.store.model_calls(ctx.generation_id),
         sandbox_execs=ctx.store.sandbox_execs(ctx.generation_id),
+        integration=state.get("integration"),
     )
     writer.write_json("report.json", "report", report)
     frontend = _optional_json(workspace.spec_dir / "frontend-spec.json") or {}
@@ -436,7 +447,10 @@ async def write_artifacts(ctx: JobContext, state: dict[str, Any], completed: boo
         openapi = _optional_json(workspace.reports / "openapi.json")
         if openapi:
             writer.write_json("openapi.json", "openapi", openapi)
-        if spec.get("seed"):
+        if _contract_copy(ctx).is_file():
+            contract = json.loads(_contract_copy(ctx).read_text())
+            writer.write_json("seed.json", "seed", build_contract_seed(contract, plan))
+        elif spec.get("seed"):
             timestamp = generation.created_at.isoformat() if generation.created_at else "1970-01-01T00:00:00+00:00"
             writer.write_json("seed.json", "seed", build_seed(spec, plan, ctx.generation_id, timestamp))
         artifact_ids = {
@@ -536,5 +550,6 @@ NODE_FUNCTIONS = {
     "generate_tests": generate_tests,
     "run_validation": run_validation,
     "repair_code": repair_code,
+    "integrate": integrate,
     "package_artifacts": package_artifacts,
 }

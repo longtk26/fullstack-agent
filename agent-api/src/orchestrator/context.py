@@ -1,6 +1,8 @@
 import asyncio
 import re
 import uuid
+from contextlib import asynccontextmanager
+from contextvars import ContextVar
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -32,10 +34,18 @@ from .workspace import JobWorkspace, WorkspaceManager
 logger = get_logger(__name__)
 PROVIDERS = {"claude_code": "anthropic", "antigravity": "google"}
 _TOOL_SCRIPT = re.compile(r"/opt/bga/bin/([\w-]+)")
+_CURRENT_LANE: ContextVar[str | None] = ContextVar("bga_current_lane", default=None)
+_CURRENT_RUN_ID: ContextVar[uuid.UUID | None] = ContextVar("bga_current_run_id", default=None)
 
 
 class JobCancelled(Exception):
     pass
+
+
+class BackendLaneAborted(Exception):
+    def __init__(self, reason: str):
+        super().__init__(reason)
+        self.reason = reason
 
 
 class EngineFailure(Exception):
@@ -64,11 +74,14 @@ class JobContext:
         lanes: dict[str, str] | None = None,
         frontend_engine_context: EngineContext | None = None,
         frontend_validator: Any = None,
+        previews: Any = None,
+        worker_slots: asyncio.Semaphore | None = None,
     ):
         self.generation_id = generation_id
         self.mode = mode
         self.lanes: dict[str, str] = dict(lanes or {})
-        self.current_lane: str | None = None
+        self._default_lane: str | None = None
+        self._default_run_id: uuid.UUID | None = None
         self.engine = engine
         self.engine_context = engine_context
         self.prompts = prompts
@@ -78,16 +91,120 @@ class JobContext:
         self.workspaces = workspaces
         self.workspace = workspace
         self.cancel_requested = asyncio.Event()
-        self.current_invocation: str | None = None
-        self.current_run_id: uuid.UUID | None = None
+        self.active_invocations: set[str] = set()
+        self.lane_invocations: dict[str, set[str]] = {"backend": set(), "frontend": set()}
         self.sandboxes = sandboxes
         self.template_dir = template_dir or Path(config.template_dir)
         self._sandbox: ISandbox | None = None
         self._frontend_sandbox: ISandbox | None = None
         self.frontend_engine_context = frontend_engine_context or engine_context
         self.frontend_validator = frontend_validator
+        self.previews = previews
+        self.worker_slots = worker_slots
+        self.active_lanes: set[str] = set()
+        self.max_concurrent_lanes: int = 0
+        self.max_concurrent_invocations: int = 0
+        self._extra_slot_acquired: bool = False
+        self.backend_done = asyncio.Event()
+        self.frontend_done = asyncio.Event()
+        self.frontend_failed = False
+        self.backend_aborted_reason: str | None = None
+        self._wait_task: asyncio.Task | None = None
+        self._state_lock = asyncio.Lock()
+        self._commit_lock = asyncio.Lock()
         self._status: GenerationStatus | None = None
         self.trace: tracing.GenerationTrace | None = None
+
+    @property
+    def current_lane(self) -> str | None:
+        val = _CURRENT_LANE.get()
+        return val if val is not None else self._default_lane
+
+    @current_lane.setter
+    def current_lane(self, value: str | None) -> None:
+        self._default_lane = value
+        _CURRENT_LANE.set(value)
+
+    @property
+    def current_run_id(self) -> uuid.UUID | None:
+        val = _CURRENT_RUN_ID.get()
+        return val if val is not None else self._default_run_id
+
+    @current_run_id.setter
+    def current_run_id(self, value: uuid.UUID | None) -> None:
+        self._default_run_id = value
+        _CURRENT_RUN_ID.set(value)
+
+    @property
+    def current_invocation(self) -> str | None:
+        return next(iter(self.active_invocations), None)
+
+    @current_invocation.setter
+    def current_invocation(self, value: str | None) -> None:
+        if value is None:
+            self.active_invocations.clear()
+        else:
+            self.active_invocations.add(value)
+
+    async def _activate_lane(self, lane: str) -> None:
+        if lane not in ("backend", "frontend") or lane in self.active_lanes:
+            return
+        if (
+            self.active_lanes
+            and not self._extra_slot_acquired
+            and self.worker_slots is not None
+            and not self.worker_slots.locked()
+        ):
+            await self.worker_slots.acquire()
+            self._extra_slot_acquired = True
+        self.active_lanes.add(lane)
+        self.max_concurrent_lanes = max(self.max_concurrent_lanes, len(self.active_lanes))
+
+    def _deactivate_lane(self, lane: str) -> None:
+        if lane in self.active_lanes:
+            self.active_lanes.discard(lane)
+            if self._extra_slot_acquired and len(self.active_lanes) < 2 and self.worker_slots is not None:
+                self._extra_slot_acquired = False
+                self.worker_slots.release()
+        if lane == "backend":
+            self.backend_done.set()
+            if self._wait_task is not None:
+                self._wait_task.cancel()
+        elif lane == "frontend":
+            self.frontend_done.set()
+
+    @asynccontextmanager
+    async def lane_slot(self, lane: str):
+        """Story 14.1: the two parallel lanes count as two worker slots while both are active."""
+        await self._activate_lane(lane)
+        try:
+            yield
+        finally:
+            self._deactivate_lane(lane)
+
+    def start_integration_wait_watchdog(self) -> None:
+        """Story 14.2: once the frontend lane completes, give the backend lane at most INTEGRATION_WAIT_SECONDS."""
+        if self.backend_done.is_set() or self._wait_task is not None:
+            return
+
+        async def _watch() -> None:
+            try:
+                await asyncio.wait_for(self.backend_done.wait(), timeout=config.integration_wait_seconds)
+            except TimeoutError:
+                if not self.backend_done.is_set():
+                    await self.abort_backend(
+                        f"backend lane timed out after {config.integration_wait_seconds:g}s (INTEGRATION_WAIT_SECONDS)"
+                    )
+
+        self._wait_task = asyncio.create_task(_watch())
+
+    async def abort_backend(self, reason: str, *, frontend_failed: bool = False) -> None:
+        if frontend_failed:
+            self.frontend_failed = True
+        if self.backend_aborted_reason is None:
+            self.backend_aborted_reason = reason
+        for invocation_id in list(self.lane_invocations.get("backend", ())):
+            await self.engine.cancel(invocation_id)
 
     async def emit(self, type: str, step: str | None = None, status: str | None = None, **payload: Any) -> None:
         await self.events.publish(
@@ -97,21 +214,27 @@ class JobContext:
     async def set_status(
         self, status: GenerationStatus, step: str | None = None, payload: dict[str, Any] | None = None, **fields: Any
     ) -> None:
-        self.store.update_generation(self.generation_id, status=status, **fields)
-        if status != self._status:
-            self._status = status
-            await self.emit("status.changed", step=step, status=status, **(payload or {}), lanes=self.lanes)
+        async with self._state_lock:
+            self.store.update_generation(self.generation_id, status=status, **fields)
+            if status != self._status:
+                self._status = status
+                await self.emit("status.changed", step=step, status=status, **(payload or {}), lanes=dict(self.lanes))
 
     async def set_lane(self, lane: str, status: LaneStatus, reason: str | None = None) -> None:
         """Story 12.2: one status per lane, stored on the generation and announced as `lane.changed`."""
-        if lane not in self.lanes or self.lanes[lane] == status.value:
-            return
-        self.lanes[lane] = status.value
-        self.store.update_generation(self.generation_id, lanes=dict(self.lanes))
-        payload: dict[str, Any] = {"lanes": dict(self.lanes)}
-        if reason:
-            payload["reason"] = reason
-        await self.events.publish(self.generation_id, "lane.changed", status=status.value, payload=payload, lane=lane)
+        async with self._state_lock:
+            if status in (LaneStatus.COMPLETED, LaneStatus.FAILED, LaneStatus.SKIPPED):
+                self._deactivate_lane(lane)
+            if lane not in self.lanes or self.lanes[lane] == status.value:
+                return
+            self.lanes[lane] = status.value
+            self.store.update_generation(self.generation_id, lanes=dict(self.lanes))
+            payload: dict[str, Any] = {"lanes": dict(self.lanes)}
+            if reason:
+                payload["reason"] = reason
+            await self.events.publish(
+                self.generation_id, "lane.changed", status=status.value, payload=payload, lane=lane
+            )
 
     async def replace_lanes(self, lanes: dict[str, str]) -> None:
         for lane, status in lanes.items():
@@ -124,21 +247,28 @@ class JobContext:
                 self.cancel_requested.set()
         if self.cancel_requested.is_set():
             raise JobCancelled()
+        if self.current_lane == "backend" and self.backend_aborted_reason is not None:
+            raise BackendLaneAborted(self.backend_aborted_reason)
 
     async def request_cancel(self) -> None:
         self.cancel_requested.set()
-        if self.current_invocation:
-            await self.engine.cancel(self.current_invocation)
+        for invocation_id in list(self.active_invocations):
+            await self.engine.cancel(invocation_id)
 
     async def enter_node(self, node: str, attempt: int) -> uuid.UUID:
-        await self.check_cancel()
         lane = NODE_LANE.get(node)
-        self.current_lane = lane.value if lane else None
+        lane_name = lane.value if lane else None
+        _CURRENT_LANE.set(lane_name)
+        self._default_lane = lane_name
+        await self.check_cancel()
+        if lane_name in ("backend", "frontend"):
+            await self._activate_lane(lane_name)
         if lane is not None:
             await self.set_lane(lane.value, lane_status_for(node))
         await self.set_status(status_for(node), step=node, current_step=node)
         run_id = self.store.start_node(self.generation_id, node, attempt)
-        self.current_run_id = run_id
+        _CURRENT_RUN_ID.set(run_id)
+        self._default_run_id = run_id
         await self.emit("step.started", step=node, attempt=attempt)
         return run_id
 
@@ -188,14 +318,18 @@ class JobContext:
         async def forward(event: EngineEvent) -> None:
             await self.emit("engine.event", step=node, kind=event.kind, summary=event.summary)
 
-        self.current_invocation = request.invocation_id
+        lane_key = "frontend" if repo == "frontend" else "backend"
+        self.active_invocations.add(request.invocation_id)
+        self.lane_invocations.setdefault(lane_key, set()).add(request.invocation_id)
+        self.max_concurrent_invocations = max(self.max_concurrent_invocations, len(self.active_invocations))
         try:
             result = await self.engine.run(request, forward)
         except BaseException as exc:
             engine_span.end(error=f"{type(exc).__name__}: {exc}"[:500])
             raise
         finally:
-            self.current_invocation = None
+            self.active_invocations.discard(request.invocation_id)
+            self.lane_invocations.get(lane_key, set()).discard(request.invocation_id)
         usage = result.usage
         self.store.update_cli_invocation(
             record_id,
@@ -244,7 +378,11 @@ class JobContext:
             usage=usage.model_dump() if usage else None,
             changedFiles=result.changed_files[:50],
         )
-        if result.status == EngineStatus.CANCELLED or self.cancel_requested.is_set():
+        if self.cancel_requested.is_set():
+            raise JobCancelled()
+        if self.current_lane == "backend" and self.backend_aborted_reason is not None:
+            raise BackendLaneAborted(self.backend_aborted_reason)
+        if result.status == EngineStatus.CANCELLED:
             raise JobCancelled()
         if result.status != EngineStatus.OK:
             raise EngineFailure(result)
@@ -337,6 +475,8 @@ class JobContext:
         return self._frontend_sandbox
 
     async def close_sandbox(self) -> None:
+        for lane in ("backend", "frontend"):
+            self._deactivate_lane(lane)
         for attribute in ("_sandbox", "_frontend_sandbox"):
             sandbox = getattr(self, attribute)
             if sandbox is None:
@@ -410,8 +550,10 @@ class RecordingSandbox(ISandbox):
     async def exec(
         self, command: str, timeout_s: int | None = None, env: dict[str, str] | None = None, egress: bool = False
     ) -> ExecResult:
+        await self.ctx.check_cancel()
         started = datetime.now(UTC)
         result = await self.inner.exec(command, timeout_s=timeout_s, env=env, egress=egress)
+        await self.ctx.check_cancel()
         name = exec_label(command)
         status = "timeout" if result.timed_out else ("ok" if result.ok else "failed")
         ended = started + timedelta(milliseconds=result.duration_ms)

@@ -9,13 +9,24 @@ its slowest half.
 
 ## Acceptance criteria
 
-- [ ] Parent LangGraph graph per mode: `backend` = today's graph; `static` = frontend lane only;
+- [x] Parent LangGraph graph per mode: `backend` = today's graph; `static` = frontend lane only;
       `dynamic` = `validate_inputs` (both specs + 12.5) → `build_contract` → **parallel** backend and frontend
       sub-graphs (LangGraph fan-out) → `integrate` (14.2) → finish.
-- [ ] Each lane has its own workspace (`project/backend`, `project/frontend`), engine invocations, repair counter
+- [x] Each lane has its own workspace (`project/backend`, `project/frontend`), engine invocations, repair counter
       and lane status (12.2); both read `.bga/contract.json`; neither may change it.
-- [ ] Concurrency: the two lanes count as two worker slots; engine calls of both lanes run in parallel.
-- [ ] Failure semantics: a failing frontend lane fails the job; a failing backend lane lets the frontend lane
+- [x] Concurrency: the two lanes count as two worker slots; engine calls of both lanes run in parallel.
+- [x] Failure semantics: a failing frontend lane fails the job; a failing backend lane lets the frontend lane
       finish on mocks (→ `COMPLETED_WITH_WARNINGS`); cancel stops both lanes; resume (4.4) restarts each lane
       from its own last completed node.
-- [ ] `GET /generations/graph?mode=dynamic` returns the parallel graph for the UI diagram.
+- [x] `GET /generations/graph?mode=dynamic` returns the parallel graph for the UI diagram.
+
+**Status (2026-10-28):** done. `build_graph(ctx, GenerationMode.DYNAMIC)` in `src/orchestrator/graph.py` fans out
+from `build_contract` into two compiled LangGraph subgraphs (`backend_lane` with `output_schema=BackendLaneOutput`
+and `frontend_lane` with `output_schema=FrontendLaneOutput`) and converges on `integrate → package_artifacts`.
+`JobContext` (`src/orchestrator/context.py`) isolates `current_lane` and `current_run_id` via `ContextVar`s, tracks
+concurrent invocations across both lanes (`active_invocations`, `lane_invocations`), acquires a second worker slot
+from `WorkerService.slots` while both lanes are active, and restores `.bga/contract.json` in both workspaces before
+validation. `_checkpoint_state` in `src/orchestrator/runner.py` inspects `graph.aget_state(run_config, subgraphs=True)`
+so resume resets each repository (`project` and `frontend`) to its own lane's last completed commit and restarts each
+lane from its own checkpointed node. `_display_graph` exposes the flat fan-out/fan-in topology for
+`GET /api/v1/generations/graph?mode=dynamic`.

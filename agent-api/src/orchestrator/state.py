@@ -17,6 +17,7 @@ NODES = (
     "generate_frontend",
     "validate_frontend",
     "repair_frontend",
+    "integrate",
     "package_artifacts",
 )
 BACKEND_NODES = (
@@ -38,6 +39,7 @@ MODE_NODES: dict[GenerationMode, tuple[str, ...]] = {
         "build_contract",
         *BACKEND_NODES[1:],
         *FRONTEND_NODES,
+        "integrate",
         "package_artifacts",
     ),
     GenerationMode.STATIC: ("validate_inputs", *FRONTEND_NODES, "package_artifacts"),
@@ -54,6 +56,7 @@ NODE_STATUS = {
 NODE_LANE: dict[str, Lane] = {
     **{node: Lane.BACKEND for node in BACKEND_NODES},
     **{node: Lane.FRONTEND for node in FRONTEND_NODES},
+    "integrate": Lane.INTEGRATION,
 }
 
 
@@ -105,3 +108,33 @@ class GenerationState(TypedDict, total=False):
     frontend_implicated_files: list[str]
     frontend_last_commit: str | None
     backend_error: str | None
+    # integration lane (Epic 14)
+    integration: dict[str, Any]
+    integration_reason: str | None
+
+
+class BackendLaneOutput(TypedDict, total=False):
+    """State keys written exclusively by the backend lane when running in parallel with the frontend lane."""
+
+    plan_ref: str | None
+    repair_attempts: int
+    validation: dict[str, str]
+    failed_checks: list[str]
+    failure_digest_ref: str | None
+    implicated_files: list[str]
+    last_commit: str | None
+    backend_error: str | None
+
+
+class FrontendLaneOutput(TypedDict, total=False):
+    """State keys written exclusively by the frontend lane when running in parallel with the backend lane."""
+
+    frontend_plan_ref: str | None
+    frontend_repair_attempts: int
+    frontend_validation: dict[str, str]
+    frontend_failed_checks: list[str]
+    frontend_digest_ref: str | None
+    frontend_implicated_files: list[str]
+    frontend_last_commit: str | None
+    outcome: str | None
+    error_summary: str | None

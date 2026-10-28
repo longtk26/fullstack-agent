@@ -7,12 +7,13 @@ from pathlib import Path
 from typing import Any
 
 from src.modules.shared.domain.entities import ValidationRunEntity
-from src.modules.shared.domain.enums import LaneStatus
+from src.modules.shared.domain.enums import GenerationMode, LaneStatus
 
 from .context import EngineFailure, JobContext
 from .frontend_planner import dump_frontend_plan, plan_frontend
 from .frontend_scaffold import scaffold_frontend
 from .frontend_validation import FrontendValidationRequest
+from .integration import package_lane_preview
 from .state import GenerationState, Outcome
 from .validation import write_report
 
@@ -103,6 +104,11 @@ async def generate_frontend(state: GenerationState, ctx: JobContext) -> NodeResu
 
 async def validate_frontend(state: GenerationState, ctx: JobContext) -> NodeResult:
     attempt = state.get("frontend_repair_attempts", 0) + 1
+    canonical_contract = ctx.workspace.spec_dir / "contract.json"
+    if canonical_contract.is_file():
+        frontend_contract = ctx.frontend_path(".bga", "contract.json")
+        frontend_contract.parent.mkdir(parents=True, exist_ok=True)
+        frontend_contract.write_text(canonical_contract.read_text())  # undo any edit by the engine
     plan = _plan(ctx, state)
     frontend_options = state["options"].get("frontend") or {}
     request = FrontendValidationRequest(
@@ -147,13 +153,18 @@ async def validate_frontend(state: GenerationState, ctx: JobContext) -> NodeResu
     limit = state["max_repair_attempts"]
     if not failed:
         await ctx.set_lane("frontend", LaneStatus.COMPLETED)
+        if ctx.mode == GenerationMode.DYNAMIC:
+            ctx.start_integration_wait_watchdog()
+            await package_lane_preview(state, ctx, "frontend")
     elif state.get("frontend_repair_attempts", 0) >= limit:
-        await ctx.set_lane("frontend", LaneStatus.FAILED)
-        update["outcome"] = Outcome.REPAIR_LIMIT
-        update["error_summary"] = (
+        message = (
             f"Frontend validation still failing after {state.get('frontend_repair_attempts', 0)} repair "
             f"attempt(s): {', '.join(failed)}"
         )
+        await ctx.set_lane("frontend", LaneStatus.FAILED, reason=message)
+        await ctx.abort_backend("frontend lane failed", frontend_failed=True)
+        update["outcome"] = Outcome.REPAIR_LIMIT
+        update["error_summary"] = message
     return update, {"_status": "failed" if failed else "succeeded", "failedChecks": failed}
 
 

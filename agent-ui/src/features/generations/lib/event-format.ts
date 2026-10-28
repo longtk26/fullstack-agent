@@ -40,6 +40,8 @@ export const EVENT_ICONS: Record<string, LucideIcon> = {
   "contract.ready": FileJson,
   "frontend.plan.ready": FileJson,
   "frontend.scaffold.done": FileCheck,
+  "integration.switched_to_live": ShieldCheck,
+  "integration.kept_mocks": TriangleAlert,
 };
 
 function text(value: unknown): string | null {
@@ -113,6 +115,10 @@ export function describeEvent(event: TGenerationEvent): string {
     }
     case "contract.ready":
       return `API contract ready: ${num(p.operations) ?? "?"} operation(s), sha256 ${(text(p.sha256) ?? "").slice(0, 12)}`;
+    case "integration.switched_to_live":
+      return `Switched frontend preview to live API (${text(p.apiBaseUrl) ?? "backend"})`;
+    case "integration.kept_mocks":
+      return `Kept frontend preview on mocks (${text(p.reason) ?? "backend unavailable"})`;
     default:
       return `${event.type} ${JSON.stringify(p).slice(0, 120)}`;
   }

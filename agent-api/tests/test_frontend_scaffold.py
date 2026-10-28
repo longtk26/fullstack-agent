@@ -28,11 +28,14 @@ from src.orchestrator.frontend_validation import (
 
 TRACKER = "project-tracker-dynamic"
 LANDING = "static-landing"
+SHOP = "shop-dynamic"
+BACKEND_SPECS = {TRACKER: "two-entity.json", SHOP: "shop.json"}
 
 
 def inputs(name: str) -> tuple[dict, dict | None, dict]:
     spec = validate_frontend_spec_text((EXAMPLES / "frontend-specs" / f"{name}.json").read_text()).normalized
-    contract = build_contract(normalized(EXAMPLES / "specs" / "two-entity.json")) if name == TRACKER else None
+    backend = BACKEND_SPECS.get(name)
+    contract = build_contract(normalized(EXAMPLES / "specs" / backend)) if backend else None
     return spec, contract, plan_frontend(spec, contract)
 
 
@@ -110,7 +113,7 @@ def test_smoke_tests_expect_the_first_record_each_page_shows():
     assert '"text": "Task title 1"' in smoke
 
 
-@pytest.mark.parametrize("name", [LANDING, TRACKER])
+@pytest.mark.parametrize("name", [LANDING, TRACKER, SHOP])
 def test_golden_frontends_meet_the_conventions(tmp_path, name):
     project, plan = scaffolded(tmp_path, name)
     assert check_frontend_conventions(project, plan) == []
