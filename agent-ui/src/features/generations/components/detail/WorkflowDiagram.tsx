@@ -31,6 +31,7 @@ type WorkflowDiagramProps = {
   selectedNode: string | null;
   onSelectNode: (node: string) => void;
   repairAttempts: number;
+  frontendRepairAttempts?: number;
   maxRepairAttempts: number;
 };
 

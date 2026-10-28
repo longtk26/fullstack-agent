@@ -9,9 +9,14 @@ from mock data to the real API.
 
 ## Acceptance criteria
 
-- [ ] Detail page shows lanes (`frontend`, `backend`, `integration`) with their own status badge, current step and
+- [x] Detail page shows lanes (`frontend`, `backend`, `integration`) with their own status badge, current step and
       repair attempts; the workflow diagram renders the parallel graph (14.1) with both lanes live.
-- [ ] Event log filter by lane.
-- [ ] Frontend preview card: link + embedded preview, a badge **Mock API** / **Live API**, the backend URL in use,
+- [x] Event log filter by lane.
+- [x] Frontend preview card: link + embedded preview, a badge **Mock API** / **Live API**, the backend URL in use,
       and buttons *Re-check backend* / *Use mocks* (14.2).
-- [ ] `COMPLETED_WITH_WARNINGS` banner explains why the frontend stayed on mocks.
+- [x] `COMPLETED_WITH_WARNINGS` banner explains why the frontend stayed on mocks.
+
+**Status (2026-10-28):** done. `ParallelLanesCard` displays backend, frontend, and integration lanes with per-lane status,
+current step, and repair loop attempt counters; `EventLog` filters by lane (`all`, `backend`, `frontend`, `integration`);
+`FrontendPreviewCard` displays live/mock badge, backend URL in use, and integration re-check / use-mocks actions; and
+`TerminalBanner` provides detailed explanation for mock API fallback on `COMPLETED_WITH_WARNINGS`.

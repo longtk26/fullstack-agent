@@ -107,7 +107,7 @@ workflow to be built before real generation works.
 | 1, 2 (2.1–2.3, 2.5), 3, 4, 5, 6 (6.1–6.2) | done (merged to `main`); 6.3 repair loop works on real failures |
 | 7 | done (merged to `main`) |
 | 8 | done (8.4 draft-job accounting waits for 2.4 / 12.4) |
-| 9 | 9.1–9.6, 9.7a and 9.10 done (9.6 auth helper waits for Epic 10); 9.7b, 9.8, 9.9 open |
+| 9 | 9.1–9.6, 9.7a, 9.8, 9.9 and 9.10 done (9.6 auth helper waits for Epic 10); 9.7b open |
 | 12 | 12.1–12.3 and 12.5 done; 12.4 open |
 | 13 | done |
 | 14 | done (14.1 parallel lanes, 14.2 live-API switch + `/integration/{recheck,use-mocks}`, 14.3 live contract & Playwright smoke checks) |
@@ -115,12 +115,12 @@ workflow to be built before real generation works.
 
 ### Next up (agreed 2026-10-28, after Epic 14)
 
-Done since the last plan: 9.7a (generate from the UI) and Epic 14 (parallel lanes, live-API switch, live smoke).
-Work in this order; start each item in a fresh session ("implement story 9.8", "implement story 17.5", …).
+Done since the last plan: 9.7a (generate from the UI), Epic 14 (parallel lanes, live-API switch, live smoke), and 9.8 + 9.9 (parallel run view, live switch controls, and embedded App preview tab).
+Work in this order; start each item in a fresh session ("implement story 17.5", "implement story 17.1", …).
 
 | # | Item | What the user gets | Why at this point |
 |---|---|---|---|
-| 1 | **9.8 + 9.9** | Parallel lane view with the Mock/Live switch; App tab to use the generated app inside the agent UI | Epic 14 is done, so its lanes and switch can be shown; 16.4 inspect mode lives in the App tab |
+| 1 | **9.8 + 9.9** *(done)* | Parallel lane view with the Mock/Live switch; App tab to use the generated app inside the agent UI | Epic 14 is done, so its lanes and switch can be shown; 16.4 inspect mode lives in the App tab |
 | 2 | **Epic 17**: 17.5 → 17.1 → 17.2 → 17.3 → 17.4 → 17.6 | Faster runs: auto-fix and pre-installed deps first (every mode), then static sites with no engine call for catalogue sections, cached custom components, dynamic data sections, backend CRUD from templates | Engine calls are >90% of a run (static ~25 min, backend ~17 min); Epics 15 and 16 build on the renderer |
 | 3 | **Epic 15** (15.1–15.4) | Real images: engine-drawn SVGs, uploads, links (15.5 only if asked) | Assets become section props on the renderer |
 | 4 | **Epic 16** | Revisions: theme and content editors, click-to-comment, history and restore | Spec edits and catalogue feedback are a JSON patch + re-render after 17.2; uses 9.9 and 15 |

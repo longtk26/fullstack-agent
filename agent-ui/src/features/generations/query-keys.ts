@@ -11,8 +11,10 @@ export const generationKeys = {
   validation: (id: string) => [...generationKeys.all, "validation", id] as const,
   artifact: (id: string, artifactId: string) => [...generationKeys.all, "artifact", id, artifactId] as const,
   files: (id: string, path: string) => [...generationKeys.all, "files", id, path] as const,
-  preview: (id: string) => [...generationKeys.all, "preview", id] as const,
-  previewLogs: (id: string) => [...generationKeys.all, "preview-logs", id] as const,
+  preview: (id: string, kind: "backend" | "frontend" = "backend") =>
+    [...generationKeys.all, "preview", id, kind] as const,
+  previewLogs: (id: string, kind: "backend" | "frontend" = "backend") =>
+    [...generationKeys.all, "preview-logs", id, kind] as const,
   previewRequests: (id: string) => [...generationKeys.all, "preview-requests", id] as const,
   trace: (id: string) => [...generationKeys.all, "trace", id] as const,
   spanOutput: (id: string, spanId: string, stream: string, tail: number) =>

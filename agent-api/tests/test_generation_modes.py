@@ -261,6 +261,7 @@ def test_dynamic_generation_runs_contract_backend_and_frontend_lanes(client, hea
         "generate_backend",
         "generate_tests",
         "run_validation",
+        "repair_code",
     )
     frontend_lane_nodes = (
         "plan_frontend",
@@ -269,7 +270,15 @@ def test_dynamic_generation_runs_contract_backend_and_frontend_lanes(client, hea
         "validate_frontend",
         "repair_frontend",
     )
-    assert [n for n in nodes if n in backend_lane_nodes] == list(backend_lane_nodes)
+    assert [n for n in nodes if n in backend_lane_nodes] == [
+        "plan_architecture",
+        "generate_database",
+        "generate_backend",
+        "generate_tests",
+        "run_validation",
+        "repair_code",
+        "run_validation",
+    ]
     assert [n for n in nodes if n in frontend_lane_nodes] == [
         "plan_frontend", "scaffold_frontend", "generate_frontend", "validate_frontend", "repair_frontend",
         "validate_frontend",

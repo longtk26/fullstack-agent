@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Stack } from "@/components/layout/Stack";
 import { useResults } from "../../hooks/use-results";
 import type { TGenerationDetail } from "../../types";
+import { FrontendPreviewCard } from "../detail/FrontendPreviewCard";
 import { ArtifactList } from "./ArtifactList";
 import { ManifestPanel } from "./ManifestPanel";
 import { MarkdownReport } from "./MarkdownReport";
@@ -14,14 +15,19 @@ import { ValidationHistory } from "./ValidationHistory";
 
 type ResultsTabProps = {
   detail: TGenerationDetail;
+  onOpenAppTab?: () => void;
 };
 
-export function ResultsTab({ detail }: ResultsTabProps) {
+export function ResultsTab({ detail, onOpenAppTab }: ResultsTabProps) {
   const results = useResults(detail);
   const id = detail.generationId;
+  const hasFrontend = detail.mode === "static" || detail.mode === "dynamic";
 
   return (
     <Stack gap="lg">
+      {hasFrontend && (
+        <FrontendPreviewCard detail={detail} onOpenAppTab={onOpenAppTab} />
+      )}
       {detail.status === "FAILED" && results.report.data && (
         <Section title="Diagnostic report" description="What failed, the last validation and the repair history.">
           <MarkdownReport markdown={results.report.data} />

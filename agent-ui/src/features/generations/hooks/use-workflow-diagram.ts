@@ -13,6 +13,7 @@ type TDiagramInput = {
   progress: Record<string, TNodeProgress>;
   selectedNode: string | null;
   repairAttempts: number;
+  frontendRepairAttempts?: number;
   maxRepairAttempts: number;
 };
 
@@ -24,16 +25,26 @@ function boundsNodes({ width, height }: { width: number; height: number }): TBou
 }
 
 /** Turns the API graph plus live node progress into React Flow nodes and routed edges. */
-export function useWorkflowDiagram({ graph, progress, selectedNode, repairAttempts, maxRepairAttempts }: TDiagramInput) {
+export function useWorkflowDiagram({
+  graph,
+  progress,
+  selectedNode,
+  repairAttempts,
+  frontendRepairAttempts = 0,
+  maxRepairAttempts,
+}: TDiagramInput) {
   const labelFor = useCallback(
     (source: string, target: string) => {
       const label = graph?.edges.find((edge) => edge.source === source && edge.target === target)?.label ?? null;
       if (source === VALIDATION_NODE && target === REPAIR_NODE) {
         return `${label ?? "failed"} · attempt ${repairAttempts} / ${maxRepairAttempts}`;
       }
+      if (source === "validate_frontend" && target === "repair_frontend") {
+        return `${label ?? "failed"} · attempt ${frontendRepairAttempts} / ${maxRepairAttempts}`;
+      }
       return label;
     },
-    [graph, repairAttempts, maxRepairAttempts],
+    [graph, repairAttempts, frontendRepairAttempts, maxRepairAttempts],
   );
   const layout = useMemo(() => (graph ? layoutGraph(graph, labelFor) : null), [graph, labelFor]);
 

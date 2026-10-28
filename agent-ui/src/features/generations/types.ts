@@ -42,6 +42,7 @@ export type TGeneration = {
   createdAt: string | null;
   startedAt: string | null;
   finishedAt: string | null;
+  frontendPreview?: TPreview | null;
 };
 
 export type TGenerationPage = {
@@ -148,7 +149,7 @@ export type TListFilters = {
   cursor?: string;
 };
 
-export type TDetailTab = "steps" | "trace" | "results" | "api";
+export type TDetailTab = "steps" | "trace" | "results" | "api" | "app";
 
 // -- results (Story 9.5) ------------------------------------------------------------------------------------------
 

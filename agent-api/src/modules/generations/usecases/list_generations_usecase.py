@@ -8,7 +8,8 @@ from pydantic import BaseModel
 
 from src.libs.exceptions import BadRequestException, ForbiddenException
 from src.modules.generations.ports.output import IGenerationRepoDep
-from src.modules.shared.domain.entities import GenerationEntity, UserEntity
+from src.modules.previews.ports.output import IPreviewRepoDep
+from src.modules.shared.domain.entities import GenerationEntity, PreviewEntity, UserEntity
 from src.modules.shared.domain.enums import GenerationStatus
 from src.modules.specs.ports.output import IBackendSpecRepoDep, IFrontendSpecRepoDep
 
@@ -18,6 +19,7 @@ from .project_names import project_names
 class GenerationListItem(BaseModel):
     generation: GenerationEntity
     project_name: str | None
+    frontend_preview: PreviewEntity | None = None
 
 
 class GenerationPage(BaseModel):
@@ -44,10 +46,12 @@ class ListGenerationsUsecase:
         generation_repo: IGenerationRepoDep,
         spec_repo: IBackendSpecRepoDep,
         frontend_spec_repo: IFrontendSpecRepoDep,
+        preview_repo: IPreviewRepoDep,
     ):
         self.generation_repo = generation_repo
         self.spec_repo = spec_repo
         self.frontend_spec_repo = frontend_spec_repo
+        self.preview_repo = preview_repo
 
     async def execute(
         self,
@@ -64,7 +68,14 @@ class ListGenerationsUsecase:
         page, has_more = rows[:limit], len(rows) > limit
         names = project_names(page, self.spec_repo, self.frontend_spec_repo)
         return GenerationPage(
-            items=[GenerationListItem(generation=row, project_name=names[row.id]) for row in page],
+            items=[
+                GenerationListItem(
+                    generation=row,
+                    project_name=names[row.id],
+                    frontend_preview=self.preview_repo.find(row.id, "frontend") if self.preview_repo else None,
+                )
+                for row in page
+            ],
             next_cursor=encode_cursor(page[-1]) if has_more else None,
         )
 

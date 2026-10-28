@@ -71,18 +71,26 @@ export function fetchFiles(id: string, path: string) {
   return apiClient.get<TFileNode>(`/generations/${id}/files`, { query: { path } });
 }
 
-// -- preview (Story 9.6) ------------------------------------------------------------------------------------------
+// -- preview (Story 9.6, 9.8, 9.9) ---------------------------------------------------------------------------------
 
-export function fetchPreview(id: string) {
-  return apiClient.get<TPreview>(`/generations/${id}/preview`);
+export function fetchPreview(id: string, kind: "backend" | "frontend" = "backend") {
+  return apiClient.get<TPreview>(`/generations/${id}/preview`, { query: { kind } });
 }
 
-export function previewAction(id: string, action: TPreviewAction) {
-  return apiClient.post<TPreview>(`/generations/${id}/preview/${action}`);
+export function previewAction(id: string, action: TPreviewAction, kind: "backend" | "frontend" = "backend") {
+  return apiClient.post<TPreview>(`/generations/${id}/preview/${action}`, { query: { kind } });
 }
 
-export function fetchPreviewLogs(id: string, tail = 300) {
-  return apiClient.get<{ lines: string[] }>(`/generations/${id}/preview/logs`, { query: { tail } });
+export function recheckIntegration(id: string) {
+  return apiClient.post<TPreview>(`/generations/${id}/integration/recheck`);
+}
+
+export function sendUseMocksIntegration(id: string) {
+  return apiClient.post<TPreview>(`/generations/${id}/integration/use-mocks`);
+}
+
+export function fetchPreviewLogs(id: string, tail = 300, kind: "backend" | "frontend" = "backend") {
+  return apiClient.get<{ lines: string[] }>(`/generations/${id}/preview/logs`, { query: { tail, kind } });
 }
 
 export function fetchPreviewRequests(id: string) {

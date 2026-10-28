@@ -1,6 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { AppWindow } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useNow } from "@/hooks/use-now";
 import { elapsedMs, formatDuration, formatStep, isTerminal } from "../lib/status";
@@ -30,6 +32,7 @@ export function GenerationsTable({ items }: GenerationsTableProps) {
           <TableHead>Current step</TableHead>
           <TableHead className="text-right">Duration</TableHead>
           <TableHead className="text-right">Created</TableHead>
+          <TableHead className="text-right">Actions</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -61,6 +64,24 @@ export function GenerationsTable({ items }: GenerationsTableProps) {
               </TableCell>
               <TableCell className="text-right text-muted-foreground">
                 {item.createdAt ? dateFormat.format(new Date(item.createdAt)) : "—"}
+              </TableCell>
+              <TableCell className="text-right">
+                {item.frontendPreview?.status === "RUNNING" && item.frontendPreview.url ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 gap-1 px-2 text-xs"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      router.push(`/generations/${item.generationId}?tab=app`);
+                    }}
+                  >
+                    <AppWindow className="size-3.5 text-primary" />
+                    Open app
+                  </Button>
+                ) : (
+                  <span className="text-muted-foreground">—</span>
+                )}
               </TableCell>
             </TableRow>
           );

@@ -10,6 +10,10 @@ import type {
 
 const SPEC_ROUTES: Record<TSpecKind, string> = { backend: "/specs", frontend: "/frontend-specs" };
 
+export function fetchFrontendSpec(id: string) {
+  return apiClient.get<{ id: string; raw: string; normalized: Record<string, unknown> | null }>(`/frontend-specs/${id}`);
+}
+
 export function validateSpec(kind: TSpecKind, raw: string, signal?: AbortSignal) {
   return apiClient.post<TValidationReport>(`${SPEC_ROUTES[kind]}/validate`, { rawBody: raw, signal });
 }

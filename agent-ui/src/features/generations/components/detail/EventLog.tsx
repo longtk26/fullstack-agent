@@ -4,9 +4,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Stack } from "@/components/layout/Stack";
-import { useEventLog } from "../../hooks/use-event-log";
+import { LANE_OPTIONS, useEventLog } from "../../hooks/use-event-log";
 import { EVENT_CATEGORIES, type TEventCategory } from "../../lib/event-format";
-import type { TGenerationEvent } from "../../types";
+import type { TGenerationEvent, TLane } from "../../types";
 import { EventRow } from "./EventRow";
 
 type EventLogProps = {
@@ -14,7 +14,8 @@ type EventLogProps = {
 };
 
 export function EventLog({ events }: EventLogProps) {
-  const { category, setCategory, autoScroll, setAutoScroll, scrollRef, visible, virtualizer } = useEventLog(events);
+  const { category, setCategory, lane, setLane, autoScroll, setAutoScroll, scrollRef, visible, virtualizer } =
+    useEventLog(events);
 
   return (
     <Stack gap="sm">
@@ -22,13 +23,29 @@ export function EventLog({ events }: EventLogProps) {
         <h2 className="text-sm font-medium">
           Event log <span className="text-muted-foreground">({visible.length})</span>
         </h2>
-        <Stack direction="row" gap="md" align="center">
+        <Stack direction="row" gap="sm" align="center" wrap>
+          <Select
+            items={LANE_OPTIONS}
+            value={lane}
+            onValueChange={(value) => setLane(value as TLane | "all")}
+          >
+            <SelectTrigger size="sm" className="w-32" aria-label="Filter by lane">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {LANE_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Select
             items={EVENT_CATEGORIES}
             value={category}
             onValueChange={(value) => setCategory(value as TEventCategory | "all")}
           >
-            <SelectTrigger size="sm" className="w-36" aria-label="Filter events">
+            <SelectTrigger size="sm" className="w-32" aria-label="Filter events">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

@@ -81,6 +81,7 @@ async def list_generations(
                 created_at=item.generation.created_at,
                 started_at=item.generation.started_at,
                 finished_at=item.generation.finished_at,
+                frontend_preview=PreviewDto.from_entity(item.frontend_preview) if item.frontend_preview else None,
             )
             for item in page.items
         ],

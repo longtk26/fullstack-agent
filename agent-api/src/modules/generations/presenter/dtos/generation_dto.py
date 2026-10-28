@@ -202,6 +202,7 @@ class GenerationSummaryDto(CamelModel):
     created_at: datetime | None
     started_at: datetime | None
     finished_at: datetime | None
+    frontend_preview: PreviewDto | None = None
 
 
 class GenerationPageDto(CamelModel):
