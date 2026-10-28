@@ -1,8 +1,8 @@
 # Fullstack Generation Agent — Product Backlog
 
-Source: [requirements.md](../requirements.md) (v1.3, updated to match this backlog). Created 2026-10-23,
+Source: [requirements.md](../requirements.md) (v1.4, updated to match this backlog). Created 2026-10-23,
 extended 2026-10-26 with frontend generation (Epics 12–14, Stories 9.7–9.8) and 2026-10-27 with site images and
-revisions (Epics 15–16).
+revisions (Epics 15–16) and 2026-10-28 with fast generation (Epic 17).
 
 ## What we are building
 
@@ -78,6 +78,7 @@ lane, tracing, results, and an OpenAPI explorer that sends test calls to the run
 | 14 | [Parallel generation & live-API switch](epic14_parallel_generation/epic14_parallel_generation.md) | Phase 6 | 3 |
 | 15 | [Site images & illustrations](epic15_site_assets/epic15_site_assets.md) | Phase 7 | 5 |
 | 16 | [Site revisions & feedback](epic16_site_revisions/epic16_site_revisions.md) | Phase 7 | 5 |
+| 17 | [Fast generation: section renderer, component cache, templated CRUD](epic17_fast_generation/epic17_fast_generation.md) | Phase 7 | 6 |
 
 ### Suggested delivery order
 
@@ -95,6 +96,9 @@ workflow to be built before real generation works.
 6. **Site images and revisions (added 2026-10-27):** 9.7a (spec editor, both epics build on it) → E14 →
    E15 (15.1–15.3 generated SVGs, then 15.4 uploads; 15.5 only if asked) → E16 (16.1 revisions → 16.2 spec
    edits → 16.3 feedback → 16.4 inspect mode → 16.5 history). E11 (hardening & release) stays last.
+7. **Fast generation (added 2026-10-28):** E17 before E15/E16, since both get simpler on the renderer:
+   17.5 (auto-fix, pre-installed deps) → 17.1 → 17.2 (static, no engine call) → 17.3 (custom components +
+   cache) → 17.4 (dynamic data sections) → 17.6 (backend CRUD from templates).
 
 ### Status (2026-10-28)
 
@@ -107,26 +111,27 @@ workflow to be built before real generation works.
 | 12 | 12.1–12.3 and 12.5 done; 12.4 open |
 | 13 | done |
 | 14 | done (14.1 parallel lanes, 14.2 live-API switch + `/integration/{recheck,use-mocks}`, 14.3 live contract & Playwright smoke checks) |
-| 2.4, 10, 11, 15, 16 | open |
+| 2.4, 10, 11, 15, 16, 17 | open |
 
-### Next up (agreed 2026-10-27)
+### Next up (agreed 2026-10-28, after Epic 14)
 
-Work in this order; start each item in a fresh session ("implement story 9.7a", "implement Epic 14", …).
+Done since the last plan: 9.7a (generate from the UI) and Epic 14 (parallel lanes, live-API switch, live smoke).
+Work in this order; start each item in a fresh session ("implement story 9.8", "implement story 17.5", …).
 
 | # | Item | What the user gets | Why at this point |
 |---|---|---|---|
-| 1 | **9.7a** | Generate and preview static and dynamic sites from the UI | Everything below builds on it |
-| 2 | **Epic 14** (14.1–14.3) | Dynamic apps: lanes run in parallel, the site switches from mocks to the live backend once it is healthy, live smoke test | Today the lanes run one after the other, the site stays on mocks and integration is skipped (`COMPLETED_WITH_WARNINGS`) |
-| 3 | **9.8 + 9.9** | Parallel lane view with the Mock/Live switch; App tab to use the generated app inside the agent UI | Both need Epic 14 |
-| 4 | **Epic 15** (15.1–15.4) | Real images: engine-drawn SVGs, uploads, links (15.5 only if asked) | Independent; no new key |
-| 5 | **Epic 16** | Revisions: theme editor, click-to-comment, history and restore | Uses 9.9 (inspect mode in the App tab) and 15 (illustrations follow the theme) |
-| 6 | **2.4 + 12.4, then 9.7b** | Requirement → draft specs; review aids in the editor | May move up to right after 9.7a if starting from text matters more than parallel lanes |
-| 7 | **Epic 10**, then **Epic 11** | Auth, roles and business rules in generated backends; hardening, benchmark, release | Epic 11 stays last |
+| 1 | **9.8 + 9.9** | Parallel lane view with the Mock/Live switch; App tab to use the generated app inside the agent UI | Epic 14 is done, so its lanes and switch can be shown; 16.4 inspect mode lives in the App tab |
+| 2 | **Epic 17**: 17.5 → 17.1 → 17.2 → 17.3 → 17.4 → 17.6 | Faster runs: auto-fix and pre-installed deps first (every mode), then static sites with no engine call for catalogue sections, cached custom components, dynamic data sections, backend CRUD from templates | Engine calls are >90% of a run (static ~25 min, backend ~17 min); Epics 15 and 16 build on the renderer |
+| 3 | **Epic 15** (15.1–15.4) | Real images: engine-drawn SVGs, uploads, links (15.5 only if asked) | Assets become section props on the renderer |
+| 4 | **Epic 16** | Revisions: theme and content editors, click-to-comment, history and restore | Spec edits and catalogue feedback are a JSON patch + re-render after 17.2; uses 9.9 and 15 |
+| 5 | **2.4 + 12.4, then 9.7b** | Requirement → draft specs; review aids in the editor | May move up if starting from text matters more than speed |
+| 6 | **Epic 10**, then **Epic 11** | Auth, roles and business rules in generated backends; hardening, benchmark, release | Epic 11 stays last |
 
 Open decisions along the way:
-- Whether to move drafting (2.4 + 12.4) up to right after 9.7a.
-- One paid real-engine run (Claude Code) on `shop-dynamic`, after 9.7a or Epic 14, to confirm that real engines
-  handle the frontend lane; so far only the fake engine has been verified. Only when the user asks.
+- Whether to move drafting (2.4 + 12.4) up.
+- One paid real-engine run (Claude Code) on `shop-dynamic` to confirm real engines handle the frontend lane and to
+  record a timing baseline for Epic 17 (so far the frontend lane has real timings from Antigravity only). Only
+  when the user asks.
 
 ## Decisions (2026-10-23 review)
 
@@ -145,6 +150,10 @@ Open decisions along the way:
 | Q11 (2026-10-26) | Frontend base = **`pnpx create-next-app`** exactly as nextjs-skills prescribes (versions pinned by the lock file) + our overlay; no template repo | 13.2 |
 | IMG (2026-10-27) | Site images: **SVG illustrations drawn by the code engine** in the theme's colour variables (no new provider or key); uploads and links for photos and logos; AI raster images only as an optional, opt-in provider; icons from `lucide-react` | New Epic 15; FrontendSpec `assets[]` gains sources `generate` / `upload:` / `lucide:` (additive, still 1.0) |
 | REV (2026-10-27) | Feedback becomes **revisions**: small jobs on the finished frontend, one commit each, validated and redeployed; spec edits (theme, content, assets) need no engine call; frontend only; the contract stays fixed | New Epic 16; artifacts gain `frontend.bundle` and per-revision ZIPs |
+| SPEED (2026-10-28) | Generation is made faster by **doing less with the engine**: catalogue sections are rendered from the FrontendSpec by a section library in the overlay, custom components are generated in parallel and cached by content once validated, backend CRUD comes from templates | New Epic 17; requirements v1.4 (FR-30) |
+| Q18 (2026-10-28) | FrontendSpec nesting: **only layout nodes** (`Columns`, `Stack`, `Grid`, `Tabs`) hold sections as children, **depth ≤ 3**; no element trees. Sections lay out their own insides, so layout nodes only arrange sections | 17.1 |
+| Q19 (2026-10-28) | **Keep the code engine** for custom components (one call each, in parallel, cached) | 17.3 |
+| Q20 (2026-10-28) | Component cache is **shared by all users, exact key only**; no similarity matching | 17.3 |
 | Q15 (2026-10-26) | Product renamed **Fullstack Generation Agent** (docs, UI, `APP_NAME`, LangSmith project). Internal identifiers stay: `bga-runner`, `.bga/`, compose project `bga`, schema `$id`s, repo folder | – |
 
 ## Changes from requirements v1.0 (accepted via Q1; now part of v1.1)

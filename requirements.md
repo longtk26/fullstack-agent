@@ -1,8 +1,13 @@
 # AI Fullstack Generation Agent — Requirements Specification
 
-**Version:** 1.3  
+**Version:** 1.4  
 **Status:** Approved for MVP — backlog in [`pdm/`](pdm/README.md)  
 **Priority:** High
+
+**Changes in 1.4 (2026-10-28):**
+- **Fast generation and reuse**: catalogue sections are rendered from the FrontendSpec without an engine call,
+  custom components are generated in parallel and reused from a cache once validated, backend CRUD modules come
+  from templates, and mechanical lint fixes no longer need an engine repair (FR-30). Backlog: Epic 17.
 
 **Changes in 1.3 (2026-10-27):**
 - Site images: FrontendSpec assets can be **drawn as SVG by the code engine** in the theme's colours, uploaded,
@@ -711,6 +716,24 @@ After a frontend lane completes, the user must be able to request **revisions** 
 - Revisions are listed with their changes and can be diffed and restored (restore creates a new revision).
 - Revisions work after the workspace retention period (restored from the artifacts). In dynamic mode the
   contract stays fixed; changes that need it are reported as backend spec changes.
+
+### FR-30: Fast Generation and Reuse
+
+The code engine must be used only for what cannot be produced deterministically:
+
+- Sections from the built-in catalogue (and layout nodes holding them) are rendered from the FrontendSpec by a
+  section library shipped with the frontend overlay. Each section's content is validated against its props
+  schema when the spec is validated. A static or dynamic spec that uses only the catalogue needs no engine call
+  on the frontend lane.
+- Custom components are generated with one engine call each, in parallel, and checked in isolation. Components
+  that pass are cached by a content key (props schema, description, base and prompt versions); a cache hit
+  reuses the files and skips the engine call and the component's own checks, while the site-level checks still
+  run.
+- Backend CRUD modules (model, repository, use cases, router, migration, tests) are generated from templates;
+  the engine writes only custom operations and business rules.
+- Mechanical fixes (`ruff --fix`, `eslint --fix`, restoring generator-owned files) run before validation, and
+  sandboxes start with the pinned dependencies installed.
+- Engine calls avoided, cache hits and the time they saved are recorded in usage.
 
 ---
 
