@@ -108,6 +108,25 @@ workflow to be built before real generation works.
 | 13 | done (frontend lane after the backend lane; parallel lanes and the live-API switch are Epic 14) |
 | 2.4, 10, 11, 14, 15, 16 | open |
 
+### Next up (agreed 2026-10-27)
+
+Work in this order; start each item in a fresh session ("implement story 9.7a", "implement Epic 14", …).
+
+| # | Item | What the user gets | Why at this point |
+|---|---|---|---|
+| 1 | **9.7a** | Generate and preview static and dynamic sites from the UI | Everything below builds on it |
+| 2 | **Epic 14** (14.1–14.3) | Dynamic apps: lanes run in parallel, the site switches from mocks to the live backend once it is healthy, live smoke test | Today the lanes run one after the other, the site stays on mocks and integration is skipped (`COMPLETED_WITH_WARNINGS`) |
+| 3 | **9.8 + 9.9** | Parallel lane view with the Mock/Live switch; App tab to use the generated app inside the agent UI | Both need Epic 14 |
+| 4 | **Epic 15** (15.1–15.4) | Real images: engine-drawn SVGs, uploads, links (15.5 only if asked) | Independent; no new key |
+| 5 | **Epic 16** | Revisions: theme editor, click-to-comment, history and restore | Uses 9.9 (inspect mode in the App tab) and 15 (illustrations follow the theme) |
+| 6 | **2.4 + 12.4, then 9.7b** | Requirement → draft specs; review aids in the editor | May move up to right after 9.7a if starting from text matters more than parallel lanes |
+| 7 | **Epic 10**, then **Epic 11** | Auth, roles and business rules in generated backends; hardening, benchmark, release | Epic 11 stays last |
+
+Open decisions along the way:
+- Whether to move drafting (2.4 + 12.4) up to right after 9.7a.
+- One paid real-engine run (Claude Code) on `shop-dynamic`, after 9.7a or Epic 14, to confirm that real engines
+  handle the frontend lane; so far only the fake engine has been verified. Only when the user asks.
+
 ## Decisions (2026-10-23 review)
 
 | # | Decision | Impact |
