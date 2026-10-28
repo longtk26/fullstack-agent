@@ -5,6 +5,7 @@ from fastapi.responses import FileResponse
 from sse_starlette import EventSourceResponse
 
 from src.modules.auth.presenter import CurrentUserDep
+from src.modules.previews.presenter.dtos import PreviewDto
 from src.modules.generations.presenter.dtos import (
     ArtifactDto,
     ArtifactListDto,
