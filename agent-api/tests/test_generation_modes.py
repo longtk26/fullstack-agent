@@ -17,7 +17,7 @@ SHOP = json.loads((EXAMPLES / "specs" / "shop.json").read_text())
 SHOP_FRONTEND = json.loads((EXAMPLES / "frontend-specs" / "shop-dynamic.json").read_text())
 TRACKER_FRONTEND = json.loads((EXAMPLES / "frontend-specs" / "project-tracker-dynamic.json").read_text())
 LANDING = json.loads((EXAMPLES / "frontend-specs" / "static-landing.json").read_text())
-OPTIONS = {"engine": "fake", "deployPreview": False}
+OPTIONS = {"engine": "fake", "deployPreview": False, "crudFromTemplates": False}  # the backend engine path
 
 
 @pytest.fixture

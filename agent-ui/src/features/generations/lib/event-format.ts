@@ -42,6 +42,7 @@ export const EVENT_ICONS: Record<string, LucideIcon> = {
   "frontend.plan.ready": FileJson,
   "frontend.scaffold.done": FileCheck,
   "frontend.rendered": FileCheck,
+  "backend.generated": FileCheck,
   "component.cache_hit": DatabaseZap,
   "component.generated": Puzzle,
   "component.fallback": TriangleAlert,
@@ -135,6 +136,8 @@ export function describeEvent(event: TGenerationEvent): string {
       parts.push(calls ? `${calls} engine call(s)` : "no engine call");
       return `Site rendered from the spec: ${parts.join(", ")}`;
     }
+    case "backend.generated":
+      return `${text(p.part) === "database" ? "Models and entities" : "CRUD modules"} written from templates: ${num(p.files) ?? "?"} file(s), no engine call`;
     case "component.cache_hit": {
       const saved = num(p.savedMs);
       return `${names(p.components)} taken from the component cache${saved ? ` (saved ${formatDuration(saved)} of engine time)` : ""}`;

@@ -138,11 +138,21 @@ def record_owned(project: Path) -> dict[str, str]:
     return hashes
 
 
+def add_owned(project: Path, files: list[str]) -> None:
+    """Records files the generator wrote after the scaffold (Story 17.6: CRUD code from templates) as owned."""
+    path = project / OWNED_INFO
+    hashes = json.loads(path.read_text()) if path.exists() else {}
+    hashes |= {relative: _sha256(project / relative) for relative in files if (project / relative).is_file()}
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(hashes, indent=2, sort_keys=True) + "\n")
+
+
 def changed_owned(project: Path) -> list[str]:
-    """Owned files the engine changed, added or removed since the scaffold."""
+    """Owned files the engine changed, added or removed since the scaffold (or since they were generated)."""
     recorded_path = project / OWNED_INFO
     if not recorded_path.exists():
         return []
     recorded: dict[str, str] = json.loads(recorded_path.read_text())
     current = {p.relative_to(project).as_posix(): _sha256(p) for p in owned_files(project)}
+    current |= {path: _sha256(project / path) for path in recorded if (project / path).is_file()}
     return sorted(path for path in recorded.keys() | current.keys() if recorded.get(path) != current.get(path))

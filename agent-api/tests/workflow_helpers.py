@@ -95,7 +95,9 @@ def completed_generation(client, root: Path, **options) -> str:
 
 
 def submit(client, headers, spec=None, **options) -> str:
-    body = {"backendSpec": spec or TWO_ENTITY, "options": {"engine": "fake", "deployPreview": False, **options}}
+    # The engine path (crudFromTemplates=false): the fake engine's scripted golden modules, with a planted defect.
+    options = {"engine": "fake", "deployPreview": False, "crudFromTemplates": False, **options}
+    body = {"backendSpec": spec or TWO_ENTITY, "options": options}
     response = client.post("/api/v1/generations", json=body, headers=headers)
     assert response.status_code == 202, response.text
     return response.json()["generationId"]

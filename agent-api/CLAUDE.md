@@ -51,6 +51,11 @@ Agent-specific notes:
   scratch copy and its own sandbox (`for_job(..., part=...)`), or copies it from the component cache
   (`component_cache` rows + `ARTIFACT_ROOT/cache/components/<key>/`, key in `component_cache.py`), and rewrites the
   owned registry. Admin purge: `DELETE /api/v1/cache/components`.
+- Backend CRUD from templates (Story 17.6): `orchestrator/backend_codegen.py` writes models, entities, CRUD modules,
+  `src/routers.py` and the API tests from the plan (no engine); the sandbox's ruff formats them and they are recorded
+  as owned (`scaffold.add_owned`). The engine only completes what `codegen_gaps` / `database_gaps` name (custom
+  operations, rules, auth; one-to-one / many-to-many models), with the `complete_backend` prompt.
+  `options.crudFromTemplates=false` restores the engine path (tests of the engine plumbing use it).
 - Test doubles (fake engine, golden two-entity project, static validator, fake CLIs, opt-in test flags) are listed in
   `docs/development/test-doubles.md`; add any new fake there and mark it at its definition.
 

@@ -58,7 +58,7 @@ def _submit_dynamic(client, auth: dict, shop: bool = False, **option_overrides: 
         "mode": "dynamic",
         "frontendSpec": SHOP_FRONTEND if shop else TRACKER_FRONTEND,
         "backendSpec": SHOP_BACKEND if shop else TWO_ENTITY,
-        "options": {"engine": "fake", **option_overrides},
+        "options": {"engine": "fake", "crudFromTemplates": False, **option_overrides},  # backend engine path
     }
     response = client.post("/api/v1/generations", json=body, headers=auth)
     assert response.status_code == 202, response.text
@@ -366,11 +366,12 @@ def test_unhealthy_backend_or_openapi_mismatch_keeps_mocks(
 
 
 def test_integration_wait_timeout_aborts_slow_backend_and_keeps_mocks(client, headers, tmp_path, monkeypatch):
+    """The wait counts from when the backend reaches validation (Story 17.6): a repair that takes too long then."""
     monkeypatch.setattr(config, "integration_wait_seconds", 0.1)
     auth = headers()
     generation_id = _submit_dynamic(client, auth, deployPreview=False)
     steps = demo_scenario(0)
-    steps["generate_backend"][0].sleep_s = 2.0
+    steps["repair_code"][0].sleep_s = 2.0
 
     status = run_job(tmp_path, generation_id, engine=FakeEngine(tmp_path, steps))
     assert status == "COMPLETED_WITH_WARNINGS"
@@ -378,6 +379,20 @@ def test_integration_wait_timeout_aborts_slow_backend_and_keeps_mocks(client, he
     assert row.lanes == {"backend": "FAILED", "frontend": "COMPLETED", "integration": "SKIPPED"}
     kept = next(e for e in events(generation_id) if e.type == "integration.kept_mocks")
     assert "INTEGRATION_WAIT_SECONDS" in kept.payload["reason"]
+
+
+def test_a_backend_still_being_written_is_not_cancelled_by_the_integration_wait(client, headers, tmp_path, monkeypatch):
+    """Story 17.6: the frontend lane can finish long before the backend; the wait starts at validation."""
+    monkeypatch.setattr(config, "integration_wait_seconds", 1.0)
+    auth = headers()
+    generation_id = _submit_dynamic(client, auth, deployPreview=False)
+    steps = demo_scenario(0)
+    steps["generate_backend"][0].sleep_s = 2.0  # far beyond the wait, but before validation
+
+    status = run_job(tmp_path, generation_id, engine=FakeEngine(tmp_path, steps))
+    row = generation(generation_id)
+    assert status == "COMPLETED_WITH_WARNINGS" and row.lanes["backend"] == "COMPLETED", row.error_summary
+    assert not [e for e in events(generation_id) if "INTEGRATION_WAIT_SECONDS" in json.dumps(e.payload)]
 
 
 def test_failing_frontend_lane_aborts_backend_and_fails_job(client, headers, tmp_path):

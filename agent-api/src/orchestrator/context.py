@@ -106,6 +106,7 @@ class JobContext:
         self.max_concurrent_invocations: int = 0
         self._extra_slot_acquired: bool = False
         self.backend_done = asyncio.Event()
+        self.backend_validating = asyncio.Event()  # the backend lane reached run_validation
         self.frontend_done = asyncio.Event()
         self.frontend_failed = False
         self.backend_aborted_reason: str | None = None
@@ -183,11 +184,17 @@ class JobContext:
             self._deactivate_lane(lane)
 
     def start_integration_wait_watchdog(self) -> None:
-        """Story 14.2: once the frontend lane completes, give the backend lane at most INTEGRATION_WAIT_SECONDS."""
+        """Story 14.2: once the frontend lane completes, give the backend lane at most INTEGRATION_WAIT_SECONDS,
+        counted from when it reaches validation (Story 17.6): a backend still being written is never cancelled
+        for being slower than the frontend; the job timeout bounds it."""
         if self.backend_done.is_set() or self._wait_task is not None:
             return
 
         async def _watch() -> None:
+            waits = [asyncio.create_task(self.backend_validating.wait()), asyncio.create_task(self.backend_done.wait())]
+            await asyncio.wait(waits, return_when=asyncio.FIRST_COMPLETED)
+            for wait in waits:
+                wait.cancel()
             try:
                 await asyncio.wait_for(self.backend_done.wait(), timeout=config.integration_wait_seconds)
             except TimeoutError:

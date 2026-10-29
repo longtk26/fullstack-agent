@@ -3,6 +3,7 @@ Each is `async (state, ctx) -> (state update, step summary)`."""
 
 import hashlib
 import json
+import shlex
 import uuid
 from pathlib import Path
 from typing import Any
@@ -16,6 +17,15 @@ from src.modules.shared.domain.frontend_spec import validate_frontend_spec_text
 from src.modules.shared.domain.generation_modes import overall_status
 
 from .autofix import autofix_before_validation
+from .backend_codegen import (
+    codegen_gaps,
+    database_files,
+    database_gaps,
+    is_crud,
+    module_files,
+    module_tests,
+    routers_file,
+)
 from .checks.consistency import check_spec_pair
 from .checks.parity import compare_schema
 from .context import EngineFailure, JobContext
@@ -36,12 +46,18 @@ from .packaging import (
     report_markdown,
 )
 from .planner import build_plan, dump_plan
-from .scaffold import SCAFFOLD_INFO, record_owned, scaffold_project
+from .scaffold import SCAFFOLD_INFO, add_owned, record_owned, scaffold_project
 from .state import GenerationState, Outcome
 from .validation import ValidationRequest, write_report
 
 DIGEST_LIMIT = 30_000
-PROMPT_VERSIONS = {"generate_database": "v2", "generate_backend": "v3", "generate_tests": "v2", "repair_code": "v3"}
+PROMPT_VERSIONS = {
+    "generate_database": "v2",
+    "generate_backend": "v3",
+    "complete_backend": "v1",
+    "generate_tests": "v2",
+    "repair_code": "v3",
+}
 CONTRACT_REF = ".bga/contract.json"
 # kind → name of the artifacts the manifest and the generation detail point at
 MAIN_ARTIFACTS = {
@@ -227,10 +243,37 @@ async def _schema_post_check(ctx: JobContext, plan: dict[str, Any]) -> dict[str,
     return result
 
 
+def _templates(state: GenerationState) -> bool:
+    """Story 17.6: CRUD code from templates (`options.crudFromTemplates`, default on)."""
+    return bool(state["options"].get("crudFromTemplates", True))
+
+
+async def _write_generated(ctx: JobContext, files: dict[str, str], owned: list[str]) -> None:
+    """Writes generated files, formats them with the sandbox's ruff (as the scaffold step does for the template)
+    and records `owned` as generator-owned."""
+    project = ctx.workspace.project
+    for relative, text in files.items():
+        target = project / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text)
+    sandbox = await ctx.sandbox()
+    python = sorted(relative for relative in files if relative.endswith(".py"))
+    if sandbox is not None and python:
+        paths = shlex.join(python)
+        await sandbox.exec(f"ruff check --fix -q {paths} ; ruff format -q {paths}", timeout_s=120)
+    add_owned(project, owned)
+
+
 async def generate_database(state: GenerationState, ctx: JobContext) -> NodeResult:
     spec = _read_json(ctx, state["spec_ref"])
     plan = _read_json(ctx, state["plan_ref"])
     await _scaffold(state, ctx, spec["project"]["name"])
+    gaps = database_gaps(plan) if _templates(state) else ["crudFromTemplates=false"]
+    if not gaps:
+        files = database_files(plan)
+        await _write_generated(ctx, files, list(files))
+        await ctx.emit("backend.generated", step="generate_database", part="database", files=len(files))
+        return {}, {"generatedFiles": len(files), "engineCalls": 0, **await _schema_post_check(ctx, plan)}
     prompt = ctx.prompts.render(
         "generate_database",
         PROMPT_VERSIONS["generate_database"],
@@ -241,47 +284,108 @@ async def generate_database(state: GenerationState, ctx: JobContext) -> NodeResu
         file_tree=ctx.file_tree(),
     )
     result = await ctx.run_engine("generate_database", "generate_database", prompt)
-    return {}, {"changedFiles": len(result.changed_files), **await _schema_post_check(ctx, plan)}
+    summary = {"changedFiles": len(result.changed_files), "engineCalls": 1, "templateGaps": gaps}
+    return {}, {**summary, **await _schema_post_check(ctx, plan)}
 
 
 async def generate_backend(state: GenerationState, ctx: JobContext) -> NodeResult:
     plan = _read_json(ctx, state["plan_ref"])
-    changed = 0
+    if not _templates(state):
+        changed = 0
+        for module in plan["modules"]:
+            prompt = ctx.prompts.render(
+                "generate_backend",
+                PROMPT_VERSIONS["generate_backend"],
+                module=module,
+                module_json=_module_json(module),
+                spec_path=state["spec_ref"],
+                plan_path=state["plan_ref"],
+                contract_path=state.get("contract_ref"),
+                file_tree=ctx.file_tree(),
+            )
+            result = await ctx.run_engine("generate_backend", "generate_backend", prompt)
+            changed += len(result.changed_files)
+        return {}, {"modules": len(plan["modules"]), "changedFiles": changed, "engineCalls": len(plan["modules"])}
+    # Story 17.6: every module's CRUD code from templates; the engine only completes what is not CRUD.
+    spec = _read_json(ctx, state["spec_ref"])
+    files = {"src/routers.py": routers_file(plan)}
+    owned = ["src/routers.py"]
+    generated: dict[str, list[str]] = {}
     for module in plan["modules"]:
+        module_code = module_files(plan, spec, module)
+        files |= module_code
+        generated[module["name"]] = sorted(module_code)
+        if not codegen_gaps(module):
+            owned += list(module_code)
+    await _write_generated(ctx, files, owned)
+    await ctx.emit("backend.generated", step="generate_backend", part="modules", files=len(files))
+    completed = []
+    for module in plan["modules"]:
+        gaps = codegen_gaps(module)
+        if not gaps:
+            continue
         prompt = ctx.prompts.render(
-            "generate_backend",
-            PROMPT_VERSIONS["generate_backend"],
+            "complete_backend",
+            PROMPT_VERSIONS["complete_backend"],
             module=module,
-            module_json=json.dumps({k: v for k, v in module.items() if k != "tests"}, indent=2, sort_keys=True),
+            module_json=_module_json(module),
+            gaps=gaps,
+            generated_files=generated[module["name"]],
             spec_path=state["spec_ref"],
             plan_path=state["plan_ref"],
             contract_path=state.get("contract_ref"),
             file_tree=ctx.file_tree(),
         )
-        result = await ctx.run_engine("generate_backend", "generate_backend", prompt)
-        changed += len(result.changed_files)
-    return {}, {"modules": len(plan["modules"]), "changedFiles": changed}
+        await ctx.run_engine("generate_backend", "complete_backend", prompt)
+        completed.append(module["name"])
+    return {}, {
+        "modules": len(plan["modules"]),
+        "generatedFiles": len(files),
+        "engineCalls": len(completed),
+        "completedByEngine": completed,
+    }
+
+
+def _module_json(module: dict[str, Any]) -> str:
+    return json.dumps({k: v for k, v in module.items() if k != "tests"}, indent=2, sort_keys=True)
 
 
 async def generate_tests(state: GenerationState, ctx: JobContext) -> NodeResult:
     if not state["options"].get("runTests", True):
         return {}, {"_status": "skipped", "reason": "runTests=false"}
     plan = _read_json(ctx, state["plan_ref"])
+    templates = _templates(state)
+    if templates:
+        spec = _read_json(ctx, state["spec_ref"])
+        files: dict[str, str] = {}
+        for module in plan["modules"]:
+            files |= module_tests(plan, spec, module)
+        owned = [module["testFile"] for module in plan["modules"] if not codegen_gaps(module)]
+        await _write_generated(ctx, files, owned)
+    engine_calls = 0
     for module in plan["modules"]:
+        cases = module["tests"]
+        if templates:
+            custom = {op["operationId"] for op in module["operations"] if not is_crud(op)}
+            cases = [case for case in cases if case["operationId"] in custom]
+            if not cases:
+                continue
         prompt = ctx.prompts.render(
             "generate_tests",
             PROMPT_VERSIONS["generate_tests"],
             module=module,
-            test_cases=module["tests"],
+            test_cases=cases,
             spec_path=state["spec_ref"],
             plan_path=state["plan_ref"],
         )
         await ctx.run_engine("generate_tests", "generate_tests", prompt)
-    return {}, {"modules": len(plan["modules"])}
+        engine_calls += 1
+    return {}, {"modules": len(plan["modules"]), "engineCalls": engine_calls}
 
 
 async def run_validation(state: GenerationState, ctx: JobContext) -> NodeResult:
     attempt = state.get("repair_attempts", 0) + 1
+    ctx.backend_validating.set()  # the integration wait starts now at the earliest (Story 17.6)
     contract = None
     if state.get("contract_ref"):
         canonical = _contract_copy(ctx).read_text()

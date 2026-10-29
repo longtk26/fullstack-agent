@@ -141,3 +141,38 @@ def test_autofix_clears_import_order_and_formatting_before_lint(shared_dir):
     assert result.fixed == ["src/modules/tasks/infrastructure/persistence/task_repository.py"]
     assert clean.status == "passed", clean.details
     assert "def helper(a, b):" in repository.read_text()
+
+
+@pytest.mark.parametrize("name", ["two-entity", "shop"])
+def test_backend_generated_from_templates_passes_every_check(shared_dir, name):
+    """Story 17.6: models, CRUD modules and their tests written from the plan, no engine: every check passes,
+    including the generated tests and the OpenAPI conformance with the contract."""
+    from src.orchestrator.backend_codegen import database_files, module_files, module_tests, routers_file
+    from src.orchestrator.contract import build_contract
+    from tests.generation_helpers import EXAMPLES, normalized
+
+    spec = normalized(EXAMPLES / "specs" / f"{name}.json")
+    plan = build_plan(spec)
+    project = shared_dir / "project"
+    project.mkdir()
+    scaffold_project(TEMPLATE, project, spec["project"]["name"])
+    files = database_files(plan) | {"src/routers.py": routers_file(plan)}
+    for module in plan["modules"]:
+        files |= module_files(plan, spec, module) | module_tests(plan, spec, module)
+    for relative, text in files.items():
+        (project / relative).parent.mkdir(parents=True, exist_ok=True)
+        (project / relative).write_text(text)
+
+    async def go():
+        sandbox = DockerSandboxProvider().for_job(f"gen_TESTCG{uuid.uuid4().hex[:6].upper()}", project)
+        try:
+            await sandbox.exec("ruff check --fix -q . ; ruff format -q .")
+            record_owned(project)
+            request = ValidationRequest(project, plan, True, sandbox, contract=build_contract(spec))
+            return await SandboxValidationRunner().run(request)
+        finally:
+            await sandbox.stop()
+
+    outcome = asyncio.run(go())
+    assert outcome.summary == {check: "passed" for check in outcome.summary}, outcome.digest
+    assert "openapi" in outcome.summary and outcome.summary["tests"] == "passed"

@@ -29,7 +29,9 @@ def _queued() -> list[str]:
 
 def test_submit_returns_202_and_enqueues(client, user_headers):
     response = client.post(
-        "/api/v1/generations", json={"backendSpec": TWO_ENTITY, "options": {"engine": "fake"}}, headers=user_headers
+        "/api/v1/generations",
+        json={"backendSpec": TWO_ENTITY, "options": {"engine": "fake", "crudFromTemplates": False}},
+        headers=user_headers,
     )
 
     assert response.status_code == 202
@@ -82,7 +84,10 @@ def test_invalid_inline_spec_is_accepted_and_fails_later(client, user_headers, t
 
 def test_idempotency_key_returns_the_same_generation(client, user_headers):
     headers = {**user_headers, "Idempotency-Key": "abc-123"}
-    body = {"backendSpec": TWO_ENTITY, "options": {"engine": "fake", "deployPreview": False}}
+    body = {
+        "backendSpec": TWO_ENTITY,
+        "options": {"engine": "fake", "deployPreview": False, "crudFromTemplates": False},
+    }
 
     first = client.post("/api/v1/generations", json=body, headers=headers).json()["generationId"]
     second = client.post("/api/v1/generations", json=body, headers=headers).json()["generationId"]
