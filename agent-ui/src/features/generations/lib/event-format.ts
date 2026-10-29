@@ -1,4 +1,4 @@
-import { Activity, Ban, Bot, CirclePlay, FileCheck, FileJson, Flag, Layers, RotateCcw, ShieldCheck, Terminal, TriangleAlert } from "lucide-react";
+import { Activity, Ban, Bot, CirclePlay, FileCheck, FileJson, Flag, Layers, RotateCcw, ShieldCheck, Terminal, TriangleAlert, WandSparkles } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { TGenerationEvent } from "../types";
 import { formatDuration, formatStep } from "./status";
@@ -34,6 +34,7 @@ export const EVENT_ICONS: Record<string, LucideIcon> = {
   "engine.retry": TriangleAlert,
   "cancel.requested": Ban,
   "validation.check": ShieldCheck,
+  "validation.autofix": WandSparkles,
   "lane.changed": Layers,
   "inputs.valid": FileCheck,
   "spec.invalid": TriangleAlert,
@@ -89,6 +90,15 @@ export function describeEvent(event: TGenerationEvent): string {
     case "validation.check": {
       const summary = text(p.summary);
       return `${text(p.check) ?? "check"} ${event.status ?? ""}${summary ? `: ${summary}` : ""}`;
+    }
+    case "validation.autofix": {
+      const fixed = Array.isArray(p.fixed) ? p.fixed.length : 0;
+      const restored = Array.isArray(p.restored) ? p.restored.length : 0;
+      const parts = [
+        fixed ? `fixed ${fixed} file(s) with ruff / eslint` : null,
+        restored ? `restored ${restored} generator-owned file(s)` : null,
+      ].filter(Boolean);
+      return `Auto-fix before checks: ${parts.join(", ")}`;
     }
     case "cancel.requested":
       return "Cancel requested";

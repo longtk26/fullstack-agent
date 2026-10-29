@@ -63,6 +63,51 @@ def test_a_type_error_fails_typecheck_and_skips_build(landing):
     assert "src/app/work/page.tsx" in outcome.implicated_files
 
 
+def test_eslint_autofix_then_every_check_passes_on_the_shared_node_modules():
+    """Story 17.5: fixable ESLint findings are fixed before the checks; node_modules comes from the shared, read-only
+    volume for this dependency set (no per-project install)."""
+    from src.orchestrator.autofix import autofix
+    from src.orchestrator.workspace import WorkspaceManager
+
+    spec = validate_frontend_spec_text((EXAMPLES / "frontend-specs" / "static-landing.json").read_text()).normalized
+    plan = plan_frontend(spec)
+    root = REPO / ".data" / "test-sandbox" / uuid.uuid4().hex[:10]
+    manager = WorkspaceManager(root, max_mb=2000)
+    workspace = manager.create(f"gen_TESTFEFIX{uuid.uuid4().hex[:6].upper()}")
+    project = manager.create_frontend(workspace)
+    scaffold_frontend(project, plan, spec)
+    shutil.copytree(GOLDEN_FRONTENDS["Northwind Studio"], project, dirs_exist_ok=True)
+    manager.commit(workspace, "node:scaffold_frontend attempt:1", repo="frontend")
+    helper = project / "src/features/home/format-title.ts"
+    helper.parent.mkdir(parents=True, exist_ok=True)
+    helper.write_text(
+        "export function formatTitle(name: string): string {\n  let title = name.trim();\n  return title;\n}\n"
+    )
+
+    async def go():
+        sandbox = DockerSandboxProvider().for_job(workspace.root.name, project, "frontend")
+        try:
+            shared = await sandbox.shared_dependencies()
+            fixed = await autofix(manager, workspace, "frontend", sandbox)
+            request = FrontendValidationRequest(project=project, plan=plan, run_tests=True, sandbox=sandbox)
+            return shared, fixed, await SandboxFrontendValidationRunner().run(request)
+        finally:
+            await sandbox.stop()
+
+    try:
+        shared, fixed, outcome = asyncio.run(go())
+        assert shared is not None and shared.startswith("bga-fe-modules-")
+        assert fixed.fixed == ["src/features/home/format-title.ts"] and "const title" in helper.read_text()
+        assert outcome.summary == dict.fromkeys(
+            ("install", "typecheck", "lint", "conventions", "build", "routes", "tests"), "passed"
+        ), outcome.digest
+        install = next(result for result in outcome.results if result.check == "install")
+        assert "shared node_modules" in install.summary
+        assert not any((project / "node_modules").iterdir())  # nothing was copied into the workspace
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+
+
 def test_dynamic_generation_switches_to_live_and_passes_live_smoke(client, user_headers):
     """Stories 14.1–14.3: parallel backend + frontend sandboxes, live preview switch and live Playwright smoke."""
     import json

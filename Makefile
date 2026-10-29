@@ -96,6 +96,7 @@ down-all: host-worker-stop
 	@docker network ls -q --filter label=bga.preview | xargs -r docker network rm >/dev/null
 	@docker network ls -q --filter label=bga.sandbox | xargs -r docker network rm >/dev/null
 	@docker volume ls -q --filter name=bga-preview-db- | xargs -r docker volume rm >/dev/null
+	@docker volume ls -q --filter label=bga.fe-modules | xargs -r docker volume rm >/dev/null
 	@docker images -q --filter label=bga.preview | xargs -r docker rmi -f >/dev/null
 
 ps:

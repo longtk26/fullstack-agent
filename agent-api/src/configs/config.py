@@ -79,6 +79,9 @@ class Config(BaseSettings):
     frontend_sandbox_tmp: str = "1g"
     # Shared pnpm store (named volume, filled from the runner image on first use), so installs run offline.
     frontend_store_volume: str = "bga-pnpm-store"
+    # Story 17.5: one ready node_modules per dependency set (volume `bga-fe-modules-<key>`), mounted read-only, so
+    # a frontend does not copy ~1 GB out of the store on every generation. Off: each project installs its own.
+    frontend_shared_modules: bool = True
 
     generator_version: str = "0.8.0"
     # Shared by worker (writes) and API (downloads); outlives workspaces.

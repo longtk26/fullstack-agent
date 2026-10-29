@@ -108,3 +108,36 @@ def test_broken_project_reports_structured_failures(shared_dir):
     assert outcome.summary["tests"] == "failed"
     assert "test_create_task__bad_reference" in outcome.digest
     assert json.loads(json.dumps(outcome.model_dump()))  # report is serializable
+
+
+def test_autofix_clears_import_order_and_formatting_before_lint(shared_dir):
+    """Story 17.5: the findings of the last real backend run (I001 + format) never reach the repair loop."""
+    from src.orchestrator.autofix import autofix
+    from src.orchestrator.workspace import WorkspaceManager
+
+    manager = WorkspaceManager(shared_dir, max_mb=500)
+    workspace = manager.create(f"gen_TESTFIX{uuid.uuid4().hex[:6].upper()}")
+    shutil.copytree(golden_project(shared_dir / "golden"), workspace.project, dirs_exist_ok=True)
+    repository = workspace.project / "src/modules/tasks/infrastructure/persistence/task_repository.py"
+
+    async def go():
+        sandbox = DockerSandboxProvider().for_job(workspace.root.name, workspace.project)
+        try:
+            await sandbox.exec("ruff check --fix -q . ; ruff format -q .")  # the scaffold's normalization
+            record_owned(workspace.project)
+            manager.commit(workspace, "node:scaffold")
+            lines = repository.read_text().splitlines(keepends=True)
+            repository.write_text(lines[1] + lines[0] + "".join(lines[2:]) + "\n\ndef helper( a,b ):\n    return a+b\n")
+            dirty = await SandboxValidationRunner()._lint(ValidationRequest(workspace.project, {}, False, sandbox))
+            result = await autofix(manager, workspace, "project", sandbox)
+            clean = await SandboxValidationRunner()._lint(ValidationRequest(workspace.project, {}, False, sandbox))
+            return dirty, result, clean
+        finally:
+            await sandbox.stop()
+
+    dirty, result, clean = asyncio.run(go())
+
+    assert dirty.status == "failed" and {d["code"] for d in dirty.details} >= {"format"}
+    assert result.fixed == ["src/modules/tasks/infrastructure/persistence/task_repository.py"]
+    assert clean.status == "passed", clean.details
+    assert "def helper(a, b):" in repository.read_text()

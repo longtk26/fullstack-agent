@@ -5,7 +5,6 @@ from fastapi.responses import FileResponse
 from sse_starlette import EventSourceResponse
 
 from src.modules.auth.presenter import CurrentUserDep
-from src.modules.previews.presenter.dtos import PreviewDto
 from src.modules.generations.presenter.dtos import (
     ArtifactDto,
     ArtifactListDto,
@@ -29,6 +28,7 @@ from src.modules.generations.usecases import (
     ListGenerationsUsecaseDep,
     StreamGenerationEventsUsecaseDep,
 )
+from src.modules.previews.presenter.dtos import PreviewDto
 from src.modules.shared.domain.enums import GenerationMode, GenerationStatus
 
 generation_router = APIRouter(prefix="/api/v1/generations", tags=["generations"])

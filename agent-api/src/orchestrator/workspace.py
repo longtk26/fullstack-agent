@@ -109,6 +109,22 @@ class WorkspaceManager:
             patches.append((f"{prefix}-{attempt}.patch", diff))
         return patches
 
+    def node_commit(self, workspace: JobWorkspace, pattern: str, repo: str = "project") -> str | None:
+        """The latest commit whose subject matches `pattern` (e.g. `^node:scaffold$`), or None."""
+        sha = self._git(workspace, "log", "-1", "--format=%H", "-E", f"--grep={pattern}", repo=repo).strip()
+        return sha or None
+
+    def file_at(self, workspace: JobWorkspace, sha: str, path: str, repo: str = "project") -> bytes | None:
+        completed = subprocess.run(
+            [*_GIT, "show", f"{sha}:{path}"], cwd=workspace.repo(repo), capture_output=True, check=False, timeout=120
+        )
+        return completed.stdout if completed.returncode == 0 else None
+
+    def checkout_paths(self, workspace: JobWorkspace, sha: str, paths: list[str], repo: str = "project") -> None:
+        """Puts `paths` back as they were at `sha` (content and mode)."""
+        if paths:
+            self._git(workspace, "checkout", sha, "--", *paths, repo=repo)
+
     def head_stats(self, workspace: JobWorkspace, repo: str = "project") -> dict[str, int]:
         """Files, insertions and deletions of the last commit (a repair attempt's diff stats, Story 8.2)."""
         stats = {"files": 0, "insertions": 0, "deletions": 0}

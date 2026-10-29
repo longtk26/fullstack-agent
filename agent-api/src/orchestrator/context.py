@@ -547,6 +547,9 @@ class RecordingSandbox(ISandbox):
     async def reset_database(self, name: str) -> None:
         await self.inner.reset_database(name)
 
+    async def shared_dependencies(self) -> str | None:
+        return await self.inner.shared_dependencies()
+
     async def exec(
         self, command: str, timeout_s: int | None = None, env: dict[str, str] | None = None, egress: bool = False
     ) -> ExecResult:

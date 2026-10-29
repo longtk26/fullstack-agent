@@ -1,6 +1,7 @@
 """Frontend validation pipeline (Story 13.4), reported like the backend pipeline (6.2).
 
-    1 install      pnpm install from the pre-warmed store (offline); egress only when new packages are needed
+    1 install      the shared read-only node_modules for these dependency files (17.5), else pnpm install from the
+                   pre-warmed store (offline); egress only when new packages are needed
     2 typecheck    tsc --noEmit                                                     1
     3 lint         ESLint (eslint-config-next)                                      1
     4 conventions  static nextjs-skills checker, owned files unchanged, planned files present   –
@@ -191,6 +192,12 @@ class SandboxFrontendValidationRunner:
 
     async def _install(self, request: FrontendValidationRequest) -> CheckResult:
         sandbox = request.sandbox
+        shared = await sandbox.shared_dependencies()
+        if shared is not None:
+            # Story 17.5: a ready node_modules for exactly these dependency files is mounted read-only.
+            run = await sandbox.exec("pnpm ls --depth -1 >/dev/null", timeout_s=120)
+            summary = f"dependencies ready (shared node_modules {shared})" if run.ok else "shared node_modules unusable"
+            return _result("install", run.ok, summary, run)
         run = await sandbox.exec("pnpm install --frozen-lockfile --offline", timeout_s=600)
         steps = [run]
         if not run.ok and any(marker in run.output for marker in NO_OFFLINE):

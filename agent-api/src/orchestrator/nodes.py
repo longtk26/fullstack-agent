@@ -15,6 +15,7 @@ from src.modules.shared.domain.enums import GenerationMode, LaneStatus
 from src.modules.shared.domain.frontend_spec import validate_frontend_spec_text
 from src.modules.shared.domain.generation_modes import overall_status
 
+from .autofix import autofix_before_validation
 from .checks.consistency import check_spec_pair
 from .checks.parity import compare_schema
 from .context import EngineFailure, JobContext
@@ -286,6 +287,7 @@ async def run_validation(state: GenerationState, ctx: JobContext) -> NodeResult:
         canonical = _contract_copy(ctx).read_text()
         ctx.project_path(*CONTRACT_REF.split("/")).write_text(canonical)  # undo any edit by the engine
         contract = json.loads(canonical)
+    fixes = await autofix_before_validation(ctx, "project", attempt, "run_validation")
     request = ValidationRequest(
         project=ctx.workspace.project,
         plan=_read_json(ctx, state["plan_ref"]),
@@ -341,7 +343,7 @@ async def run_validation(state: GenerationState, ctx: JobContext) -> NodeResult:
     elif at_limit:
         update["outcome"] = Outcome.REPAIR_LIMIT
         update["error_summary"] = message
-    return update, {"_status": "failed" if failed else "succeeded", "failedChecks": failed}
+    return update, {"_status": "failed" if failed else "succeeded", "failedChecks": failed, **fixes}
 
 
 async def repair_code(state: GenerationState, ctx: JobContext) -> NodeResult:

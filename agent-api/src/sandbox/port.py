@@ -47,6 +47,11 @@ class ISandbox(ABC):
     async def reset_database(self, name: str) -> None:
         """Drops and recreates database `name` on the sidecar."""
 
+    async def shared_dependencies(self) -> str | None:
+        """Story 17.5: the name of a ready node_modules mounted read-only at /work/node_modules, or None when the
+        project installs its own."""
+        return None
+
     @abstractmethod
     async def stop(self) -> None: ...
 

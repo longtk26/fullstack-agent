@@ -9,8 +9,10 @@ at the same path inside the worker).
 
 import asyncio
 import hashlib
+import json
 import os
 import secrets
+import threading
 import time
 from pathlib import Path
 
@@ -31,6 +33,31 @@ PART_LABEL = "bga.sandbox.part"
 RUNNER_UID = 10001
 DB_USER = "app"
 DB_READY_TIMEOUT_S = 60
+# Story 17.5: shared, read-only node_modules per dependency set. Vite and Vitest write into these folders (nothing
+# else does: tsc, ESLint, next build and Playwright only read), so each gets a tmpfs.
+MODULES_VOLUME = "bga-fe-modules-"
+MODULES_LABEL = "bga.fe-modules"
+MODULES_READY = ".bga-ready"
+WRITABLE_DIRS = (".vite", ".vite-temp", ".vitest-cache")
+DEPENDENCY_FIELDS = ("dependencies", "devDependencies", "optionalDependencies", "peerDependencies", "pnpm")
+_modules_lock = threading.Lock()
+_modules_ready: dict[str, bool] = {}  # per worker process: key → filled (False: install per project instead)
+
+
+def dependency_key(project: Path) -> str | None:
+    """What decides a frontend's node_modules: the lock file, the pnpm workspace settings and the dependency fields
+    of package.json (scripts and names may differ). None when there is no lock file."""
+    lock = project / "pnpm-lock.yaml"
+    try:
+        manifest = json.loads((project / "package.json").read_text())
+        digest = hashlib.sha256(lock.read_bytes())
+    except (OSError, ValueError):
+        return None
+    workspace = project / "pnpm-workspace.yaml"
+    if workspace.is_file():
+        digest.update(workspace.read_bytes())
+    digest.update(json.dumps({key: manifest.get(key) for key in DEPENDENCY_FIELDS}, sort_keys=True).encode())
+    return digest.hexdigest()[:16]
 
 
 def instance_id() -> str:
@@ -173,6 +200,88 @@ class DockerSandbox(ISandbox):
             self._exec, command, timeout_s or config.sandbox_command_timeout_seconds, env, egress
         )
 
+    async def shared_dependencies(self) -> str | None:
+        await self.start()
+        return await asyncio.to_thread(self._shared_modules)
+
+    # -- shared node_modules (Story 17.5) ------------------------------------------------------------------------
+
+    def _shared_modules(self) -> str | None:
+        """The ready volume for this project's dependencies, filled on first use; None when the project must install
+        its own (backend sandbox, switched off, no lock file, or packages the store does not have)."""
+        if self.profile.kind != "frontend" or not config.frontend_shared_modules:
+            return None
+        key = dependency_key(self.project)
+        if key is None:
+            return None
+        volume = f"{MODULES_VOLUME}{key}"
+        with _modules_lock:
+            if key not in _modules_ready:
+                _modules_ready[key] = self._fill_modules(volume)
+        return volume if _modules_ready[key] else None
+
+    def _fill_modules(self, volume: str) -> bool:
+        """An offline install into the volume (the job network has no route out), marked ready only when it
+        succeeded, so an interrupted fill is simply repeated."""
+        try:
+            self.client.volumes.get(volume)
+        except NotFound:
+            self.client.volumes.create(volume, labels={MODULES_LABEL: "true"})
+        (self.project / "node_modules").mkdir(exist_ok=True)  # the mount point, owned by us rather than by Docker
+        user = self._user()
+        mount = {volume: {"bind": "/modules", "mode": "rw"}}
+        # The volume root goes to this worker's runner uid (a new volume belongs to root; the host and the Docker
+        # worker use different uids). Only this step runs as root, with CHOWN only.
+        if self._run_helper(f"chown {user} /modules", "0:0", mount, cap_add=["CHOWN"]) != 0:
+            return False
+        writable = " ".join(f"node_modules/{name}" for name in WRITABLE_DIRS)
+        fill = (
+            f"{{ [ -f node_modules/{MODULES_READY} ] || {{ pnpm install --frozen-lockfile --offline && "
+            f"touch node_modules/{MODULES_READY}; }}; }} && mkdir -p {writable}"
+        )
+        volumes = {
+            str(self.project): {"bind": "/work", "mode": "rw"},
+            volume: {"bind": "/work/node_modules", "mode": "rw"},
+            **self.profile.volumes,
+        }
+        started = time.monotonic()
+        ok = self._run_helper(fill, user, volumes) == 0
+        logger.info(
+            "shared node_modules " + ("ready" if ok else "not possible, the project installs its own"),
+            extra={"volume": volume, "duration_ms": int((time.monotonic() - started) * 1000)},
+        )
+        return ok
+
+    def _run_helper(self, command: str, user: str, volumes: dict, cap_add: list[str] | None = None) -> int:
+        container = self.client.containers.run(
+            self.profile.image,
+            ["sh", "-c", command],
+            detach=True,
+            user=user,
+            network=self.network_name,
+            labels=_labels(self.generation_id, self.profile.kind),
+            volumes=volumes,
+            working_dir="/work",
+            environment={"HOME": "/tmp", "CI": "1"},
+            read_only=True,
+            tmpfs={"/tmp": f"rw,exec,size={self.profile.tmp}"},
+            cap_drop=["ALL"],
+            cap_add=cap_add,
+            security_opt=["no-new-privileges"],
+            nano_cpus=int(self.profile.cpus * 1e9),
+            mem_limit=_memory_bytes(self.profile.memory),
+            pids_limit=self.profile.pids,
+        )
+        try:
+            return container.wait(timeout=600).get("StatusCode", 1)
+        except (ReadTimeout, RequestsConnectionError):
+            return 124
+        finally:
+            try:
+                container.remove(force=True)
+            except APIError:
+                pass
+
     def _exec(self, command: str, timeout_s: int, env: dict[str, str] | None, egress: bool) -> ExecResult:
         if egress:
             ensure_egress_network(self.client)
@@ -189,19 +298,28 @@ class DockerSandbox(ISandbox):
         environment |= env or {}
         if (self.project / ".venv" / "bin" / "python").exists():
             environment["PATH"] = "/work/.venv/bin:/opt/venv/bin:/usr/local/bin:/usr/bin:/bin"
-        started = time.monotonic()
+        started = time.monotonic()  # includes a first fill of the shared node_modules
+        user = self._user()
+        volumes = {str(self.project): {"bind": "/work", "mode": "rw"}, **self.profile.volumes}
+        tmpfs = {"/tmp": f"rw,exec,size={self.profile.tmp}"}
+        modules = self._shared_modules()
+        if modules is not None:
+            volumes[modules] = {"bind": "/work/node_modules", "mode": "ro"}
+            uid, _, gid = user.partition(":")
+            for name in WRITABLE_DIRS:
+                tmpfs[f"/work/node_modules/{name}"] = f"rw,exec,size=256m,uid={uid},gid={gid or uid}"
         container = self.client.containers.run(
             self.profile.image,
             ["sh", "-c", command],
             detach=True,
-            user=self._user(),
+            user=user,
             network=config.sandbox_egress_network if egress else self.network_name,
             labels=_labels(self.generation_id, self.profile.kind),
-            volumes={str(self.project): {"bind": "/work", "mode": "rw"}, **self.profile.volumes},
+            volumes=volumes,
             working_dir="/work",
             environment=environment,
             read_only=True,
-            tmpfs={"/tmp": f"rw,exec,size={self.profile.tmp}"},
+            tmpfs=tmpfs,
             cap_drop=["ALL"],
             security_opt=["no-new-privileges"],
             nano_cpus=int(self.profile.cpus * 1e9),

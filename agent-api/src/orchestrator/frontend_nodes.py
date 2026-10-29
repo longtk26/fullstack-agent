@@ -9,6 +9,7 @@ from typing import Any
 from src.modules.shared.domain.entities import ValidationRunEntity
 from src.modules.shared.domain.enums import GenerationMode, LaneStatus
 
+from .autofix import autofix_before_validation
 from .context import EngineFailure, JobContext
 from .frontend_planner import dump_frontend_plan, plan_frontend
 from .frontend_scaffold import scaffold_frontend
@@ -109,6 +110,7 @@ async def validate_frontend(state: GenerationState, ctx: JobContext) -> NodeResu
         frontend_contract = ctx.frontend_path(".bga", "contract.json")
         frontend_contract.parent.mkdir(parents=True, exist_ok=True)
         frontend_contract.write_text(canonical_contract.read_text())  # undo any edit by the engine
+    fixes = await autofix_before_validation(ctx, "frontend", attempt, "validate_frontend")
     plan = _plan(ctx, state)
     frontend_options = state["options"].get("frontend") or {}
     request = FrontendValidationRequest(
@@ -165,7 +167,7 @@ async def validate_frontend(state: GenerationState, ctx: JobContext) -> NodeResu
         await ctx.abort_backend("frontend lane failed", frontend_failed=True)
         update["outcome"] = Outcome.REPAIR_LIMIT
         update["error_summary"] = message
-    return update, {"_status": "failed" if failed else "succeeded", "failedChecks": failed}
+    return update, {"_status": "failed" if failed else "succeeded", "failedChecks": failed, **fixes}
 
 
 async def repair_frontend(state: GenerationState, ctx: JobContext) -> NodeResult:
