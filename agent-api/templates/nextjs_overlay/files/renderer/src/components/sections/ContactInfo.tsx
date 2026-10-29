@@ -1,16 +1,13 @@
 import { Mail, MapPin, Phone } from "lucide-react";
 import { Section } from "@/components/layout/Section";
 import { Card, CardContent } from "@/components/ui/card";
+import type { TContactInfoContent } from "./types";
 
-type ContactInfoProps = {
-  email?: string;
-  phone?: string;
-  address?: string;
-};
+type ContactInfoProps = TContactInfoContent;
 
-export function ContactInfo({ email, phone, address }: ContactInfoProps) {
+export function ContactInfo({ title = "Get in touch", email, phone, address, mapUrl }: ContactInfoProps) {
   return (
-    <Section title="Get in touch">
+    <Section title={title}>
       <Card className="max-w-md">
         <CardContent className="flex flex-col gap-3">
           {email && (
@@ -25,7 +22,14 @@ export function ContactInfo({ email, phone, address }: ContactInfoProps) {
           )}
           {address && (
             <p className="flex items-center gap-2">
-              <MapPin className="size-4" aria-hidden /> {address}
+              <MapPin className="size-4" aria-hidden />
+              {mapUrl ? (
+                <a href={mapUrl} className="hover:text-primary" rel="noreferrer" target="_blank">
+                  {address}
+                </a>
+              ) : (
+                address
+              )}
             </p>
           )}
         </CardContent>

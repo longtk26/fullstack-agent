@@ -41,6 +41,7 @@ export const EVENT_ICONS: Record<string, LucideIcon> = {
   "contract.ready": FileJson,
   "frontend.plan.ready": FileJson,
   "frontend.scaffold.done": FileCheck,
+  "frontend.rendered": FileCheck,
   "integration.switched_to_live": ShieldCheck,
   "integration.kept_mocks": TriangleAlert,
 };
@@ -118,6 +119,8 @@ export function describeEvent(event: TGenerationEvent): string {
       return `Frontend plan: ${num(p.routes) ?? "?"} route(s), ${num(p.components) ?? "?"} component(s), ${num(p.tests) ?? "?"} test(s)`;
     case "frontend.scaffold.done":
       return `Frontend base ready (${text(p.mode) ?? "?"}): ${num(p.shadcn) ?? "?"} shadcn primitive(s), ${num(p.generated) ?? "?"} generated file(s)`;
+    case "frontend.rendered":
+      return `Site rendered from the spec: ${num(p.pages) ?? "?"} page(s), ${num(p.sections) ?? "?"} section(s), no engine call`;
     case "preview.status": {
       const kind = text(p.kind) === "frontend" ? "Site" : "API";
       const detail = text(p.url) ?? text(p.error) ?? text(p.reason);

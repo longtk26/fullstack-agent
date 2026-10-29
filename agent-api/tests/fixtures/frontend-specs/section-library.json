@@ -1,0 +1,71 @@
+{
+  "specVersion": "1.0",
+  "project": { "name": "Section Library", "description": "Every section the renderer ships, nested in every layout node", "mode": "static" },
+  "theme": { "style": "playful", "colorScheme": "light-dark" },
+  "layout": {
+    "header": { "navigation": [{ "label": "Catalogue", "page": "catalogue" }, { "label": "More", "page": "more" }] },
+    "footer": { "text": "Section Library", "links": [{ "label": "Docs", "href": "https://example.com/docs" }] }
+  },
+  "pages": [
+    {
+      "route": "/",
+      "title": "Home",
+      "sections": [
+        { "id": "hero", "component": "Hero",
+          "content": { "eyebrow": "New", "heading": "Everything in one place", "body": "Every library section on three pages.",
+                       "image": "asset:hero", "cta": { "label": "Browse", "page": "catalogue" },
+                       "secondaryCta": { "label": "Docs", "href": "https://example.com/docs" } } },
+        { "id": "numbers", "component": "Stats", "content": { "title": "In numbers", "items": [
+          { "label": "Sections", "value": 17 }, { "label": "Layouts", "value": "4" }, { "label": "Engine calls", "value": 0 } ] } },
+        { "id": "row", "component": "Columns", "content": { "title": "Side by side" }, "children": [
+          { "id": "story", "component": "RichText", "content": { "heading": "Our story", "body": "First paragraph.\n\nSecond paragraph." } },
+          { "id": "aside", "component": "Stack", "children": [
+            { "id": "contact", "component": "ContactInfo", "content": { "email": "hi@example.com", "address": "1 High Street", "mapUrl": "https://maps.example.com/1" } },
+            { "id": "mini-stats", "component": "Stats", "content": { "items": [{ "label": "Replies", "value": "24h" }] } }
+          ] }
+        ] },
+        { "id": "cta", "component": "CallToAction", "content": { "heading": "Ready?", "body": "It takes a minute.", "cta": { "label": "Start", "page": "more" } } }
+      ]
+    },
+    {
+      "route": "/catalogue",
+      "title": "Catalogue",
+      "sections": [
+        { "id": "products", "component": "CardGrid", "content": { "title": "Products" }, "data": { "collection": "products" } },
+        { "id": "news", "component": "List", "content": { "title": "News" }, "data": { "collection": "news", "fields": ["title", "summary"] } },
+        { "id": "table", "component": "DataTable", "content": { "title": "Price list" }, "data": { "collection": "products", "fields": ["name", "price"] } }
+      ]
+    },
+    {
+      "route": "/more",
+      "title": "More",
+      "sections": [
+        { "id": "tabs", "component": "Tabs", "content": { "labels": ["Features", "Questions", "Plans"] }, "children": [
+          { "id": "features", "component": "Features", "content": { "title": "Features", "columns": 2, "items": [
+            { "title": "Typed content", "body": "Checked against a schema." }, { "title": "No engine", "body": "Rendered from JSON." } ] } },
+          { "id": "faq", "component": "Faq", "data": { "collection": "faq" } },
+          { "id": "pricing", "component": "Pricing", "data": { "collection": "plans" } }
+        ] },
+        { "id": "grid", "component": "Grid", "content": { "title": "People and work", "columns": 2 }, "children": [
+          { "id": "quotes", "component": "Testimonials", "data": { "collection": "testimonials" } },
+          { "id": "gallery", "component": "Gallery", "content": { "columns": 2, "items": [
+            { "image": "asset:work", "title": "Project A", "caption": "Branding" }, { "image": "asset:work", "title": "Project B" } ] } }
+        ] }
+      ]
+    }
+  ],
+  "content": [
+    { "collection": "products", "records": [
+      { "name": "Blue mug", "price": "£12", "image": "asset:mug" }, { "name": "Green mug", "price": "£14", "image": "asset:mug" } ] },
+    { "collection": "news", "records": [
+      { "title": "We launched", "summary": "The library is live.", "date": "2026-10-29" } ] },
+    { "collection": "faq", "records": [ { "question": "Is it fast?", "answer": "Yes." } ] },
+    { "collection": "plans", "records": [
+      { "name": "Free", "price": 0, "features": ["One site"] },
+      { "name": "Pro", "price": "£9", "features": ["Ten sites", "Support"], "highlighted": true, "cta": { "label": "Buy", "page": "catalogue" } } ] },
+    { "collection": "testimonials", "records": [ { "quote": "Lovely.", "author": "Sam", "role": "Owner" } ] }
+  ],
+  "assets": [
+    { "id": "hero", "alt": "A desk" }, { "id": "mug", "alt": "A mug" }, { "id": "work", "alt": "A project" }
+  ]
+}

@@ -41,6 +41,11 @@ Agent-specific notes:
   `ruff --fix` / `eslint --fix`, committed as `node:autofix`. Frontend sandboxes mount a shared read-only
   node_modules per dependency set (`bga-fe-modules-<key>`, `FRONTEND_SHARED_MODULES`); only `.vite*` folders are
   writable inside it.
+- Section renderer (Stories 17.1–17.2): built-in section content is typed (`frontend_spec/section_props.py`);
+  a static spec the library can render (`plan["rendering"] == "renderer"`, else `rendererGaps` says why) is built
+  without the engine: overlay part `templates/nextjs_overlay/files/renderer` (only the sections a site uses) plus
+  `orchestrator/frontend_renderer.py` (site.json, registry, props types, thin route files). Sections can nest in
+  layout nodes (`children`): walk them with `iter_sections` / `walk_sections`, never `page["sections"]` alone.
 - Test doubles (fake engine, golden two-entity project, static validator, fake CLIs, opt-in test flags) are listed in
   `docs/development/test-doubles.md`; add any new fake there and mark it at its definition.
 

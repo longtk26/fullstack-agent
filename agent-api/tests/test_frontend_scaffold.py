@@ -68,7 +68,8 @@ def test_static_scaffold_has_content_and_no_api(tmp_path):
     assert (project / "src/content/services.json").is_file()
     assert not (project / "src/lib/api").exists() and not (project / "src/mocks").exists()
     assert 'output: "export"' in (project / "next.config.ts").read_text()
-    assert not (project / "src/app/page.tsx").exists(), "the base's demo page is removed"
+    # Story 17.2: the home route renders the spec; the base's demo page is gone.
+    assert '<PageRenderer pageId="home" />' in (project / "src/app/page.tsx").read_text()
     ui = sorted(path.stem for path in (project / "src/components/ui").glob("*.tsx"))
     assert ui == plan["shadcn"]
     package = json.loads((project / "package.json").read_text())
@@ -113,10 +114,15 @@ def test_smoke_tests_expect_the_first_record_each_page_shows():
     assert '"text": "Task title 1"' in smoke
 
 
-@pytest.mark.parametrize("name", [LANDING, TRACKER, SHOP])
+@pytest.mark.parametrize("name", [TRACKER, SHOP])
 def test_golden_frontends_meet_the_conventions(tmp_path, name):
     project, plan = scaffolded(tmp_path, name)
     assert check_frontend_conventions(project, plan) == []
+
+
+def test_a_rendered_static_site_meets_the_conventions_without_engine_files(tmp_path):
+    project, plan = scaffolded(tmp_path, LANDING, golden=False)
+    assert plan["rendering"] == "renderer" and check_frontend_conventions(project, plan) == []
 
 
 VIOLATIONS = [

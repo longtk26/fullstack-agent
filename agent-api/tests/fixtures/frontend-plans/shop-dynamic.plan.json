@@ -339,6 +339,10 @@
     "name": "Corner Shop",
     "slug": "corner-shop"
   },
+  "rendererGaps": [
+    "dynamic mode: data sections are rendered from Story 17.4"
+  ],
+  "rendering": "engine",
   "routes": [
     {
       "file": "src/app/page.tsx",

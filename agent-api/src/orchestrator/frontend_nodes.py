@@ -8,6 +8,7 @@ from typing import Any
 
 from src.modules.shared.domain.entities import ValidationRunEntity
 from src.modules.shared.domain.enums import GenerationMode, LaneStatus
+from src.modules.shared.domain.frontend_spec import iter_sections
 
 from .autofix import autofix_before_validation
 from .context import EngineFailure, JobContext
@@ -67,8 +68,13 @@ async def scaffold_frontend_node(state: GenerationState, ctx: JobContext) -> Nod
 
 
 async def generate_frontend(state: GenerationState, ctx: JobContext) -> NodeResult:
-    """Story 13.3: outside-in — the shell and shared components first, then one engine call per page."""
+    """Story 13.3: outside-in — the shell and shared components first, then one engine call per page.
+    Story 17.2: a plan the section library can render was fully written by the scaffold; no engine call."""
     plan = _plan(ctx, state)
+    if plan.get("rendering") == "renderer":
+        sections = sum(1 for route in plan["routes"] for _ in iter_sections(route["sections"]))
+        await ctx.emit("frontend.rendered", step="generate_frontend", pages=len(plan["routes"]), sections=sections)
+        return {}, {"pages": len(plan["routes"]), "sections": sections, "rendering": "renderer", "engineCalls": 0}
     common = {
         "plan_path": state["frontend_plan_ref"],
         "spec_path": ".bga/frontend-spec.json",
@@ -94,7 +100,7 @@ async def generate_frontend(state: GenerationState, ctx: JobContext) -> NodeResu
             route=route,
             route_json=json.dumps(route, indent=2, sort_keys=True, ensure_ascii=False),
             data=[binding for binding in plan["data"] if binding["pageId"] == route["pageId"]],
-            forms=[forms[s["form"]] for s in route["sections"] if s.get("form") in forms],
+            forms=[forms[s["form"]] for s in iter_sections(route["sections"]) if s.get("form") in forms],
             file_tree=ctx.file_tree(repo="frontend"),
             **common,
         )

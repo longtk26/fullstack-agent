@@ -23,6 +23,7 @@ from typing import Any
 from src.configs import config
 from src.modules.shared.domain.entities import ValidationRunEntity
 from src.modules.shared.domain.enums import GenerationMode, LaneStatus, PreviewStatus
+from src.modules.shared.domain.frontend_spec import iter_sections
 
 from .checks.conformance import _admits, _types, compare_contract
 from .checks.parity import compare_openapi
@@ -478,7 +479,7 @@ def _enrich_smoke_failures(failures: list[dict[str, Any]], frontend_plan: dict[s
             if planned.get("kind") == "form" and planned.get("formId") in forms_by_id:
                 operation = forms_by_id[planned["formId"]].get("operationId")
             else:
-                for section in route.get("sections", []):
+                for section in iter_sections(route.get("sections", [])):
                     op_id = (section.get("data") or {}).get("operationId")
                     if op_id:
                         operation = op_id

@@ -8,6 +8,7 @@ it can, at the BackendSpec (`backend_path`), so the UI can mark either editor.
 """
 
 import re
+from collections.abc import Iterator
 from typing import Any
 
 from src.modules.shared.domain.backend_spec import Severity, SpecIssue
@@ -32,6 +33,13 @@ FORM_TYPES: dict[str, tuple[str, str | None]] = {
     "date": ("string", "date"),
     "datetime": ("string", "date-time"),
 }
+
+
+def _sections(sections: list[dict[str, Any]], path: str) -> Iterator[tuple[dict[str, Any], str]]:
+    """Every section with its JSON path, layout nodes' children included (Story 17.1)."""
+    for index, section in enumerate(sections):
+        yield section, f"{path}/{index}"
+        yield from _sections(section.get("children") or [], f"{path}/{index}/children")
 
 
 def _types(schema: dict[str, Any]) -> set[str]:
@@ -159,12 +167,12 @@ class _Checker:
 
     def bindings(self) -> None:
         for p_index, page in enumerate(self.frontend.get("pages", [])):
-            for s_index, section in enumerate(page.get("sections", [])):
+            for section, section_path in _sections(page.get("sections", []), f"/pages/{p_index}/sections"):
                 data = section.get("data") or {}
                 operation_id = data.get("operationId")
                 if operation_id is None:
                     continue
-                path = f"/pages/{p_index}/sections/{s_index}/data"
+                path = f"{section_path}/data"
                 found = self.lookup(operation_id, f"{path}/operationId")
                 if found is None:
                     continue

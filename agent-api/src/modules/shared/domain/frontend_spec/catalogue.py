@@ -20,6 +20,11 @@ BUILTIN_SECTIONS: dict[str, dict[str, Any]] = {
     "DataTable": {"uses": ["table", "pagination", "input", "select"], "description": "Records as a table"},
     "DetailView": {"uses": ["card", "badge", "separator"], "description": "One record"},
     "List": {"uses": ["item", "pagination"], "description": "Records as a list"},
+    # Layout nodes (Story 17.1): arrange the sections in `children`.
+    "Columns": {"uses": [], "description": "Child sections side by side", "layout": True},
+    "Stack": {"uses": [], "description": "Child sections one under another", "layout": True},
+    "Grid": {"uses": [], "description": "Child sections in a responsive grid", "layout": True},
+    "Tabs": {"uses": ["tabs"], "description": "One tab per child section", "layout": True},
 }
 
 SHADCN_PRIMITIVES = frozenset(

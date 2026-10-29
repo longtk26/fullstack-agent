@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from .frontend_codegen import generated_files
+from .frontend_renderer import library_files
 
 TEMPLATES = Path(__file__).resolve().parents[2] / "templates"
 BASE_DIR = TEMPLATES / "nextjs_base"
@@ -117,11 +118,13 @@ def scaffold_frontend(
         _copy(source, project / relative, {})
     replacements = {"{{PROJECT_NAME}}": plan["project"]["name"], "{{PROJECT_NAME_SLUG}}": plan["project"]["slug"]}
     overlay_files: list[str] = []
-    for part in ("common", mode):
+    for part in ("common", mode, *(("renderer",) if plan.get("rendering") == "renderer" else ())):
         root = overlay / "files" / part
-        for source in _files(root):
-            relative = source.relative_to(root).as_posix()
-            _copy(source, project / relative, replacements)
+        sources = {source.relative_to(root).as_posix(): source for source in _files(root)}
+        # The section library (Story 17.2): only the sections this site uses, plus the shared helpers.
+        wanted = library_files(plan, list(sources)) if part == "renderer" else list(sources)
+        for relative in wanted:
+            _copy(sources[relative], project / relative, replacements)
             overlay_files.append(relative)
 
     package_path = project / "package.json"

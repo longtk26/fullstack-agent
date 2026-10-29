@@ -126,15 +126,19 @@ def test_ruff_runs_on_the_files_the_engine_may_edit_and_reports_what_changed(tmp
 def test_eslint_uses_the_shared_node_modules_or_installs_first(tmp_path):
     manager, workspace = frontend(tmp_path)
     project = workspace.frontend
-    page = project / "src/app/about/page.tsx"
+    page = project / "src/features/site/components/About.tsx"
     page.parent.mkdir(parents=True, exist_ok=True)
-    page.write_text("export default function About() {\n  let title = 'About';\n  return <h1>{title}</h1>;\n}\n")
-    assert "src/app/about/page.tsx" in fixable_files(project, "frontend")
+    page.write_text("export function About() {\n  let title = 'About';\n  return <h1>{title}</h1>;\n}\n")
+    assert "src/features/site/components/About.tsx" in fixable_files(project, "frontend")
+    assert "src/app/about/page.tsx" not in fixable_files(project, "frontend")  # generated route (17.2)
     assert "src/config/site.ts" not in fixable_files(project, "frontend")  # owned
     assert not [name for name in fixable_files(project, "frontend") if not name.startswith("src/")]
 
-    shared = FixingSandbox(project, fix={"src/app/about/page.tsx": page.read_text() + "\n"}, shared="bga-fe-modules-x")
-    assert asyncio.run(autofix(manager, workspace, "frontend", shared)).fixed == ["src/app/about/page.tsx"]
+    fix = {"src/features/site/components/About.tsx": page.read_text() + "\n"}
+    shared = FixingSandbox(project, fix=fix, shared="bga-fe-modules-x")
+    assert asyncio.run(autofix(manager, workspace, "frontend", shared)).fixed == [
+        "src/features/site/components/About.tsx"
+    ]
     assert len(shared.commands) == 1 and shared.commands[0].startswith("pnpm exec eslint --fix")
 
     own = FixingSandbox(project)

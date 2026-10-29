@@ -341,7 +341,8 @@ def test_dynamic_generation_with_inconsistent_specs_fails_before_any_engine_call
     assert row.error_summary.startswith("6 input error(s); first: consistency /pages/0/sections/1/data/operationId")
 
 
-def test_static_generation_builds_the_site_with_one_repair(client, headers, tmp_path):
+def test_static_generation_renders_the_site_without_the_engine(client, headers, tmp_path):
+    """Story 17.2: every section of static-landing is in the section library, so no engine call is made."""
     deployed = []
 
     async def on_completed(generation_id):
@@ -355,18 +356,19 @@ def test_static_generation_builds_the_site_with_one_repair(client, headers, tmp_
     assert row.lanes == {"frontend": "COMPLETED"} and row.error_summary is None
     assert [run.node for run in node_runs(generation_id)] == [
         "validate_inputs", "plan_frontend", "scaffold_frontend", "generate_frontend", "validate_frontend",
-        "repair_frontend", "validate_frontend", "package_artifacts",
+        "package_artifacts",
     ]  # fmt: skip
-    calls = cli_invocations(generation_id)
-    assert [call.purpose for call in calls].count("generate_frontend") == 6  # the shell, then one per page
-    assert {call.purpose for call in calls} == {"generate_frontend", "repair_frontend"} and deployed == [generation_id]
-    first = next(e for e in events(generation_id) if e.type == "validation.check" and e.status == "failed")
-    assert first.payload["check"] == "frontend:conventions"
+    assert cli_invocations(generation_id) == [] and deployed == [generation_id]
+    generate = next(run for run in node_runs(generation_id) if run.node == "generate_frontend")
+    assert generate.summary == {"pages": 5, "sections": 11, "rendering": "renderer", "engineCalls": 0}
+    rendered = next(e for e in events(generation_id) if e.type == "frontend.rendered")
+    assert rendered.payload["pages"] == 5
+    assert not [e for e in events(generation_id) if e.type == "validation.check" and e.status == "failed"]
 
     artifacts = _artifacts(client, auth, generation_id)
     expected = {"frontend-spec.json", "frontend-plan.json", "frontend.zip", "manifest.json", "report.json"}
-    expected |= {"frontend-repair-1.patch", "frontend-validation-1.json", "frontend-validation-2.json"}
-    assert expected <= set(artifacts)
+    expected |= {"frontend-validation-1.json"}
+    assert expected <= set(artifacts) and "frontend-repair-1.patch" not in artifacts
     assert "backend.zip" not in artifacts and "contract.json" not in artifacts
     report = client.get(
         f"/api/v1/generations/{generation_id}/artifacts/{artifacts['report.json']['artifactId']}", headers=auth

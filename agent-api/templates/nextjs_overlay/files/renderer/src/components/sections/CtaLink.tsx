@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
 import { siteConfig } from "@/config/site";
-
-export type TCta = { label: string; page?: string; href?: string };
+import type { TCta } from "./types";
 
 type CtaLinkProps = {
   cta: TCta;

@@ -120,8 +120,9 @@ class Section(SpecModel):
     component: str = Field(pattern=COMPONENT_NAME, max_length=63)
     data: DataBinding | None = None
     form: str | None = None
-    content: dict[str, Any] = {}
+    content: dict[str, Any] = {}  # typed per built-in component (section_props.py, Story 17.1)
     states: SectionStates | None = None
+    children: list["Section"] | None = None  # layout nodes only (Columns, Stack, Grid, Tabs)
 
 
 class Page(SpecModel):

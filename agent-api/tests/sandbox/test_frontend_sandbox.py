@@ -9,7 +9,6 @@ import uuid
 
 import pytest
 
-from src.engines.fake_engine import GOLDEN_FRONTENDS
 from src.modules.shared.domain.frontend_spec import validate_frontend_spec_text
 from src.orchestrator.frontend_planner import plan_frontend
 from src.orchestrator.frontend_scaffold import scaffold_frontend
@@ -25,8 +24,7 @@ def landing():
     spec = validate_frontend_spec_text((EXAMPLES / "frontend-specs" / "static-landing.json").read_text()).normalized
     plan = plan_frontend(spec)
     project = REPO / ".data" / "test-sandbox" / uuid.uuid4().hex[:10] / "frontend"
-    scaffold_frontend(project, plan, spec)
-    shutil.copytree(GOLDEN_FRONTENDS["Northwind Studio"], project, dirs_exist_ok=True)
+    scaffold_frontend(project, plan, spec)  # rendered from the spec (Story 17.2): no engine files
     yield project, plan
     shutil.rmtree(project.parent, ignore_errors=True)
 
@@ -52,15 +50,38 @@ def test_golden_static_site_passes_every_check_offline(landing):
     assert (project / "out" / "services" / "index.html").is_file()
 
 
+def test_every_library_section_and_layout_node_builds_and_renders():
+    """Story 17.2: the whole section library (every section, every layout node, nested three deep) type-checks,
+    lints, builds and renders every page without console errors (the Playwright smoke test)."""
+    path = REPO / "agent-api" / "tests" / "fixtures" / "frontend-specs" / "section-library.json"
+    result = validate_frontend_spec_text(path.read_text())
+    assert result.report.valid and result.report.warnings == [], result.report
+    plan = plan_frontend(result.normalized)
+    assert plan["rendering"] == "renderer", plan["rendererGaps"]
+    project = REPO / ".data" / "test-sandbox" / uuid.uuid4().hex[:10] / "frontend"
+    scaffold_frontend(project, plan, result.normalized)
+    try:
+        outcome = _validate(project, plan)
+        assert outcome.summary == dict.fromkeys(
+            ("install", "typecheck", "lint", "conventions", "build", "routes", "tests"), "passed"
+        ), outcome.digest
+    finally:
+        shutil.rmtree(project.parent, ignore_errors=True)
+
+
 def test_a_type_error_fails_typecheck_and_skips_build(landing):
     project, plan = landing
-    page = project / "src/app/work/page.tsx"
-    page.write_text(page.read_text().replace("return <Gallery items={projects} />;", "return <Gallery items={42} />;"))
+    broken = project / "src/features/site/components/Broken.tsx"
+    broken.parent.mkdir(parents=True)
+    broken.write_text(
+        'import { Gallery } from "@/components/sections/Gallery";\n\n'
+        "export function Broken() {\n  return <Gallery items={42} />;\n}\n"
+    )
     outcome = _validate(project, plan)
     assert outcome.summary["typecheck"] == "failed" and outcome.summary["build"] == "skipped"
     typecheck = next(result for result in outcome.results if result.check == "typecheck")
-    assert typecheck.details[0]["file"] == "src/app/work/page.tsx"
-    assert "src/app/work/page.tsx" in outcome.implicated_files
+    assert typecheck.details[0]["file"] == "src/features/site/components/Broken.tsx"
+    assert "src/features/site/components/Broken.tsx" in outcome.implicated_files
 
 
 def test_eslint_autofix_then_every_check_passes_on_the_shared_node_modules():
@@ -76,7 +97,6 @@ def test_eslint_autofix_then_every_check_passes_on_the_shared_node_modules():
     workspace = manager.create(f"gen_TESTFEFIX{uuid.uuid4().hex[:6].upper()}")
     project = manager.create_frontend(workspace)
     scaffold_frontend(project, plan, spec)
-    shutil.copytree(GOLDEN_FRONTENDS["Northwind Studio"], project, dirs_exist_ok=True)
     manager.commit(workspace, "node:scaffold_frontend attempt:1", repo="frontend")
     helper = project / "src/features/home/format-title.ts"
     helper.parent.mkdir(parents=True, exist_ok=True)

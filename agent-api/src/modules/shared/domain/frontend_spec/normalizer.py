@@ -1,14 +1,30 @@
 import re
+from collections.abc import Iterator
 from typing import Any
 
 from .catalogue import BUILTIN_SECTIONS, DEFAULT_STATES, THEME_PRESETS
-from .schema_v1 import Component, FrontendSpecV1, SectionStates, Seo
+from .schema_v1 import Component, FrontendSpecV1, Section, SectionStates, Seo
 
 _PARAM = re.compile(r"^\[([A-Za-z][A-Za-z0-9]*)\]$")
 
 
 def route_params(route: str) -> list[str]:
     return [match.group(1) for part in route.split("/") if (match := _PARAM.match(part))]
+
+
+def iter_sections(sections: list[dict[str, Any]]) -> Iterator[dict[str, Any]]:
+    """Every section of a normalized spec or plan page, layout nodes' children included (depth first)."""
+    for section in sections:
+        yield section
+        yield from iter_sections(section.get("children") or [])
+
+
+def walk_sections(sections: list[Section], path: str, depth: int = 1) -> Iterator[tuple[Section, str, int]]:
+    """(section, JSON path, depth) for every section under `path`; top-level sections have depth 1."""
+    for index, section in enumerate(sections):
+        here = f"{path}/{index}"
+        yield section, here, depth
+        yield from walk_sections(section.children or [], f"{here}/children", depth + 1)
 
 
 def page_id(route: str) -> str:
@@ -41,7 +57,7 @@ def normalize_frontend_spec(spec: FrontendSpecV1) -> dict[str, Any]:
         page.id = page.id or page_id(page.route)
         page.seo = page.seo or Seo()
         page.seo.title = page.seo.title or page.title
-        for section in page.sections:
+        for section, _, _ in walk_sections(page.sections, ""):
             if section.component in BUILTIN_SECTIONS and section.component not in declared:
                 builtin = BUILTIN_SECTIONS[section.component]
                 normalized.components.append(

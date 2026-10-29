@@ -1,15 +1,12 @@
 import { Section } from "@/components/layout/Section";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import type { TFaqContent } from "./types";
 
-export type TQuestion = { question: string; answer: string };
+type FaqProps = TFaqContent;
 
-type FaqProps = {
-  items: TQuestion[];
-};
-
-export function Faq({ items }: FaqProps) {
+export function Faq({ title = "Questions", items = [] }: FaqProps) {
   return (
-    <Section title="Questions">
+    <Section title={title}>
       <Accordion>
         {items.map((item) => (
           <AccordionItem key={item.question} value={item.question}>

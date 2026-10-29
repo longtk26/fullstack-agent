@@ -52,7 +52,6 @@ _CONTACT_ROUTER = "src/modules/contact_messages/presenter/router.py"
 # TESTING / DEMO ONLY (docs/development/test-doubles.md). Golden frontends: hand-written, convention-correct
 # implementations of these FrontendSpec examples only; any other FrontendSpec fails the fake frontend lane.
 GOLDEN_FRONTENDS = {
-    "Northwind Studio": GOLDEN.parent / "frontend" / "static_landing",  # examples/frontend-specs/static-landing.json
     "Project Tracker": GOLDEN.parent / "frontend" / "project_tracker",  # …/project-tracker-dynamic.json
     "Corner Shop": GOLDEN.parent / "frontend" / "corner_shop",  # examples/frontend-specs/shop-dynamic.json
 }

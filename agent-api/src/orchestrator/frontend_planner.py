@@ -13,9 +13,10 @@ from pathlib import Path
 from typing import Any
 
 from src.modules.shared.domain.backend_spec.naming import pluralize, to_camel, to_kebab, to_pascal, to_snake
-from src.modules.shared.domain.frontend_spec import BUILTIN_SECTIONS, route_params
+from src.modules.shared.domain.frontend_spec import BUILTIN_SECTIONS, iter_sections, route_params
 
 from .contract import contract_operations, resolve
+from .frontend_renderer import renderer_gaps
 from .frontend_theme import build_theme
 
 FRONTEND_PLAN_VERSION = "1"
@@ -161,6 +162,8 @@ class _Planner:
             planned["content"] = section["content"]
         if section.get("states"):
             planned["states"] = section["states"]
+        if section.get("children"):
+            planned["children"] = [self.section(page, child) for child in section["children"]]
         return planned
 
     def routes(self) -> list[dict[str, Any]]:
@@ -186,7 +189,7 @@ class _Planner:
         usages: dict[str, list[dict[str, Any]]] = {}
         pages: dict[str, list[str]] = {}
         for route in routes:
-            for section in route["sections"]:
+            for section in iter_sections(route["sections"]):
                 usage = dict(section)
                 if section.get("form") in self.forms:
                     usage["formOperationId"] = self.forms[section["form"]].get("operationId")
@@ -223,8 +226,8 @@ class _Planner:
             planned.append(component)
         return planned
 
-    def shadcn(self, components: list[dict[str, Any]]) -> list[str]:
-        wanted = set(ALWAYS_PRIMITIVES)
+    def shadcn(self, components: list[dict[str, Any]], renderer: bool = False) -> list[str]:
+        wanted = set(ALWAYS_PRIMITIVES) | ({"sheet"} if renderer else set())  # the library's shell imports it
         for component in components:
             wanted |= {name for name in component["uses"] if name not in self.declared and name not in BUILTIN_SECTIONS}
         for form in self.spec.get("forms", []):
@@ -270,7 +273,7 @@ class _Planner:
     def data(self, routes: list[dict[str, Any]]) -> list[dict[str, Any]]:
         bindings = []
         for route in routes:
-            for section in route["sections"]:
+            for section in iter_sections(route["sections"]):
                 data = section.get("data")
                 if data and data["kind"] == "operation":
                     bindings.append({"pageId": route["pageId"], "section": section["id"], **data})
@@ -283,7 +286,7 @@ class _Planner:
         if not route["params"]:
             return route["route"], None
         values: dict[str, Any] = {}
-        for section in route["sections"]:
+        for section in iter_sections(route["sections"]):
             data = section.get("data") or {}
             for name, value in (data.get("params") or {}).items():
                 if not (isinstance(value, str) and value.startswith("$route.")):
@@ -319,7 +322,7 @@ class _Planner:
             tests.append(test)
         by_form = {form["id"]: form for form in forms}
         for route in routes:
-            for section in route["sections"]:
+            for section in iter_sections(route["sections"]):
                 form = by_form.get(section.get("form") or "")
                 if form is None or any(t.get("formId") == form["id"] for t in tests):
                     continue
@@ -342,6 +345,7 @@ class _Planner:
         routes = self.routes()
         components = self.components(routes)
         forms = self.plan_forms()
+        gaps = renderer_gaps(spec, routes)
         layout = spec.get("layout") or {}
         pages = {route["pageId"]: route["route"] for route in routes}
 
@@ -380,9 +384,11 @@ class _Planner:
                 },
                 "themeToggle": spec["theme"]["colorScheme"] == "light-dark",
             },
+            "rendering": "engine" if gaps else "renderer",
+            "rendererGaps": gaps,
             "routes": routes,
             "components": components,
-            "shadcn": self.shadcn(components),
+            "shadcn": self.shadcn(components, renderer=not gaps),
             "theme": build_theme(spec["theme"]),
             "data": self.data(routes),
             "forms": forms,

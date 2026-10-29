@@ -10,9 +10,10 @@ from src.modules.shared.domain.backend_spec.issues import Severity, SpecIssue, V
 
 from .catalogue import BUILTIN_SECTIONS, SHADCN_PRIMITIVES, THEME_PRESETS
 from .issues import FrontendIssueCode
-from .normalizer import normalize_frontend_spec, page_id, route_params
+from .normalizer import normalize_frontend_spec, page_id, route_params, walk_sections
 from .registry import FRONTEND_SPEC_MODELS
-from .schema_v1 import FrontendSpecV1, NavLink
+from .schema_v1 import FrontendSpecV1, NavLink, Section
+from .section_props import LAYOUT_SECTIONS, MAX_DEPTH, SECTION_ITEMS, SECTION_PROPS, Props
 
 C = FrontendIssueCode
 _HEX = re.compile(r"^#([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$")
@@ -131,6 +132,25 @@ def _asset_refs(value: Any, path: str) -> Iterator[tuple[str, str]]:
             yield from _asset_refs(item, f"{path}/{index}")
 
 
+def _error_path(path: str, loc: tuple[Any, ...]) -> str:
+    return path + "".join(f"/{part}" for part in loc)
+
+
+def _unknown_props(model: Props, path: str) -> Iterator[str]:
+    """Paths of keys a props model does not know (kept by `extra="allow"`), nested models included."""
+    for key in model.model_extra or {}:
+        yield f"{path}/{key}"
+    for name, field in type(model).model_fields.items():
+        value = getattr(model, name)
+        alias = field.alias or name
+        if isinstance(value, Props):
+            yield from _unknown_props(value, f"{path}/{alias}")
+        elif isinstance(value, list):
+            for index, item in enumerate(value):
+                if isinstance(item, Props):
+                    yield from _unknown_props(item, f"{path}/{alias}/{index}")
+
+
 def _page_refs(value: Any, path: str) -> Iterator[tuple[str, str]]:
     """`{"page": "<id>"}` links inside free-form section content (e.g. a hero's call to action)."""
     if isinstance(value, dict):
@@ -155,6 +175,10 @@ class _SemanticChecker:
         self.forms = {form.id: form for form in spec.forms}
         self.assets = {asset.id for asset in spec.assets}
         self.collections = {collection.collection for collection in spec.content}
+        self.records = {collection.collection: collection.records for collection in spec.content}
+        self.collection_index = {collection.collection: index for index, collection in enumerate(spec.content)}
+        self.declared_kinds = {component.name: component.kind for component in spec.components}
+        self.checked_records: set[tuple[str, str]] = set()
 
     def run(self) -> list[SpecIssue]:
         self._check_duplicates()
@@ -193,7 +217,7 @@ class _SemanticChecker:
                     hint="Routes that differ only in parameter names are the same route",
                 )
             routes.setdefault(key, index)
-            self._unique([s.id for s in page.sections], f"/pages/{index}/sections", "Section id", "/id")
+            self._unique_sections(page.sections, f"/pages/{index}/sections")
             params = route_params(page.route)
             if len(params) != len(set(params)):
                 self._add(C.SCHEMA_VIOLATION, f"/pages/{index}/route", "Route parameters must be unique")
@@ -205,6 +229,14 @@ class _SemanticChecker:
         self._unique([c.collection for c in spec.content], "/content", "Content collection", "/collection")
         for f_index, form in enumerate(spec.forms):
             self._unique([field.name for field in form.fields], f"/forms/{f_index}/fields", "Form field", "/name")
+
+    def _unique_sections(self, sections: list[Section], path: str) -> None:
+        """Section ids are unique within a page, nested ones included, so `<pageId>/<sectionId>` names one."""
+        seen: dict[str, str] = {}
+        for section, here, _ in walk_sections(sections, path):
+            if section.id in seen:
+                self._add(C.FE_DUPLICATE_ID, f"{here}/id", f"Section id '{section.id}' duplicates {seen[section.id]}")
+            seen.setdefault(section.id, here)
 
     def _check_theme(self) -> None:
         theme = self.spec.theme
@@ -268,8 +300,7 @@ class _SemanticChecker:
     def _check_pages(self) -> None:
         for p_index, page in enumerate(self.spec.pages):
             params = route_params(page.route)
-            for s_index, section in enumerate(page.sections):
-                path = f"/pages/{p_index}/sections/{s_index}"
+            for section, path, depth in walk_sections(page.sections, f"/pages/{p_index}/sections"):
                 if section.component not in self.components:
                     self._add(
                         C.FE_UNKNOWN_COMPONENT,
@@ -277,6 +308,7 @@ class _SemanticChecker:
                         f"Component '{section.component}' is neither built in nor declared in 'components'",
                         hint=f"Built in: {', '.join(BUILTIN_SECTIONS)}",
                     )
+                self._check_layout_node(section, path, depth)
                 data = section.data
                 if data is not None:
                     if data.operation_id is not None and self.static:
@@ -300,6 +332,82 @@ class _SemanticChecker:
                         self._add(C.FE_UNKNOWN_ASSET, asset_path, f"Unknown asset '{asset}'")
                 for target, link_path in _page_refs(section.content, f"{path}/content"):
                     self._check_link(NavLink(label="link", page=target), link_path.removesuffix("/page"))
+                if self._builtin(section.component):
+                    self._check_props(section, path)
+
+    def _builtin(self, name: str) -> bool:
+        """A catalogue section the spec does not redeclare as its own component (then its content is free-form)."""
+        return name in BUILTIN_SECTIONS and self.declared_kinds.get(name, "section") == "section"
+
+    def _check_layout_node(self, section: Section, path: str, depth: int) -> None:
+        layout = section.component in LAYOUT_SECTIONS and self._builtin(section.component)
+        if depth > MAX_DEPTH:
+            self._add(
+                C.FE_INVALID_LAYOUT,
+                path,
+                f"Sections nest at most {MAX_DEPTH} levels deep",
+                hint="Sections lay out their own content; layout nodes only arrange sections",
+            )
+        if section.children is not None and not layout:
+            self._add(
+                C.FE_INVALID_LAYOUT,
+                f"{path}/children",
+                f"'{section.component}' is not a layout node; only {', '.join(sorted(LAYOUT_SECTIONS))} have children",
+            )
+        if not layout:
+            return
+        if not section.children:
+            self._add(C.FE_INVALID_LAYOUT, f"{path}/children", f"{section.component} needs at least one child section")
+        if section.data is not None or section.form is not None:
+            self._add(C.FE_INVALID_LAYOUT, path, "Layout nodes show their children, not data or forms")
+        labels = section.content.get("labels") if section.component == "Tabs" else None
+        if isinstance(labels, list) and section.children and len(labels) != len(section.children):
+            self._add(
+                C.FE_INVALID_PROPS,
+                f"{path}/content/labels",
+                f"Tabs has {len(section.children)} child section(s) but {len(labels)} label(s)",
+            )
+
+    def _check_props(self, section: Section, path: str) -> None:
+        name = section.component
+        try:
+            props = SECTION_PROPS[name].model_validate(section.content)
+        except ValidationError as exc:
+            for error in exc.errors():
+                self._add(C.FE_INVALID_PROPS, _error_path(f"{path}/content", error["loc"]), f"{name}: {error['msg']}")
+        else:
+            known = ", ".join(field.alias or key for key, field in SECTION_PROPS[name].model_fields.items())
+            for unknown in _unknown_props(props, f"{path}/content"):
+                self._add(
+                    C.FE_UNKNOWN_PROP,
+                    unknown,
+                    f"{name} does not use '{unknown.rsplit('/', 1)[-1]}'",
+                    warning=True,
+                    hint=f"Known: {known}",
+                )
+        item = SECTION_ITEMS.get(name)
+        if item is None:
+            return
+        data = section.data
+        if section.content.get("items") is None and data is None:
+            self._add(
+                C.FE_INVALID_PROPS,
+                f"{path}/content/items",
+                f"{name} needs 'content.items' or a 'data' binding",
+            )
+        if data is not None and data.collection in self.records and (data.collection, name) not in self.checked_records:
+            self.checked_records.add((data.collection, name))
+            base = f"/content/{self.collection_index[data.collection]}/records"
+            for r_index, record in enumerate(self.records[data.collection]):
+                try:
+                    item.model_validate(record)
+                except ValidationError as exc:
+                    for error in exc.errors():
+                        self._add(
+                            C.FE_INVALID_PROPS,
+                            _error_path(f"{base}/{r_index}", error["loc"]),
+                            f"{name} (section '{section.id}') shows this record: {error['msg']}",
+                        )
 
     def _check_components(self) -> None:
         known = SHADCN_PRIMITIVES | self.components

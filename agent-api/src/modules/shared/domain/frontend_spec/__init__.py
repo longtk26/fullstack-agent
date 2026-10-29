@@ -1,6 +1,6 @@
 from .catalogue import BUILTIN_SECTIONS, SHADCN_PRIMITIVES, THEME_PRESETS
 from .issues import FrontendIssueCode
-from .normalizer import normalize_frontend_spec, page_id, route_params
+from .normalizer import iter_sections, normalize_frontend_spec, page_id, route_params, walk_sections
 from .registry import (
     FRONTEND_SPEC_MODELS,
     LATEST_FRONTEND_SPEC_VERSION,
@@ -8,6 +8,7 @@ from .registry import (
     supported_frontend_versions,
 )
 from .schema_v1 import FrontendSpecV1
+from .section_props import LAYOUT_SECTIONS, MAX_DEPTH, SECTION_ITEMS, SECTION_PROPS
 from .validator import (
     FrontendValidationResult,
     route_matches,
@@ -22,10 +23,15 @@ __all__ = [
     "FrontendIssueCode",
     "FrontendSpecV1",
     "FrontendValidationResult",
+    "LAYOUT_SECTIONS",
+    "MAX_DEPTH",
+    "SECTION_ITEMS",
+    "SECTION_PROPS",
     "LATEST_FRONTEND_SPEC_VERSION",
     "SHADCN_PRIMITIVES",
     "THEME_PRESETS",
     "frontend_spec_json_schema",
+    "iter_sections",
     "normalize_frontend_spec",
     "page_id",
     "route_matches",
@@ -34,4 +40,5 @@ __all__ = [
     "supported_frontend_versions",
     "validate_frontend_spec_data",
     "validate_frontend_spec_text",
+    "walk_sections",
 ]

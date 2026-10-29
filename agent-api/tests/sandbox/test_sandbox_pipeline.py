@@ -107,7 +107,7 @@ def test_broken_project_reports_structured_failures(shared_dir):
     assert outcome.summary["migration"] == "passed"  # regenerated from the fixed model
     assert outcome.summary["tests"] == "failed"
     assert "test_create_task__bad_reference" in outcome.digest
-    assert json.loads(json.dumps(outcome.model_dump()))  # report is serializable
+    assert json.loads(json.dumps(outcome.model_dump(mode="json")))  # report is serializable (as write_report does)
 
 
 def test_autofix_clears_import_order_and_formatting_before_lint(shared_dir):

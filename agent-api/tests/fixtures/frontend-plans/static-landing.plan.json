@@ -209,6 +209,8 @@
     "name": "Northwind Studio",
     "slug": "northwind-studio"
   },
+  "rendererGaps": [],
+  "rendering": "renderer",
   "routes": [
     {
       "file": "src/app/page.tsx",
