@@ -290,10 +290,8 @@
     "name": "Project Tracker",
     "slug": "project-tracker"
   },
-  "rendererGaps": [
-    "dynamic mode: data sections are rendered from Story 17.4"
-  ],
-  "rendering": "engine",
+  "rendererGaps": [],
+  "rendering": "renderer",
   "routes": [
     {
       "file": "src/app/page.tsx",

@@ -279,19 +279,23 @@ def test_dynamic_generation_runs_contract_backend_and_frontend_lanes(client, hea
         "repair_code",
         "run_validation",
     ]
+    # Story 17.4: every tracker section is in the library, so the frontend lane makes no engine call.
     assert [n for n in nodes if n in frontend_lane_nodes] == [
-        "plan_frontend", "scaffold_frontend", "generate_frontend", "validate_frontend", "repair_frontend",
-        "validate_frontend",
+        "plan_frontend", "scaffold_frontend", "generate_frontend", "validate_frontend",
     ]  # fmt: skip
+    assert {call.purpose for call in cli_invocations(generation_id)} == {
+        "generate_database", "generate_backend", "generate_tests", "repair_code",
+    }  # fmt: skip
     frontend = tmp_path / generation_id / "frontend"
     assert (frontend / ".bga" / "contract.json").is_file() and (
         frontend / "src" / "lib" / "api" / "queries.ts"
     ).is_file()
+    assert "useOperationQuery" in (frontend / "src/components/renderer/bindings.ts").read_text()
 
     artifacts = _artifacts(client, auth, generation_id)
     assert {
         "contract.json", "frontend-spec.json", "spec.json", "backend.zip", "manifest.json", "frontend.zip",
-        "frontend-plan.json", "frontend-repair-1.patch", "frontend-validation-2.json",
+        "frontend-plan.json", "frontend-validation-1.json",
     } <= set(artifacts)  # fmt: skip
     assert artifacts["frontend.zip"]["kind"] == "frontend"
     assert artifacts["contract.json"]["kind"] == "contract"
@@ -316,7 +320,7 @@ def test_dynamic_generation_runs_contract_backend_and_frontend_lanes(client, hea
     stored = events(generation_id)
     lane_changes = [(e.lane, e.status) for e in stored if e.type == "lane.changed"]
     assert ("integration", "SKIPPED") in lane_changes and ("backend", "COMPLETED") in lane_changes
-    assert ("frontend", "REPAIRING") in lane_changes and ("frontend", "COMPLETED") in lane_changes
+    assert ("frontend", "REPAIRING") not in lane_changes and ("frontend", "COMPLETED") in lane_changes
     assert {e.lane for e in stored if e.step == "generate_backend"} == {"backend"}
     assert {e.lane for e in stored if e.step == "generate_frontend"} == {"frontend"}
     assert {e.lane for e in stored if e.step == "build_contract"} == {None}

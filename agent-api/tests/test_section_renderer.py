@@ -121,13 +121,11 @@ def test_only_what_the_library_can_render_skips_the_engine():
     spec["pages"][4]["sections"].append({"id": "form", "component": "Form", "form": "contact"})
     plan = planned(spec)
     assert plan["rendering"] == "engine"
-    assert plan["rendererGaps"] == [
-        "layout.shell 'sidebar' is not in the section library",
+    assert plan["rendererGaps"] == [  # the sidebar shell is in the library (17.4)
         "about/history: Timeline is not in the section library",
-        "contact/form: Form is not in the section library",
+        "contact/form: forms without an operation (static forms)",
     ]
-    for gap in renderer_gaps({"project": {"mode": "dynamic"}}, []):
-        assert "Story 17.4" in gap
+    assert renderer_gaps({"project": {"mode": "dynamic"}}, [], []) == []  # dynamic mode renders too (17.4)
 
 
 def test_generated_files_hold_the_pages_as_data():
@@ -136,7 +134,7 @@ def test_generated_files_hold_the_pages_as_data():
     site = json.loads(files["src/content/site.json"])
     tabs = site["pages"]["more"]["sections"][0]
     assert [child["component"] for child in tabs["children"]] == ["Features", "Faq", "Pricing"]
-    assert tabs["children"][1]["data"] == {"collection": "faq"}
+    assert tabs["children"][1]["data"]["collection"] == "faq"
     assert site["collections"]["products"][0]["name"] == "Blue mug"
     registry = files["src/components/renderer/registry.ts"]
     assert 'import { DataTable } from "@/components/sections/DataTable";' in registry

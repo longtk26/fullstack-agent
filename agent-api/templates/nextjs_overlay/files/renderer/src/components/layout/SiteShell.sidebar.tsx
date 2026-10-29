@@ -23,7 +23,7 @@ type SiteShellProps = {
   children: ReactNode;
 };
 
-/** Sidebar navigation and a top bar: FrontendSpec.layout `sidebar`. */
+/** FrontendSpec.layout `sidebar`: navigation in a collapsible sidebar and a top bar (copied as SiteShell.tsx). */
 export function SiteShell({ children }: SiteShellProps) {
   const pathname = usePathname();
   return (

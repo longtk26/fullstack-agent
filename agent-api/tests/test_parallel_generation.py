@@ -36,6 +36,10 @@ from workflow_helpers import (
 
 EXAMPLES = Path(__file__).parents[2] / "examples"
 TRACKER_FRONTEND = json.loads((EXAMPLES / "frontend-specs" / "project-tracker-dynamic.json").read_text())
+# Story 17.4: the tracker frontend is rendered without the engine. Tests of the frontend lane's engine path use the
+# shop pair, whose custom components still go to the engine (until 17.3).
+SHOP_FRONTEND = json.loads((EXAMPLES / "frontend-specs" / "shop-dynamic.json").read_text())
+SHOP_BACKEND = json.loads((EXAMPLES / "specs" / "shop.json").read_text())
 GOLDEN_OPENAPI = json.loads((Path(__file__).parent / "fixtures" / "openapi" / "two-entity.golden.json").read_text())
 CANONICAL_CONTRACT = json.loads(dump_contract(build_contract(normalized(EXAMPLES / "specs" / "two-entity.json"))))
 CANONICAL_SHA = hashlib.sha256(dump_contract(CANONICAL_CONTRACT).encode()).hexdigest()
@@ -49,16 +53,24 @@ def headers(login):
     return _headers
 
 
-def _submit_dynamic(client, auth: dict, **option_overrides: Any) -> str:
+def _submit_dynamic(client, auth: dict, shop: bool = False, **option_overrides: Any) -> str:
     body = {
         "mode": "dynamic",
-        "frontendSpec": TRACKER_FRONTEND,
-        "backendSpec": TWO_ENTITY,
+        "frontendSpec": SHOP_FRONTEND if shop else TRACKER_FRONTEND,
+        "backendSpec": SHOP_BACKEND if shop else TWO_ENTITY,
         "options": {"engine": "fake", **option_overrides},
     }
     response = client.post("/api/v1/generations", json=body, headers=auth)
     assert response.status_code == 202, response.text
     return response.json()["generationId"]
+
+
+def _shop_engine(tmp_path: Path, steps: dict, backend: str | None = None, sleep_s: float = 0) -> FakeEngine:
+    """The fake engine for the shop pair; its backend replays `shop_demo_scenario`, slowed at `backend` if given."""
+    engine = FakeEngine(tmp_path, steps)
+    if backend is not None:
+        engine._shop_scenario[backend][0].sleep_s = sleep_s
+    return engine
 
 
 def _configure_healthy_backend(runtime: FakePreviewRuntime, contract: dict[str, Any] = CANONICAL_CONTRACT) -> None:
@@ -113,7 +125,7 @@ def _cleanup_previews(generation_id: str) -> None:
 
 def test_parallel_lanes_run_concurrently_and_occupy_two_worker_slots(client, headers, tmp_path):
     auth = headers()
-    generation_id = _submit_dynamic(client, auth, deployPreview=False)
+    generation_id = _submit_dynamic(client, auth, shop=True, deployPreview=False)
     engine = FakeEngine(tmp_path, demo_scenario(delay_s=0.04))
     # Simulate a worker with 2 slots where 1 slot is already held by the job loop (`_consume`).
     slots = asyncio.Semaphore(2)
@@ -370,13 +382,12 @@ def test_integration_wait_timeout_aborts_slow_backend_and_keeps_mocks(client, he
 
 def test_failing_frontend_lane_aborts_backend_and_fails_job(client, headers, tmp_path):
     auth = headers()
-    generation_id = _submit_dynamic(client, auth, deployPreview=False, maxRepairAttempts=0)
+    generation_id = _submit_dynamic(client, auth, shop=True, deployPreview=False, maxRepairAttempts=0)
     # In demo_scenario(0), the first generate_frontend call plants a conventions error, so with maxRepairAttempts=0
     # the frontend lane fails at validate_frontend while the backend lane is still running.
-    steps = demo_scenario(0)
-    steps["generate_backend"][0].sleep_s = 2.0
+    engine = _shop_engine(tmp_path, demo_scenario(0), "generate_backend", 2.0)
 
-    status = run_job(tmp_path, generation_id, engine=FakeEngine(tmp_path, steps))
+    status = run_job(tmp_path, generation_id, engine=engine)
     assert status == "FAILED"
     row = generation(generation_id)
     assert row.lanes["frontend"] == "FAILED"
@@ -386,11 +397,10 @@ def test_failing_frontend_lane_aborts_backend_and_fails_job(client, headers, tmp
 
 def test_cancel_stops_both_parallel_lanes(client, headers, tmp_path):
     auth = headers()
-    generation_id = _submit_dynamic(client, auth, deployPreview=False)
+    generation_id = _submit_dynamic(client, auth, shop=True, deployPreview=False)
     steps = demo_scenario(0)
-    steps["generate_database"][0].sleep_s = 2.0
     steps["generate_frontend"][0].sleep_s = 2.0
-    engine = FakeEngine(tmp_path, steps)
+    engine = _shop_engine(tmp_path, steps, "generate_database", 2.0)
 
     async def go():
         async with runner_ctx(tmp_path, engine=engine) as runner:
@@ -412,14 +422,13 @@ def test_cancel_stops_both_parallel_lanes(client, headers, tmp_path):
 
 def test_resume_restarts_each_parallel_lane_from_its_own_last_completed_node(client, headers, tmp_path):
     auth = headers()
-    generation_id = _submit_dynamic(client, auth, deployPreview=False)
+    generation_id = _submit_dynamic(client, auth, shop=True, deployPreview=False)
     saver = InMemorySaver()
 
     # First run: worker shuts down while inside generate_backend & generate_frontend.
     steps_first = demo_scenario(0)
-    steps_first["generate_backend"][0].sleep_s = 2.0
     steps_first["generate_frontend"][0].sleep_s = 2.0
-    engine_first = FakeEngine(tmp_path, steps_first)
+    engine_first = _shop_engine(tmp_path, steps_first, "generate_backend", 2.0)
 
     async def first_run():
         async with runner_ctx(tmp_path, engine=engine_first, checkpointer=saver) as runner:

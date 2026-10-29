@@ -114,14 +114,14 @@ def test_smoke_tests_expect_the_first_record_each_page_shows():
     assert '"text": "Task title 1"' in smoke
 
 
-@pytest.mark.parametrize("name", [TRACKER, SHOP])
-def test_golden_frontends_meet_the_conventions(tmp_path, name):
-    project, plan = scaffolded(tmp_path, name)
+def test_the_golden_shop_frontend_meets_the_conventions(tmp_path):
+    project, plan = scaffolded(tmp_path, SHOP)
     assert check_frontend_conventions(project, plan) == []
 
 
-def test_a_rendered_static_site_meets_the_conventions_without_engine_files(tmp_path):
-    project, plan = scaffolded(tmp_path, LANDING, golden=False)
+@pytest.mark.parametrize("name", [LANDING, TRACKER])
+def test_a_rendered_site_meets_the_conventions_without_engine_files(tmp_path, name):
+    project, plan = scaffolded(tmp_path, name, golden=False)
     assert plan["rendering"] == "renderer" and check_frontend_conventions(project, plan) == []
 
 
@@ -139,27 +139,27 @@ VIOLATIONS = [
 
 @pytest.mark.parametrize(("rule", "code"), VIOLATIONS, ids=[f"{rule}:{i}" for i, (rule, _) in enumerate(VIOLATIONS)])
 def test_conventions_report_each_rule(tmp_path, rule, code):
-    project, plan = scaffolded(tmp_path, TRACKER)
-    path = project / "src/features/projects/components/Bad.tsx"
+    project, plan = scaffolded(tmp_path, SHOP)
+    path = project / "src/features/products/components/Bad.tsx"
     path.write_text(code)
     found = [(v["rule"], v["file"]) for v in check_frontend_conventions(project, plan)]
-    assert (rule, "src/features/projects/components/Bad.tsx") in found
+    assert (rule, "src/features/products/components/Bad.tsx") in found
 
 
 def test_conventions_report_owned_changes_missing_files_and_long_components(tmp_path):
-    project, plan = scaffolded(tmp_path, TRACKER)
+    project, plan = scaffolded(tmp_path, SHOP)
     (project / "src/lib/api/queries.ts").write_text("// edited\n")
-    (project / "src/components/sections/DetailView.tsx").unlink()
-    (project / "src/app/tasks/page.tsx").write_text("export default function Page() {\n  return null;\n}\n")
+    (project / "src/components/sections/CardGrid.tsx").unlink()
+    (project / "src/app/cart/page.tsx").write_text("export default function Page() {\n  return null;\n}\n")
     logic = "\n".join(f"  const value{i} = {i};" for i in range(35))
-    (project / "src/features/projects/components/Long.tsx").write_text(
+    (project / "src/features/products/components/Long.tsx").write_text(
         f"export function Long() {{\n{logic}\n  return (\n    <div />\n  );\n}}\n"
     )
     found = {(v["rule"], v["file"]) for v in check_frontend_conventions(project, plan)}
     assert ("owned-files", "src/lib/api/queries.ts") in found and changed_owned(project) == ["src/lib/api/queries.ts"]
-    assert ("plan", "src/components/sections/DetailView.tsx") in found
-    assert ("pages", "src/app/tasks/page.tsx") in found
-    assert ("custom-hooks", "src/features/projects/components/Long.tsx") in found
+    assert ("plan", "src/components/sections/CardGrid.tsx") in found
+    assert ("pages", "src/app/cart/page.tsx") in found
+    assert ("custom-hooks", "src/features/products/components/Long.tsx") in found
 
 
 def test_tool_output_parsers():

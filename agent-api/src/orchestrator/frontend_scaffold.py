@@ -121,11 +121,11 @@ def scaffold_frontend(
     for part in ("common", mode, *(("renderer",) if plan.get("rendering") == "renderer" else ())):
         root = overlay / "files" / part
         sources = {source.relative_to(root).as_posix(): source for source in _files(root)}
-        # The section library (Story 17.2): only the sections this site uses, plus the shared helpers.
-        wanted = library_files(plan, list(sources)) if part == "renderer" else list(sources)
-        for relative in wanted:
-            _copy(sources[relative], project / relative, replacements)
-            overlay_files.append(relative)
+        # The section library (Stories 17.2, 17.4): the sections this site uses, the helpers and its shell.
+        wanted = library_files(plan, list(sources)) if part == "renderer" else {name: name for name in sources}
+        for target, source in wanted.items():
+            _copy(sources[source], project / target, replacements)
+            overlay_files.append(target)
 
     package_path = project / "package.json"
     package = json.loads(package_path.read_text())

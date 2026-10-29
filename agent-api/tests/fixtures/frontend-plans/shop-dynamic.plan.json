@@ -340,7 +340,9 @@
     "slug": "corner-shop"
   },
   "rendererGaps": [
-    "dynamic mode: data sections are rendered from Story 17.4"
+    "products/grid: ProductGrid is not in the section library",
+    "product-detail/detail: ProductDetail is not in the section library",
+    "cart/items: CartList is not in the section library"
   ],
   "rendering": "engine",
   "routes": [

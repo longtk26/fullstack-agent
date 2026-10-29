@@ -69,6 +69,24 @@ def test_every_library_section_and_layout_node_builds_and_renders():
         shutil.rmtree(project.parent, ignore_errors=True)
 
 
+def test_a_rendered_dynamic_app_passes_every_check_on_mocks():
+    """Story 17.4: project-tracker-dynamic without the engine — data sections through the generated client on the
+    mock API, the forms test submits both forms, the smoke test finds the fixtures' text on every page."""
+    from tests.test_frontend_scaffold import inputs
+
+    spec, contract, plan = inputs("project-tracker-dynamic")
+    assert plan["rendering"] == "renderer", plan["rendererGaps"]
+    project = REPO / ".data" / "test-sandbox" / uuid.uuid4().hex[:10] / "frontend"
+    scaffold_frontend(project, plan, spec, contract)
+    try:
+        outcome = _validate(project, plan)
+        assert outcome.summary == dict.fromkeys(
+            ("install", "typecheck", "lint", "conventions", "build", "routes", "tests"), "passed"
+        ), outcome.digest
+    finally:
+        shutil.rmtree(project.parent, ignore_errors=True)
+
+
 def test_a_type_error_fails_typecheck_and_skips_build(landing):
     project, plan = landing
     broken = project / "src/features/site/components/Broken.tsx"

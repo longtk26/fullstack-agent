@@ -97,8 +97,9 @@ workflow to be built before real generation works.
    E15 (15.1–15.3 generated SVGs, then 15.4 uploads; 15.5 only if asked) → E16 (16.1 revisions → 16.2 spec
    edits → 16.3 feedback → 16.4 inspect mode → 16.5 history). E11 (hardening & release) stays last.
 7. **Fast generation (added 2026-10-28):** E17 before E15/E16, since both get simpler on the renderer:
-   17.5 (auto-fix, pre-installed deps) → 17.1 → 17.2 (static, no engine call) → 17.3 (custom components +
-   cache) → 17.4 (dynamic data sections) → 17.6 (backend CRUD from templates).
+   17.5 (auto-fix, pre-installed deps) → 17.1 → 17.2 (static, no engine call) → 17.4 (dynamic data sections;
+   moved before 17.3 on 2026-10-29: the custom components in the examples are all dynamic data components) →
+   17.3 (custom components + cache) → 17.6 (backend CRUD from templates) → 17.7 (fonts, section variants).
 
 ### Status (2026-10-28)
 
@@ -111,7 +112,7 @@ workflow to be built before real generation works.
 | 12 | 12.1–12.3 and 12.5 done; 12.4 open |
 | 13 | done |
 | 14 | done (14.1 parallel lanes, 14.2 live-API switch + `/integration/{recheck,use-mocks}`, 14.3 live contract & Playwright smoke checks) |
-| 17 | 17.5, 17.1, 17.2 done (auto-fix, shared node_modules; typed section content and layout nodes; static sites rendered without the engine, ~44 s); 17.3, 17.4, 17.6 open |
+| 17 | 17.5, 17.1, 17.2, 17.4 done (auto-fix, shared node_modules; typed content and layout nodes; static sites ~44 s and dynamic frontends rendered without the engine); 17.3, 17.6, 17.7 open |
 | 2.4, 10, 11, 15, 16 | open |
 
 ### Next up (agreed 2026-10-28, after Epic 14)
@@ -122,7 +123,7 @@ Work in this order; start each item in a fresh session ("implement story 17.5", 
 | # | Item | What the user gets | Why at this point |
 |---|---|---|---|
 | 1 | **9.8 + 9.9** *(done)* | Parallel lane view with the Mock/Live switch; App tab to use the generated app inside the agent UI | Epic 14 is done, so its lanes and switch can be shown; 16.4 inspect mode lives in the App tab |
-| 2 | **Epic 17**: 17.5 → 17.1 → 17.2 → 17.3 → 17.4 → 17.6 | Faster runs: auto-fix and pre-installed deps first (every mode), then static sites with no engine call for catalogue sections, cached custom components, dynamic data sections, backend CRUD from templates | Engine calls are >90% of a run (static ~25 min, backend ~17 min); Epics 15 and 16 build on the renderer |
+| 2 | **Epic 17**: 17.5 → 17.1 → 17.2 → 17.4 → 17.3 → 17.6 (17.7 after the main feature) | Faster runs: auto-fix and pre-installed deps first (every mode), then static sites with no engine call for catalogue sections, cached custom components, dynamic data sections, backend CRUD from templates | Engine calls are >90% of a run (static ~25 min, backend ~17 min); Epics 15 and 16 build on the renderer |
 | 3 | **Epic 15** (15.1–15.4) | Real images: engine-drawn SVGs, uploads, links (15.5 only if asked) | Assets become section props on the renderer |
 | 4 | **Epic 16** | Revisions: theme and content editors, click-to-comment, history and restore | Spec edits and catalogue feedback are a JSON patch + re-render after 17.2; uses 9.9 and 15 |
 | 5 | **2.4 + 12.4, then 9.7b** | Requirement → draft specs; review aids in the editor | May move up if starting from text matters more than speed |

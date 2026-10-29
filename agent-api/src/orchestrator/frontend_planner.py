@@ -16,7 +16,7 @@ from src.modules.shared.domain.backend_spec.naming import pluralize, to_camel, t
 from src.modules.shared.domain.frontend_spec import BUILTIN_SECTIONS, iter_sections, route_params
 
 from .contract import contract_operations, resolve
-from .frontend_renderer import renderer_gaps
+from .frontend_renderer import library_primitives, renderer_gaps
 from .frontend_theme import build_theme
 
 FRONTEND_PLAN_VERSION = "1"
@@ -226,8 +226,8 @@ class _Planner:
             planned.append(component)
         return planned
 
-    def shadcn(self, components: list[dict[str, Any]], renderer: bool = False) -> list[str]:
-        wanted = set(ALWAYS_PRIMITIVES) | ({"sheet"} if renderer else set())  # the library's shell imports it
+    def shadcn(self, components: list[dict[str, Any]], library: set[str] | None = None) -> list[str]:
+        wanted = set(ALWAYS_PRIMITIVES) | (library or set())  # what the section library's files import
         for component in components:
             wanted |= {name for name in component["uses"] if name not in self.declared and name not in BUILTIN_SECTIONS}
         for form in self.spec.get("forms", []):
@@ -345,7 +345,8 @@ class _Planner:
         routes = self.routes()
         components = self.components(routes)
         forms = self.plan_forms()
-        gaps = renderer_gaps(spec, routes)
+        gaps = renderer_gaps(spec, routes, forms)
+        shell = (spec.get("layout") or {}).get("shell", "header-footer")
         layout = spec.get("layout") or {}
         pages = {route["pageId"]: route["route"] for route in routes}
 
@@ -388,7 +389,9 @@ class _Planner:
             "rendererGaps": gaps,
             "routes": routes,
             "components": components,
-            "shadcn": self.shadcn(components, renderer=not gaps),
+            "shadcn": self.shadcn(
+                components, None if gaps else library_primitives({"routes": routes, "shell": {"shell": shell}})
+            ),
             "theme": build_theme(spec["theme"]),
             "data": self.data(routes),
             "forms": forms,

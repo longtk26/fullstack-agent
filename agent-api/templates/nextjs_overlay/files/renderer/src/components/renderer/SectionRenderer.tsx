@@ -13,16 +13,23 @@ function childTitle(section: TSiteSection): string {
 }
 
 /**
- * One FrontendSpec section: the registered component with the section's content, the records of its content
- * collection as `items`, and — for layout nodes — its children rendered by this same component. The markers
- * name the section for inspect mode (16.4).
+ * One FrontendSpec section: the registered component with the section's content; data sections get their content
+ * collection (`items`) or their operation binding, columns and states; forms their definition; layout nodes their
+ * children, rendered by this same component. The markers name the section for inspect mode (16.4).
  */
 export function SectionRenderer({ pageId, section }: SectionRendererProps) {
   const Component = sections[section.component];
   if (!Component) return null;
   const props: Record<string, unknown> = { ...section.content };
-  if (section.data?.collection) props.items = site.collections[section.data.collection] ?? [];
-  if (section.data?.fields?.length) props.fields = section.data.fields;
+  const data = section.data;
+  if (data?.collection) props.items = site.collections[data.collection] ?? [];
+  if (data?.columns) props.columns = data.columns;
+  if (data?.operationId) props.binding = data;
+  if (section.states) props.states = section.states;
+  if (section.form) {
+    props.formId = section.form;
+    props.form = site.forms[section.form];
+  }
   const children = section.children?.map((child) => (
     <SectionRenderer key={child.id} pageId={pageId} section={child} />
   ));
