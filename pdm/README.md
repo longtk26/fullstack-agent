@@ -100,8 +100,10 @@ workflow to be built before real generation works.
    17.5 (auto-fix, pre-installed deps) → 17.1 → 17.2 (static, no engine call) → 17.4 (dynamic data sections;
    moved before 17.3 on 2026-10-29: the custom components in the examples are all dynamic data components) →
    17.3 (custom components + cache) → 17.6 (backend CRUD from templates) → 17.7 (fonts, section variants).
+8. **After Epic 17 (agreed 2026-10-29):** 17.8 → 17.7 → E15 → 2.4 + 12.4 (plain text for static and dynamic) →
+   9.7b → E16 → E10 → E11.
 
-### Status (2026-10-28)
+### Status (2026-10-29)
 
 | Epic | State |
 |---|---|
@@ -112,25 +114,31 @@ workflow to be built before real generation works.
 | 12 | 12.1–12.3 and 12.5 done; 12.4 open |
 | 13 | done |
 | 14 | done (14.1 parallel lanes, 14.2 live-API switch + `/integration/{recheck,use-mocks}`, 14.3 live contract & Playwright smoke checks) |
-| 17 | 17.5, 17.1, 17.2, 17.4, 17.3, 17.6 done (auto-fix, shared node_modules; typed content and layout nodes; static sites ~44 s and dynamic frontends rendered without the engine; parallel custom components & component cache; backend CRUD from templates, dynamic shop 59 s with 0 engine calls); 17.7 open; a 17.3 layout follow-up is pending |
+| 17 | 17.5, 17.1, 17.2, 17.4, 17.3, 17.6 done (auto-fix, shared node_modules; typed content and layout nodes; static sites ~44 s and dynamic frontends rendered without the engine; parallel custom components & component cache; backend CRUD from templates, dynamic shop 59 s with 0 engine calls); 17.8 (custom component layout, found on the first cached shop run) and 17.7 open |
 | 2.4, 10, 11, 15, 16 | open |
 
-### Next up (agreed 2026-10-28, after Epic 14)
+### Next up (agreed 2026-10-29, after the main Epic 17 stories)
 
-Done since the last plan: 9.7a (generate from the UI), Epic 14 (parallel lanes, live-API switch, live smoke), and 9.8 + 9.9 (parallel run view, live switch controls, and embedded App preview tab).
-Work in this order; start each item in a fresh session ("implement story 17.5", "implement story 17.1", …).
+Done since the last plan: Epic 17's main stories (17.5, 17.1, 17.2, 17.4, 17.3, 17.6): static sites ~44 s with no
+engine call; the dynamic tracker and shop ~1 min with no engine call once custom components are cached (before:
+25–40+ min). Output quality now depends on the spec and on the section library / templates, so the next items
+improve those first.
+Work in this order; start each item in a fresh session ("implement story 17.8", …).
 
 | # | Item | What the user gets | Why at this point |
 |---|---|---|---|
-| 1 | **9.8 + 9.9** *(done)* | Parallel lane view with the Mock/Live switch; App tab to use the generated app inside the agent UI | Epic 14 is done, so its lanes and switch can be shown; 16.4 inspect mode lives in the App tab |
-| 2 | **Epic 17**: 17.5 → 17.1 → 17.2 → 17.4 → 17.3 → 17.6 (17.7 after the main feature) | Faster runs: auto-fix and pre-installed deps first (every mode), then static sites with no engine call for catalogue sections, cached custom components, dynamic data sections, backend CRUD from templates | Engine calls are >90% of a run (static ~25 min, backend ~17 min); Epics 15 and 16 build on the renderer |
-| 3 | **Epic 15** (15.1–15.4) | Real images: engine-drawn SVGs, uploads, links (15.5 only if asked) | Assets become section props on the renderer |
-| 4 | **Epic 16** | Revisions: theme and content editors, click-to-comment, history and restore | Spec edits and catalogue feedback are a JSON patch + re-render after 17.2; uses 9.9 and 15 |
-| 5 | **2.4 + 12.4, then 9.7b** | Requirement → draft specs; review aids in the editor | May move up if starting from text matters more than speed |
+| 1 | **17.8** | Custom components that sit on the page like the library sections; prices as currency; quieter empty images | The first cached `shop-dynamic` run looked broken (edge-to-edge grid, squeezed detail card) |
+| 2 | **17.7** | Fonts that load, section variants | Every site uses one design per section and system fonts; this lifts all of them |
+| 3 | **Epic 15** (15.1–15.4) | Real images: engine-drawn SVGs in theme colours, uploads, links (15.5 only if asked) | Replaces the placeholders; assets are section props on the renderer |
+| 4 | **2.4 + 12.4, then 9.7b** | Plain-text requirement → draft FrontendSpec (+ BackendSpec in dynamic mode), assumptions listed for review; review aids in the editor | Drafts aim at the typed section catalogue (17.1) so they render with no engine call; dynamic drafts must pass the pair consistency check |
+| 5 | **Epic 16** | Revisions: theme and content editors, click-to-comment, history and restore | Refines a first version: spec edits re-render without the engine |
 | 6 | **Epic 10**, then **Epic 11** | Auth, roles and business rules in generated backends; hardening, benchmark, release | Epic 11 stays last |
 
 Open decisions along the way:
-- Whether to move drafting (2.4 + 12.4) up.
+- Drafting (2.4 + 12.4) is placed after 17.8, 17.7 and Epic 15 (2026-10-29): the renderer and templates turn a good
+  spec into a good site, so the library is improved first.
+- Faulty RAM is suspected on the dev machine (Docker Desktop crashes, single-bit corruptions in built images,
+  2026-10-29): run a memory test before trusting further Docker results.
 - One paid real-engine run (Claude Code) on `shop-dynamic` to confirm real engines handle the frontend lane and to
   record a timing baseline for Epic 17 (so far the frontend lane has real timings from Antigravity only). Only
   when the user asks.
