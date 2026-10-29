@@ -107,6 +107,8 @@ class GenerationState(TypedDict, total=False):
     frontend_digest_ref: str | None
     frontend_implicated_files: list[str]
     frontend_last_commit: str | None
+    cached_components: list[str]  # Story 17.3: cache keys this job took from the component cache
+    evicted_components: list[str]  # … and the ones it evicted because they broke the site
     backend_error: str | None
     # integration lane (Epic 14)
     integration: dict[str, Any]
@@ -136,5 +138,7 @@ class FrontendLaneOutput(TypedDict, total=False):
     frontend_digest_ref: str | None
     frontend_implicated_files: list[str]
     frontend_last_commit: str | None
+    cached_components: list[str]
+    evicted_components: list[str]
     outcome: str | None
     error_summary: str | None

@@ -34,3 +34,12 @@ def golden_project(root: Path) -> Path:
         shutil.copytree(GOLDEN / part, project, dirs_exist_ok=True, ignore=shutil.ignore_patterns("__pycache__"))
     (project / ".bga" / "plan.json").write_text(json.dumps(two_entity_plan()))
     return project
+
+
+def engine_path(frontend_spec: dict) -> dict:
+    """A copy of a FrontendSpec whose custom components have no props schema, so its frontend lane takes the engine
+    path (for the shop: the golden `corner_shop` frontend) instead of the renderer and custom components (17.3)."""
+    spec = json.loads(json.dumps(frontend_spec))
+    for component in spec.get("components", []):
+        component.pop("propsSchema", None)
+    return spec

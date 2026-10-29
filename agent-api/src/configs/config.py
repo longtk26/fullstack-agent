@@ -33,6 +33,7 @@ class Config(BaseSettings):
     engine_timeout_seconds: int = 900
     engine_max_turns: int = 40
     engine_max_output_bytes: int = 20_000_000
+    engine_concurrency: int = 3  # parallel custom component generation (Story 17.3)
     engine_skills_dir: str = "/opt/bga/skills"
     engine_skills: list[str] = ["fastapi-skills"]
     frontend_engine_skills: list[str] = ["nextjs-skills"]  # installed into the frontend workspace (Story 13.2)

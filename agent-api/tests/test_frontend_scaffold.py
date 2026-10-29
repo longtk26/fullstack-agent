@@ -5,7 +5,7 @@ import shutil
 from pathlib import Path
 
 import pytest
-from generation_helpers import EXAMPLES, normalized
+from generation_helpers import EXAMPLES, engine_path, normalized
 
 from src.engines.fake_engine import GOLDEN_FRONTENDS
 from src.modules.shared.domain.frontend_spec import validate_frontend_spec_text
@@ -32,15 +32,17 @@ SHOP = "shop-dynamic"
 BACKEND_SPECS = {TRACKER: "two-entity.json", SHOP: "shop.json"}
 
 
-def inputs(name: str) -> tuple[dict, dict | None, dict]:
-    spec = validate_frontend_spec_text((EXAMPLES / "frontend-specs" / f"{name}.json").read_text()).normalized
+def inputs(name: str, engine: bool = False) -> tuple[dict, dict | None, dict]:
+    """`engine`: the spec without props schemas, so the golden (engine-written) frontend applies (17.3)."""
+    raw = json.loads((EXAMPLES / "frontend-specs" / f"{name}.json").read_text())
+    spec = validate_frontend_spec_text(json.dumps(engine_path(raw) if engine else raw)).normalized
     backend = BACKEND_SPECS.get(name)
     contract = build_contract(normalized(EXAMPLES / "specs" / backend)) if backend else None
     return spec, contract, plan_frontend(spec, contract)
 
 
 def scaffolded(tmp_path: Path, name: str, golden: bool = True) -> tuple[Path, dict]:
-    spec, contract, plan = inputs(name)
+    spec, contract, plan = inputs(name, engine=golden)
     project = tmp_path / name
     scaffold_frontend(project, plan, spec, contract)
     if golden:
@@ -119,7 +121,7 @@ def test_the_golden_shop_frontend_meets_the_conventions(tmp_path):
     assert check_frontend_conventions(project, plan) == []
 
 
-@pytest.mark.parametrize("name", [LANDING, TRACKER])
+@pytest.mark.parametrize("name", [LANDING, TRACKER, SHOP])
 def test_a_rendered_site_meets_the_conventions_without_engine_files(tmp_path, name):
     project, plan = scaffolded(tmp_path, name, golden=False)
     assert plan["rendering"] == "renderer" and check_frontend_conventions(project, plan) == []

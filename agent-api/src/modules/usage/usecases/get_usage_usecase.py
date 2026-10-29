@@ -5,9 +5,13 @@ from typing import Annotated, Any
 from fastapi import Depends
 
 from src.libs.exceptions import BadRequestException, ForbiddenException
-from src.modules.generations.ports.output import IExecutionRecordRepoDep, IGenerationRepoDep
+from src.modules.generations.ports.output import (
+    IComponentCacheRepoDep,
+    IExecutionRecordRepoDep,
+    IGenerationRepoDep,
+)
 from src.modules.generations.usecases.project_names import project_names
-from src.modules.shared.domain.entities import GenerationEntity, UserEntity
+from src.modules.shared.domain.entities import ComponentCacheEntity, GenerationEntity, UserEntity
 from src.modules.shared.domain.enums import GenerationStatus
 from src.modules.shared.domain.telemetry import ExecutionRecords, rollup
 from src.modules.specs.ports.output import IBackendSpecRepoDep, IFrontendSpecRepoDep
@@ -40,11 +44,13 @@ class GetUsageUsecase:
         records: IExecutionRecordRepoDep,
         specs: IBackendSpecRepoDep,
         frontend_specs: IFrontendSpecRepoDep,
+        component_cache: IComponentCacheRepoDep,
     ):
         self.generations = generations
         self.records = records
         self.specs = specs
         self.frontend_specs = frontend_specs
+        self.component_cache = component_cache
 
     async def execute(
         self, user: UserEntity, start: date | None, end: date | None, all_owners: bool = False
@@ -75,6 +81,10 @@ class GetUsageUsecase:
             "byModel": _by_model(items),
             "byNode": _by_node(items),
             "byLane": _by_lane(items),
+            # Admins: the most reused custom components, candidates for the section library (Story 17.3)
+            "catalogueCandidates": [_candidate(entry) for entry in self.component_cache.most_reused()]
+            if all_owners
+            else [],
             "generations": [_row(row, usage, names) for row, usage in items],
         }
 
@@ -96,12 +106,26 @@ def _totals(items) -> dict[str, Any]:
         "engineMs": sum(usage["engineMs"] for _, usage in items),
         "sandboxMs": sum(usage["sandboxMs"] for _, usage in items),
         "modelCalls": sum(usage["modelCalls"] for _, usage in items),
+        "cacheHits": sum(usage["cacheHits"] for _, usage in items),
+        "savedEngineMs": sum(usage["savedEngineMs"] for _, usage in items),
         "tokens": tokens,
         "cost": cost or {"reported": 0.0, "estimated": 0.0, "total": 0.0, "unpriced": 0},
         "avgCostPerCompleted": round(sum(u["cost"]["total"] for u in completed) / len(completed), 6)
         if completed
         else None,
         "avgWallMsPerCompleted": int(sum(u["wallMs"] or 0 for u in completed) / len(completed)) if completed else None,
+    }
+
+
+def _candidate(entry: ComponentCacheEntity) -> dict[str, Any]:
+    return {
+        "name": entry.name,
+        "key": entry.key,
+        "hits": entry.hits,
+        "savedEngineMs": int(entry.hits * entry.saved_seconds * 1000),
+        "engine": entry.engine,
+        "model": entry.model,
+        "lastUsedAt": entry.last_used_at.isoformat() if entry.last_used_at else None,
     }
 
 

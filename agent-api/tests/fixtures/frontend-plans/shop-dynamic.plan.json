@@ -173,6 +173,17 @@
     "skill": "nextjs-skills",
     "types": "standalone types T-prefixed (TProduct); props <Name>Props; `type` over `interface`"
   },
+  "customComponents": {
+    "CartList": {
+      "fallback": "List"
+    },
+    "ProductDetail": {
+      "fallback": "DetailView"
+    },
+    "ProductGrid": {
+      "fallback": "CardGrid"
+    }
+  },
   "data": [
     {
       "action": "list",
@@ -339,12 +350,8 @@
     "name": "Corner Shop",
     "slug": "corner-shop"
   },
-  "rendererGaps": [
-    "products/grid: ProductGrid is not in the section library",
-    "product-detail/detail: ProductDetail is not in the section library",
-    "cart/items: CartList is not in the section library"
-  ],
-  "rendering": "engine",
+  "rendererGaps": [],
+  "rendering": "renderer",
   "routes": [
     {
       "file": "src/app/page.tsx",

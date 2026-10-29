@@ -157,9 +157,13 @@ def rollup(records: ExecutionRecords, now: datetime | None = None) -> dict[str, 
         for node in dict.fromkeys([run.node for run in records.node_runs] + list(by_node))
         if node in node_meta or by_node[node].engine_calls
     ]
+    summaries = [run.summary or {} for run in records.node_runs]
     return {
         "wallMs": wall_ms,
         **total.as_dict(),
+        # Story 17.3: custom components taken from the component cache, and the engine time that saved
+        "cacheHits": sum(summary.get("cacheHits", 0) for summary in summaries),
+        "savedEngineMs": sum(summary.get("savedEngineMs", 0) for summary in summaries),
         "byNode": nodes,
         "byLane": [{"lane": DEFAULT_LANE, "wallMs": wall_ms, **total.as_dict()}],
         "byModel": [

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from generation_helpers import normalized
+from generation_helpers import engine_path, normalized
 from langgraph.checkpoint.memory import InMemorySaver
 from preview_fakes import FakePreviewRuntime
 
@@ -37,8 +37,8 @@ from workflow_helpers import (
 EXAMPLES = Path(__file__).parents[2] / "examples"
 TRACKER_FRONTEND = json.loads((EXAMPLES / "frontend-specs" / "project-tracker-dynamic.json").read_text())
 # Story 17.4: the tracker frontend is rendered without the engine. Tests of the frontend lane's engine path use the
-# shop pair, whose custom components still go to the engine (until 17.3).
-SHOP_FRONTEND = json.loads((EXAMPLES / "frontend-specs" / "shop-dynamic.json").read_text())
+# shop pair without its components' props schemas (Story 17.3 would render it too).
+SHOP_FRONTEND = engine_path(json.loads((EXAMPLES / "frontend-specs" / "shop-dynamic.json").read_text()))
 SHOP_BACKEND = json.loads((EXAMPLES / "specs" / "shop.json").read_text())
 GOLDEN_OPENAPI = json.loads((Path(__file__).parent / "fixtures" / "openapi" / "two-entity.golden.json").read_text())
 CANONICAL_CONTRACT = json.loads(dump_contract(build_contract(normalized(EXAMPLES / "specs" / "two-entity.json"))))
@@ -565,7 +565,9 @@ def test_live_contract_response_mismatch_and_playwright_smoke_failure_reported_w
             return ExecResult(exit_code=0, stdout="ok", stderr="", duration_ms=5)
 
     class FakeSandboxProvider(ISandboxProvider):
-        def for_job(self, generation_id: str, project_dir: Path, kind: str = "backend") -> ISandbox:
+        def for_job(
+            self, generation_id: str, project_dir: Path, kind: str = "backend", part: str | None = None
+        ) -> ISandbox:
             return FakeFrontendSandbox()
 
         async def job_ids(self) -> set[str]:

@@ -58,8 +58,11 @@ class ISandbox(ABC):
 
 class ISandboxProvider(ABC):
     @abstractmethod
-    def for_job(self, generation_id: str, project: Path, kind: SandboxKind = "backend") -> ISandbox:
-        """backend: the Python runner plus a PostgreSQL sidecar; frontend: the Node runner, no database."""
+    def for_job(
+        self, generation_id: str, project: Path, kind: SandboxKind = "backend", part: str | None = None
+    ) -> ISandbox:
+        """backend: the Python runner plus a PostgreSQL sidecar; frontend: the Node runner, no database. `part`
+        (default: the kind) names a further sandbox of the same generation, e.g. one per custom component."""
 
     @abstractmethod
     async def job_ids(self) -> set[str]:

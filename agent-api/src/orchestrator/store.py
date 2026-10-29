@@ -9,6 +9,7 @@ from sqlmodel import Session
 from src.libs.database import db_session_manager
 from src.modules.generations.infrastructure.persistence import (
     ArtifactRepository,
+    ComponentCacheRepository,
     ExecutionRecordRepository,
     GenerationRepository,
 )
@@ -17,6 +18,7 @@ from src.modules.shared.domain.entities import (
     ArtifactEntity,
     BackendSpecEntity,
     CliInvocationEntity,
+    ComponentCacheEntity,
     FrontendSpecEntity,
     GenerationEntity,
     ModelCallEntity,
@@ -140,3 +142,17 @@ class JobStore:
         if statuses is None:
             return self._with(lambda s: PreviewRepository(s).list_all())
         return self._with(lambda s: PreviewRepository(s).list_by_status(statuses))
+
+    # -- component cache (Story 17.3) ---------------------------------------------------------------------------
+
+    def component_cache(self, key: str) -> ComponentCacheEntity | None:
+        return self._with(lambda s: ComponentCacheRepository(s).find(key))
+
+    def save_component_cache(self, entry: ComponentCacheEntity) -> ComponentCacheEntity:
+        return self._with(lambda s: ComponentCacheRepository(s).save(entry))
+
+    def record_component_cache_hit(self, key: str) -> None:
+        self._with(lambda s: ComponentCacheRepository(s).record_hit(key))
+
+    def evict_component_cache(self, key: str) -> None:
+        self._with(lambda s: ComponentCacheRepository(s).evict(key))

@@ -16,7 +16,7 @@ from src.modules.shared.domain.backend_spec.naming import pluralize, to_camel, t
 from src.modules.shared.domain.frontend_spec import BUILTIN_SECTIONS, iter_sections, route_params
 
 from .contract import contract_operations, resolve
-from .frontend_renderer import library_primitives, renderer_gaps
+from .frontend_renderer import custom_components, library_primitives, renderer_gaps
 from .frontend_theme import build_theme
 
 FRONTEND_PLAN_VERSION = "1"
@@ -346,6 +346,7 @@ class _Planner:
         components = self.components(routes)
         forms = self.plan_forms()
         gaps = renderer_gaps(spec, routes, forms)
+        custom = {} if gaps else custom_components(spec, routes)
         shell = (spec.get("layout") or {}).get("shell", "header-footer")
         layout = spec.get("layout") or {}
         pages = {route["pageId"]: route["route"] for route in routes}
@@ -355,7 +356,8 @@ class _Planner:
                 return {"label": item["label"], "href": pages[item["page"]], "page": item["page"]}
             return {"label": item["label"], "href": item["href"], "external": True}
 
-        return {
+        library = {"routes": routes, "shell": {"shell": shell}, "customComponents": custom}
+        plan = {
             "planVersion": FRONTEND_PLAN_VERSION,
             "project": {
                 "name": spec["project"]["name"],
@@ -389,9 +391,7 @@ class _Planner:
             "rendererGaps": gaps,
             "routes": routes,
             "components": components,
-            "shadcn": self.shadcn(
-                components, None if gaps else library_primitives({"routes": routes, "shell": {"shell": shell}})
-            ),
+            "shadcn": self.shadcn(components, None if gaps else library_primitives(library)),
             "theme": build_theme(spec["theme"]),
             "data": self.data(routes),
             "forms": forms,
@@ -402,6 +402,9 @@ class _Planner:
             "assets": spec.get("assets", []),
             "tests": self.tests(routes, forms),
         }
+        if custom:
+            plan["customComponents"] = custom  # Story 17.3: generated one by one, fallbacks registered first
+        return plan
 
 
 def plan_frontend(spec: dict[str, Any], contract: dict[str, Any] | None = None) -> dict[str, Any]:

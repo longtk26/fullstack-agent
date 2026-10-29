@@ -46,6 +46,11 @@ Agent-specific notes:
   why), is built without the engine; dynamic data sections read through the generated `bindings.ts`: overlay part `templates/nextjs_overlay/files/renderer` (only the sections a site uses) plus
   `orchestrator/frontend_renderer.py` (site.json, registry, props types, thin route files). Sections can nest in
   layout nodes (`children`): walk them with `iter_sections` / `walk_sections`, never `page["sections"]` alone.
+- Custom components (Story 17.3): a rendered site's custom components (with a `propsSchema`) are scaffolded as
+  their library fallback (`plan["customComponents"]`), then `orchestrator/custom_components.py` generates each in a
+  scratch copy and its own sandbox (`for_job(..., part=...)`), or copies it from the component cache
+  (`component_cache` rows + `ARTIFACT_ROOT/cache/components/<key>/`, key in `component_cache.py`), and rewrites the
+  owned registry. Admin purge: `DELETE /api/v1/cache/components`.
 - Test doubles (fake engine, golden two-entity project, static validator, fake CLIs, opt-in test flags) are listed in
   `docs/development/test-doubles.md`; add any new fake there and mark it at its definition.
 

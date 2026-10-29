@@ -139,6 +139,7 @@ class Component(SpecModel):
     kind: Literal["primitive", "composite", "section", "layout"] = "composite"
     uses: list[str] = []
     description: str | None = None
+    props_schema: dict[str, Any] | None = Field(default=None, alias="propsSchema")
 
 
 class FormField(SpecModel):

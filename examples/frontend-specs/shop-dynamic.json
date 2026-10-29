@@ -94,11 +94,14 @@
   ],
   "components": [
     { "name": "ProductGrid", "kind": "composite", "uses": ["card", "badge", "pagination", "skeleton"],
-      "description": "Product cards with name, price and image; paginated" },
+      "description": "Product cards with name, price and image; paginated",
+      "propsSchema": { "type": "object", "properties": { "limit": { "type": "integer", "default": 12 } } } },
     { "name": "ProductDetail", "kind": "composite", "uses": ["card", "badge", "separator"],
-      "description": "One product: image, description, price, stock" },
+      "description": "One product: image, description, price, stock",
+      "propsSchema": { "type": "object", "properties": { "id": { "type": "string" } } } },
     { "name": "CartList", "kind": "composite", "uses": ["item", "button", "input"],
-      "description": "Cart lines with quantity and remove" }
+      "description": "Cart lines with quantity and remove",
+      "propsSchema": { "type": "object", "properties": { "title": { "type": "string" } } } }
   ],
   "forms": [
     { "id": "addToCart", "operationId": "cartItem.create",

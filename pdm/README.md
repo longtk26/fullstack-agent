@@ -112,7 +112,7 @@ workflow to be built before real generation works.
 | 12 | 12.1–12.3 and 12.5 done; 12.4 open |
 | 13 | done |
 | 14 | done (14.1 parallel lanes, 14.2 live-API switch + `/integration/{recheck,use-mocks}`, 14.3 live contract & Playwright smoke checks) |
-| 17 | 17.5, 17.1, 17.2, 17.4 done (auto-fix, shared node_modules; typed content and layout nodes; static sites ~44 s and dynamic frontends rendered without the engine); 17.3, 17.6, 17.7 open |
+| 17 | 17.5, 17.1, 17.2, 17.4, 17.3 done (auto-fix, shared node_modules; typed content and layout nodes; static sites ~44 s and dynamic frontends rendered without the engine; parallel custom components & component cache); 17.6, 17.7 open |
 | 2.4, 10, 11, 15, 16 | open |
 
 ### Next up (agreed 2026-10-28, after Epic 14)

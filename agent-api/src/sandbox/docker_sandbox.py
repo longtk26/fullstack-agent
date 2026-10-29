@@ -110,12 +110,21 @@ def _chown_tree(root: Path, uid: int, gid: int) -> None:
 
 
 class DockerSandbox(ISandbox):
-    def __init__(self, client: docker.DockerClient, generation_id: str, project: Path, kind: SandboxKind = "backend"):
+    def __init__(
+        self,
+        client: docker.DockerClient,
+        generation_id: str,
+        project: Path,
+        kind: SandboxKind = "backend",
+        part: str | None = None,
+    ):
         self.client = client
         self.generation_id = generation_id
         self.project = project.resolve()
         self.profile = SandboxProfile(kind)
-        suffix = "" if kind == "backend" else "-fe"
+        # The part label separates sandboxes of one generation: starting or stopping one never touches the others.
+        self.part = part or kind
+        suffix = {"backend": "", "frontend": "-fe"}.get(self.part, f"-{self.part}")
         self.network_name = f"bga-sbx-{_slug(generation_id)}{suffix}"
         self.db_name = f"bga-sbx-db-{_slug(generation_id)}"
         self.password = secrets.token_hex(16)
@@ -134,7 +143,7 @@ class DockerSandbox(ISandbox):
 
     def _start(self) -> None:
         self._remove_all()
-        labels = _labels(self.generation_id, self.profile.kind)
+        labels = _labels(self.generation_id, self.part)
         self.client.networks.create(self.network_name, driver="bridge", internal=True, labels=labels)
         if not self.profile.database:
             logger.info("sandbox started", extra={"generation_id": self.generation_id, "kind": self.profile.kind})
@@ -167,7 +176,7 @@ class DockerSandbox(ISandbox):
         self._started = False
 
     def _remove_all(self) -> None:
-        remove_job_resources(self.client, {self.generation_id}, part=self.profile.kind)
+        remove_job_resources(self.client, {self.generation_id}, part=self.part)
 
     # -- database -----------------------------------------------------------------------------------------------
 
@@ -259,7 +268,7 @@ class DockerSandbox(ISandbox):
             detach=True,
             user=user,
             network=self.network_name,
-            labels=_labels(self.generation_id, self.profile.kind),
+            labels=_labels(self.generation_id, self.part),
             volumes=volumes,
             working_dir="/work",
             environment={"HOME": "/tmp", "CI": "1"},
@@ -314,7 +323,7 @@ class DockerSandbox(ISandbox):
             detach=True,
             user=user,
             network=config.sandbox_egress_network if egress else self.network_name,
-            labels=_labels(self.generation_id, self.profile.kind),
+            labels=_labels(self.generation_id, self.part),
             volumes=volumes,
             working_dir="/work",
             environment=environment,
@@ -395,8 +404,10 @@ class DockerSandboxProvider(ISandboxProvider):
     def __init__(self, client: docker.DockerClient | None = None):
         self.client = client or docker.from_env()
 
-    def for_job(self, generation_id: str, project: Path, kind: SandboxKind = "backend") -> DockerSandbox:
-        return DockerSandbox(self.client, generation_id, project, kind)
+    def for_job(
+        self, generation_id: str, project: Path, kind: SandboxKind = "backend", part: str | None = None
+    ) -> DockerSandbox:
+        return DockerSandbox(self.client, generation_id, project, kind, part)
 
     async def job_ids(self) -> set[str]:
         def run() -> set[str]:

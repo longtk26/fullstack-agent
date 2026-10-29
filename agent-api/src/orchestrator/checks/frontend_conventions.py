@@ -67,105 +67,111 @@ def _logic_lines(text: str, start: int) -> int:
     return sum(1 for line in lines if line.strip() and not line.strip().startswith(("//", "/*", "*")))
 
 
-def check_frontend_conventions(project: Path, plan: dict[str, Any]) -> list[dict[str, Any]]:
+def file_violations(relative: str, text: str) -> list[dict[str, Any]]:
+    """The per-file rules, for one engine-written file (also the isolated check of a custom component, 17.3)."""
     violations: list[dict[str, Any]] = []
-    for path in _engine_files(project):
-        relative = path.relative_to(project).as_posix()
-        text = path.read_text(errors="replace")
-        for match in WILDCARD_REACT.finditer(text):
+    path = Path(relative)
+    for match in WILDCARD_REACT.finditer(text):
+        violations.append(
+            _violation(
+                relative,
+                _line(text, match.start()),
+                "react-imports",
+                "wildcard React import",
+                'Use named imports: import { useState } from "react"',
+            )  # fmt: skip
+        )
+    for pattern in (COLOR_CLASS, STYLE_COLOR, HEX_IN_CLASS):
+        for match in pattern.finditer(text):
             violations.append(
                 _violation(
                     relative,
                     _line(text, match.start()),
-                    "react-imports",
-                    "wildcard React import",
-                    'Use named imports: import { useState } from "react"',
+                    "design-tokens",
+                    "hard-coded colour",
+                    "Use design tokens from globals.css (bg-primary, text-muted-foreground, …)",
                 )  # fmt: skip
             )
-        for pattern in (COLOR_CLASS, STYLE_COLOR, HEX_IN_CLASS):
-            for match in pattern.finditer(text):
+    for match in TOKEN_STORAGE.finditer(text):
+        violations.append(
+            _violation(
+                relative,
+                _line(text, match.start()),
+                "token-storage",
+                "credentials stored in browser storage",
+                "Use cookies via Server Actions",
+            )  # fmt: skip
+        )
+    for match in NETWORK.finditer(text):
+        violations.append(
+            _violation(
+                relative,
+                _line(text, match.start()),
+                "network",
+                "network call outside the generated client",
+                "Use the React Query hooks from @/lib/api/queries",
+            )  # fmt: skip
+        )
+    for match in LOW_LEVEL_API.finditer(text):
+        violations.append(
+            _violation(
+                relative,
+                _line(text, match.start()),
+                "network",
+                "components must not import the low-level API client",
+                "Use the React Query hooks from @/lib/api/queries",
+            )  # fmt: skip
+        )
+    for match in INTERFACE_DECL.finditer(text):
+        violations.append(
+            _violation(
+                relative,
+                _line(text, match.start()),
+                "types",
+                f"interface {match.group(1)}",
+                "Use `type` instead of `interface`",
+            )  # fmt: skip
+        )
+    for match in TYPE_DECL.finditer(text):
+        name = match.group(1)
+        line = _line(text, match.start())
+        if name.endswith("Props"):
+            if re.match(r"^T[A-Z]", name):
+                violations.append(_violation(relative, line, "types", f"{name}: prop types have no T prefix"))
+        elif not re.match(r"^T[A-Z]", name):
+            violations.append(
+                _violation(relative, line, "types", f"{name}: standalone types need the T prefix", f"T{name}")
+            )
+    if path.suffix == ".tsx" and not HOOK_IMPORT.search(text):
+        for match in COMPONENT.finditer(text):
+            lines = _logic_lines(text, match.start())
+            if lines > MAX_LOGIC_LINES:
                 violations.append(
                     _violation(
                         relative,
                         _line(text, match.start()),
-                        "design-tokens",
-                        "hard-coded colour",
-                        "Use design tokens from globals.css (bg-primary, text-muted-foreground, …)",
+                        "custom-hooks",
+                        f"{match.group(1)} has {lines} lines of logic",
+                        "Move the logic to a companion use-*.ts hook",
                     )  # fmt: skip
                 )
-        for match in TOKEN_STORAGE.finditer(text):
-            violations.append(
-                _violation(
-                    relative,
-                    _line(text, match.start()),
-                    "token-storage",
-                    "credentials stored in browser storage",
-                    "Use cookies via Server Actions",
-                )  # fmt: skip
-            )
-        for match in NETWORK.finditer(text):
-            violations.append(
-                _violation(
-                    relative,
-                    _line(text, match.start()),
-                    "network",
-                    "network call outside the generated client",
-                    "Use the React Query hooks from @/lib/api/queries",
-                )  # fmt: skip
-            )
-        for match in LOW_LEVEL_API.finditer(text):
-            violations.append(
-                _violation(
-                    relative,
-                    _line(text, match.start()),
-                    "network",
-                    "components must not import the low-level API client",
-                    "Use the React Query hooks from @/lib/api/queries",
-                )  # fmt: skip
-            )
-        for match in INTERFACE_DECL.finditer(text):
-            violations.append(
-                _violation(
-                    relative,
-                    _line(text, match.start()),
-                    "types",
-                    f"interface {match.group(1)}",
-                    "Use `type` instead of `interface`",
-                )  # fmt: skip
-            )
-        for match in TYPE_DECL.finditer(text):
-            name = match.group(1)
-            line = _line(text, match.start())
-            if name.endswith("Props"):
-                if re.match(r"^T[A-Z]", name):
-                    violations.append(_violation(relative, line, "types", f"{name}: prop types have no T prefix"))
-            elif not re.match(r"^T[A-Z]", name):
-                violations.append(
-                    _violation(relative, line, "types", f"{name}: standalone types need the T prefix", f"T{name}")
-                )
-        if path.suffix == ".tsx" and not HOOK_IMPORT.search(text):
-            for match in COMPONENT.finditer(text):
-                lines = _logic_lines(text, match.start())
-                if lines > MAX_LOGIC_LINES:
-                    violations.append(
-                        _violation(
-                            relative,
-                            _line(text, match.start()),
-                            "custom-hooks",
-                            f"{match.group(1)} has {lines} lines of logic",
-                            "Move the logic to a companion use-*.ts hook",
-                        )  # fmt: skip
-                    )
-        if path.name == "page.tsx" and "metadata" not in text:
-            violations.append(
-                _violation(
-                    relative,
-                    None,
-                    "pages",
-                    "page has no metadata",
-                    "export const metadata = { title: … } (the page's SEO title from the plan)",
-                )  # fmt: skip
-            )
+    if path.name == "page.tsx" and "metadata" not in text:
+        violations.append(
+            _violation(
+                relative,
+                None,
+                "pages",
+                "page has no metadata",
+                "export const metadata = { title: … } (the page's SEO title from the plan)",
+            )  # fmt: skip
+        )
+    return violations
+
+
+def check_frontend_conventions(project: Path, plan: dict[str, Any]) -> list[dict[str, Any]]:
+    violations: list[dict[str, Any]] = []
+    for path in _engine_files(project):
+        violations += file_violations(path.relative_to(project).as_posix(), path.read_text(errors="replace"))
     for relative in changed_owned(project):
         violations.append(
             _violation(
@@ -176,7 +182,11 @@ def check_frontend_conventions(project: Path, plan: dict[str, Any]) -> list[dict
                 "Revert it; change your own components instead",
             )  # fmt: skip
         )
-    planned = [plan["shell"]["file"], *(c["file"] for c in plan["components"]), *(r["file"] for r in plan["routes"])]
+    # A rendered site's custom components (17.3) live at their cache key, or fell back to a library section.
+    custom = plan.get("customComponents") or {}
+    components = [c["file"] for c in plan["components"] if c["name"] not in custom]
+    components += [entry["file"] for entry in custom.values() if entry.get("file")]
+    planned = [plan["shell"]["file"], *components, *(r["file"] for r in plan["routes"])]
     for relative in planned:
         if not (project / relative).is_file():
             violations.append(_violation(relative, None, "plan", "planned file is missing"))

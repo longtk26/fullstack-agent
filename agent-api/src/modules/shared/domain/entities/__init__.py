@@ -1,6 +1,7 @@
 from .artifact_entity import ArtifactEntity
 from .backend_spec_entity import BackendSpecEntity
 from .cli_invocation_entity import CliInvocationEntity
+from .component_cache_entity import ComponentCacheEntity
 from .frontend_spec_entity import FrontendSpecEntity
 from .generation_entity import GenerationEntity
 from .generation_event_entity import GenerationEventEntity
@@ -16,6 +17,7 @@ __all__ = [
     "ArtifactEntity",
     "BackendSpecEntity",
     "CliInvocationEntity",
+    "ComponentCacheEntity",
     "FrontendSpecEntity",
     "GenerationEntity",
     "GenerationEventEntity",

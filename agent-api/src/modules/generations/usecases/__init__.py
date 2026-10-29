@@ -6,6 +6,7 @@ from .get_trace_usecase import GetTraceUsecaseDep
 from .get_validation_usecase import GetValidationUsecaseDep
 from .get_workflow_graph_usecase import GetWorkflowGraphUsecaseDep
 from .list_generations_usecase import ListGenerationsUsecaseDep
+from .purge_component_cache_usecase import PurgeComponentCacheUsecaseDep
 from .stream_generation_events_usecase import StreamGenerationEventsUsecaseDep
 
 __all__ = [
@@ -19,5 +20,6 @@ __all__ = [
     "GetValidationUsecaseDep",
     "GetWorkflowGraphUsecaseDep",
     "ListGenerationsUsecaseDep",
+    "PurgeComponentCacheUsecaseDep",
     "StreamGenerationEventsUsecaseDep",
 ]

@@ -1,4 +1,4 @@
-import { Activity, Ban, Bot, CirclePlay, FileCheck, FileJson, Flag, Layers, RotateCcw, ShieldCheck, Terminal, TriangleAlert, WandSparkles } from "lucide-react";
+import { Activity, Ban, Bot, CirclePlay, DatabaseZap, FileCheck, FileJson, Flag, Layers, Puzzle, RotateCcw, ShieldCheck, Terminal, TriangleAlert, WandSparkles } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { TGenerationEvent } from "../types";
 import { formatDuration, formatStep } from "./status";
@@ -42,6 +42,10 @@ export const EVENT_ICONS: Record<string, LucideIcon> = {
   "frontend.plan.ready": FileJson,
   "frontend.scaffold.done": FileCheck,
   "frontend.rendered": FileCheck,
+  "component.cache_hit": DatabaseZap,
+  "component.generated": Puzzle,
+  "component.fallback": TriangleAlert,
+  "component.evicted": TriangleAlert,
   "integration.switched_to_live": ShieldCheck,
   "integration.kept_mocks": TriangleAlert,
 };
@@ -52,6 +56,10 @@ function text(value: unknown): string | null {
 
 function num(value: unknown): number | null {
   return typeof value === "number" ? value : null;
+}
+
+function names(value: unknown): string {
+  return Array.isArray(value) && value.length ? value.join(", ") : "Component";
 }
 
 /** One human-readable line per event for the log. */
@@ -119,8 +127,26 @@ export function describeEvent(event: TGenerationEvent): string {
       return `Frontend plan: ${num(p.routes) ?? "?"} route(s), ${num(p.components) ?? "?"} component(s), ${num(p.tests) ?? "?"} test(s)`;
     case "frontend.scaffold.done":
       return `Frontend base ready (${text(p.mode) ?? "?"}): ${num(p.shadcn) ?? "?"} shadcn primitive(s), ${num(p.generated) ?? "?"} generated file(s)`;
-    case "frontend.rendered":
-      return `Site rendered from the spec: ${num(p.pages) ?? "?"} page(s), ${num(p.sections) ?? "?"} section(s), no engine call`;
+    case "frontend.rendered": {
+      const calls = num(p.engineCalls) ?? 0;
+      const custom = num(p.customComponents);
+      const parts = [`${num(p.pages) ?? "?"} page(s)`, `${num(p.sections) ?? "?"} section(s)`];
+      if (custom) parts.push(`${custom} custom component(s), ${num(p.cacheHits) ?? 0} from the cache`);
+      parts.push(calls ? `${calls} engine call(s)` : "no engine call");
+      return `Site rendered from the spec: ${parts.join(", ")}`;
+    }
+    case "component.cache_hit": {
+      const saved = num(p.savedMs);
+      return `${names(p.components)} taken from the component cache${saved ? ` (saved ${formatDuration(saved)} of engine time)` : ""}`;
+    }
+    case "component.generated":
+      return `${names(p.components)} generated (${num(p.engineCalls) ?? "?"} engine call(s))${p.cached ? ", passed its checks and cached" : ""}`;
+    case "component.fallback": {
+      const fallback = Array.isArray(p.fallback) ? p.fallback.join(", ") : "a library section";
+      return `${names(p.components)} falls back to ${fallback}: ${text(p.reason) ?? "it could not be generated"}`;
+    }
+    case "component.evicted":
+      return `Evicted ${Array.isArray(p.keys) ? p.keys.length : "?"} cached component(s) that broke the site; generating them again`;
     case "preview.status": {
       const kind = text(p.kind) === "frontend" ? "Site" : "API";
       const detail = text(p.url) ?? text(p.error) ?? text(p.reason);
@@ -154,6 +180,8 @@ export function isProblem(event: TGenerationEvent): boolean {
     event.status === "FAILED" ||
     event.type === "engine.retry" ||
     event.type === "spec.invalid" ||
+    event.type === "component.fallback" ||
+    event.type === "component.evicted" ||
     (event.type === "validation.check" && event.status === "failed") ||
     (event.type === "engine.finished" && event.status !== "ok")
   );

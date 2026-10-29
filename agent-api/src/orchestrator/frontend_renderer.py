@@ -12,8 +12,10 @@ frontend is data plus thin route files and `generate_frontend` makes no engine c
     src/app/<route>/page.tsx             metadata + <PageRenderer pageId=… />
 
 Data sections read through the generated API client in dynamic mode (mocks first, then the live backend) and from
-content collections in static mode. Anything else (custom components, static forms, the sidebar shell, route
-parameters in static mode) still goes to the engine; the plan says why in `rendererGaps`.
+content collections in static mode. Custom components with a `propsSchema` are generated one by one (Story 17.3,
+`custom_components.py`) and registered here in place of their library fallback. Anything else (custom components
+without a props schema, static forms, route parameters in static mode) still goes to the engine; the plan says why
+in `rendererGaps`.
 """
 
 import json
@@ -25,6 +27,7 @@ from src.modules.shared.domain.backend_spec.naming import to_camel, to_pascal
 from src.modules.shared.domain.frontend_spec import BUILTIN_SECTIONS, LAYOUT_SECTIONS, iter_sections
 from src.modules.shared.domain.frontend_spec.registry import section_props_schemas
 
+from .component_cache import closest_section
 from .contract import contract_operations, resolve
 
 LIBRARY_ROOT = Path(__file__).resolve().parents[2] / "templates" / "nextjs_overlay" / "files" / "renderer"
@@ -52,6 +55,7 @@ def renderer_gaps(spec: dict[str, Any], routes: list[dict[str, Any]], forms: lis
     dynamic = spec["project"]["mode"] == "dynamic"
     gaps = []
     declared = {component["name"]: component.get("kind", "section") for component in spec.get("components", [])}
+    custom = custom_declarations(spec)
     by_form = {form["id"]: form for form in forms}
     for route in routes:
         if route["params"] and not dynamic:
@@ -61,7 +65,10 @@ def renderer_gaps(spec: dict[str, Any], routes: list[dict[str, Any]], forms: lis
             name = section["component"]
             kind = (section.get("data") or {}).get("kind")
             action = (section.get("data") or {}).get("action")
-            if name not in RENDERED or name not in BUILTIN_SECTIONS or declared.get(name, "section") != "section":
+            if name in custom:
+                if not custom[name].get("propsSchema"):
+                    gaps.append(f"{where}: {name} is a custom component without a propsSchema")
+            elif name not in RENDERED or name not in BUILTIN_SECTIONS or declared.get(name, "section") != "section":
                 gaps.append(f"{where}: {name} is not in the section library")
             elif name in RECORD_SECTIONS and not (kind == "content" or (kind == "operation" and action == "list")):
                 gaps.append(f"{where}: {name} needs a content collection or a list operation")
@@ -72,6 +79,29 @@ def renderer_gaps(spec: dict[str, Any], routes: list[dict[str, Any]], forms: lis
             elif kind == "operation" and name not in RECORD_SECTIONS | {"DetailView"}:
                 gaps.append(f"{where}: {name} bound to an operation")
     return gaps
+
+
+def custom_declarations(spec: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Declared components that are not library sections (a built-in redeclared as composite is custom too)."""
+    return {
+        component["name"]: component
+        for component in spec.get("components", [])
+        if component["name"] not in BUILTIN_SECTIONS or component.get("kind", "section") != "section"
+    }
+
+
+def custom_components(spec: dict[str, Any], routes: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Story 17.3: the custom components a rendered site uses, each with the library section it falls back to
+    (from its first section's binding). The scaffold registers the fallback; `generate_frontend` replaces it with
+    the generated or cached component and adds `key`, `file` and `status`."""
+    declared = custom_declarations(spec)
+    planned: dict[str, dict[str, Any]] = {}
+    for route in routes:
+        for section in iter_sections(route["sections"]):
+            name = section["component"]
+            if name in declared and name not in planned:
+                planned[name] = {"fallback": closest_section(section, declared[name])}
+    return planned
 
 
 def _form_gaps(where: str, form: dict[str, Any] | None) -> list[str]:
@@ -208,6 +238,26 @@ def _form(form: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def section_props(
+    plan: dict[str, Any], spec: dict[str, Any], contract: dict[str, Any] | None, section: dict[str, Any]
+) -> dict[str, Any]:
+    """The props `SectionRenderer.tsx` gives a section's component (without children): its content, its collection's
+    records or its operation binding, columns and states. Used for a custom component's render test (17.3)."""
+    site = _Site(plan, spec, contract)
+    rendered = site.section({**section, "children": None})
+    props = dict(rendered.get("content") or {})
+    data = rendered.get("data") or {}
+    if data.get("collection"):
+        props["items"] = site.collections.get(data["collection"], [])
+    if data.get("columns"):
+        props["columns"] = data["columns"]
+    if data.get("operationId"):
+        props["binding"] = data
+    if rendered.get("states"):
+        props["states"] = rendered["states"]
+    return props
+
+
 def site_json(plan: dict[str, Any], spec: dict[str, Any], contract: dict[str, Any] | None = None) -> str:
     site = _Site(plan, spec, contract)
     data = {
@@ -225,16 +275,35 @@ def used_sections(plan: dict[str, Any]) -> list[str]:
     return sorted({section["component"] for route in plan["routes"] for section in iter_sections(route["sections"])})
 
 
+def library_sections(plan: dict[str, Any], resolved: bool = False) -> set[str]:
+    """The library sections a site needs: the built-ins it uses and its custom components' fallbacks (all of them,
+    or with `resolved`, only those of components that did fall back)."""
+    custom = plan.get("customComponents") or {}
+    fallbacks = {entry["fallback"] for entry in custom.values() if not (resolved and entry.get("file"))}
+    return (set(used_sections(plan)) - set(custom)) | fallbacks
+
+
 def registry_ts(plan: dict[str, Any]) -> str:
-    names = used_sections(plan)
+    """Component name → implementation: a library section, or a custom component's generated file (17.3)."""
+    custom = plan.get("customComponents") or {}
+    names = sorted(library_sections(plan, resolved=True))
     imports = "".join(f'import {{ {name} }} from "@/components/sections/{name}";\n' for name in names)
-    entries = "".join(f"  {name}: {name} as unknown as TSectionComponent,\n" for name in names)
+    targets = {}
+    for name in used_sections(plan):
+        entry = custom.get(name)
+        if entry and entry.get("file"):
+            module = entry["file"].removeprefix("src/").removesuffix(".tsx")
+            imports += f'import {name}Custom from "@/{module}";\n'
+            targets[name] = f"{name}Custom"
+        else:
+            targets[name] = entry["fallback"] if entry else name
+    entries = "".join(f"  {name}: {target} as unknown as TSectionComponent,\n" for name, target in targets.items())
     return (
         HEADER
         + 'import type { ComponentType, ReactNode } from "react";\n'
         + imports
         + "\nexport type TSectionComponent = ComponentType<Record<string, unknown> & { children?: ReactNode }>;\n\n"
-        + "/** The built-in sections this site uses, by FrontendSpec component name. */\n"
+        + "/** The sections this site uses, by FrontendSpec component name. */\n"
         + f"export const sections: Record<string, TSectionComponent> = {{\n{entries}}};\n"
     )
 
@@ -331,7 +400,7 @@ def library_primitives(plan: dict[str, Any], library: Path = LIBRARY_ROOT) -> se
 def library_files(plan: dict[str, Any], available: list[str]) -> dict[str, str]:
     """target → source for the library files a site needs: its sections, the shared helpers (every file that is not
     a section) and its shell (`SiteShell.<shell>.tsx` is copied as `SiteShell.tsx`)."""
-    used = set(used_sections(plan))
+    used = library_sections(plan)
     shell = (plan.get("shell") or {}).get("shell", "header-footer")
     files: dict[str, str] = {}
     for relative in sorted(available):

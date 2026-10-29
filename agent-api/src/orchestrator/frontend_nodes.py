@@ -11,7 +11,9 @@ from src.modules.shared.domain.enums import GenerationMode, LaneStatus
 from src.modules.shared.domain.frontend_spec import iter_sections
 
 from .autofix import autofix_before_validation
+from .component_cache import CUSTOM_DIR, drop_files
 from .context import EngineFailure, JobContext
+from .custom_components import CustomComponents, Resolved
 from .frontend_planner import dump_frontend_plan, plan_frontend
 from .frontend_scaffold import scaffold_frontend
 from .frontend_validation import FrontendValidationRequest
@@ -67,14 +69,40 @@ async def scaffold_frontend_node(state: GenerationState, ctx: JobContext) -> Nod
     return {}, summary
 
 
+async def _resolve_components(
+    state: GenerationState, ctx: JobContext, plan: dict[str, Any], names: list[str] | None = None
+) -> list[Resolved]:
+    spec = _json(Path(state["frontend_ref"]))
+    resolved = await CustomComponents(ctx, plan, spec, _contract(ctx)).resolve(names, state["max_repair_attempts"])
+    ctx.frontend_path(PLAN_REF).write_text(dump_frontend_plan(plan))
+    return resolved
+
+
+def _components_summary(resolved: list[Resolved]) -> dict[str, Any]:
+    return {
+        "customComponents": sum(len(r.names) for r in resolved),
+        "cacheHits": sum(1 for r in resolved if r.status == "hit"),
+        "fallbacks": sum(1 for r in resolved if r.status == "fallback"),
+        "engineCalls": sum(r.engine_calls for r in resolved),
+        "savedEngineMs": sum(r.saved_ms for r in resolved),
+    }
+
+
 async def generate_frontend(state: GenerationState, ctx: JobContext) -> NodeResult:
     """Story 13.3: outside-in — the shell and shared components first, then one engine call per page.
-    Story 17.2: a plan the section library can render was fully written by the scaffold; no engine call."""
+    Story 17.2: a plan the section library can render was fully written by the scaffold; no engine call.
+    Story 17.3: except for its custom components, generated in parallel or taken from the component cache."""
     plan = _plan(ctx, state)
     if plan.get("rendering") == "renderer":
         sections = sum(1 for route in plan["routes"] for _ in iter_sections(route["sections"]))
-        await ctx.emit("frontend.rendered", step="generate_frontend", pages=len(plan["routes"]), sections=sections)
-        return {}, {"pages": len(plan["routes"]), "sections": sections, "rendering": "renderer", "engineCalls": 0}
+        summary: dict[str, Any] = {"pages": len(plan["routes"]), "sections": sections, "engineCalls": 0}
+        update: dict[str, Any] = {}
+        if plan.get("customComponents"):
+            resolved = await _resolve_components(state, ctx, plan)
+            summary |= _components_summary(resolved)
+            update["cached_components"] = sorted(r.key for r in resolved if r.status == "hit")
+        await ctx.emit("frontend.rendered", step="generate_frontend", **summary)
+        return update, {**summary, "rendering": "renderer"}
     common = {
         "plan_path": state["frontend_plan_ref"],
         "spec_path": ".bga/frontend-spec.json",
@@ -158,6 +186,9 @@ async def validate_frontend(state: GenerationState, ctx: JobContext) -> NodeResu
         "frontend_digest_ref": str(digest_path),
         "frontend_implicated_files": outcome.implicated_files,
     }
+    evicted = await _evict_broken_components(state, ctx, failed, outcome.implicated_files)
+    if evicted:
+        update["evicted_components"] = evicted
     limit = state["max_repair_attempts"]
     if not failed:
         await ctx.set_lane("frontend", LaneStatus.COMPLETED)
@@ -176,6 +207,22 @@ async def validate_frontend(state: GenerationState, ctx: JobContext) -> NodeResu
     return update, {"_status": "failed" if failed else "succeeded", "failedChecks": failed, **fixes}
 
 
+async def _evict_broken_components(
+    state: GenerationState, ctx: JobContext, failed: list[str], implicated: list[str]
+) -> list[str]:
+    """Story 17.3: cached components that broke the site's typecheck or build leave the cache (once per job): the
+    ones the failures point at, or every hit of this job when they point at none of them."""
+    hits = state.get("cached_components") or []
+    if not hits or state.get("evicted_components") or not {"typecheck", "build"} & set(failed):
+        return []
+    broken = [key for key in hits if f"{CUSTOM_DIR}/{key}.tsx" in implicated] or hits
+    for key in broken:
+        ctx.store.evict_component_cache(key)
+        drop_files(key)
+    await ctx.emit("component.evicted", step="validate_frontend", keys=broken, failedChecks=failed)
+    return broken
+
+
 async def repair_frontend(state: GenerationState, ctx: JobContext) -> NodeResult:
     attempt = state.get("frontend_repair_attempts", 0) + 1
     await ctx.emit(
@@ -185,6 +232,18 @@ async def repair_frontend(state: GenerationState, ctx: JobContext) -> NodeResult
         maxAttempts=state["max_repair_attempts"],
         failedChecks=state.get("frontend_failed_checks", []),
     )
+    evicted = set(state.get("evicted_components") or [])
+    if evicted & set(state.get("cached_components") or []):
+        # The evicted components are generated again (they now miss the cache) instead of an engine repair.
+        plan = _plan(ctx, state)
+        names = [name for name, entry in plan["customComponents"].items() if entry.get("key") in evicted]
+        resolved = await _resolve_components(state, ctx, plan, names)
+        remaining = sorted(set(state["cached_components"]) - evicted)
+        return {"frontend_repair_attempts": attempt, "cached_components": remaining}, {
+            "attempt": attempt,
+            "regenerated": names,
+            **_components_summary(resolved),
+        }
     digest_ref = state.get("frontend_digest_ref")
     digest = Path(digest_ref).read_text() if digest_ref else ""
     prompt = ctx.prompts.render(

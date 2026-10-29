@@ -172,6 +172,15 @@ def record_owned(project: Path, files: list[str]) -> dict[str, str]:
     return hashes
 
 
+def update_owned(project: Path, files: list[str]) -> None:
+    """Records the current content of generator-owned files the generator rewrote after the scaffold (the registry
+    once the custom components are resolved, Story 17.3)."""
+    path = project / OWNED_INFO
+    hashes = json.loads(path.read_text()) if path.exists() else {}
+    hashes |= {relative: _sha256(project / relative) for relative in files if (project / relative).is_file()}
+    path.write_text(json.dumps(hashes, indent=2, sort_keys=True) + "\n")
+
+
 def changed_owned(project: Path) -> list[str]:
     """Generator-owned files the engine changed or removed since the scaffold."""
     path = project / OWNED_INFO

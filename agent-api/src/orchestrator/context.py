@@ -276,11 +276,18 @@ class JobContext:
         self.store.finish_node(run_id, status, summary)
         await self.emit("step.finished", step=node, status=status, **summary)
 
-    async def run_engine(self, node: str, purpose: str, prompt: RenderedPrompt, repo: str = "project") -> EngineResult:
+    async def run_engine(
+        self,
+        node: str,
+        purpose: str,
+        prompt: RenderedPrompt,
+        repo: str = "project",
+        workdir_override: Path | None = None,
+    ) -> EngineResult:
         """One engine call in the backend project (`repo="project"`) or the frontend (`repo="frontend"`), each
         with its own skill and project rules."""
         await self.check_cancel()
-        workdir = self.workspace.repo(repo)
+        workdir = workdir_override if workdir_override is not None else self.workspace.repo(repo)
         context = self.frontend_engine_context if repo == "frontend" else self.engine_context
         await self.engine.prepare_workspace(workdir, context)
         request = EngineRequest(

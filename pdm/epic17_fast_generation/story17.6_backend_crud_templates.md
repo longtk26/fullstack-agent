@@ -19,6 +19,10 @@ written instantly from the spec, and the code engine used only for the parts tha
 - [ ] A CRUD-only spec (`two-entity`) makes no engine call for its modules and passes the existing validation
       (syntax, lint, deps, startup, migration, conventions, tests, openapi); the OpenAPI still matches the
       contract in dynamic mode.
+- [ ] The integration wait (`INTEGRATION_WAIT_SECONDS`, 14.2) no longer cancels a backend that is still being
+      written: since 17.3 the frontend lane can finish in ~10 min, and the 900 s wait that starts then cancelled a
+      4-module Antigravity backend mid-generation (`gen_01M63AKY87M697K7P9A7VGK2ET`). Start the wait when the
+      backend reaches validation (or otherwise bound it by backend progress), with a test.
 - [ ] Status note records backend-lane time before and after, and whether caching custom operations (like
       17.3) is worth a follow-up story.
 

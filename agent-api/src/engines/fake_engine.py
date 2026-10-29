@@ -1,4 +1,5 @@
 import asyncio
+import json
 import shutil
 import time
 from datetime import UTC, datetime
@@ -33,6 +34,10 @@ class FakeStep(BaseModel):
     # one planted conventions defect (a hard-coded colour in the shell) so the repair loop runs.
     golden_frontend: bool = False
     plant_frontend_defect: bool = False
+    # Custom components (Story 17.3): write the component `.bga/component.json` asks for, from `GOLDEN_COMPONENTS`
+    # (a plain generic component for any other name), optionally with the planted colour defect.
+    custom_component: bool = False
+    plant_component_defect: bool = False
     delete: list[str] = []
     sleep_s: float = 0
     crash: bool = False
@@ -56,6 +61,39 @@ GOLDEN_FRONTENDS = {
 }
 FRONTEND_SHELL = "src/components/layout/SiteShell.tsx"
 PLANTED_COLOR = "text-[#b91c1c] "
+# TESTING / DEMO ONLY: hand-written custom components of examples/frontend-specs/shop-dynamic.json, by name.
+GOLDEN_COMPONENTS = GOLDEN.parent / "frontend" / "custom_components"
+GENERIC_COMPONENT = """"use client";
+
+import type { ReactNode } from "react";
+
+type {name}Props = {{
+  title?: string;
+  children?: ReactNode;
+}};
+
+export default function {name}({{ title, children }}: {name}Props) {{
+  return (
+    <div className="flex flex-col gap-4 rounded-lg border border-border p-4">
+      {{title && <h2 className="text-lg font-semibold">{{title}}</h2>}}
+      {{children}}
+    </div>
+  );
+}}
+"""
+
+
+def write_custom_component(workdir: Path, defect: bool) -> str:
+    """The component the orchestrator asked for in `.bga/component.json` (custom_components.py)."""
+    request = json.loads((workdir / ".bga" / "component.json").read_text())
+    golden = GOLDEN_COMPONENTS / f"{request['name']}.tsx"
+    code = golden.read_text() if golden.is_file() else GENERIC_COMPONENT.format(name=request["name"])
+    if defect:
+        code = code.replace('className="', f'className="{PLANTED_COLOR}', 1)
+    target = ensure_inside(workdir / request["file"], workdir)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(code)
+    return request["file"]
 
 
 def _project_name(spec_path: Path) -> str | None:
@@ -129,6 +167,9 @@ def demo_scenario(delay_s: float = 0.3) -> dict[str, list[FakeStep]]:
                 message="Fixed the syntax error in the tasks router.",
             )
         ],
+        # A rendered site's custom components (Story 17.3), one call each.
+        "generate_custom_component": [FakeStep(sleep_s=delay_s, custom_component=True)],
+        "repair_custom_component": [FakeStep(sleep_s=delay_s, custom_component=True)],
         # First call (the shell) writes the whole golden frontend with one defect; the page calls change nothing.
         "generate_frontend": [
             FakeStep(sleep_s=delay_s, golden_frontend=True, plant_frontend_defect=True),
@@ -232,6 +273,10 @@ class FakeEngine(ICodeEngine):
                 if source is not None and step.plant_frontend_defect:
                     shell = workdir / FRONTEND_SHELL
                     shell.write_text(shell.read_text().replace('className="', f'className="{PLANTED_COLOR}', 1))
+                if step.custom_component or step.plant_component_defect:
+                    relative = write_custom_component(workdir, step.plant_component_defect)
+                    await emit(EngineEventKind.TOOL_USE, f"Write {relative}", tool="Write", target=relative)
+                    tools.append(ToolCall(name="Write", target=relative, started_at=datetime.now(UTC)))
                 for relative, content in step.write.items():
                     target = ensure_inside(workdir / relative, workdir)
                     target.parent.mkdir(parents=True, exist_ok=True)

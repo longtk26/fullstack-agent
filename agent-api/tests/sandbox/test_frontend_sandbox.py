@@ -204,3 +204,59 @@ def test_dynamic_generation_switches_to_live_and_passes_live_smoke(client, user_
     finally:
         if not os.environ.get("BGA_KEEP_SANDBOX_DIRS"):
             shutil.rmtree(root, ignore_errors=True)
+
+
+def test_custom_components_pass_isolated_checks_then_come_from_the_cache(client, user_headers):
+    """Story 17.3: shop-dynamic's three custom components are generated in parallel, pass their isolated checks
+    (tsc, ESLint, the render test on the mock API) in their own sandboxes, and the site passes every check with
+    them; the second run takes all three from the cache."""
+    import json
+
+    from sqlmodel import Session, delete
+
+    from src.engines.fake_engine import FakeEngine, demo_scenario
+    from src.libs.database import db_session_manager
+    from src.modules.shared.infrastructure.models import ComponentCacheModel
+    from src.orchestrator.component_cache import drop_files
+    from tests.workflow_helpers import cli_invocations, generation, node_runs, run_job
+
+    with Session(db_session_manager.engine) as session:
+        session.exec(delete(ComponentCacheModel))
+        session.commit()
+    drop_files()
+    root = REPO / ".data" / "test-sandbox" / uuid.uuid4().hex[:10]
+    root.mkdir(parents=True)
+    body = {
+        "mode": "dynamic",
+        "frontendSpec": json.loads((EXAMPLES / "frontend-specs" / "shop-dynamic.json").read_text()),
+        "backendSpec": json.loads((EXAMPLES / "specs" / "shop.json").read_text()),
+        "options": {"engine": "fake", "deployPreview": False},
+    }
+
+    def run() -> str:
+        response = client.post("/api/v1/generations", json=body, headers=user_headers)
+        assert response.status_code == 202, response.text
+        generation_id = response.json()["generationId"]
+        status = run_job(
+            root,
+            generation_id,
+            engine=FakeEngine(root, demo_scenario(0)),
+            sandboxes=DockerSandboxProvider(),
+            frontend_validator=SandboxFrontendValidationRunner(),
+        )
+        assert status == "COMPLETED_WITH_WARNINGS", generation(generation_id).error_summary  # no preview
+        assert generation(generation_id).lanes["frontend"] == "COMPLETED"
+        return generation_id
+
+    try:
+        first = run()
+        calls = [c.purpose for c in cli_invocations(first) if "custom" in c.purpose]
+        assert calls == ["generate_custom_component"] * 3, calls  # no repair: the isolated checks passed
+        summary = next(r.summary for r in node_runs(first) if r.node == "generate_frontend")
+        assert summary["fallbacks"] == 0 and summary["cacheHits"] == 0
+        second = run()
+        assert not [c for c in cli_invocations(second) if "custom" in c.purpose]
+        assert next(r.summary for r in node_runs(second) if r.node == "generate_frontend")["cacheHits"] == 3
+    finally:
+        if not os.environ.get("BGA_KEEP_SANDBOX_DIRS"):
+            shutil.rmtree(root, ignore_errors=True)
