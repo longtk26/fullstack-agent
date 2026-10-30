@@ -4,6 +4,10 @@ A draft runs on the worker, outside the generation graph: one engine call in a s
 file(s) and `notes.json`; they are validated (BackendSpec 2.2, FrontendSpec 12.1, and in dynamic mode the pair's
 consistency 12.5) and repaired by the engine a bounded number of times. A draft that is still invalid ends as
 NEEDS_REVIEW with its errors; it is never submitted. Each engine call is recorded on the draft (`usage`) and traced.
+
+Static and dynamic drafts from a requirement get a design direction (Story 12.6): the engine sees three ranked
+briefs (`.bga/design.md`) and names one in its notes; the theme, the home page order and the hero layout are then
+filled from the design data, and the three directions are kept on the draft (`design`) for the review.
 """
 
 import asyncio
@@ -37,6 +41,7 @@ from src.modules.shared.domain.frontend_spec import (
 
 from . import tracing
 from .checks.consistency import check_spec_pair
+from .design_direction import apply_direction, brief_markdown, design_notes, directions, pick, with_brand
 from .store import JobStore
 
 logger = get_logger(__name__)
@@ -103,7 +108,9 @@ def _copy_example(examples_dir: Path, name: str, target: Path) -> None:
     shutil.copyfile(source, target)
 
 
-def write_inputs(work: Path, draft: SpecDraftEntity, examples_dir: Path) -> dict[str, str]:
+def write_inputs(
+    work: Path, draft: SpecDraftEntity, examples_dir: Path, design: list[dict[str, Any]] | None = None
+) -> dict[str, str]:
     """Writes the engine's inputs under `.bga/` and returns the prompt context (paths relative to `work`)."""
     inputs = work / INPUTS
     mode = GenerationMode(draft.mode)
@@ -141,7 +148,11 @@ def write_inputs(work: Path, draft: SpecDraftEntity, examples_dir: Path) -> dict
             "frontend_example_path": f"{INPUTS}/examples/frontend-spec.json",
             "sections_path": f"{INPUTS}/sections.md",
             "output_frontend_path": FRONTEND_FILE,
+            "design_path": None,
         }
+    if design:
+        (inputs / "design.md").write_text(brief_markdown(design))
+        context["design_path"] = f"{INPUTS}/design.md"
     if draft.source == SpecSource.FRONTEND:
         _write_json(inputs / "base-spec.json", draft.inputs.get("baseSpec"))
         _write_json(inputs / "site.json", draft.inputs.get("siteJson"))
@@ -254,6 +265,28 @@ def read_notes(work: Path, mode: GenerationMode) -> tuple[list[dict[str, Any]], 
     return notes("assumptions"), notes("unresolved")
 
 
+def draft_directions(draft: SpecDraftEntity) -> list[dict[str, Any]]:
+    """The ranked design directions for a static or dynamic draft from a requirement (none otherwise)."""
+    mode = GenerationMode(draft.mode)
+    if mode == GenerationMode.BACKEND or draft.source != SpecSource.REQUIREMENT or not draft.requirement_text:
+        return []
+    return directions(draft.requirement_text)
+
+
+def apply_design(work: Path, found: list[dict[str, Any]]) -> dict[str, Any]:
+    """Fills the drafted FrontendSpec from the brief the engine named in `notes.json` (`design.productType`, else
+    the first), with the requirement's brand colours and fonts on top; returns what the draft keeps (`design`)."""
+    notes, _ = _load(work / NOTES_FILE)
+    choice = notes.get("design") if isinstance(notes, dict) and isinstance(notes.get("design"), dict) else {}
+    brand = {"colors": choice.get("brandColors"), "fonts": choice.get("brandFonts")}
+    kept = [with_brand(item, brand) for item in found]
+    selected = pick(kept, choice.get("productType"))
+    spec, issue = _load(work / FRONTEND_FILE)
+    if issue is None and isinstance(spec, dict) and isinstance(spec.get("pages"), list):
+        _write_json(work / FRONTEND_FILE, apply_direction(spec, kept[selected]))
+    return {"selected": selected, "directions": kept}
+
+
 # -- usage ---------------------------------------------------------------------------------------------------------
 
 
@@ -360,9 +393,10 @@ class DraftRunner:
         work, state = directory / "work", directory / "state"
         work.mkdir(parents=True)
         state.mkdir(parents=True)
-        context = write_inputs(work, draft, self.examples_dir)
+        found = draft_directions(draft)
+        context = write_inputs(work, draft, self.examples_dir, found)
         frontend = mode != GenerationMode.BACKEND
-        purpose, version = ("draft_frontend_spec", "v1") if frontend else ("draft_spec", "v2")
+        purpose, version = ("draft_frontend_spec", "v2") if frontend else ("draft_spec", "v2")
         max_repairs = config.draft_repair_attempts_frontend if frontend else config.draft_repair_attempts_backend
         calls: list[dict[str, Any]] = []
         trace = tracing.GenerationTrace.open(
@@ -406,6 +440,7 @@ class DraftRunner:
             result = await call("draft", self.prompts.render(purpose, version, **context))
             if result.status != EngineStatus.OK:
                 raise DraftFailed(f"The {engine.name} engine stopped: {result.error_message or result.status}")
+            design = apply_design(work, found) if found else None
             self.store.update_draft(draft.id, progress="validating")
             check = check_draft(work, mode)
             attempts = 0
@@ -426,6 +461,8 @@ class DraftRunner:
             trace.close({"status": "failed"}, error="no spec written")
             raise DraftFailed(error or "The engine wrote no spec")
         assumptions, unresolved = read_notes(work, mode)
+        if design is not None:
+            assumptions += design_notes(design["directions"][design["selected"]])
         status = SpecDraftStatus.SUCCEEDED if check.ok else SpecDraftStatus.NEEDS_REVIEW
         self.store.update_draft(
             draft.id,
@@ -435,6 +472,7 @@ class DraftRunner:
             frontend_spec=check.frontend_spec,
             assumptions=assumptions,
             unresolved=unresolved,
+            design=design,
             validation=check.validation(),
             usage=usage_summary(calls),
             error=error,

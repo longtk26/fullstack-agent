@@ -20,7 +20,7 @@ only an API, and then review what will be built (pages, theme, components) befor
   The choice is kept in the URL (`?mode=`) and the draft store.
 - [x] Requirement tab drafts the specs for the chosen mode (12.4) from typed text or a `.md` / `.txt` file (9.2)
       and shows assumptions / unresolved items to acknowledge.
-- [ ] After a static or dynamic draft, a **Design** panel shows the chosen direction and its 2 alternatives (12.6)
+- [x] After a static or dynamic draft, a **Design** panel shows the chosen direction and its 2 alternatives (12.6)
       as cards with colour swatches, font names and section order; picking one replaces the theme and the home
       page's section order with no engine call (added 2026-10-30).
 - [x] FrontendSpec tab: Monaco editor bound to the FrontendSpec JSON Schema with live validation (12.1, 12.5 in
@@ -31,7 +31,7 @@ only an API, and then review what will be built (pages, theme, components) befor
       errors are marked in the editor that must change.
 - [x] Options per lane; submit is disabled while any spec or consistency error exists.
 
-**Status (2026-10-30):** done except the Design panel (comes with 12.6). The Requirement tab is the first tab in every
+**Status (2026-10-30):** done; the Design panel came with 12.6 (side panel of `/generations/new`, see 12.6's Status). The Requirement tab is the first tab in every
 mode. The side panel summarises the FrontendSpec: pages with routes (and in dynamic mode the operations each page
 uses, from data bindings and forms), theme swatches, preset, light/dark, radius and fonts, and every component with the
 pages that use it (custom ones marked). Dynamic mode has a read-only **Contract** tab: `POST /frontend-specs/check-pair`

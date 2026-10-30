@@ -25,6 +25,7 @@ class SpecDraftEntity(BaseModel):
     frontend_spec: dict[str, Any] | None = None
     assumptions: list[Any] = []
     unresolved: list[Any] = []
+    design: dict[str, Any] | None = None
     validation: dict[str, Any] = {}
     usage: dict[str, Any] = {}
     error: str | None = None

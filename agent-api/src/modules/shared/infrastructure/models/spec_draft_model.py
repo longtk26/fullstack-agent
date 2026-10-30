@@ -31,6 +31,8 @@ class SpecDraftModel(SQLModel, table=True):
     frontend_spec: dict[str, Any] | None = Field(default=None, sa_type=JSON)
     assumptions: list[Any] = Field(default_factory=list, sa_type=Json)
     unresolved: list[Any] = Field(default_factory=list, sa_type=Json)
+    # Story 12.6: the design directions offered for the draft (`selected` index + `directions`); None for backend.
+    design: dict[str, Any] | None = Field(default=None, sa_type=Json)
     validation: dict[str, Any] = Field(default_factory=dict, sa_type=Json)
     usage: dict[str, Any] = Field(default_factory=dict, sa_type=Json)
     error: str | None = Field(default=None, sa_type=Text)

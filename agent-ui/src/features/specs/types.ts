@@ -102,6 +102,33 @@ export type TDraftUsage = {
   unpriced?: number;
 };
 
+/** A design direction for a drafted site (Story 12.6), from UI UX Pro Max's data. */
+export type TDesignDirection = {
+  label: string;
+  productType: string;
+  pattern: string;
+  palette: string;
+  fontPairing: string;
+  source: string;
+  style: string;
+  heroVariant: "split" | "centered" | "banner";
+  homeOrder: string[];
+  avoid: string[];
+  effects: string[];
+  theme: {
+    style: string;
+    colorScheme: "light" | "dark" | "light-dark";
+    colors: Record<string, string>;
+    typography: { headingFont: string; bodyFont: string; scale: string };
+    radius: string;
+    density: string;
+    direction: Record<string, string>;
+  };
+};
+
+/** The directions offered with a draft; `selected` is the one the draft was filled from. */
+export type TDraftDesign = { selected: number; directions: TDesignDirection[] };
+
 export type TSpecDraft = {
   draftId: string;
   status: TSpecDraftStatus;
@@ -115,6 +142,7 @@ export type TSpecDraft = {
   frontendSpec: Record<string, unknown> | null;
   assumptions: TDraftNote[];
   unresolved: TDraftNote[];
+  design: TDraftDesign | null;
   validation: { backend: TValidationReport | null; frontend: TValidationReport | null; pair: TValidationReport | null };
   usage: TDraftUsage;
   error: string | null;

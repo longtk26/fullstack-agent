@@ -10,6 +10,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Stack } from "@/components/layout/Stack";
 import { ConsistencyIssueList } from "@/features/specs/components/ConsistencyIssueList";
+import { DesignPanel } from "@/features/specs/components/DesignPanel";
 import { FrontendImportTab } from "@/features/specs/components/FrontendImportTab";
 import { FrontendSpecSummaryPanel } from "@/features/specs/components/FrontendSpecSummaryPanel";
 import { JsonEditor } from "@/features/specs/components/JsonEditor";
@@ -19,6 +20,7 @@ import { SpecSummaryPanel } from "@/features/specs/components/SpecSummaryPanel";
 import { useExamplePairOffer } from "@/features/specs/hooks/use-example-pair-offer";
 import { useJsonEditor } from "@/features/specs/hooks/use-json-editor";
 import { useSpecPairCheck } from "@/features/specs/hooks/use-spec-pair-check";
+import { useSpecDraft } from "@/features/specs/hooks/use-spec-queries";
 import { useSpecValidation } from "@/features/specs/hooks/use-spec-validation";
 import type { TEditorIssue } from "@/features/specs/hooks/use-spec-validation";
 import { summarizeFrontendSpec } from "@/features/specs/lib/frontend-spec-summary";
@@ -71,6 +73,9 @@ export function NewGenerationView() {
   const summary = useMemo(() => summarizeSpec(backend.parsed), [backend.parsed]);
   const frontendSummary = useMemo(() => summarizeFrontendSpec(frontend.parsed), [frontend.parsed]);
   const offerPair = useExamplePairOffer(setSpecText);
+  // The design directions of the draft the editors were filled from (Story 12.6), static and dynamic only.
+  const appliedDraftQuery = useSpecDraft(mode !== "backend" && appliedDraft?.mode === mode ? appliedDraft.id : null);
+  const design = appliedDraftQuery.data?.design ?? null;
 
   const canSubmit = {
     backend: backend.isSubmittable,
@@ -224,6 +229,20 @@ export function NewGenerationView() {
                     onSelect={jumpToPointer}
                   />
                   {pair.requestError && <p className="mt-2 text-sm text-destructive">{pair.requestError.message}</p>}
+                </CardContent>
+              </Card>
+            )}
+
+            {mode !== "backend" && design && design.directions.length > 0 && (
+              <Card size="sm">
+                <CardHeader>
+                  <CardTitle>Design</CardTitle>
+                  <CardDescription>
+                    Directions for this draft: colours, fonts and the home page&apos;s order, from design data.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <DesignPanel design={design} specText={frontendSpecText} onApply={setFrontendSpecText} />
                 </CardContent>
               </Card>
             )}

@@ -61,6 +61,7 @@ class GetSpecDraftResponseDto(CamelModel):
     frontend_spec: dict[str, Any] | None
     assumptions: list[DraftNoteDto]
     unresolved: list[DraftNoteDto]
+    design: dict[str, Any] | None
     validation: DraftValidationDto
     usage: dict[str, Any]
     error: str | None
@@ -90,6 +91,7 @@ class GetSpecDraftResponseDto(CamelModel):
             frontend_spec=draft.frontend_spec,
             assumptions=[DraftNoteDto.model_validate(note) for note in draft.assumptions],
             unresolved=[DraftNoteDto.model_validate(note) for note in draft.unresolved],
+            design=draft.design,
             validation=DraftValidationDto(**reports),
             usage=draft.usage,
             error=draft.error,

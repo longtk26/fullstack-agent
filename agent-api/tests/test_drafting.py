@@ -148,7 +148,43 @@ def test_static_draft_writes_only_a_frontend_spec(client, user_headers, tmp_path
     assert draft["status"] == "SUCCEEDED", draft["validation"]
     assert draft["frontend_spec"]["project"]["mode"] == "static" and draft["backend_spec"] is None
     assert draft["unresolved"] == [] and set(draft["validation"]) == {"frontend"}
-    assert draft["usage"]["calls"][0]["prompt"] == "draft_frontend_spec@v1"
+    assert draft["usage"]["calls"][0]["prompt"] == "draft_frontend_spec@v2"
+    # Story 12.6: three directions, the first applied (the fake engine names none), its notes after the engine's.
+    design = draft["design"]
+    assert design["selected"] == 0 and len(design["directions"]) == 3
+    chosen = design["directions"][0]
+    assert draft["frontend_spec"]["theme"]["direction"]["productType"] == chosen["productType"]
+    assert draft["frontend_spec"]["theme"]["colors"] == chosen["theme"]["colors"]
+    assert draft["assumptions"][0]["message"].startswith("Fake engine")
+    assert draft["assumptions"][1]["message"].startswith("Design direction: ")
+    from src.modules.shared.domain.frontend_spec import validate_frontend_spec_data
+    from src.orchestrator.frontend_planner import plan_frontend
+
+    plan = plan_frontend(validate_frontend_spec_data(draft["frontend_spec"]).normalized)
+    assert plan["rendering"] == "renderer" and plan["rendererGaps"] == [], "still built with no engine call"
+
+
+def test_the_engine_picks_a_brief_and_brand_colours_win(client, user_headers, tmp_path):
+    spec = (EXAMPLES / "frontend-specs" / "static-landing.json").read_text()
+    notes = {"assumptions": [], "unresolved": [],
+             "design": {"productType": "E-commerce Luxury", "brandColors": {"primary": "#0E7490"}}}  # fmt: skip
+    engine = FakeEngine(
+        tmp_path,
+        {"draft_frontend_spec": [FakeStep(write={"frontend-spec.json": spec, "notes.json": json.dumps(notes)})]},
+    )
+    text = "An online shop selling handmade ceramic mugs and plates, with product listings and a cart."
+    draft = _run(tmp_path, _create(client, user_headers, "static", text), engine)
+    assert draft["status"] == "SUCCEEDED", draft["validation"]
+    assert ".bga/design.md" in engine.calls[0].prompt
+    design = draft["design"]
+    assert design["directions"][design["selected"]]["productType"] == "E-commerce Luxury"
+    assert all(item["theme"]["colors"]["primary"] == "#0e7490" for item in design["directions"])
+    assert draft["frontend_spec"]["theme"]["colors"]["primary"] == "#0e7490"
+
+
+def test_backend_drafts_have_no_design(client, user_headers, tmp_path):
+    draft = _run(tmp_path, _create(client, user_headers, "backend", (REQUIREMENTS / "corner-shop.md").read_text()))
+    assert draft["design"] is None
 
 
 def test_dynamic_draft_checks_the_pair(client, user_headers, tmp_path):

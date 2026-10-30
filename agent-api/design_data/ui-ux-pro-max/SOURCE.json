@@ -1,0 +1,8 @@
+{
+  "repo": "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill",
+  "commit": "28b3b8dee8c976df4fa3e94aed4e092ad43fcb03",
+  "path": "src/ui-ux-pro-max/data",
+  "files": ["products.csv", "ui-reasoning.csv", "colors.csv", "typography.csv", "landing.csv", "styles.csv"],
+  "license": "MIT",
+  "fetched": "2026-10-30"
+}

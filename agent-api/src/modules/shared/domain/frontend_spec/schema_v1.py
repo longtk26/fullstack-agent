@@ -57,6 +57,17 @@ class Typography(SpecModel):
     scale: Literal["compact", "default", "large"] = "default"
 
 
+class ThemeDirection(SpecModel):
+    """Where a drafted theme came from (Story 12.6): the design data's product type, landing pattern, palette and
+    font pairing. A record for the review and later revisions; the renderer ignores it."""
+
+    product_type: str | None = Field(default=None, max_length=120)
+    pattern: str | None = Field(default=None, max_length=200)
+    palette: str | None = Field(default=None, max_length=200)
+    font_pairing: str | None = Field(default=None, max_length=200)
+    source: str | None = Field(default=None, max_length=120)
+
+
 class Theme(SpecModel):
     style: ThemeStyle = "minimal"
     color_scheme: Literal["light", "dark", "light-dark"] = "light"
@@ -64,6 +75,7 @@ class Theme(SpecModel):
     typography: Typography = Typography()
     radius: Literal["none", "sm", "md", "lg", "full"] | None = None
     density: Literal["compact", "comfortable"] | None = None
+    direction: ThemeDirection | None = None
 
 
 class NavLink(SpecModel):

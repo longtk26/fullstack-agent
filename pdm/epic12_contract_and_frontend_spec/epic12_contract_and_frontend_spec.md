@@ -39,7 +39,7 @@ start immediately against mocks of that contract while the backend is being buil
 
 ## Status (2026-10-30)
 
-12.4 done (drafting from a requirement, typed or `.md` / `.txt`, with 2.4); 12.6 (design direction) planned.
+12.4 done (drafting from a requirement, typed or `.md` / `.txt`, with 2.4); 12.6 (design direction) done 2026-10-30.
 
 ## Status (2026-10-27)
 

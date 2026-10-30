@@ -69,6 +69,11 @@ Agent-specific notes:
   SUCCEEDED / NEEDS_REVIEW / FAILED. Usage is kept on the draft (`usage`), not in `model_calls` (those belong to a
   generation); `/usage` reports it as `drafts`. A generation created with `draftId` stores `options.draftId`, and
   packaging writes `requirement.md` / `.txt`. Requirement checks: `modules/shared/domain/requirement.py`.
+- Design direction (Story 12.6): `orchestrator/design_direction.py` ranks UI UX Pro Max's vendored data
+  (`design_data/ui-ux-pro-max`, `make design-data`) for a requirement's lead and builds directions (palette, bundled
+  font pairing, preset, home order, hero variant; contrast-checked). Drafting writes `.bga/design.md`, applies the
+  engine's pick (`notes.json` `design`) and stores `spec_drafts.design`; the UI's `lib/design-direction.ts` mirrors
+  `apply_direction` / `reorder_sections` (keep both in step).
 - Test doubles (fake engine, golden two-entity project, static validator, fake CLIs, opt-in test flags) are listed in
   `docs/development/test-doubles.md`; add any new fake there and mark it at its definition.
 

@@ -36,7 +36,7 @@ DEV_ENV := DB_URL=postgresql+psycopg://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@loc
            ARTIFACT_ROOT=$(CURDIR)/.data/artifacts
 
 .PHONY: env up down down-all ps logs dev dev-down dev-api dev-worker dev-ui setup venv migrate test lint template runner runner-node frontend-base \
-        host-worker host-worker-stop
+        host-worker host-worker-stop design-data
 
 env:
 	@test -f .env && echo ".env already exists" || ( \
@@ -77,6 +77,10 @@ frontend-base:
 	  "$$(cd $(API_DIR) && $(PY)/python -c 'from src.modules.shared.domain.frontend_spec.fonts import FONTS; print(" ".join(f.package for f in FONTS.values()))')"
 	cd $(API_DIR) && $(PY)/python -c 'import json; from src.orchestrator.frontend_scaffold import build_manifest, OVERLAY_DIR; \
 	  (OVERLAY_DIR / "overlay.json").write_text(json.dumps(build_manifest(), indent=2, sort_keys=True) + "\n")'
+
+# UI UX Pro Max design data for drafted sites (Story 12.6), at a pinned commit: `make design-data COMMIT=<sha>`.
+design-data:
+	sh scripts/design-data.sh $(COMMIT)
 
 # Local checkout of the pinned base template (the worker image bakes its own copy).
 template:
