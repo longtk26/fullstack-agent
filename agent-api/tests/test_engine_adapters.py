@@ -256,14 +256,17 @@ def test_antigravity_account_login_is_host_only(root, monkeypatch):
     assert not health.available and "GEMINI_API_KEY" in health.reason
 
 
-def test_antigravity_account_invocation_passes_no_key(root):
+def test_antigravity_account_invocation_keeps_the_real_home(root, tmp_path, monkeypatch):
     request = _request(root)
     request.workdir.mkdir(parents=True, exist_ok=True)
     home = root / "home"
+    monkeypatch.setenv("HOME", str(tmp_path / "user"))
 
     invocation = _agy(root, auth="account").build_invocation(request, home, 5, 60)
 
-    settings = json.loads((home / ".gemini" / "antigravity-cli" / "settings.json").read_text())
+    settings = json.loads(invocation.argv[invocation.argv.index("--settings") + 1])
+    assert invocation.env["HOME"] == str(tmp_path / "user")
+    assert not (home / ".gemini").exists() and not (tmp_path / "user" / ".gemini").exists()
     assert "GEMINI_API_KEY" not in invocation.env and "modelProvider" not in settings
     assert settings["permissions"]["deny"][0] == "command(*)"
 

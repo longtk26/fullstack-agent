@@ -79,12 +79,9 @@ class AntigravityEngine(CliEngine):
     def build_invocation(self, request: EngineRequest, home: Path, max_turns: int, timeout_s: float) -> Invocation:
         for relative in UNTRUSTED_WORKSPACE_CONFIG:
             remove_path(request.workdir / relative)
-        settings_dir = home / ".gemini" / "antigravity-cli"
-        settings_dir.mkdir(parents=True, exist_ok=True)
         settings: dict = {"permissions": PERMISSIONS, "enableTerminalSandbox": True}
         if self.auth == "gemini_api_key":
             settings["modelProvider"] = "gemini"  # GEMINI_API_KEY alone is ignored without this
-        (settings_dir / "settings.json").write_text(json.dumps(settings, indent=2))
 
         argv = [
             self.binary,
@@ -99,6 +96,15 @@ class AntigravityEngine(CliEngine):
         ]
         if self.model:
             argv += ["--model", self.model]
+        if self.auth == "account":
+            # The account login belongs to the user's real home (on macOS a scratch HOME fails with "authentication
+            # required"), so keep HOME and pass the settings for this session only, leaving the user's own alone.
+            argv += ["--settings", json.dumps(settings)]
+            home = Path.home()
+        else:
+            settings_dir = home / ".gemini" / "antigravity-cli"
+            settings_dir.mkdir(parents=True, exist_ok=True)
+            (settings_dir / "settings.json").write_text(json.dumps(settings, indent=2))
         env = base_env(
             HOME=str(home),
             GEMINI_API_KEY=self.gemini_api_key if self.auth == "gemini_api_key" else None,
