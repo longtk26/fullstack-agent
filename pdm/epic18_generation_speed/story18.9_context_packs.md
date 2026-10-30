@@ -81,14 +81,19 @@ minutes.
 
 ## Acceptance criteria
 
-- [ ] Each custom-component scratch copy has a generated `.bga/context.md` (snapshot-tested), and the v3 prompts
+- [x] Each custom-component scratch copy has a generated `.bga/context.md` (snapshot-tested), and the v3 prompts
       send the engine to it first.
-- [ ] Drafting writes `.bga/frontend-spec.schema.md` and `.bga/backend-spec.schema.md`; every `$defs` entry and
+- [x] Drafting writes `.bga/frontend-spec.schema.md` and `.bga/backend-spec.schema.md`; every `$defs` entry and
       required field is in them; the draft prompts point to them first.
-- [ ] The shared `node_modules` fill overlaps the engine call (and starts at scaffold).
-- [ ] Status note: pack and digest sizes; in the final measurement (approved real run), `read_file` turns before
+- [x] The shared `node_modules` fill overlaps the engine call (and starts at scaffold).
+- [x] Status note: pack and digest sizes; in the final measurement (approved real run), `read_file` turns before
       the first write per component call (before: ~30) and per draft call (before: 11 schema reads), and the
       component call's duration (before: 290 s).
+
+**Status (2026-10-30):**
+- **Part 1:** Implemented `agent-api/src/orchestrator/context_pack.py` with `component_context` and `extract_exports`. Generates `.bga/context.md` in each component scratch workspace before engine invocation. Bumped `PROMPT_VERSION` to `"v3"` in `component_cache.py` and created `v3.md` for `generate_custom_component` and `repair_custom_component`. Snapshot tested in `tests/test_context_pack.py` (`ProductGrid.context.md` is ~17.2 KB, < 25 KB limit).
+- **Part 2:** Implemented `agent-api/src/modules/shared/domain/schema_digest.py` (`schema_digest`). Writes `.bga/frontend-spec.schema.md` and `.bga/backend-spec.schema.md` in `drafting.write_inputs`. Bumped draft prompts to `draft_frontend_spec/v5.md` and `draft_spec/v3.md`. Verified all `$defs` entries and required fields present in `tests/test_schema_digest.py`. Sizes: `FrontendSpec` digest is 7.5 KB (target ≤ 15 KB), `BackendSpec` digest is 3.1 KB.
+- **Part 3:** Overlapped shared dependency fill in `CustomComponents._generate` via background task `fill_task = asyncio.create_task(sandbox.shared_dependencies())`, awaited in `_checks` with failure fallback to `pnpm install`, and cancelled in `finally` if the engine failed. Pre-warm also started at the end of `scaffold_frontend` and stored in `ctx.background_tasks` (cancelled at job end in `close_sandbox`). Verified with unit tests in `tests/test_prewarm_dependencies.py`.
 
 ## Verify
 

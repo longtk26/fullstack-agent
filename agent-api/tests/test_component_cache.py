@@ -253,7 +253,7 @@ def test_a_failing_component_is_repaired_in_isolation_then_cached(client, login,
     assert purposes(generation_id) == ["generate_custom_component"] * 3 + ["repair_custom_component"] * 3
     assert frontend_summary(generation_id)["engineCalls"] == 6 and len(cache_rows()) == 3
     repair = next(c for c in cli_invocations(generation_id) if c.purpose == "repair_custom_component")
-    assert repair.prompt_ref == "repair_custom_component@v2"
+    assert repair.prompt_ref == "repair_custom_component@v3"
 
 
 def test_a_component_that_cannot_be_generated_falls_back_without_failing_the_job(client, login, tmp_path):

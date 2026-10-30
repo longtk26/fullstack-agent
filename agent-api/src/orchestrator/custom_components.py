@@ -38,6 +38,7 @@ from .component_cache import (
     store_file,
 )
 from .context import EngineFailure, JobContext, RecordingSandbox
+from .context_pack import component_context
 from .contract import contract_operations
 from .frontend_renderer import REGISTRY_FILE, custom_declarations, registry_ts, section_props
 from .frontend_scaffold import update_owned
@@ -45,6 +46,7 @@ from .frontend_scaffold import update_owned
 logger = get_logger(__name__)
 
 SPEC_FILE = ".bga/component.json"
+CONTEXT_PACK_FILE = ".bga/context.md"
 RENDER_TEST = "tests/unit/custom-component.test.tsx"
 TSCONFIG = "tsconfig.component.json"
 DEFAULT_EXPORT = re.compile(r"^export default function [A-Z]", re.MULTILINE)
@@ -147,9 +149,11 @@ class CustomComponents:
         shutil.copytree(self.ctx.workspace.frontend, scratch, ignore=SCRATCH_IGNORE)
         self._write_check_files(scratch, name, component, relative)
         sandbox: ISandbox | None = None
+        fill_task: asyncio.Task | None = None
         if self.ctx.sandboxes is not None:
             inner = self.ctx.sandboxes.for_job(self.ctx.generation_id, scratch, kind="frontend", part=f"c-{key[:10]}")
             sandbox = RecordingSandbox(inner, self.ctx)
+            fill_task = asyncio.create_task(sandbox.shared_dependencies())
         result = Resolved(names, key, "generated")
         component_path = scratch / relative
         engine_error: str | None = None
@@ -176,7 +180,7 @@ class CustomComponents:
                 engine_error = str(exc)
 
             for attempt in range(1, max_repairs + 2):
-                failures, installed = await self._checks(scratch, relative, sandbox, installed)
+                failures, installed = await self._checks(scratch, relative, sandbox, installed, fill_task=fill_task)
                 if not failures:
                     break
                 result.failures = failures
@@ -233,6 +237,8 @@ class CustomComponents:
         except EngineFailure as exc:
             return await self._fall_back(result, f"engine failed: {exc}")
         finally:
+            if fill_task is not None and not fill_task.done():
+                fill_task.cancel()
             if sandbox is not None:
                 await sandbox.stop()
             shutil.rmtree(scratch, ignore_errors=True)
@@ -291,6 +297,9 @@ class CustomComponents:
         test = scratch / RENDER_TEST
         test.parent.mkdir(parents=True, exist_ok=True)
         test.write_text(render_test(relative, props, self._route_params(props.get("binding")), self._dynamic))
+        context_doc = scratch / CONTEXT_PACK_FILE
+        context_doc.parent.mkdir(parents=True, exist_ok=True)
+        context_doc.write_text(component_context(scratch, component, props))
         tsconfig = {
             "extends": "./tsconfig.json",
             "compilerOptions": {"incremental": False},
@@ -319,7 +328,12 @@ class CustomComponents:
         return str(records[0].get("id", "1"))
 
     async def _checks(
-        self, scratch: Path, relative: str, sandbox: ISandbox | None, installed: bool
+        self,
+        scratch: Path,
+        relative: str,
+        sandbox: ISandbox | None,
+        installed: bool,
+        fill_task: asyncio.Task | None = None,
     ) -> tuple[list[str], bool]:
         """Failures of the component's isolated checks (empty: it passed). Without a sandbox only the static ones
         run (tests with the fake validator), and the component is not cached."""
@@ -335,10 +349,23 @@ class CustomComponents:
         ]
         if failures or sandbox is None:
             return failures, installed
-        if not installed and await sandbox.shared_dependencies() is None:
-            run = await sandbox.exec("pnpm install --frozen-lockfile --offline", timeout_s=600)
-            if not run.ok:
-                return [f"pnpm install failed:\n{run.output[-3000:]}"], installed
+        if not installed:
+            shared = None
+            if fill_task is not None:
+                try:
+                    shared = await fill_task
+                except Exception as exc:
+                    logger.warning(
+                        "shared dependencies prewarm failed: %s",
+                        exc,
+                        extra={"generation_id": self.ctx.generation_id},
+                    )
+            else:
+                shared = await sandbox.shared_dependencies()
+            if shared is None:
+                run = await sandbox.exec("pnpm install --frozen-lockfile --offline", timeout_s=600)
+                if not run.ok:
+                    return [f"pnpm install failed:\n{run.output[-3000:]}"], installed
         typecheck = await sandbox.exec(f"pnpm exec tsc -p {TSCONFIG} --pretty false", timeout_s=300)
         if not typecheck.ok:
             failures.append(f"typecheck (tsc) failed:\n{typecheck.output[-4000:]}")

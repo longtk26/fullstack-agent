@@ -43,6 +43,7 @@ from src.modules.shared.domain.frontend_spec import (
     validate_frontend_spec_data,
 )
 from src.modules.shared.domain.frontend_spec.assets import MAX_GENERATED_ASSETS, SVG_KINDS, source_kind
+from src.modules.shared.domain.schema_digest import schema_digest
 
 from . import tracing
 from .checks.consistency import check_spec_pair
@@ -135,21 +136,26 @@ def write_inputs(
         context |= {"requirement_text": draft.requirement_text, "requirement_format": draft.requirement_format}
     if mode in (GenerationMode.BACKEND, GenerationMode.DYNAMIC):
         _write_json(inputs / "backend-spec.schema.json", spec_json_schema())
+        (inputs / "backend-spec.schema.md").write_text(schema_digest(spec_json_schema(), "BackendSpec"))
         _copy_example(examples_dir, EXAMPLES["backend"], inputs / "examples" / "backend-spec.json")
         context |= {
             "schema_path": f"{INPUTS}/backend-spec.schema.json",
+            "schema_digest_path": f"{INPUTS}/backend-spec.schema.md",
             "example_path": f"{INPUTS}/examples/backend-spec.json",
             "backend_schema_path": f"{INPUTS}/backend-spec.schema.json",
+            "backend_schema_digest_path": f"{INPUTS}/backend-spec.schema.md",
             "backend_example_path": f"{INPUTS}/examples/backend-spec.json",
             "output_spec_path": BACKEND_FILE,
             "output_backend_path": BACKEND_FILE,
         }
     if mode in (GenerationMode.STATIC, GenerationMode.DYNAMIC):
         _write_json(inputs / "frontend-spec.schema.json", frontend_spec_json_schema())
+        (inputs / "frontend-spec.schema.md").write_text(schema_digest(frontend_spec_json_schema(), "FrontendSpec"))
         _copy_example(examples_dir, EXAMPLES[str(mode)], inputs / "examples" / "frontend-spec.json")
         (inputs / "sections.md").write_text(section_catalogue())
         context |= {
             "frontend_schema_path": f"{INPUTS}/frontend-spec.schema.json",
+            "frontend_schema_digest_path": f"{INPUTS}/frontend-spec.schema.md",
             "frontend_example_path": f"{INPUTS}/examples/frontend-spec.json",
             "sections_path": f"{INPUTS}/sections.md",
             "output_frontend_path": FRONTEND_FILE,
@@ -499,7 +505,7 @@ class DraftRunner:
         found = draft_directions(draft)
         context = write_inputs(work, draft, self.examples_dir, found)
         frontend = mode != GenerationMode.BACKEND
-        purpose, version = ("draft_frontend_spec", "v4") if frontend else ("draft_spec", "v2")
+        purpose, version = ("draft_frontend_spec", "v5") if frontend else ("draft_spec", "v3")
         max_repairs = config.draft_repair_attempts_frontend if frontend else config.draft_repair_attempts_backend
         calls: list[dict[str, Any]] = []
         trace = tracing.GenerationTrace.open(
