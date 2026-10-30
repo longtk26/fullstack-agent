@@ -1,9 +1,10 @@
 {
   "specVersion": "1.0",
-  "project": { "name": "Section Library", "description": "Every section the renderer ships, nested in every layout node", "mode": "static" },
+  "project": { "name": "Section Library", "description": "Every section the renderer ships, nested in every layout node, in every variant", "mode": "static" },
   "theme": { "style": "playful", "colorScheme": "light-dark" },
   "layout": {
-    "header": { "navigation": [{ "label": "Catalogue", "page": "catalogue" }, { "label": "More", "page": "more" }] },
+    "header": { "navigation": [{ "label": "Catalogue", "page": "catalogue" }, { "label": "More", "page": "more" },
+      { "label": "Centered", "page": "centered" }, { "label": "Banner", "page": "banner" }] },
     "footer": { "text": "Section Library", "links": [{ "label": "Docs", "href": "https://example.com/docs" }] }
   },
   "pages": [
@@ -12,7 +13,7 @@
       "title": "Home",
       "sections": [
         { "id": "hero", "component": "Hero",
-          "content": { "eyebrow": "New", "heading": "Everything in one place", "body": "Every library section on three pages.",
+          "content": { "variant": "split", "eyebrow": "New", "heading": "Everything in one place", "body": "Every library section on three pages.",
                        "image": "asset:hero", "cta": { "label": "Browse", "page": "catalogue" },
                        "secondaryCta": { "label": "Docs", "href": "https://example.com/docs" } } },
         { "id": "numbers", "component": "Stats", "content": { "title": "In numbers", "items": [
@@ -31,7 +32,7 @@
       "route": "/catalogue",
       "title": "Catalogue",
       "sections": [
-        { "id": "products", "component": "CardGrid", "content": { "title": "Products" }, "data": { "collection": "products" } },
+        { "id": "products", "component": "CardGrid", "content": { "title": "Products", "cardStyle": "filled" }, "data": { "collection": "products" } },
         { "id": "news", "component": "List", "content": { "title": "News" }, "data": { "collection": "news", "fields": ["title", "summary"] } },
         { "id": "table", "component": "DataTable", "content": { "title": "Price list" }, "data": { "collection": "products", "fields": ["name", "price"] } }
       ]
@@ -41,7 +42,7 @@
       "title": "More",
       "sections": [
         { "id": "tabs", "component": "Tabs", "content": { "labels": ["Features", "Questions", "Plans"] }, "children": [
-          { "id": "features", "component": "Features", "content": { "title": "Features", "columns": 2, "items": [
+          { "id": "features", "component": "Features", "content": { "title": "Features", "columns": 2, "cardStyle": "outline", "items": [
             { "title": "Typed content", "body": "Checked against a schema." }, { "title": "No engine", "body": "Rendered from JSON." } ] } },
           { "id": "faq", "component": "Faq", "data": { "collection": "faq" } },
           { "id": "pricing", "component": "Pricing", "data": { "collection": "plans" } }
@@ -51,6 +52,55 @@
           { "id": "gallery", "component": "Gallery", "content": { "columns": 2, "items": [
             { "image": "asset:work", "title": "Project A", "caption": "Branding" }, { "image": "asset:work", "title": "Project B" } ] } }
         ] }
+      ]
+    },
+    {
+      "route": "/centered",
+      "title": "Centered",
+      "sections": [
+        { "id": "hero", "component": "Hero",
+          "content": { "variant": "centered", "background": "muted", "eyebrow": "Variants", "heading": "A centred opener",
+                       "body": "Centred text with the image below it.", "image": "asset:hero",
+                       "cta": { "label": "See the banner", "page": "banner" } } },
+        { "id": "features", "component": "Features", "content": { "title": "Filled cards on primary", "description": "Tinted cards, no outline.",
+          "cardStyle": "filled", "background": "primary", "items": [
+            { "title": "One accent", "body": "The primary colour only." }, { "title": "One radius", "body": "Every corner from the theme radius." },
+            { "title": "Two families", "body": "Heading and body fonts." } ] } },
+        { "id": "quotes", "component": "Testimonials", "content": { "title": "Plain on muted", "cardStyle": "plain", "background": "muted" },
+          "data": { "collection": "testimonials" } },
+        { "id": "cta", "component": "CallToAction", "content": { "background": "default", "heading": "Outlined panel", "body": "The default background.",
+          "cta": { "label": "Home", "page": "home" } } }
+      ]
+    },
+    {
+      "route": "/banner",
+      "title": "Banner",
+      "sections": [
+        { "id": "hero", "component": "Hero",
+          "content": { "variant": "banner", "heading": "A full-width banner", "body": "The image fills the band.", "image": "asset:hero",
+                       "cta": { "label": "Plain banner", "page": "banner-plain" }, "secondaryCta": { "label": "Home", "page": "home" } } },
+        { "id": "plans", "component": "Pricing", "content": { "title": "Filled plans over an image", "cardStyle": "filled", "background": "image",
+          "backgroundImage": "asset:work" }, "data": { "collection": "plans" } },
+        { "id": "numbers", "component": "Stats", "content": { "title": "Plain stats on primary", "cardStyle": "plain", "background": "primary", "items": [
+          { "label": "Presets", "value": 5 }, { "label": "Fonts", "value": 22 }, { "label": "Engine calls", "value": 0 } ] } },
+        { "id": "faq", "component": "Faq", "content": { "title": "On muted", "background": "muted" }, "data": { "collection": "faq" } },
+        { "id": "cta", "component": "CallToAction", "content": { "background": "muted", "heading": "Muted panel", "cta": { "label": "Home", "page": "home" } } }
+      ]
+    },
+    {
+      "route": "/banner-plain",
+      "title": "Plain banner",
+      "sections": [
+        { "id": "hero", "component": "Hero",
+          "content": { "variant": "banner", "eyebrow": "No image", "heading": "The band takes the primary colour",
+                       "cta": { "label": "Home", "page": "home" }, "secondaryCta": { "label": "Centered", "page": "centered" } } },
+        { "id": "gallery", "component": "Gallery", "content": { "title": "Over an image", "background": "image", "backgroundImage": "asset:hero", "items": [
+          { "image": "asset:work", "title": "Project C" }, { "image": "asset:mug", "title": "Project D" } ] } },
+        { "id": "story", "component": "RichText", "content": { "heading": "Text on primary", "background": "primary",
+          "body": "Body copy keeps to about 65 characters a line, so it reads easily on every screen.\n\nA second paragraph." } },
+        { "id": "contact", "component": "ContactInfo", "content": { "title": "Contact on muted", "background": "muted", "email": "hi@example.com" } },
+        { "id": "cta", "component": "CallToAction", "content": { "background": "image", "backgroundImage": "asset:work", "heading": "Panel over an image",
+          "cta": { "label": "Home", "page": "home" } } }
       ]
     }
   ],

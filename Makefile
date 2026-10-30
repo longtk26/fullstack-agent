@@ -73,7 +73,8 @@ runner-node:
 frontend-base:
 	docker run --rm -v "$(CURDIR)/scripts/frontend-base.sh:/frontend-base.sh:ro" \
 	  -v "$(CURDIR)/$(API_DIR)/templates/nextjs_base:/out" node:22-bookworm-slim sh /frontend-base.sh \
-	  "$$(cd $(API_DIR) && $(PY)/python -c 'from src.modules.shared.domain.frontend_spec.catalogue import SHADCN_PRIMITIVES as P; print(" ".join(sorted(P)))')"
+	  "$$(cd $(API_DIR) && $(PY)/python -c 'from src.modules.shared.domain.frontend_spec.catalogue import SHADCN_PRIMITIVES as P; print(" ".join(sorted(P)))')" \
+	  "$$(cd $(API_DIR) && $(PY)/python -c 'from src.modules.shared.domain.frontend_spec.fonts import FONTS; print(" ".join(f.package for f in FONTS.values()))')"
 	cd $(API_DIR) && $(PY)/python -c 'import json; from src.orchestrator.frontend_scaffold import build_manifest, OVERLAY_DIR; \
 	  (OVERLAY_DIR / "overlay.json").write_text(json.dumps(build_manifest(), indent=2, sort_keys=True) + "\n")'
 
@@ -98,6 +99,7 @@ down-all: host-worker-stop
 	@docker network ls -q --filter label=bga.sandbox | xargs -r docker network rm >/dev/null
 	@docker volume ls -q --filter name=bga-preview-db- | xargs -r docker volume rm >/dev/null
 	@docker volume ls -q --filter label=bga.fe-modules | xargs -r docker volume rm >/dev/null
+	@docker volume ls -q --filter name=bga-pnpm-store | xargs -r docker volume rm >/dev/null
 	@docker images -q --filter label=bga.preview | xargs -r docker rmi -f >/dev/null
 
 ps:

@@ -9,6 +9,7 @@ from pydantic import ValidationError
 from src.modules.shared.domain.backend_spec.issues import Severity, SpecIssue, ValidationReport
 
 from .catalogue import BUILTIN_SECTIONS, SHADCN_PRIMITIVES, THEME_PRESETS
+from .fonts import FONTS, closest_font
 from .issues import FrontendIssueCode
 from .normalizer import normalize_frontend_spec, page_id, route_params, walk_sections
 from .registry import FRONTEND_SPEC_MODELS
@@ -20,6 +21,8 @@ _HEX = re.compile(r"^#([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{
 _COLOR_FN = re.compile(r"^(rgb|rgba|hsl|hsla|oklch|oklab|lab|lch)\([^()]*\)$")
 _ROUTE_REF = re.compile(r"^\$route\.([A-Za-z][A-Za-z0-9]*)$")
 MIN_CONTRAST = 4.5  # WCAG AA for body text
+# Design checklist (Story 17.7): a hero headline fits two lines on a 390 px phone up to about this many characters.
+HERO_HEADLINE_CHARS = 50
 
 
 @dataclass
@@ -240,6 +243,16 @@ class _SemanticChecker:
 
     def _check_theme(self) -> None:
         theme = self.spec.theme
+        for key, value in theme.typography.model_dump(by_alias=True).items():
+            if key.endswith("Font") and value is not None and value not in FONTS:
+                suggestion = closest_font(value)
+                self._add(
+                    C.FE_FONT_NOT_BUNDLED,
+                    f"/theme/typography/{key}",
+                    f"'{value}' is not a bundled font, so visitors without it installed see a fallback",
+                    warning=True,
+                    hint=f"Closest bundled font: {suggestion}",
+                )
         preset = THEME_PRESETS[theme.style]["colors"]
         for key, value in theme.colors.model_dump().items():
             if value is not None and not valid_color(value):
@@ -376,6 +389,15 @@ class _SemanticChecker:
             for error in exc.errors():
                 self._add(C.FE_INVALID_PROPS, _error_path(f"{path}/content", error["loc"]), f"{name}: {error['msg']}")
         else:
+            heading = getattr(props, "heading", "") if name == "Hero" else ""
+            if len(heading) > HERO_HEADLINE_CHARS:
+                self._add(
+                    C.FE_DESIGN_RULE,
+                    f"{path}/content/heading",
+                    f"The hero headline has {len(heading)} characters; it wraps past two lines on a phone",
+                    warning=True,
+                    hint=f"Keep it to {HERO_HEADLINE_CHARS} characters or fewer and move the rest into 'body'",
+                )
             known = ", ".join(field.alias or key for key, field in SECTION_PROPS[name].model_fields.items())
             for unknown in _unknown_props(props, f"{path}/content"):
                 self._add(

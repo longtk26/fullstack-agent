@@ -41,7 +41,7 @@ export function DataTable({ title, description, items, columns = [], binding, st
                     return (
                       <TableCell key={column.key}>
                         {column.format === "badge" ? (
-                          <Badge variant="secondary">{text}</Badge>
+                          <Badge variant="secondary" className="h-6 text-sm">{text}</Badge>
                         ) : index === 0 && href ? (
                           <Link href={href} className="font-medium hover:underline">
                             {text}

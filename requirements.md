@@ -646,7 +646,8 @@ mode a failed backend lane leaves the frontend usable on mocks and the overall s
 A versioned FrontendSpec JSON must describe the frontend to generate:
 
 - `project` (name, mode, locales), `theme` (preset, colour tokens, typography, radius, light/dark, density),
-  `layout` (shell, header, navigation, footer).
+  `layout` (shell, header, navigation, footer). Typography names fonts from a bundled set that loads offline and
+  in the static export; another family is accepted with a warning that suggests the closest bundled one.
 - `pages` (id, route, title, purpose, SEO, sections). Each section names a component and either static `content`
   or a `data` binding to a contract `operationId`, with loading, empty and error states.
 - `components` (the catalogue used, with the shadcn primitives each relies on), `forms` (fields, validation,
@@ -744,6 +745,9 @@ The code engine must be used only for what cannot be produced deterministically:
   run.
 - Backend CRUD modules (model, repository, use cases, router, migration, tests) are generated from templates;
   the engine writes only custom operations and business rules.
+- Library sections offer variants (a background per section, hero layouts, card styles) that switch between
+  theme tokens only, and the library keeps a design checklist (one accent, one radius system, two font families,
+  five type sizes per page, readable line length, short hero headlines, off-black and off-white in dark mode).
 - Mechanical fixes (`ruff --fix`, `eslint --fix`, restoring generator-owned files) run before validation, and
   sandboxes start with the pinned dependencies installed.
 - Engine calls avoided, cache hits and the time they saved are recorded in usage.

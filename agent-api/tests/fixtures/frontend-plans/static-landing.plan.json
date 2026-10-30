@@ -541,7 +541,17 @@
     "density": "comfortable",
     "fonts": {
       "body": "\"Source Serif 4\", ui-serif, Georgia, \"Times New Roman\", serif",
-      "heading": "\"Playfair Display\", ui-serif, Georgia, \"Times New Roman\", serif"
+      "heading": "\"Playfair Display\", ui-serif, Georgia, \"Times New Roman\", serif",
+      "imports": [
+        "@fontsource/playfair-display/400.css",
+        "@fontsource/playfair-display/500.css",
+        "@fontsource/playfair-display/600.css",
+        "@fontsource/playfair-display/700.css",
+        "@fontsource/source-serif-4/400.css",
+        "@fontsource/source-serif-4/500.css",
+        "@fontsource/source-serif-4/600.css",
+        "@fontsource/source-serif-4/700.css"
+      ]
     },
     "light": {
       "accent": "#f6e5db",

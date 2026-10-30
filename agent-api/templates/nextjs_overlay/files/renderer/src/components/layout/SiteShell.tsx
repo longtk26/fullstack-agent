@@ -32,7 +32,7 @@ export function SiteShell({ children }: SiteShellProps) {
                 <Link
                   key={item.href}
                   href={item.href}
-                  className="rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  className="rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
                 >
                   {item.label}
                 </Link>

@@ -1,7 +1,7 @@
 # bga-runner-node: validates generated Next.js frontends (Story 13.4). Built with `make runner-node`.
 # Build context: agent-api/templates/nextjs_base (its lock file pre-warms the pnpm store, so a generated frontend
-# installs offline). The sandbox mounts the named volume `bga-pnpm-store` at /pnpm-store; Docker fills an empty
-# volume from this image's /pnpm-store on first use.
+# installs offline). The sandbox mounts the named volume `bga-pnpm-store-<base lock key>` at /pnpm-store; Docker
+# fills an empty volume from this image's /pnpm-store on first use, so a new base lock gets a new, filled volume.
 FROM node:22-bookworm-slim
 
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \

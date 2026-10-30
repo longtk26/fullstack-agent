@@ -1,7 +1,7 @@
 #!/bin/sh
 # Recreates the pinned Next.js base every generated frontend starts from (Story 13.2, decision Q11):
 # `create-next-app` exactly as the nextjs-skills skill prescribes, shadcn/ui (base-nova) with every primitive of
-# the FrontendSpec catalogue, and the libraries the skill mandates. Runs inside node:22 so the result does not
+# the FrontendSpec catalogue, the libraries the skill mandates, and the bundled fonts (Story 17.7). Runs inside node:22 so the result does not
 # depend on the host; the lock file pins every version. Output: agent-api/templates/nextjs_base/ (no node_modules).
 #
 #   make frontend-base        # review the diff, then update agent-api/templates/nextjs_overlay/overlay.json
@@ -12,6 +12,7 @@ PNPM_VERSION=10.18.3
 MSW_VERSION=2.12.4
 OUT=/out
 PRIMITIVES="$1"
+FONTS="$2"
 
 corepack enable >/dev/null 2>&1
 corepack prepare "pnpm@$PNPM_VERSION" --activate >/dev/null 2>&1
@@ -25,6 +26,8 @@ pnpm dlx "shadcn@$SHADCN_VERSION" init -b base -p nova -y --no-monorepo --force
 # shellcheck disable=SC2086
 pnpm dlx "shadcn@$SHADCN_VERSION" add -y --overwrite $PRIMITIVES
 pnpm add -E @tanstack/react-query zustand react-hook-form zod @hookform/resolvers next-themes
+# shellcheck disable=SC2086
+pnpm add -E $FONTS
 pnpm add -E -D @types/node@22 "msw@$MSW_VERSION" vitest @vitejs/plugin-react jsdom @testing-library/react \
   @testing-library/jest-dom @testing-library/user-event @playwright/test vite-tsconfig-paths
 pnpm exec msw init public --no-save

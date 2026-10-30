@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { SiteShell } from "@/components/layout/SiteShell";
 import { siteConfig } from "@/config/site";
 import { Providers } from "./providers";
+import "./fonts";
 import "./globals.css";
 
 export const metadata: Metadata = {

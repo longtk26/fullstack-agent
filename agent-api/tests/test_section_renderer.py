@@ -105,7 +105,7 @@ def test_section_content_types_match_the_snapshot():
     if os.environ.get("UPDATE_SNAPSHOTS") or not snapshot.exists():
         snapshot.write_text(text)
     assert text == snapshot.read_text(), "section props changed: review, then rerun with UPDATE_SNAPSHOTS=1"
-    assert "export type THeroContent = {\n  heading: string;\n" in text
+    assert "  heading: string;\n" in text and '  variant?: "split" | "centered" | "banner";\n' in text
     assert "  price: string | number;\n" in text and "  items?: TFeatureItem[];\n" in text
 
 

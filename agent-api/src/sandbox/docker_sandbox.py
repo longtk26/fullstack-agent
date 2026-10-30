@@ -40,6 +40,9 @@ MODULES_LABEL = "bga.fe-modules"
 MODULES_READY = ".bga-ready"
 WRITABLE_DIRS = (".vite", ".vite-temp", ".vitest-cache")
 DEPENDENCY_FIELDS = ("dependencies", "devDependencies", "optionalDependencies", "peerDependencies", "pnpm")
+# The pnpm store volume is named after the frontend base's lock file (Story 17.7): Docker fills a new volume from the
+# runner image only on first use, so a base with new packages (e.g. fonts) needs a new volume, not the old one.
+BASE_LOCK = Path(__file__).resolve().parents[2] / "templates" / "nextjs_base" / "pnpm-lock.yaml"
 _modules_lock = threading.Lock()
 _modules_ready: dict[str, bool] = {}  # per worker process: key → filled (False: install per project instead)
 
@@ -58,6 +61,14 @@ def dependency_key(project: Path) -> str | None:
         digest.update(workspace.read_bytes())
     digest.update(json.dumps({key: manifest.get(key) for key in DEPENDENCY_FIELDS}, sort_keys=True).encode())
     return digest.hexdigest()[:16]
+
+
+def store_volume(prefix: str, lock: Path = BASE_LOCK) -> str:
+    """`<prefix>-<base lock key>`, or the bare prefix when the base lock is missing."""
+    try:
+        return f"{prefix}-{hashlib.sha256(lock.read_bytes()).hexdigest()[:12]}"
+    except OSError:
+        return prefix
 
 
 def instance_id() -> str:
@@ -85,7 +96,8 @@ class SandboxProfile:
         self.memory = config.frontend_sandbox_memory if frontend else config.sandbox_memory
         self.pids = config.frontend_sandbox_pids if frontend else config.sandbox_pids
         self.tmp = config.frontend_sandbox_tmp if frontend else "512m"
-        self.volumes = {config.frontend_store_volume: {"bind": "/pnpm-store", "mode": "rw"}} if frontend else {}
+        store = store_volume(config.frontend_store_volume)
+        self.volumes = {store: {"bind": "/pnpm-store", "mode": "rw"}} if frontend else {}
 
 
 def _slug(generation_id: str) -> str:

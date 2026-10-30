@@ -8,14 +8,16 @@ and their derived tokens fall back to the theme preset. Deterministic: same them
 import re
 from typing import Any
 
-from src.modules.shared.domain.frontend_spec import THEME_PRESETS
+from src.modules.shared.domain.frontend_spec import THEME_PRESETS, font_category, font_imports
 
 _HEX = re.compile(r"^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})([0-9a-fA-F]{2})?$")
 RADIUS = {"none": "0rem", "sm": "0.375rem", "md": "0.625rem", "lg": "0.875rem", "full": "1.25rem"}
 FONT_FALLBACK = 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif'
 SERIF_FALLBACK = 'ui-serif, Georgia, "Times New Roman", serif'
-SERIF_HINTS = ("serif", "playfair", "garamond", "merriweather", "lora", "georgia", "times")
+MONO_FALLBACK = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace'
 LIGHT_TEXT, DARK_TEXT = "#ffffff", "#0a0a0a"
+# Dark mode never uses pure black or white (design checklist, Story 17.7).
+OFF_BLACK, OFF_WHITE = "#0a0a0a", "#fafafa"
 
 
 def _rgb(color: str) -> tuple[float, float, float] | None:
@@ -82,7 +84,11 @@ def _palette(colors: dict[str, str], fallback: dict[str, str], dark: bool) -> di
         if (luminance(background) or 1) > 0.5:
             background, foreground = mix(foreground, "#000000", 0.35) or fallback["foreground"], background
         if luminance(background) is None:
-            background, foreground = "#0a0a0a", "#fafafa"
+            background, foreground = OFF_BLACK, OFF_WHITE
+        if (luminance(background) or 0) < (luminance(OFF_BLACK) or 0):
+            background = OFF_BLACK
+        if (luminance(foreground) or 0) > (luminance(OFF_WHITE) or 0):
+            foreground = OFF_WHITE
 
     def derive(value: str | None, key: str) -> str:
         return value if value is not None else fallback[key]
@@ -135,8 +141,38 @@ def _palette(colors: dict[str, str], fallback: dict[str, str], dark: bool) -> di
 
 
 def font_stack(name: str) -> str:
-    fallback = SERIF_FALLBACK if any(hint in name.lower() for hint in SERIF_HINTS) else FONT_FALLBACK
+    category = font_category(name)
+    fallback = {"serif": SERIF_FALLBACK, "display": SERIF_FALLBACK, "mono": MONO_FALLBACK}.get(category, FONT_FALLBACK)
     return f'"{name}", {fallback}'
+
+
+def inverse_palette(palette: dict[str, str]) -> dict[str, str]:
+    """Tokens inside a section on the primary colour (`background: "primary"`): the page's primary becomes the
+    background and its foreground the text, so cards, muted text and buttons inside keep their contrast."""
+    base, text = palette["primary"], palette["primary-foreground"]
+
+    def tint(amount: float) -> str:
+        return mix(base, text, amount) or f"color-mix(in oklab, {base} {100 - round(amount * 100)}%, {text})"
+
+    return {
+        "background": base,
+        "foreground": text,
+        "card": tint(0.08),
+        "card-foreground": text,
+        "popover": tint(0.08),
+        "popover-foreground": text,
+        "primary": text,
+        "primary-foreground": base,
+        "secondary": tint(0.14),
+        "secondary-foreground": text,
+        "muted": tint(0.12),
+        "muted-foreground": tint(0.78),
+        "accent": tint(0.16),
+        "accent-foreground": text,
+        "border": tint(0.24),
+        "input": tint(0.24),
+        "ring": text,
+    }
 
 
 def build_theme(theme: dict[str, Any]) -> dict[str, Any]:
@@ -157,6 +193,7 @@ def build_theme(theme: dict[str, Any]) -> dict[str, Any]:
         "fonts": {
             "heading": font_stack(typography["headingFont"]),
             "body": font_stack(typography["bodyFont"]),
+            "imports": font_imports(typography["headingFont"], typography["bodyFont"]),
         },
         "scale": typography.get("scale", "default"),
     }
@@ -191,6 +228,9 @@ def globals_css(theme: dict[str, Any]) -> str:
     ]
     if theme["dark"] is not None and theme["colorScheme"] == "light-dark":
         parts.append(block(".dark", theme["dark"], []))
+    parts.append(block(".surface-inverse", inverse_palette(theme["light"]), []))
+    if theme["dark"] is not None and theme["colorScheme"] == "light-dark":
+        parts.append(block(".dark .surface-inverse", inverse_palette(theme["dark"]), []))
     parts.append(
         "@layer base {\n  * {\n    @apply border-border outline-ring/50;\n  }\n"
         f"  html {{\n    @apply font-sans;\n    font-size: {scale};\n  }}\n"
@@ -198,3 +238,16 @@ def globals_css(theme: dict[str, Any]) -> str:
         "  h1, h2, h3, h4 {\n    font-family: var(--font-display);\n  }\n}\n"
     )
     return "\n".join(parts)
+
+
+def fonts_ts(theme: dict[str, Any]) -> str:
+    """`src/app/fonts.ts`: the theme's bundled fonts (Story 17.7), imported by the root layout. Next.js copies the
+    font files into the build, so they load offline and in the static export."""
+    imports = "".join(f'import "{path}";\n' for path in theme["fonts"].get("imports", []))
+    note = "" if imports else "// The theme's fonts are not in the bundled set; the CSS font stack names them.\n"
+    return (
+        "// Generated from the FrontendSpec theme by the Fullstack Generation Agent. Do not edit.\n"
+        + note
+        + imports
+        + "\nexport {};\n"
+    )

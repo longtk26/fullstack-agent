@@ -1,13 +1,15 @@
 import { Mail, MapPin, Phone } from "lucide-react";
 import { Section } from "@/components/layout/Section";
 import { Card, CardContent } from "@/components/ui/card";
+import { backdropImage } from "./AssetImage";
 import type { TContactInfoContent } from "./types";
 
 type ContactInfoProps = TContactInfoContent;
 
-export function ContactInfo({ title = "Get in touch", email, phone, address, mapUrl }: ContactInfoProps) {
+export function ContactInfo(props: ContactInfoProps) {
+  const { title = "Get in touch", email, phone, address, mapUrl, background, backgroundImage } = props;
   return (
-    <Section title={title}>
+    <Section title={title} background={background} backdrop={backdropImage(backgroundImage)}>
       <Card className="max-w-md">
         <CardContent className="flex flex-col gap-3">
           {email && (

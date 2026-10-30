@@ -4,14 +4,16 @@ import Link from "next/link";
 import { Grid } from "@/components/layout/Grid";
 import { Section } from "@/components/layout/Section";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import type { TBinding, TColumn, TRecord, TStates } from "@/components/renderer/site";
 import { recordHref, useSectionRecords } from "@/components/renderer/use-section-records";
 import { AssetImage } from "./AssetImage";
 import { formatValue } from "./format";
 import { QueryState } from "./QueryState";
-import type { TDataSectionContent } from "./types";
+import { cardClass } from "./styles";
+import type { TCardGridContent } from "./types";
 
-type CardGridProps = TDataSectionContent & {
+type CardGridProps = TCardGridContent & {
   items?: TRecord[];
   columns?: TColumn[];
   binding?: TBinding;
@@ -19,7 +21,7 @@ type CardGridProps = TDataSectionContent & {
 };
 
 /** Records as cards: image fields first, the first other field as the title; linked to the record's page. */
-export function CardGrid({ title, description, items, columns = [], binding, states }: CardGridProps) {
+export function CardGrid({ title, description, cardStyle, items, columns = [], binding, states }: CardGridProps) {
   const { records, isLoading, error } = useSectionRecords(items, binding);
   const images = columns.filter((column) => column.format === "image");
   const [heading, ...rest] = columns.filter((column) => column.format !== "image");
@@ -30,7 +32,13 @@ export function CardGrid({ title, description, items, columns = [], binding, sta
           {records.map((record, index) => {
             const href = recordHref(binding?.link, record);
             const card = (
-              <Card className="h-full transition-colors hover:bg-muted/40">
+              <Card
+                className={cn(
+                  cardClass(cardStyle),
+                  "h-full",
+                  href && "transition-transform duration-200 hover:-translate-y-0.5 motion-reduce:transition-none motion-reduce:hover:translate-y-0",
+                )}
+              >
                 {images.map((column) => (
                   <AssetImage key={column.key} asset={String(record[column.key] ?? "")} />
                 ))}

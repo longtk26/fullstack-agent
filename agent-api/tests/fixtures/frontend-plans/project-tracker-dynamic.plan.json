@@ -616,7 +616,13 @@
     "density": "compact",
     "fonts": {
       "body": "\"Inter\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
-      "heading": "\"Inter\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif"
+      "heading": "\"Inter\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+      "imports": [
+        "@fontsource/inter/400.css",
+        "@fontsource/inter/500.css",
+        "@fontsource/inter/600.css",
+        "@fontsource/inter/700.css"
+      ]
     },
     "light": {
       "accent": "#dcf2ed",

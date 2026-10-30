@@ -11,6 +11,8 @@ from pydantic import ConfigDict, Field, model_validator
 
 from src.modules.shared.domain.backend_spec.schema_v1 import IDENTIFIER, OPERATION_ID, SpecModel
 
+from .fonts import FONTS
+
 SLUG = r"^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
 COMPONENT_NAME = r"^[A-Z][A-Za-z0-9]*$"
 # "/" or segments that are kebab-case words or one `[param]`; no catch-all routes in 1.0
@@ -45,9 +47,13 @@ class ThemeColors(SpecModel):
     destructive: str | None = None
 
 
+# The editor offers the bundled fonts (Story 17.7); other names stay valid but only show where installed.
+BUNDLED_FONTS = {"examples": list(FONTS)}
+
+
 class Typography(SpecModel):
-    heading_font: str | None = Field(default=None, pattern=FONT)
-    body_font: str | None = Field(default=None, pattern=FONT)
+    heading_font: str | None = Field(default=None, pattern=FONT, json_schema_extra=BUNDLED_FONTS)
+    body_font: str | None = Field(default=None, pattern=FONT, json_schema_extra=BUNDLED_FONTS)
     scale: Literal["compact", "default", "large"] = "default"
 
 

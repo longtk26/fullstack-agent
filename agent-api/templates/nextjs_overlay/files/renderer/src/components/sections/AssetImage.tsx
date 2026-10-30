@@ -23,3 +23,8 @@ export function AssetImage({ asset, className }: AssetImageProps) {
     />
   );
 }
+
+/** A section's `backgroundImage`, filling the section behind its content. */
+export function backdropImage(asset?: string) {
+  return asset ? <AssetImage asset={asset} className="aspect-auto h-full rounded-none" /> : undefined;
+}

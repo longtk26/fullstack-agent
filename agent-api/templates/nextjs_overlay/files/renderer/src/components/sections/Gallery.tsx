@@ -1,13 +1,14 @@
 import { Grid } from "@/components/layout/Grid";
 import { Section } from "@/components/layout/Section";
-import { AssetImage } from "./AssetImage";
+import { AssetImage, backdropImage } from "./AssetImage";
 import type { TGalleryContent } from "./types";
 
 type GalleryProps = TGalleryContent;
 
-export function Gallery({ title = "Selected work", items = [], columns = 2 }: GalleryProps) {
+export function Gallery(props: GalleryProps) {
+  const { title = "Selected work", items = [], columns = 2, background, backgroundImage } = props;
   return (
-    <Section title={title}>
+    <Section title={title} background={background} backdrop={backdropImage(backgroundImage)}>
       <Grid columns={columns}>
         {items.map((item) => (
           <figure key={item.image + (item.title ?? "")} className="flex flex-col gap-3">

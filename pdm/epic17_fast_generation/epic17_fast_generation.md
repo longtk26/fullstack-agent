@@ -54,7 +54,7 @@ included, the engine only for custom components), and inspect mode (16.4) maps a
 | 17.4 | [Data sections for dynamic apps](story17.4_data_sections.md) | 17.2, 13.2 (client + mocks) |
 | 17.5 | [Auto-fix and pre-installed dependencies](story17.5_faster_checks.md) | 6.2, 13.4 |
 | 17.6 | [Backend CRUD from templates](story17.6_backend_crud_templates.md) | 5.3, 12.3 |
-| 17.7 | [Fonts that load and section variants](story17.7_fonts_and_section_variants.md) (after the main stories) | 17.1, 17.2 |
+| 17.7 | [Fonts that load and section variants](story17.7_fonts_and_section_variants.md) — done 2026-10-30 | 17.1, 17.2 |
 | 17.8 | [Custom components that fit the page](story17.8_custom_component_layout.md) (follow-up of 17.3) | 17.3 |
 
 17.5 is independent and can go first; it pays off for every mode at once.

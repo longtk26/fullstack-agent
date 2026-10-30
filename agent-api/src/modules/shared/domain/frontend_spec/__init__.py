@@ -1,4 +1,5 @@
 from .catalogue import BUILTIN_SECTIONS, SHADCN_PRIMITIVES, THEME_PRESETS
+from .fonts import FONTS, closest_font, font_category, font_imports
 from .issues import FrontendIssueCode
 from .normalizer import iter_sections, normalize_frontend_spec, page_id, route_params, walk_sections
 from .registry import (
@@ -19,6 +20,7 @@ from .validator import (
 
 __all__ = [
     "BUILTIN_SECTIONS",
+    "FONTS",
     "FRONTEND_SPEC_MODELS",
     "FrontendIssueCode",
     "FrontendSpecV1",
@@ -30,6 +32,9 @@ __all__ = [
     "LATEST_FRONTEND_SPEC_VERSION",
     "SHADCN_PRIMITIVES",
     "THEME_PRESETS",
+    "closest_font",
+    "font_category",
+    "font_imports",
     "frontend_spec_json_schema",
     "iter_sections",
     "normalize_frontend_spec",

@@ -46,6 +46,12 @@ Agent-specific notes:
   why), is built without the engine; dynamic data sections read through the generated `bindings.ts`: overlay part `templates/nextjs_overlay/files/renderer` (only the sections a site uses) plus
   `orchestrator/frontend_renderer.py` (site.json, registry, props types, thin route files). Sections can nest in
   layout nodes (`children`): walk them with `iter_sections` / `walk_sections`, never `page["sections"]` alone.
+- Fonts and variants (Story 17.7): theme fonts in `frontend_spec/fonts.py` are `@fontsource` packages pinned in the
+  base and imported by the generated `src/app/fonts.ts`; adding one means `make frontend-base` + `make runner-node`
+  (the pnpm store volume is keyed on the base lock, `store_volume()`). Section variants (`background`, Hero
+  `variant`, `cardStyle`) live in `section_props.py` and use theme tokens only; `background: "primary"` is the
+  `.surface-inverse` token scope in `globals.css`. Library changes keep `templates/nextjs_overlay/DESIGN_CHECKLIST.md`
+  (measure with `scripts/design-check.mjs`).
 - Custom components (Story 17.3): a rendered site's custom components (with a `propsSchema`) are scaffolded as
   their library fallback (`plan["customComponents"]`), then `orchestrator/custom_components.py` generates each in a
   scratch copy and its own sandbox (`for_job(..., part=...)`), or copies it from the component cache

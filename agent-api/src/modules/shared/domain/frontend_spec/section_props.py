@@ -5,6 +5,9 @@ Each catalogue section has a props model for its `content`; list sections also h
 keys are kept (`extra="allow"`) and reported as warnings by the validator, so a typo never breaks rendering and the
 editor's JSON Schema does not flag them as errors. Layout nodes (`Columns`, `Stack`, `Grid`, `Tabs`) hold other
 sections in `children`; nesting is at most `MAX_DEPTH` section levels (decision Q18).
+
+Variants (Story 17.7) pick a look per section: a background for content sections, a layout for the hero and a card
+style for list sections. They only switch between theme tokens, so every look follows the preset and light/dark.
 """
 
 from typing import Literal
@@ -18,6 +21,9 @@ LINK = r"^(https?://|mailto:|tel:|/)"
 MAX_DEPTH = 3
 Columns = Literal[2, 3, 4]
 Gap = Literal["sm", "md", "lg"]
+Background = Literal["default", "muted", "primary", "image"]
+CardStyle = Literal["outline", "filled", "plain"]
+HeroVariant = Literal["split", "centered", "banner"]
 
 
 class Props(SpecModel):
@@ -33,6 +39,19 @@ class Cta(Props):
     def _one_target(self):
         if (self.page is None) == (self.href is None):
             raise ValueError("a call to action needs exactly one of 'page' or 'href'")
+        return self
+
+
+class Surface(Props):
+    """A content section's background: the page, the muted tone, the primary colour, or an image under a scrim."""
+
+    background: Background = "default"
+    background_image: str | None = Field(default=None, pattern=IMAGE)
+
+    @model_validator(mode="after")
+    def _image_needs_source(self):
+        if self.background == "image" and self.background_image is None:
+            raise ValueError("background 'image' needs 'backgroundImage'")
         return self
 
 
@@ -78,7 +97,8 @@ class GalleryItem(Props):
 # -- sections ----------------------------------------------------------------------------------------------------------
 
 
-class HeroProps(Props):
+class HeroProps(Surface):
+    variant: HeroVariant = "split"  # split: text beside the image; centered; banner: full width, image behind
     heading: str = Field(min_length=1, max_length=160)
     eyebrow: str | None = Field(default=None, max_length=60)
     body: str | None = Field(default=None, max_length=600)
@@ -87,52 +107,57 @@ class HeroProps(Props):
     secondary_cta: Cta | None = None
 
 
-class FeaturesProps(Props):
+class FeaturesProps(Surface):
     title: str | None = None
     description: str | None = None
     items: list[FeatureItem] | None = Field(default=None, max_length=24)
     columns: Columns | None = None
+    card_style: CardStyle = "outline"
 
 
-class CallToActionProps(Props):
+class CallToActionProps(Surface):
+    background: Background = "primary"  # the panel's colour
     heading: str = Field(min_length=1, max_length=160)
     body: str | None = Field(default=None, max_length=600)
     cta: Cta
 
 
-class TestimonialsProps(Props):
+class TestimonialsProps(Surface):
     title: str | None = None
     items: list[TestimonialItem] | None = Field(default=None, max_length=24)
+    card_style: CardStyle = "outline"
 
 
-class FaqProps(Props):
+class FaqProps(Surface):
     title: str | None = None
     items: list[FaqItem] | None = Field(default=None, max_length=50)
 
 
-class PricingProps(Props):
+class PricingProps(Surface):
     title: str | None = None
     description: str | None = None
     items: list[PlanItem] | None = Field(default=None, max_length=6)
+    card_style: CardStyle = "outline"
 
 
-class StatsProps(Props):
+class StatsProps(Surface):
     title: str | None = None
     items: list[StatItem] | None = Field(default=None, max_length=12)
+    card_style: CardStyle = "outline"
 
 
-class GalleryProps(Props):
+class GalleryProps(Surface):
     title: str | None = None
     items: list[GalleryItem] | None = Field(default=None, max_length=48)
     columns: Columns | None = None
 
 
-class RichTextProps(Props):
+class RichTextProps(Surface):
     heading: str | None = Field(default=None, max_length=160)
     body: str = Field(min_length=1, max_length=20000)  # paragraphs separated by a blank line
 
 
-class ContactInfoProps(Props):
+class ContactInfoProps(Surface):
     title: str | None = None
     email: str | None = Field(default=None, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
     phone: str | None = Field(default=None, max_length=40)
@@ -151,6 +176,10 @@ class DataSectionProps(Props):
 
     title: str | None = None
     description: str | None = None
+
+
+class CardGridProps(DataSectionProps):
+    card_style: CardStyle = "outline"
 
 
 class FormProps(Props):
@@ -194,7 +223,7 @@ SECTION_PROPS: dict[str, type[Props]] = {
     "RichText": RichTextProps,
     "ContactInfo": ContactInfoProps,
     "Form": FormProps,
-    "CardGrid": DataSectionProps,
+    "CardGrid": CardGridProps,
     "DataTable": DataSectionProps,
     "DetailView": DataSectionProps,
     "List": DataSectionProps,
