@@ -1,8 +1,15 @@
 # AI Fullstack Generation Agent — Requirements Specification
 
-**Version:** 1.4  
+**Version:** 1.5  
 **Status:** Approved for MVP — backlog in [`pdm/`](pdm/README.md)  
 **Priority:** High
+
+**Changes in 1.5 (2026-10-30):**
+- The requirement for drafting can be plain text or Markdown, typed or uploaded as a `.md` / `.txt` file, in all
+  three modes (FR-01, FR-24).
+- Drafted static and dynamic sites get a **design direction** (palette, font pairing, page structure) chosen from
+  curated design data for the kind of site described, with alternatives to switch between in the review (FR-24).
+  Backlog: Stories 2.4, 12.4, 12.6, 17.7.
 
 **Changes in 1.4 (2026-10-28):**
 - **Fast generation and reuse**: catalogue sections are rendered from the FrontendSpec without an engine call,
@@ -225,7 +232,7 @@ The specification must support:
 
 The initial MVP may support only a subset of these features, but the specification must be versioned to allow future extensions.
 
-A BackendSpec may be written directly, drafted from a natural-language requirement (the engine produces a draft with explicit assumptions; the user reviews it before submitting), or imported from a Frontend-Agent site JSON (FR-20).
+A BackendSpec may be written directly, drafted from a natural-language requirement (the engine produces a draft with explicit assumptions; the user reviews it before submitting), or imported from a Frontend-Agent site JSON (FR-20). The requirement is plain text or Markdown, typed or uploaded as a `.md` / `.txt` file (UTF-8, up to 64 KB); it is kept with the generation's artifacts.
 
 **Acceptance Criteria**
 
@@ -660,7 +667,13 @@ generated backend must conform to the contract; neither lane may change it.
 
 From a natural-language requirement and a mode, the system must draft a FrontendSpec (and in dynamic mode the
 matching BackendSpec), listing assumptions and unresolved questions for the user to acknowledge. The page list
-must cover every user-visible feature of the requirement.
+must cover every user-visible feature of the requirement. The requirement is accepted as in FR-01 (text, `.md`,
+`.txt`).
+
+The draft's theme (colours, font pairing) and home page structure come from a **design direction** chosen from
+curated design data for the kind of site described (not invented by the model), unless the requirement names brand
+colours or fonts. The draft offers alternative directions that the user can switch between without an engine
+call. Testimonials, client logos, figures and awards are never invented; sample content is listed as an assumption.
 
 ### FR-25: Frontend Generation
 

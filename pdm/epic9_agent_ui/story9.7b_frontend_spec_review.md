@@ -18,8 +18,11 @@ only an API, and then review what will be built (pages, theme, components) befor
   - **Dynamic web app** — "frontend + backend, generated in parallel": FrontendSpec + BackendSpec + contract.
   - **Backend API only** — today's flow (9.2).
   The choice is kept in the URL (`?mode=`) and the draft store.
-- [ ] Requirement tab drafts the specs for the chosen mode (12.4) and shows assumptions / unresolved items to
-      acknowledge.
+- [ ] Requirement tab drafts the specs for the chosen mode (12.4) from typed text or a `.md` / `.txt` file (9.2)
+      and shows assumptions / unresolved items to acknowledge.
+- [ ] After a static or dynamic draft, a **Design** panel shows the chosen direction and its 2 alternatives (12.6)
+      as cards with colour swatches, font names and section order; picking one replaces the theme and the home
+      page's section order with no engine call (added 2026-10-30).
 - [ ] FrontendSpec tab: Monaco editor bound to the FrontendSpec JSON Schema with live validation (12.1, 12.5 in
       dynamic mode); a summary panel shows **page count and route list**, **theme** (colour swatches, fonts,
       radius, light/dark), the **component catalogue** (with which pages use each) and, in dynamic mode, the

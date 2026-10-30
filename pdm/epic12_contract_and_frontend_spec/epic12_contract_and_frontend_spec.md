@@ -18,7 +18,9 @@ start immediately against mocks of that contract while the backend is being buil
 **Requirements:** FR-21 (modes), FR-22 (FrontendSpec), FR-23 (API contract), FR-24 (drafting) — requirements v1.2
 
 ```
- requirement ──draft (12.4)──▶ FrontendSpec ──┐
+ requirement (text / .md / .txt)
+   ──design direction (12.6)──▶ theme + section order
+   ──draft (12.4)──▶ FrontendSpec ──┐
                                  (dynamic) ──▶ BackendSpec ──plan (5.1)──▶ API contract (12.3)
                                                │                             │
                          consistency check (12.5): every frontend binding exists in the contract
@@ -33,6 +35,7 @@ start immediately against mocks of that contract while the backend is being buil
 | 12.3 | [API contract generation (contract first)](story12.3_api_contract.md) | 5.1 |
 | 12.4 | [Requirement → FrontendSpec (+ BackendSpec) drafting](story12.4_requirement_drafting.md) | 12.1, 2.4, 3.2 |
 | 12.5 | [Frontend ↔ contract consistency check](story12.5_consistency_check.md) | 12.1, 12.3 |
+| 12.6 | [Design direction for drafted sites](story12.6_design_direction.md) (added 2026-10-30) | 12.4, 17.7 |
 
 ## Status (2026-10-27)
 

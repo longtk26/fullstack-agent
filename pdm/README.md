@@ -1,8 +1,9 @@
 # Fullstack Generation Agent — Product Backlog
 
-Source: [requirements.md](../requirements.md) (v1.4, updated to match this backlog). Created 2026-10-23,
+Source: [requirements.md](../requirements.md) (v1.5, updated to match this backlog). Created 2026-10-23,
 extended 2026-10-26 with frontend generation (Epics 12–14, Stories 9.7–9.8) and 2026-10-27 with site images and
-revisions (Epics 15–16) and 2026-10-28 with fast generation (Epic 17).
+revisions (Epics 15–16) and 2026-10-28 with fast generation (Epic 17) and 2026-10-30 with requirement files and
+design direction (Story 12.6).
 
 ## What we are building
 
@@ -73,7 +74,7 @@ lane, tracing, results, and an OpenAPI explorer that sends test calls to the run
 | 9 | [Agent UI](epic9_agent_ui/epic9_agent_ui.md) | cross-phase | 10 |
 | 10 | [Advanced generation (auth, policies, rules)](epic10_advanced_generation/epic10_advanced_generation.md) | Phase 5 | 4 |
 | 11 | [Hardening, benchmark & release](epic11_hardening_and_release/epic11_hardening_and_release.md) | DoD §10 | 4 |
-| 12 | [Generation modes, FrontendSpec & API contract](epic12_contract_and_frontend_spec/epic12_contract_and_frontend_spec.md) | Phase 6 | 5 |
+| 12 | [Generation modes, FrontendSpec & API contract](epic12_contract_and_frontend_spec/epic12_contract_and_frontend_spec.md) | Phase 6 | 6 |
 | 13 | [Frontend generation (Next.js on nextjs-skills)](epic13_frontend_generation/epic13_frontend_generation.md) | Phase 6 | 5 |
 | 14 | [Parallel generation & live-API switch](epic14_parallel_generation/epic14_parallel_generation.md) | Phase 6 | 3 |
 | 15 | [Site images & illustrations](epic15_site_assets/epic15_site_assets.md) | Phase 7 | 5 |
@@ -102,6 +103,9 @@ workflow to be built before real generation works.
    17.3 (custom components + cache) → 17.6 (backend CRUD from templates) → 17.7 (fonts, section variants).
 8. **After Epic 17 (agreed 2026-10-29):** 17.8 → 17.7 → E15 → 2.4 + 12.4 (plain text for static and dynamic) →
    9.7b → E16 → E10 → E11.
+9. **Re-planned 2026-10-30 (requirement first, then E15 and E16):** 2.4 + 12.4 + 9.2 Requirement tab + 9.7b
+   (plain text, `.md` or `.txt` for backend, static and dynamic) → 17.7 (fonts, variants, design checklist) → 12.6
+   (design direction from UI UX Pro Max data) → E15 → E16 → 17.8 → E10 → E11.
 
 ### Status (2026-10-29)
 
@@ -117,26 +121,32 @@ workflow to be built before real generation works.
 | 17 | 17.5, 17.1, 17.2, 17.4, 17.3, 17.6 done (auto-fix, shared node_modules; typed content and layout nodes; static sites ~44 s and dynamic frontends rendered without the engine; parallel custom components & component cache; backend CRUD from templates, dynamic shop 59 s with 0 engine calls); 17.8 (custom component layout, found on the first cached shop run) and 17.7 open |
 | 2.4, 10, 11, 15, 16 | open |
 
-### Next up (agreed 2026-10-29, after the main Epic 17 stories)
+### Next up (re-planned 2026-10-30)
 
 Done since the last plan: Epic 17's main stories (17.5, 17.1, 17.2, 17.4, 17.3, 17.6): static sites ~44 s with no
 engine call; the dynamic tracker and shop ~1 min with no engine call once custom components are cached (before:
-25–40+ min). Output quality now depends on the spec and on the section library / templates, so the next items
-improve those first.
-Work in this order; start each item in a fresh session ("implement story 17.8", …).
+25–40+ min).
+Change on 2026-10-30: the **requirement comes first** (plain text, a `.md` or a `.txt` file, for backend, static and
+dynamic), then Epics 15 and 16. Drafts should look designed, so the draft also gets a **design direction** from UI UX
+Pro Max's data (12.6), and the section library gets fonts, variants and a design checklist from Taste Skill's rules
+(17.7). Research: [docs/research/design-skills.md](../docs/research/design-skills.md).
+Work in this order; start each item in a fresh session ("implement stories 2.4 and 12.4", …).
 
 | # | Item | What the user gets | Why at this point |
 |---|---|---|---|
-| 1 | **17.8** | Custom components that sit on the page like the library sections; prices as currency; quieter empty images | The first cached `shop-dynamic` run looked broken (edge-to-edge grid, squeezed detail card) |
-| 2 | **17.7** | Fonts that load, section variants | Every site uses one design per section and system fonts; this lifts all of them |
-| 3 | **Epic 15** (15.1–15.4) | Real images: engine-drawn SVGs in theme colours, uploads, links (15.5 only if asked) | Replaces the placeholders; assets are section props on the renderer |
-| 4 | **2.4 + 12.4, then 9.7b** | Plain-text requirement → draft FrontendSpec (+ BackendSpec in dynamic mode), assumptions listed for review; review aids in the editor | Drafts aim at the typed section catalogue (17.1) so they render with no engine call; dynamic drafts must pass the pair consistency check |
+| 1 | **2.4 + 12.4, with the 9.2 Requirement tab and 9.7b** | A requirement typed or uploaded (`.md` / `.txt`) → draft BackendSpec (backend), FrontendSpec (static) or both (dynamic), with assumptions and unresolved items to acknowledge, editable before submit | Users no longer need to write JSON. Drafts aim at the typed section catalogue (17.1) and the CRUD templates (17.6), so they build with no engine call. Dynamic drafts must pass the pair consistency check |
+| 2 | **17.7** | Fonts that load, section variants, section library checked against the design checklist | 12.6 needs fonts that really load and variants to choose between |
+| 3 | **12.6** | Each draft gets a theme, font pairing and home page structure suited to its kind of site, with 2 alternatives to switch between | Colours and fonts come from curated, contrast-checked data instead of model-invented values |
+| 4 | **Epic 15** (15.1–15.4) | Real images: engine-drawn SVGs in theme colours, uploads, links (15.5 only if asked) | Replaces the placeholders; assets are section props on the renderer |
 | 5 | **Epic 16** | Revisions: theme and content editors, click-to-comment, history and restore | Refines a first version: spec edits re-render without the engine |
-| 6 | **Epic 10**, then **Epic 11** | Auth, roles and business rules in generated backends; hardening, benchmark, release | Epic 11 stays last |
+| 6 | **17.8**, **Epic 10**, then **Epic 11** | Custom components that fit the page; auth, roles and business rules; hardening, benchmark, release | Epic 11 stays last |
 
 Open decisions along the way:
-- Drafting (2.4 + 12.4) is placed after 17.8, 17.7 and Epic 15 (2026-10-29): the renderer and templates turn a good
-  spec into a good site, so the library is improved first.
+- 17.8 (custom components that fit the page) moved after Epic 16 (2026-10-30). Dynamic drafts that need custom
+  components (e.g. a shop's product grid) will show its layout faults until then. It can move up if they show up
+  in the first drafted dynamic sites.
+- 17.7 placed before 12.6 (2026-10-30): the design direction picks fonts and variants, which only show once 17.7
+  loads the fonts and adds the variants.
 - Faulty RAM is suspected on the dev machine (Docker Desktop crashes, single-bit corruptions in built images,
   2026-10-29): run a memory test before trusting further Docker results.
 - One paid real-engine run (Claude Code) on `shop-dynamic` to confirm real engines handle the frontend lane and to
@@ -164,6 +174,8 @@ Open decisions along the way:
 | Q18 (2026-10-28) | FrontendSpec nesting: **only layout nodes** (`Columns`, `Stack`, `Grid`, `Tabs`) hold sections as children, **depth ≤ 3**; no element trees. Sections lay out their own insides, so layout nodes only arrange sections | 17.1 |
 | Q19 (2026-10-28) | **Keep the code engine** for custom components (one call each, in parallel, cached) | 17.3 |
 | Q20 (2026-10-28) | Component cache is **shared by all users, exact key only**; no similarity matching | 17.3 |
+| REQ (2026-10-30) | The requirement is **plain text or Markdown**, typed or uploaded as `.md` / `.txt` (UTF-8, ≤ 64 KB), for all three modes; one draft endpoint (`POST /spec-drafts`, `mode: backend\|static\|dynamic`). PDF / DOCX are not accepted | 2.4, 12.4, 9.2, 9.7b; requirements v1.5 (FR-01, FR-24) |
+| DESIGN (2026-10-30) | Drafts take their design direction from **UI UX Pro Max's data** (MIT; CSVs vendored at a pinned commit; our own ranker, their scripts not run): product type → palette, font pairing, section order, anti-patterns. **Taste Skill** is used only as rules (17.7 checklist, drafter copy rules), not as a step: its random art direction, browser critique loop (30–45 min a build) and photo fetching do not fit a no-engine renderer | New Story 12.6; 17.7 font set and checklist; `theme.direction` in FrontendSpec (additive, still 1.0) |
 | Q15 (2026-10-26) | Product renamed **Fullstack Generation Agent** (docs, UI, `APP_NAME`, LangSmith project). Internal identifiers stay: `bga-runner`, `.bga/`, compose project `bga`, schema `$id`s, repo folder | – |
 
 ## Changes from requirements v1.0 (accepted via Q1; now part of v1.1)
@@ -186,4 +198,5 @@ Open decisions along the way:
 | Q9 | Template fixes such as tests, ruff, `ConflictException` and the migrate-on-start entrypoint live in our overlay. Should they go upstream into `longtk26/template-frameworks@feat/fastapi` instead, so the overlay shrinks? | Overlay now; upstream later as a separate PR to your template repo |
 | Q16 | Which raster image provider for 15.5, if any? | Build 15.5 only when asked; Gemini image model first (key already used by Antigravity), behind a port |
 | Q17 | Should revisions also cover the backend (and contract changes in dynamic mode)? | Not in Epic 16; a later epic once frontend revisions prove out |
+| Q21 | Design direction (12.6): apply the top match automatically and offer 2 alternatives, or ask the user to pick one of 3 before the draft is written? | Top match applied, 2 alternatives switchable in the review |
 | Q10 | The template registers routers inside `lifespan`, so `app.openapi()` is empty unless the app has started. Should the overlay move router registration to module level? | No. Keep the template as-is and export OpenAPI inside a started app (6.2). |

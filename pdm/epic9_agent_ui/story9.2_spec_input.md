@@ -10,14 +10,16 @@ see validation errors while I type, and only submit when the spec is valid.
 ## Acceptance criteria
 
 - [ ] `/generations/new` with three tabs: *(Import and JSON done; Requirement waits for 2.4)*
-  - **Requirement**: textarea (with example prompts), engine select, "Draft spec" → draft job progress → the
-    resulting spec opens in the JSON tab, with **Assumptions** and **Unresolved** panels the user must acknowledge.
+  - **Requirement**: textarea (with example prompts), or drop / upload a `.md` / `.txt` file (loaded into the
+    textarea so it can be edited; 64 KB, UTF-8; other types rejected), engine select, "Draft spec" → draft job
+    progress → the resulting spec opens in the JSON tab, with **Assumptions** and **Unresolved** panels the user
+    must acknowledge. The same tab drafts static and dynamic specs in 9.7b (re-planned 2026-10-30).
   - **Import frontend JSON** (decision Q5): drop or upload a site JSON (or "Load sample" → `revue-de-mode.json`), and toggle
     "Include admin CRUD". Calls 2.5 and shows a preview before switching to the JSON tab:
     - **Generated example BackendSpec** (read-only Monaco, with "Edit in JSON tab" and "Download .json")
     - **Bindings** table: page → component → operationId, so it is visible which UI element drives which endpoint
     - **Seed data** table: the first rows per entity, with a count
-    - **Assumptions** / **Unresolved** panels, plus a "Refine with AI" button (2.4 `mode=frontend`, shows a diff against the deterministic draft)
+    - **Assumptions** / **Unresolved** panels, plus a "Refine with AI" button (2.4 `source=frontend`, shows a diff against the deterministic draft)
       *(button shown disabled until 2.4)*
   - **JSON**: Monaco editor bound to the BackendSpec JSON Schema (autocomplete, hover docs). Toolbar: Load example
     (from `examples/specs`), Upload `.json`, Format, Download.
