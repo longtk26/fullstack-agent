@@ -199,6 +199,7 @@ class GenerationTrace:
         inputs: dict[str, Any],
         metadata: dict[str, Any],
         tags: list[str],
+        name: str = ROOT_NAME,
     ) -> "GenerationTrace":
         client = langsmith_client()
         if client is None:
@@ -209,11 +210,11 @@ class GenerationTrace:
             common = {"ls_client": client, "tags": tags, "extra": {"metadata": metadata}, **destination()}
             if parent:
                 run = RunTree.from_dotted_order(
-                    parent, name=ROOT_NAME, run_type="chain", start_time=_start_of(parent), inputs=inputs, **common
+                    parent, name=name, run_type="chain", start_time=_start_of(parent), inputs=inputs, **common
                 )
                 return cls(str(run.trace_id), Span(run, posted=True), parent)
             run_id = uuid.UUID(trace_id) if trace_id else uuid.uuid4()
-            run = RunTree(id=run_id, name=ROOT_NAME, run_type="chain", inputs=inputs, **common)
+            run = RunTree(id=run_id, name=name, run_type="chain", inputs=inputs, **common)
             run.post()
             return cls(str(run.trace_id), Span(run, posted=True), run.dotted_order)
         except Exception:

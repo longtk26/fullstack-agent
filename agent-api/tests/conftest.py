@@ -16,6 +16,7 @@ os.environ["RATE_LIMIT_LOGIN"] = "5/minute"
 os.environ["RATE_LIMIT_STORAGE_URI"] = "memory://"
 os.environ["REDIS_URL"] = os.environ.get("REDIS_URL", "redis://localhost:6389/0").rsplit("/", 1)[0] + "/15"
 os.environ["ENGINE_SKILLS_DIR"] = str(Path(__file__).parents[2] / ".agents" / "skills")
+os.environ["EXAMPLES_DIR"] = str(Path(__file__).parents[2] / "examples")
 os.environ.setdefault("TEMPLATE_DIR", str(Path(__file__).parents[2] / ".data" / "fastapi-template"))
 # Pin settings a developer's .env may change (the Makefile exports .env into the test process).
 os.environ["DEFAULT_ENGINE"] = "claude_code"

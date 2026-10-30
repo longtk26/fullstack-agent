@@ -26,6 +26,13 @@ class Config(BaseSettings):
 
     spec_max_bytes: int = 1_000_000
     frontend_import_max_bytes: int = 5_000_000
+    # Requirement drafting (Stories 2.4, 12.4): plain text or Markdown, typed or from a .md / .txt file.
+    requirement_max_bytes: int = 65_536
+    draft_repair_attempts_backend: int = 1
+    draft_repair_attempts_frontend: int = 2
+    draft_concurrency: int = 2  # drafts per worker, on top of WORKER_CONCURRENCY generations
+    draft_stale_seconds: int = 120  # a running draft without a heartbeat this long is failed
+    draft_pending_timeout_seconds: int = 1800  # a draft no worker picked up this long is failed
 
     default_engine: str = "claude_code"
     enable_fake_engine: bool = True
@@ -35,6 +42,8 @@ class Config(BaseSettings):
     engine_max_output_bytes: int = 20_000_000
     engine_concurrency: int = 3  # parallel custom component generation (Story 17.3)
     engine_skills_dir: str = "/opt/bga/skills"
+    # Example specs (repo `examples/`): drafting references and the fake engine's draft fixtures.
+    examples_dir: str = "/opt/bga/examples"
     engine_skills: list[str] = ["fastapi-skills"]
     frontend_engine_skills: list[str] = ["nextjs-skills"]  # installed into the frontend workspace (Story 13.2)
 

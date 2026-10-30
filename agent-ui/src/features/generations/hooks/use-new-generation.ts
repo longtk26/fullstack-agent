@@ -29,6 +29,7 @@ type TNewGenerationInput = {
   mode: TGenerationMode;
   backendSpec: unknown;
   frontendSpec: unknown;
+  draftId: string | null;
   canSubmit: boolean;
   onCreated: () => void;
 };
@@ -53,7 +54,14 @@ function isEngineName(value: string): value is TGenerationOptionsFormValues["eng
  * Options form + submit. The Idempotency-Key is reused while the payload is unchanged, so a double click
  * (or a retry after a network error) cannot create two generations.
  */
-export function useNewGeneration({ mode, backendSpec, frontendSpec, canSubmit, onCreated }: TNewGenerationInput) {
+export function useNewGeneration({
+  mode,
+  backendSpec,
+  frontendSpec,
+  draftId,
+  canSubmit,
+  onCreated,
+}: TNewGenerationInput) {
   const router = useRouter();
   const engines = useEngines();
   const create = useCreateGeneration();
@@ -73,7 +81,7 @@ export function useNewGeneration({ mode, backendSpec, frontendSpec, canSubmit, o
 
   const submitOptions = async (options: TGenerationOptionsFormValues) => {
     if (!canSubmit) return;
-    const payload = buildPayload(mode, backendSpec, frontendSpec, options);
+    const payload = { ...buildPayload(mode, backendSpec, frontendSpec, options), ...(draftId ? { draftId } : {}) };
     const body = JSON.stringify(payload);
     if (lastSubmission.current?.body !== body) {
       lastSubmission.current = { body, key: crypto.randomUUID() };

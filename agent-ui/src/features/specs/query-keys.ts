@@ -6,5 +6,6 @@ export const specKeys = {
   validation: (kind: TSpecKind, text: string) => [...specKeys.all, "validation", kind, text] as const,
   pair: (frontendText: string, backendText: string) => [...specKeys.all, "pair", frontendText, backendText] as const,
   examples: () => [...specKeys.all, "examples"] as const,
+  draft: (draftId: string) => [...specKeys.all, "draft", draftId] as const,
   engines: () => ["engines"] as const,
 };

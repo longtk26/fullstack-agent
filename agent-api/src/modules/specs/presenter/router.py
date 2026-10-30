@@ -11,9 +11,12 @@ from src.modules.shared.domain.enums import SpecSource
 from src.modules.shared.domain.frontend_spec import LATEST_FRONTEND_SPEC_VERSION
 from src.modules.specs.presenter.dtos import (
     CheckSpecPairRequestDto,
+    CreateSpecDraftRequestDto,
+    CreateSpecDraftResponseDto,
     CreateSpecResponseDto,
     FrontendImportResponseDto,
     GetFrontendSpecResponseDto,
+    GetSpecDraftResponseDto,
     GetSpecResponseDto,
     SpecIssueDto,
     SpecPairReportDto,
@@ -22,9 +25,12 @@ from src.modules.specs.presenter.dtos import (
 from src.modules.specs.usecases import (
     CheckSpecPairUsecaseDep,
     CreateFrontendSpecUsecaseDep,
+    CreateSpecDraftUsecaseDep,
     CreateSpecUsecaseDep,
+    DraftRequest,
     GetFrontendSpecSchemaUsecaseDep,
     GetFrontendSpecUsecaseDep,
+    GetSpecDraftUsecaseDep,
     GetSpecSchemaUsecaseDep,
     GetSpecUsecaseDep,
     ImportFrontendSpecUsecaseDep,
@@ -128,7 +134,7 @@ async def check_spec_pair(
     `/validate`. Issues carry `path` (FrontendSpec) and, where known, `backendPath` (BackendSpec)."""
     result = await usecase.execute(body.frontend_spec, body.backend_spec)
     report = ValidationReportDto.from_domain(result.report)
-    return SpecPairReportDto(**report.model_dump(), checked=result.checked)
+    return SpecPairReportDto(**report.model_dump(), checked=result.checked, contract=result.contract)
 
 
 @frontend_spec_router.post(
@@ -154,3 +160,25 @@ async def get_frontend_spec(
     spec_id: uuid.UUID, user: CurrentUserDep, usecase: GetFrontendSpecUsecaseDep
 ) -> GetFrontendSpecResponseDto:
     return GetFrontendSpecResponseDto.from_entity(await usecase.execute(spec_id, user))
+
+
+# -- Drafts (Stories 2.4, 12.4) ----------------------------------------------------------------------------------
+
+spec_draft_router = APIRouter(prefix="/api/v1/spec-drafts", tags=["spec-drafts"])
+
+
+@spec_draft_router.post("", response_model=CreateSpecDraftResponseDto, status_code=status.HTTP_202_ACCEPTED)
+async def create_spec_draft(
+    body: CreateSpecDraftRequestDto, user: CurrentUserDep, usecase: CreateSpecDraftUsecaseDep
+) -> CreateSpecDraftResponseDto:
+    """Queues a draft job: a requirement (plain text or Markdown, up to 64 KB) becomes a BackendSpec (`backend`),
+    a FrontendSpec (`static`) or both (`dynamic`). Poll `GET /spec-drafts/{id}`; the draft is never submitted."""
+    draft = await usecase.execute(user, DraftRequest(**body.model_dump()))
+    return CreateSpecDraftResponseDto(draft_id=str(draft.id), status=draft.status)
+
+
+@spec_draft_router.get("/{draft_id}", response_model=GetSpecDraftResponseDto)
+async def get_spec_draft(
+    draft_id: uuid.UUID, user: CurrentUserDep, usecase: GetSpecDraftUsecaseDep
+) -> GetSpecDraftResponseDto:
+    return GetSpecDraftResponseDto.from_entity(await usecase.execute(draft_id, user))

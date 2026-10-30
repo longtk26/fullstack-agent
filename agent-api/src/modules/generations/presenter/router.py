@@ -49,6 +49,7 @@ async def create_generation(
             spec_id=body.spec_id,
             frontend_spec=body.frontend_spec,
             frontend_spec_id=body.frontend_spec_id,
+            draft_id=body.draft_id,
         ),
         body.options.model_dump(by_alias=True),
         idempotency_key,

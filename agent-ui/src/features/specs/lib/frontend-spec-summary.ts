@@ -1,0 +1,97 @@
+export type TPageSummary = { id: string; route: string; title: string; sectionCount: number; operations: string[] };
+export type TComponentSummary = { name: string; custom: boolean; pages: string[] };
+export type TThemeSummary = {
+  style: string | null;
+  colorScheme: string | null;
+  colors: { name: string; value: string }[];
+  headingFont: string | null;
+  bodyFont: string | null;
+  radius: string | null;
+};
+export type TFrontendSpecSummary = {
+  projectName: string | null;
+  mode: string | null;
+  pages: TPageSummary[];
+  theme: TThemeSummary;
+  components: TComponentSummary[];
+};
+
+type TLoose = Record<string, unknown>;
+
+function asObject(value: unknown): TLoose {
+  return typeof value === "object" && value !== null && !Array.isArray(value) ? (value as TLoose) : {};
+}
+
+function asArray(value: unknown): TLoose[] {
+  return Array.isArray(value) ? value.filter((item): item is TLoose => typeof item === "object" && item !== null) : [];
+}
+
+function asString(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
+}
+
+/** The page id the API derives when a page has none: `/` → `home`, `/products/[id]` → `products-id`. */
+function pageIdFromRoute(route: string): string {
+  const parts = route.split("/").filter(Boolean).map((part) => part.replace(/^\[|\]$/g, "").toLowerCase());
+  return parts.join("-") || "home";
+}
+
+/** Every section of a page, including those nested in layout nodes (`children`). */
+function walkSections(sections: TLoose[]): TLoose[] {
+  return sections.flatMap((section) => [section, ...walkSections(asArray(section.children))]);
+}
+
+/** A tolerant read of a (possibly invalid) FrontendSpec for the review panel (Story 9.7b); never throws. */
+export function summarizeFrontendSpec(spec: unknown): TFrontendSpecSummary {
+  const root = asObject(spec);
+  const project = asObject(root.project);
+  const theme = asObject(root.theme);
+  const typography = asObject(theme.typography);
+  const custom = new Set(asArray(root.components).map((component) => asString(component.name)).filter(Boolean));
+  const forms = new Map(asArray(root.forms).map((form) => [asString(form.id), asString(form.operationId)]));
+  const usedBy = new Map<string, Set<string>>();
+
+  const pages = asArray(root.pages).map((page) => {
+    const route = asString(page.route) ?? "?";
+    const id = asString(page.id) ?? pageIdFromRoute(route);
+    const sections = walkSections(asArray(page.sections));
+    const operations = new Set<string>();
+    for (const section of sections) {
+      const component = asString(section.component);
+      if (component) usedBy.set(component, (usedBy.get(component) ?? new Set()).add(id));
+      const operationId = asString(asObject(section.data).operationId);
+      if (operationId) operations.add(operationId);
+      const formOperation = forms.get(asString(section.form) ?? asString(asObject(section.content).form));
+      if (formOperation) operations.add(formOperation);
+    }
+    return {
+      id,
+      route,
+      title: asString(page.title) ?? id,
+      sectionCount: sections.length,
+      operations: [...operations],
+    };
+  });
+
+  for (const name of custom) if (name && !usedBy.has(name)) usedBy.set(name, new Set());
+  const components = [...usedBy.entries()]
+    .map(([name, used]) => ({ name, custom: custom.has(name), pages: [...used] }))
+    .sort((a, b) => Number(b.custom) - Number(a.custom) || a.name.localeCompare(b.name));
+
+  return {
+    projectName: asString(project.name),
+    mode: asString(project.mode),
+    pages,
+    theme: {
+      style: asString(theme.style),
+      colorScheme: asString(theme.colorScheme),
+      colors: Object.entries(asObject(theme.colors)).flatMap(([name, value]) =>
+        typeof value === "string" ? [{ name, value }] : [],
+      ),
+      headingFont: asString(typography.headingFont),
+      bodyFont: asString(typography.bodyFont),
+      radius: asString(theme.radius),
+    },
+    components,
+  };
+}

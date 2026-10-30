@@ -107,19 +107,20 @@ workflow to be built before real generation works.
    (plain text, `.md` or `.txt` for backend, static and dynamic) → 17.7 (fonts, variants, design checklist) → 12.6
    (design direction from UI UX Pro Max data) → E15 → E16 → 17.8 → E10 → E11.
 
-### Status (2026-10-29)
+### Status (2026-10-30)
 
 | Epic | State |
 |---|---|
 | 1, 2 (2.1–2.3, 2.5), 3, 4, 5, 6 (6.1–6.2) | done (merged to `main`); 6.3 repair loop works on real failures |
 | 7 | done (merged to `main`) |
-| 8 | done (8.4 draft-job accounting waits for 2.4 / 12.4) |
-| 9 | 9.1–9.6, 9.7a, 9.8, 9.9 and 9.10 done (9.6 auth helper waits for Epic 10); 9.7b open |
-| 12 | 12.1–12.3 and 12.5 done; 12.4 open |
+| 8 | done (draft jobs accounted since 2026-10-30) |
+| 9 | 9.1–9.10 done (9.6 auth helper waits for Epic 10; 9.7b's Design panel waits for 12.6; 9.2's "Refine with AI" button open) |
+| 12 | 12.1–12.5 done (12.4 on `feat/story2.4-requirement-drafting`); 12.6 planned |
 | 13 | done |
 | 14 | done (14.1 parallel lanes, 14.2 live-API switch + `/integration/{recheck,use-mocks}`, 14.3 live contract & Playwright smoke checks) |
 | 17 | 17.5, 17.1, 17.2, 17.4, 17.3, 17.6 done (auto-fix, shared node_modules; typed content and layout nodes; static sites ~44 s and dynamic frontends rendered without the engine; parallel custom components & component cache; backend CRUD from templates, dynamic shop 59 s with 0 engine calls); 17.8 (custom component layout, found on the first cached shop run) and 17.7 open |
-| 2.4, 10, 11, 15, 16 | open |
+| 2.4 | done 2026-10-30 (requirement drafting for backend, static and dynamic; with 12.4, 9.2 Requirement tab, 9.7b) |
+| 10, 11, 15, 16 | open |
 
 ### Next up (re-planned 2026-10-30)
 
@@ -134,7 +135,7 @@ Work in this order; start each item in a fresh session ("implement stories 2.4 a
 
 | # | Item | What the user gets | Why at this point |
 |---|---|---|---|
-| 1 | **2.4 + 12.4, with the 9.2 Requirement tab and 9.7b** | A requirement typed or uploaded (`.md` / `.txt`) → draft BackendSpec (backend), FrontendSpec (static) or both (dynamic), with assumptions and unresolved items to acknowledge, editable before submit | Users no longer need to write JSON. Drafts aim at the typed section catalogue (17.1) and the CRUD templates (17.6), so they build with no engine call. Dynamic drafts must pass the pair consistency check |
+| 1 | ~~**2.4 + 12.4, with the 9.2 Requirement tab and 9.7b**~~ done 2026-10-30 | A requirement typed or uploaded (`.md` / `.txt`) → draft BackendSpec (backend), FrontendSpec (static) or both (dynamic), with assumptions and unresolved items to acknowledge, editable before submit | Users no longer need to write JSON. Drafts aim at the typed section catalogue (17.1) and the CRUD templates (17.6), so they build with no engine call. Dynamic drafts must pass the pair consistency check |
 | 2 | **17.7** | Fonts that load, section variants, section library checked against the design checklist | 12.6 needs fonts that really load and variants to choose between |
 | 3 | **12.6** | Each draft gets a theme, font pairing and home page structure suited to its kind of site, with 2 alternatives to switch between | Colours and fonts come from curated, contrast-checked data instead of model-invented values |
 | 4 | **Epic 15** (15.1–15.4) | Real images: engine-drawn SVGs in theme colours, uploads, links (15.5 only if asked) | Replaces the placeholders; assets are section props on the renderer |

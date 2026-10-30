@@ -38,6 +38,8 @@ class FakeStep(BaseModel):
     # (a plain generic component for any other name), optionally with the planted colour defect.
     custom_component: bool = False
     plant_component_defect: bool = False
+    # Spec drafts (Stories 2.4, 12.4): write the example spec(s) matching the requirement in `.bga/` (DRAFT_FIXTURES).
+    draft_fixture: bool = False
     delete: list[str] = []
     sleep_s: float = 0
     crash: bool = False
@@ -94,6 +96,55 @@ def write_custom_component(workdir: Path, defect: bool) -> str:
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(code)
     return request["file"]
+
+
+# TESTING / DEMO ONLY (docs/development/test-doubles.md). Draft fixtures: the example specs (EXAMPLES_DIR) a
+# requirement mentioning the keyword drafts to, per mode; `examples/requirements/*.md` match one each.
+DRAFT_FIXTURES = [
+    (
+        "corner shop",
+        {"backend": ["specs/shop.json"], "dynamic": ["frontend-specs/shop-dynamic.json", "specs/shop.json"]},
+    ),
+    ("northwind", {"static": ["frontend-specs/static-landing.json"]}),
+]
+DRAFT_DEFAULTS = {
+    "backend": ["specs/two-entity.json"],
+    "static": ["frontend-specs/static-landing.json"],
+    "dynamic": ["frontend-specs/project-tracker-dynamic.json", "specs/two-entity.json"],
+}
+
+
+def write_draft_fixture(workdir: Path) -> list[str]:
+    """The draft the orchestrator asked for in `.bga/draft.json` (orchestrator/drafting.py), from the examples."""
+    from src.configs import config
+
+    inputs = workdir / ".bga"
+    request = json.loads((inputs / "draft.json").read_text())
+    mode = request["mode"]
+    if request["source"] == "frontend":
+        shutil.copyfile(inputs / "base-spec.json", workdir / "backend-spec.json")
+        written, picked = ["backend-spec.json"], "the imported site"
+    else:
+        text = next((p.read_text() for p in (inputs / "requirement.md", inputs / "requirement.txt") if p.is_file()), "")
+        files = next(
+            (by_mode[mode] for keyword, by_mode in DRAFT_FIXTURES if keyword in text.lower() and mode in by_mode),
+            DRAFT_DEFAULTS[mode],
+        )
+        written = []
+        for name in files:
+            target = "frontend-spec.json" if name.startswith("frontend-specs/") else "backend-spec.json"
+            shutil.copyfile(Path(config.examples_dir) / name, workdir / target)
+            written.append(target)
+        picked = ", ".join(files)
+    spec = "backend" if mode == "backend" else "frontend"
+    notes = {
+        "assumptions": [{"spec": spec, "path": "", "message": f"Fake engine: drafted from {picked}"}],
+        "unresolved": []
+        if mode == "static"
+        else [{"spec": "backend", "path": "/operations", "message": "Who may change or delete records is not stated"}],
+    }
+    (workdir / "notes.json").write_text(json.dumps(notes, indent=2) + "\n")
+    return [*written, "notes.json"]
 
 
 def _project_name(spec_path: Path) -> str | None:
@@ -178,6 +229,10 @@ def demo_scenario(delay_s: float = 0.3) -> dict[str, list[FakeStep]]:
         "repair_frontend": [
             FakeStep(sleep_s=delay_s, golden_frontend=True, message="Replaced the hard-coded colour with a token."),
         ],
+        # Spec drafts (Stories 2.4, 12.4): the example spec(s) the requirement matches; nothing to repair.
+        "draft_spec": [FakeStep(sleep_s=delay_s, draft_fixture=True, message="Drafted the spec.")],
+        "draft_frontend_spec": [FakeStep(sleep_s=delay_s, draft_fixture=True, message="Drafted the specs.")],
+        "repair_spec": [FakeStep(sleep_s=delay_s, message="Nothing to repair.")],
         "*": [FakeStep(write={"FAKE_ENGINE.md": "Written by the fake engine.\n"})],
     }
 
@@ -273,6 +328,10 @@ class FakeEngine(ICodeEngine):
                 if source is not None and step.plant_frontend_defect:
                     shell = workdir / FRONTEND_SHELL
                     shell.write_text(shell.read_text().replace('className="', f'className="{PLANTED_COLOR}', 1))
+                if step.draft_fixture:
+                    for relative in write_draft_fixture(workdir):
+                        await emit(EngineEventKind.TOOL_USE, f"Write {relative}", tool="Write", target=relative)
+                        tools.append(ToolCall(name="Write", target=relative, started_at=datetime.now(UTC)))
                 if step.custom_component or step.plant_component_defect:
                     relative = write_custom_component(workdir, step.plant_component_defect)
                     await emit(EngineEventKind.TOOL_USE, f"Write {relative}", tool="Write", target=relative)

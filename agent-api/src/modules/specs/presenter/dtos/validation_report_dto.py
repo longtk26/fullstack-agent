@@ -39,6 +39,8 @@ class CheckSpecPairRequestDto(CamelModel):
 
 
 class SpecPairReportDto(ValidationReportDto):
-    """Consistency issues only; `checked` is false when a spec is invalid or the FrontendSpec is static."""
+    """Consistency issues only; `checked` is false when a spec is invalid or the FrontendSpec is static.
+    `contract` is the BackendSpec's API contract (OpenAPI 3.1) when checked, for the review's read-only preview."""
 
     checked: bool
+    contract: dict[str, Any] | None = None

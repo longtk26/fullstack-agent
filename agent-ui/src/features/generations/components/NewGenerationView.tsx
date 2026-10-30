@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import { AppWindow, Braces, FileInput, Globe, MessageSquareText, Rocket } from "lucide-react";
+import { useWatch } from "react-hook-form";
+import { AppWindow, Braces, FileCode, FileInput, Globe, MessageSquareText, Rocket } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +11,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Stack } from "@/components/layout/Stack";
 import { ConsistencyIssueList } from "@/features/specs/components/ConsistencyIssueList";
 import { FrontendImportTab } from "@/features/specs/components/FrontendImportTab";
+import { FrontendSpecSummaryPanel } from "@/features/specs/components/FrontendSpecSummaryPanel";
+import { JsonEditor } from "@/features/specs/components/JsonEditor";
 import { JsonTab } from "@/features/specs/components/JsonTab";
 import { RequirementTab } from "@/features/specs/components/RequirementTab";
 import { SpecSummaryPanel } from "@/features/specs/components/SpecSummaryPanel";
@@ -18,6 +21,7 @@ import { useJsonEditor } from "@/features/specs/hooks/use-json-editor";
 import { useSpecPairCheck } from "@/features/specs/hooks/use-spec-pair-check";
 import { useSpecValidation } from "@/features/specs/hooks/use-spec-validation";
 import type { TEditorIssue } from "@/features/specs/hooks/use-spec-validation";
+import { summarizeFrontendSpec } from "@/features/specs/lib/frontend-spec-summary";
 import { summarizeSpec } from "@/features/specs/lib/spec-summary";
 import type { TSpecKind, TSpecTab } from "@/features/specs/types";
 import { useSpecDraftStore } from "@/store/spec-draft-store";
@@ -30,8 +34,8 @@ import { SpecValidationCard } from "./SpecValidationCard";
 
 const MODE_TABS: Record<TGenerationMode, TSpecTab[]> = {
   backend: ["requirement", "import", "json"],
-  static: ["frontend"],
-  dynamic: ["frontend", "json"],
+  static: ["requirement", "frontend"],
+  dynamic: ["requirement", "frontend", "json", "contract"],
 };
 
 const SUBMIT_LABELS: Record<TGenerationMode, string> = {
@@ -54,6 +58,7 @@ export function NewGenerationView() {
   const activeTab = useSpecDraftStore((state) => state.activeTab);
   const setActiveTab = useSpecDraftStore((state) => state.setActiveTab);
   const clearDraft = useSpecDraftStore((state) => state.clearDraft);
+  const appliedDraft = useSpecDraftStore((state) => state.appliedDraft);
 
   const editors = { backend: useJsonEditor(), frontend: useJsonEditor() };
   const backend = useSpecValidation("backend", specText);
@@ -64,6 +69,7 @@ export function NewGenerationView() {
     { ...backend, text: specText },
   );
   const summary = useMemo(() => summarizeSpec(backend.parsed), [backend.parsed]);
+  const frontendSummary = useMemo(() => summarizeFrontendSpec(frontend.parsed), [frontend.parsed]);
   const offerPair = useExamplePairOffer(setSpecText);
 
   const canSubmit = {
@@ -75,9 +81,12 @@ export function NewGenerationView() {
     mode,
     backendSpec: backend.parsed,
     frontendSpec: frontend.parsed,
+    // The requirement draft the editors were filled from, so the generation keeps its requirement (2.4, 12.4).
+    draftId: appliedDraft?.mode === mode ? appliedDraft.id : null,
     canSubmit,
     onCreated: clearDraft,
   });
+  const engine = useWatch({ control: submit.form.control, name: "engine" });
 
   useEffect(() => {
     useSpecDraftStore.persist.rehydrate();
@@ -120,10 +129,15 @@ export function NewGenerationView() {
                 <Braces /> {mode === "dynamic" ? "BackendSpec" : "JSON"}
               </TabsTrigger>
             )}
+            {tabs.includes("contract") && (
+              <TabsTrigger value="contract">
+                <FileCode /> Contract
+              </TabsTrigger>
+            )}
           </TabsList>
           {tabs.includes("requirement") && (
-            <TabsContent value="requirement" className="pt-2">
-              <RequirementTab />
+            <TabsContent value="requirement" className="pt-2" keepMounted>
+              <RequirementTab mode={mode} engine={engine ?? null} />
             </TabsContent>
           )}
           {tabs.includes("import") && (
@@ -154,6 +168,22 @@ export function NewGenerationView() {
                 issues={backend.issues}
                 parsed={backend.parsed}
               />
+            </TabsContent>
+          )}
+          {tabs.includes("contract") && (
+            <TabsContent value="contract" className="pt-2">
+              {pair.contract ? (
+                <Stack gap="xs">
+                  <p className="text-sm text-muted-foreground">
+                    The API contract (OpenAPI 3.1) both lanes are generated from. Read-only: change the BackendSpec.
+                  </p>
+                  <JsonEditor path="contract.json" value={JSON.stringify(pair.contract, null, 2)} readOnly />
+                </Stack>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  The contract appears once the FrontendSpec and BackendSpec are both valid.
+                </p>
+              )}
             </TabsContent>
           )}
         </Tabs>
@@ -194,6 +224,18 @@ export function NewGenerationView() {
                     onSelect={jumpToPointer}
                   />
                   {pair.requestError && <p className="mt-2 text-sm text-destructive">{pair.requestError.message}</p>}
+                </CardContent>
+              </Card>
+            )}
+
+            {mode !== "backend" && (
+              <Card size="sm">
+                <CardHeader>
+                  <CardTitle>{frontendSummary.projectName ?? "Site"}</CardTitle>
+                  <CardDescription>What the current FrontendSpec builds.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <FrontendSpecSummaryPanel summary={frontendSummary} showOperations={mode === "dynamic"} />
                 </CardContent>
               </Card>
             )}

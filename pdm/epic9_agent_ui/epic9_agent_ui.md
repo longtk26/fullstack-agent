@@ -65,3 +65,5 @@ Code: `agent-ui/src/features/{auth,generations,specs}`, `agent-ui/src/app/api/pr
 
 **Status (2026-10-27):** 9.4 (Trace tab: totals, per-node table, span waterfall with filters and a span drawer) and
 9.10 (Usage & traces page) done on top of Epic 8.
+
+**Status (2026-10-30):** the Requirement tab (9.2) and 9.7b done, except 9.7b's Design panel (12.6) and 9.2's "Refine with AI" button.

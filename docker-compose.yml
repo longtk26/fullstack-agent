@@ -104,6 +104,7 @@ services:
       target: worker
       additional_contexts:
         skills: ./.agents/skills
+        examples: ./examples
     environment: *agent-env
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock

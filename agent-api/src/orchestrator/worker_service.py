@@ -11,9 +11,10 @@ from src.configs import config, get_logger
 from src.engines import EngineHealthStore, EngineRegistry
 from src.libs.queue import CANCEL_PREFIX, JobQueue
 from src.modules.generations.infrastructure.adapters import EventPublisher
-from src.modules.shared.domain.enums import GenerationStatus
+from src.modules.shared.domain.enums import GenerationStatus, SpecDraftStatus
 from src.modules.shared.domain.generation_modes import close_lanes
 
+from .drafting import DraftRunner
 from .previews import PreviewService
 from .runner import JobRunner
 from .store import JobStore
@@ -47,6 +48,7 @@ class WorkerService:
         concurrency: int = config.worker_concurrency,
         previews: PreviewService | None = None,
         engines: list[str] | None = None,
+        drafts: DraftRunner | None = None,
     ):
         self.runner = runner
         self.queue = queue
@@ -64,6 +66,9 @@ class WorkerService:
         self.previews = previews
         self.tasks: dict[str, asyncio.Task] = {}
         self.preview_tasks: set[asyncio.Task] = set()
+        self.drafts = drafts
+        self.draft_slots = asyncio.Semaphore(config.draft_concurrency)
+        self.draft_tasks: dict[str, asyncio.Task] = {}
         self._shutting_down = False
 
     async def run(self, stop: asyncio.Event) -> None:
@@ -81,6 +86,8 @@ class WorkerService:
         ]
         if self.previews is not None:
             background.append(asyncio.create_task(self._preview_commands(stop)))
+        if self.drafts is not None:
+            background.append(asyncio.create_task(self._consume_drafts(stop)))
         try:
             await self._consume(stop)
         finally:
@@ -116,6 +123,33 @@ class WorkerService:
             def done(_: asyncio.Task, gen=generation_id) -> None:
                 self.tasks.pop(gen, None)
                 slots.release()
+
+            task.add_done_callback(done)
+
+    async def _consume_drafts(self, stop: asyncio.Event) -> None:
+        """Drafting jobs (Stories 2.4, 12.4): their own queue and slots, so drafts never wait behind generations."""
+        backoff = 0.5
+        while not stop.is_set():
+            await self.draft_slots.acquire()
+            try:
+                draft_id = await self.queue.dequeue_draft(self.engines)
+            except TRANSIENT_ERRORS as exc:
+                self.draft_slots.release()
+                logger.warning("draft queue unavailable, retrying", extra={"error": str(exc), "retry_in_s": backoff})
+                await _sleep_or_stop(stop, backoff)
+                backoff = min(backoff * 2, MAX_BACKOFF_S)
+                continue
+            backoff = 0.5
+            if draft_id is None:
+                self.draft_slots.release()
+                await _sleep_or_stop(stop, 0.5)
+                continue
+            task = asyncio.create_task(self.drafts.run(draft_id))
+            self.draft_tasks[draft_id] = task
+
+            def done(_: asyncio.Task, key=draft_id) -> None:
+                self.draft_tasks.pop(key, None)
+                self.draft_slots.release()
 
             task.add_done_callback(done)
 
@@ -220,6 +254,7 @@ class WorkerService:
 
     async def reap(self) -> None:
         now = datetime.now(UTC)
+        self.reap_drafts(now)
         for generation in self.store.stale_active(now - timedelta(seconds=config.worker_lease_ttl_seconds)):
             if generation.id in self.tasks or await self.queue.has_lease(generation.id):
                 continue
@@ -256,6 +291,25 @@ class WorkerService:
                 await self.queue.enqueue(generation.id, generation.engine)
                 logger.warning("re-enqueued orphaned pending generation", extra={"generation_id": generation.id})
 
+    def reap_drafts(self, now: datetime) -> None:
+        """Fails drafts whose worker stopped (no heartbeat) or that no worker picked up in time."""
+        running_before = now - timedelta(seconds=config.draft_stale_seconds)
+        for draft in self.store.stale_drafts(running_before):
+            if str(draft.id) in self.draft_tasks:
+                continue
+            pending = draft.status == SpecDraftStatus.PENDING
+            if (
+                pending
+                and draft.updated_at
+                and draft.updated_at > now - timedelta(seconds=config.draft_pending_timeout_seconds)
+            ):
+                continue
+            message = "No worker picked up the draft" if pending else "The worker running the draft stopped"
+            self.store.update_draft(
+                draft.id, status=SpecDraftStatus.FAILED, error=message, progress=None, finished_at=now
+            )
+            logger.warning("failed stale draft", extra={"draft_id": str(draft.id), "reason": message})
+
     async def cleanup_sandboxes(self) -> int:
         """Removes sandboxes whose generation finished or vanished (e.g. a worker died mid-job)."""
         provider = self.runner.sandboxes
@@ -283,6 +337,9 @@ class WorkerService:
                 logger.info("pruned trace details", extra={"generations": len(old)})
 
     async def _shutdown(self) -> None:
+        for task in list(self.draft_tasks.values()):
+            task.cancel()  # a draft is cheap to redo; the reaper fails it and the user drafts again
+        await asyncio.gather(*self.draft_tasks.values(), return_exceptions=True)
         if not self.tasks:
             return
         logger.info("waiting for running jobs", extra={"jobs": list(self.tasks)})

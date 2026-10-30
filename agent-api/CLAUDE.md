@@ -56,6 +56,13 @@ Agent-specific notes:
   as owned (`scaffold.add_owned`). The engine only completes what `codegen_gaps` / `database_gaps` name (custom
   operations, rules, auth; one-to-one / many-to-many models), with the `complete_backend` prompt.
   `options.crudFromTemplates=false` restores the engine path (tests of the engine plumbing use it).
+- Requirement drafting (Stories 2.4, 12.4): `POST/GET /api/v1/spec-drafts` (`specs` module) stores a `spec_drafts` row
+  and queues it on `bga:drafts:<engine>`; the worker's `_consume_drafts` (own slots, `DRAFT_CONCURRENCY`) runs
+  `orchestrator/drafting.py` in `<WORKSPACE_ROOT>/drafts/<id>/` (inputs in `.bga/`: schemas, an example from
+  `EXAMPLES_DIR`, the section catalogue), validates (+ pair check in dynamic mode), repairs with `repair_spec`, and ends
+  SUCCEEDED / NEEDS_REVIEW / FAILED. Usage is kept on the draft (`usage`), not in `model_calls` (those belong to a
+  generation); `/usage` reports it as `drafts`. A generation created with `draftId` stores `options.draftId`, and
+  packaging writes `requirement.md` / `.txt`. Requirement checks: `modules/shared/domain/requirement.py`.
 - Test doubles (fake engine, golden two-entity project, static validator, fake CLIs, opt-in test flags) are listed in
   `docs/development/test-doubles.md`; add any new fake there and mark it at its definition.
 

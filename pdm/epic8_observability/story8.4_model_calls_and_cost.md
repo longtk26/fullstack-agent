@@ -31,7 +31,7 @@ what it cost) and the totals per node, lane and generation, so that I know where
 - [x] Rollups: per node run, per lane (frontend / backend / integration), per generation — wall time, engine
       time, sandbox time, model calls, tokens by kind, cost (reported + estimated) — exposed in
       `GET /api/v1/generations/{id}/usage` and written to `report.json`.
-- [ ] Draft jobs (2.4, 12.4) are traced and accounted the same way, so the cost of drafting is visible too.
+- [x] Draft jobs (2.4, 12.4) are traced and accounted the same way, so the cost of drafting is visible too.
 
 **Status (2026-10-27):** done except draft jobs (`src/engines/pricing.py`, the stream parsers, `model_calls` table,
 `GET /generations/{id}/usage`, `report.json`). Deviations and notes:
@@ -45,5 +45,7 @@ what it cost) and the totals per node, lane and generation, so that I know where
 - With `ANTIGRAVITY_AUTH=account` agy runs on account quota; its estimated cost is what the same tokens would
   cost at API list price.
 - Lanes: everything is `backend` until Epic 14 adds the frontend lane.
-- Draft jobs (2.4, 12.4) are not traced yet: requirement drafting does not exist yet; it should reuse
-  `JobContext.run_engine`, which records model calls and spans.
+- Draft jobs (2026-10-30): each engine call of a draft is recorded on the draft row (`spec_drafts.usage`: prompt,
+  duration, tokens, cost, model calls) and traced as a `spec-draft` root run with one engine span per call. They are
+  not in `cli_invocations` / `model_calls`, whose rows belong to a generation. `GET /usage` adds a `drafts` block
+  (count by status and mode, engine time, model calls, tokens, cost), shown as two tiles on the Usage page.

@@ -12,11 +12,17 @@ from src.libs.security import ensure_owner
 from src.modules.generations.infrastructure.adapters import EngineRegistryDep, EventPublisherDep, JobQueueDep, RedisDep
 from src.modules.generations.ports.output import IGenerationRepoDep
 from src.modules.shared.domain.backend_spec import validate_spec_data
-from src.modules.shared.domain.entities import BackendSpecEntity, FrontendSpecEntity, GenerationEntity, UserEntity
-from src.modules.shared.domain.enums import GenerationMode, SpecSource
+from src.modules.shared.domain.entities import (
+    BackendSpecEntity,
+    FrontendSpecEntity,
+    GenerationEntity,
+    SpecDraftEntity,
+    UserEntity,
+)
+from src.modules.shared.domain.enums import GenerationMode, SpecDraftStatus, SpecSource
 from src.modules.shared.domain.frontend_spec import validate_frontend_spec_data
 from src.modules.shared.domain.generation_modes import initial_lanes
-from src.modules.specs.ports.output import IBackendSpecRepoDep, IFrontendSpecRepoDep
+from src.modules.specs.ports.output import IBackendSpecRepoDep, IFrontendSpecRepoDep, ISpecDraftRepoDep
 
 IDEMPOTENCY_TTL_S = 24 * 3600
 NEEDS_BACKEND = {GenerationMode.BACKEND, GenerationMode.DYNAMIC}
@@ -34,6 +40,7 @@ class GenerationInputs(BaseModel):
     spec_id: uuid.UUID | None = None
     frontend_spec: dict[str, Any] | None = None
     frontend_spec_id: uuid.UUID | None = None
+    draft_id: uuid.UUID | None = None
 
     def check(self) -> None:
         """Story 12.2: exactly the inputs the mode needs, else 422 MODE_INPUT_MISMATCH."""
@@ -65,6 +72,7 @@ class CreateGenerationUsecase:
         generation_repo: IGenerationRepoDep,
         spec_repo: IBackendSpecRepoDep,
         frontend_spec_repo: IFrontendSpecRepoDep,
+        draft_repo: ISpecDraftRepoDep,
         queue: JobQueueDep,
         events: EventPublisherDep,
         registry: EngineRegistryDep,
@@ -73,6 +81,7 @@ class CreateGenerationUsecase:
         self.generation_repo = generation_repo
         self.spec_repo = spec_repo
         self.frontend_spec_repo = frontend_spec_repo
+        self.draft_repo = draft_repo
         self.queue = queue
         self.events = events
         self.registry = registry
@@ -125,8 +134,11 @@ class CreateGenerationUsecase:
 
     @Transactional
     async def _persist(self, user, inputs: GenerationInputs, options, engine) -> GenerationEntity:
-        backend = self._backend_spec(user, inputs) if inputs.mode in NEEDS_BACKEND else None
-        frontend = self._frontend_spec(user, inputs) if inputs.mode in NEEDS_FRONTEND else None
+        draft = self._draft(user, inputs)
+        if draft is not None:
+            options = {**options, "draftId": str(draft.id)}
+        backend = self._backend_spec(user, inputs, draft) if inputs.mode in NEEDS_BACKEND else None
+        frontend = self._frontend_spec(user, inputs, draft) if inputs.mode in NEEDS_FRONTEND else None
         return self.generation_repo.create(
             GenerationEntity(
                 id=new_generation_id(),
@@ -140,7 +152,32 @@ class CreateGenerationUsecase:
             )
         )
 
-    def _backend_spec(self, user: UserEntity, inputs: GenerationInputs) -> BackendSpecEntity:
+    def _draft(self, user: UserEntity, inputs: GenerationInputs) -> SpecDraftEntity | None:
+        """The finished draft the inline specs were edited from; its requirement goes with the specs."""
+        if inputs.draft_id is None:
+            return None
+        draft = self.draft_repo.find_by_id(inputs.draft_id)
+        if draft is None:
+            raise UnprocessableEntityException("draftId does not exist", code=ErrorCode.VALIDATION_ERROR)
+        ensure_owner(draft.owner_id, user.id, user.is_admin, resource="Draft")
+        if draft.status not in (SpecDraftStatus.SUCCEEDED, SpecDraftStatus.NEEDS_REVIEW):
+            raise UnprocessableEntityException(f"The draft is {draft.status}", code=ErrorCode.VALIDATION_ERROR)
+        if draft.mode != inputs.mode:
+            raise UnprocessableEntityException(
+                f"The draft is for mode '{draft.mode}' but the generation mode is '{inputs.mode}'",
+                code=ErrorCode.MODE_INPUT_MISMATCH,
+            )
+        return draft
+
+    @staticmethod
+    def _origin(draft: SpecDraftEntity | None) -> dict[str, Any]:
+        if draft is None or draft.source != SpecSource.REQUIREMENT:
+            return {"source": SpecSource.JSON}
+        return {"source": SpecSource.REQUIREMENT, "requirement_text": draft.requirement_text}
+
+    def _backend_spec(
+        self, user: UserEntity, inputs: GenerationInputs, draft: SpecDraftEntity | None = None
+    ) -> BackendSpecEntity:
         if inputs.spec_id is not None:
             spec = self.spec_repo.find_by_id(inputs.spec_id)
             if spec is None:
@@ -157,11 +194,13 @@ class CreateGenerationUsecase:
                 spec_version=version if isinstance(version, str) else "unknown",
                 raw_json=json.dumps(backend_spec, ensure_ascii=False, indent=2),
                 normalized_json=result.normalized,
-                source=SpecSource.JSON,
+                **self._origin(draft),
             )
         )
 
-    def _frontend_spec(self, user: UserEntity, inputs: GenerationInputs) -> FrontendSpecEntity:
+    def _frontend_spec(
+        self, user: UserEntity, inputs: GenerationInputs, draft: SpecDraftEntity | None = None
+    ) -> FrontendSpecEntity:
         if inputs.frontend_spec_id is not None:
             spec = self.frontend_spec_repo.find_by_id(inputs.frontend_spec_id)
             if spec is None:
@@ -180,7 +219,7 @@ class CreateGenerationUsecase:
                 mode=result.normalized["project"]["mode"] if result.normalized else None,
                 raw_json=json.dumps(frontend_spec, ensure_ascii=False, indent=2),
                 normalized_json=result.normalized,
-                source=SpecSource.JSON,
+                **self._origin(draft),
             )
         )
 

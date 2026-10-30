@@ -50,7 +50,7 @@ generation gen_01H… (root, metadata: generation_id, owner, mode, engine, spec 
   costs are labelled *estimated*.
 - A planted secret (`sk-ant-…`, `JWT_SECRET` value) appears in neither LangSmith, the local trace store, SSE events nor logs.
 
-**Status (2026-10-27):** 8.1–8.3 done, 8.4 done except draft-job accounting (no draft jobs exist yet). Verified
+**Status (2026-10-27):** 8.1–8.3 done, 8.4 done except draft-job accounting (no draft jobs exist yet; done 2026-10-30 with 2.4). Verified
 with the fake engine on `make up` (real sandbox) and against the configured LangSmith workspace: one trace per
 generation, same wall time, model calls, tokens and cost in the UI, `report.json` and LangSmith; a planted
 `sk-ant-…` secret reaches neither LangSmith, the local trace nor events (`tests/test_tracing.py`).

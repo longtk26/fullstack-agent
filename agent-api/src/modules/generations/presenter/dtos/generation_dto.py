@@ -48,6 +48,8 @@ class CreateGenerationRequestDto(CamelModel):
     spec_id: uuid.UUID | None = None
     frontend_spec: dict[str, Any] | None = None
     frontend_spec_id: uuid.UUID | None = None
+    # The draft the specs came from (Stories 2.4, 12.4): its requirement is kept as `requirement.md` / `.txt`.
+    draft_id: uuid.UUID | None = None
     options: GenerationOptionsDto = GenerationOptionsDto()
 
 

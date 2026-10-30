@@ -80,7 +80,7 @@ export function UsageView() {
       )}
       {report && report.totals.generations > 0 && (
         <>
-          <UsageTiles totals={report.totals} />
+          <UsageTiles totals={report.totals} drafts={report.drafts} />
           <DailyCharts days={report.byDay} />
           <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
             <BreakdownCard report={report} />

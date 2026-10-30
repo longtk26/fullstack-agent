@@ -8,7 +8,15 @@ from pydantic import BaseModel
 from .port import PromptRef
 
 PROMPTS_DIR = Path(__file__).resolve().parents[2] / "prompts"
-PURPOSES = ("draft_spec", "generate_database", "generate_backend", "generate_tests", "repair_code")
+PURPOSES = (
+    "draft_spec",
+    "draft_frontend_spec",
+    "repair_spec",
+    "generate_database",
+    "generate_backend",
+    "generate_tests",
+    "repair_code",
+)
 
 
 class RenderedPrompt(BaseModel):
@@ -46,3 +54,6 @@ class PromptLibrary:
 
     def frontend_conventions(self) -> str:
         return (self.root / "frontend_conventions.md").read_text()
+
+    def draft_conventions(self) -> str:
+        return (self.root / "draft_conventions.md").read_text()

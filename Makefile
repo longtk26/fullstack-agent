@@ -30,6 +30,7 @@ DEV_ENV := DB_URL=postgresql+psycopg://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@loc
            WORKSPACE_ROOT=$(HOST_WORKSPACE_ROOT) \
            WORKER_HEARTBEAT_FILE=$(CURDIR)/.data/worker.heartbeat \
            ENGINE_SKILLS_DIR=$(CURDIR)/.agents/skills \
+           EXAMPLES_DIR=$(CURDIR)/examples \
            CLAUDE_CREDENTIALS_FILE=$(CLAUDE_CREDENTIALS_HOST_FILE) \
            TEMPLATE_DIR=$(TEMPLATE_DIR) \
            ARTIFACT_ROOT=$(CURDIR)/.data/artifacts

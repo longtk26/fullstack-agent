@@ -106,6 +106,8 @@ export type TCreateGenerationPayload = {
   specId?: string;
   frontendSpec?: unknown;
   frontendSpecId?: string;
+  /** The requirement draft the specs came from (Stories 2.4, 12.4); its requirement becomes an artifact. */
+  draftId?: string;
   options: TGenerationOptions;
 };
 

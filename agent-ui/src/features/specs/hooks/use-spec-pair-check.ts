@@ -33,6 +33,8 @@ export function useSpecPairCheck(
     issues,
     errorCount: report?.errors.length ?? 0,
     requestError: query.error,
+    /** The BackendSpec's API contract once the pair was checked (read-only preview, Story 9.7b). */
+    contract: report?.checked ? (report.contract ?? null) : null,
     // A static FrontendSpec is not checked (`checked: false`); dynamic mode needs a checked, consistent pair.
     isSubmittable: Boolean(report?.checked && report.valid && !query.isFetching),
   };

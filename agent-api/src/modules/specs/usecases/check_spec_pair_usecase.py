@@ -6,6 +6,7 @@ from fastapi import Depends
 from src.modules.shared.domain.backend_spec import Severity, SpecIssue, ValidationReport, validate_spec_data
 from src.modules.shared.domain.frontend_spec import FrontendIssueCode, validate_frontend_spec_data
 from src.orchestrator.checks.consistency import check_spec_pair
+from src.orchestrator.contract import build_contract
 
 
 @dataclass
@@ -15,6 +16,7 @@ class SpecPairReport:
 
     checked: bool
     report: ValidationReport
+    contract: dict[str, Any] | None = None  # the API contract of the BackendSpec (9.7b preview), when checked
 
 
 class CheckSpecPairUsecase:
@@ -35,7 +37,11 @@ class CheckSpecPairUsecase:
             )
             return SpecPairReport(checked=False, report=ValidationReport.from_issues([issue], version))
         issues = check_spec_pair(frontend.normalized, backend.normalized)
-        return SpecPairReport(checked=True, report=ValidationReport.from_issues(issues, version))
+        return SpecPairReport(
+            checked=True,
+            report=ValidationReport.from_issues(issues, version),
+            contract=build_contract(backend.normalized),
+        )
 
 
 CheckSpecPairUsecaseDep = Annotated[CheckSpecPairUsecase, Depends(CheckSpecPairUsecase)]

@@ -1,10 +1,11 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { formatCostSplit, formatTokens, formatUsd } from "@/lib/format-usage";
 import { formatDuration } from "@/features/generations/lib/status";
-import type { TUsageReport } from "../types";
+import type { TDraftUsage, TUsageReport } from "../types";
 
 type UsageTilesProps = {
   totals: TUsageReport["totals"];
+  drafts?: TDraftUsage;
 };
 
 type TileProps = {
@@ -25,9 +26,9 @@ function Tile({ label, value, detail }: TileProps) {
   );
 }
 
-export function UsageTiles({ totals }: UsageTilesProps) {
+export function UsageTiles({ totals, drafts }: UsageTilesProps) {
   return (
-    <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-5">
       <Tile
         label="Generations"
         value={String(totals.generations)}
@@ -62,6 +63,20 @@ export function UsageTiles({ totals }: UsageTilesProps) {
         value={totals.avgWallMsPerCompleted == null ? "—" : formatDuration(totals.avgWallMsPerCompleted)}
       />
       <Tile label="Cache reads" value={formatTokens(totals.tokens.cacheRead)} detail="input tokens served from cache" />
+      {drafts && (
+        <>
+          <Tile
+            label="Spec drafts"
+            value={String(drafts.count)}
+            detail={`${drafts.succeeded} ready · ${drafts.needsReview} to fix · ${drafts.failed} failed`}
+          />
+          <Tile
+            label="Drafting cost"
+            value={drafts.unpriced ? `${formatUsd(drafts.costUsd)}+` : formatUsd(drafts.costUsd)}
+            detail={`${formatTokens(drafts.modelCalls)} model calls · ${formatDuration(drafts.engineMs)} engine`}
+          />
+        </>
+      )}
     </div>
   );
 }

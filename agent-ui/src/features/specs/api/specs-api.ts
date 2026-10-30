@@ -1,9 +1,11 @@
 import { apiClient } from "@/lib/api-client";
 import type {
+  TCreateSpecDraftPayload,
   TEngineList,
   TExampleIndex,
   TFrontendImportResult,
   TSpecKind,
+  TSpecDraft,
   TSpecPairReport,
   TValidationReport,
 } from "../types";
@@ -31,6 +33,16 @@ export function importFrontendSite(raw: string, includeAdminCrud: boolean) {
     rawBody: raw,
     query: { includeAdminCrud },
   });
+}
+
+export function createSpecDraft(payload: TCreateSpecDraftPayload) {
+  return apiClient.post<{ draftId: string; status: TSpecDraft["status"] }>("/spec-drafts", {
+    json: { source: "requirement", ...payload },
+  });
+}
+
+export function fetchSpecDraft(draftId: string) {
+  return apiClient.get<TSpecDraft>(`/spec-drafts/${draftId}`);
 }
 
 export function fetchEngines() {

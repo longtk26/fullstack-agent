@@ -25,10 +25,15 @@ from src.modules.shared.domain.entities import (
     NodeRunEntity,
     PreviewEntity,
     SandboxExecEntity,
+    SpecDraftEntity,
     ValidationRunEntity,
 )
 from src.modules.shared.domain.enums import PreviewStatus
-from src.modules.specs.infrastructure.persistence import BackendSpecRepository, FrontendSpecRepository
+from src.modules.specs.infrastructure.persistence import (
+    BackendSpecRepository,
+    FrontendSpecRepository,
+    SpecDraftRepository,
+)
 
 T = TypeVar("T")
 
@@ -115,6 +120,20 @@ class JobStore:
 
     def prune_trace_details(self, generation_ids: list[str]) -> int:
         return self._with(lambda s: ExecutionRecordRepository(s).prune_details(generation_ids))
+
+    # -- spec drafts (Stories 2.4, 12.4) ----------------------------------------------------------------------------
+
+    def draft(self, draft_id: uuid.UUID) -> SpecDraftEntity | None:
+        return self._with(lambda s: SpecDraftRepository(s).find_by_id(draft_id))
+
+    def claim_draft(self, draft_id: uuid.UUID, worker_id: str) -> SpecDraftEntity | None:
+        return self._with(lambda s: SpecDraftRepository(s).claim(draft_id, worker_id))
+
+    def update_draft(self, draft_id: uuid.UUID, **fields: Any) -> SpecDraftEntity:
+        return self._with(lambda s: SpecDraftRepository(s).update(draft_id, **fields))
+
+    def stale_drafts(self, updated_before: datetime) -> list[SpecDraftEntity]:
+        return self._with(lambda s: SpecDraftRepository(s).find_stale_running(updated_before))
 
     # -- artifacts (Story 7.1) ----------------------------------------------------------------------------------
 

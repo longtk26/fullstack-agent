@@ -11,10 +11,10 @@ from src.modules.generations.ports.output import (
     IGenerationRepoDep,
 )
 from src.modules.generations.usecases.project_names import project_names
-from src.modules.shared.domain.entities import ComponentCacheEntity, GenerationEntity, UserEntity
-from src.modules.shared.domain.enums import GenerationStatus
+from src.modules.shared.domain.entities import ComponentCacheEntity, GenerationEntity, SpecDraftEntity, UserEntity
+from src.modules.shared.domain.enums import GenerationStatus, SpecDraftStatus
 from src.modules.shared.domain.telemetry import ExecutionRecords, rollup
-from src.modules.specs.ports.output import IBackendSpecRepoDep, IFrontendSpecRepoDep
+from src.modules.specs.ports.output import IBackendSpecRepoDep, IFrontendSpecRepoDep, ISpecDraftRepoDep
 
 MAX_GENERATIONS = 1000
 MAX_DAYS = 366
@@ -45,12 +45,14 @@ class GetUsageUsecase:
         specs: IBackendSpecRepoDep,
         frontend_specs: IFrontendSpecRepoDep,
         component_cache: IComponentCacheRepoDep,
+        drafts: ISpecDraftRepoDep,
     ):
         self.generations = generations
         self.records = records
         self.specs = specs
         self.frontend_specs = frontend_specs
         self.component_cache = component_cache
+        self.drafts = drafts
 
     async def execute(
         self, user: UserEntity, start: date | None, end: date | None, all_owners: bool = False
@@ -61,12 +63,10 @@ class GetUsageUsecase:
         start = start or end - timedelta(days=6)
         if start > end or (end - start).days > MAX_DAYS:
             raise BadRequestException(f"'from' must be on or before 'to', at most {MAX_DAYS} days apart")
-        rows = self.generations.list_created_between(
-            None if all_owners else user.id,
-            datetime.combine(start, time.min, UTC),
-            datetime.combine(end + timedelta(days=1), time.min, UTC),
-            MAX_GENERATIONS,
-        )
+        period = (datetime.combine(start, time.min, UTC), datetime.combine(end + timedelta(days=1), time.min, UTC))
+        owner = None if all_owners else user.id
+        rows = self.generations.list_created_between(owner, *period, MAX_GENERATIONS)
+        drafts = self.drafts.list_created_between(owner, *period, MAX_GENERATIONS)
         loaded = self.records.records_for([row.id for row in rows])
         names = project_names(rows, self.specs, self.frontend_specs)
         items = [(row, rollup(ExecutionRecords(generation=row, **loaded[row.id]))) for row in rows]
@@ -81,6 +81,8 @@ class GetUsageUsecase:
             "byModel": _by_model(items),
             "byNode": _by_node(items),
             "byLane": _by_lane(items),
+            # Requirement drafting (Stories 2.4, 12.4): engine calls made before any generation exists
+            "drafts": _drafts(drafts),
             # Admins: the most reused custom components, candidates for the section library (Story 17.3)
             "catalogueCandidates": [_candidate(entry) for entry in self.component_cache.most_reused()]
             if all_owners
@@ -114,6 +116,26 @@ def _totals(items) -> dict[str, Any]:
         if completed
         else None,
         "avgWallMsPerCompleted": int(sum(u["wallMs"] or 0 for u in completed) / len(completed)) if completed else None,
+    }
+
+
+def _drafts(drafts: list[SpecDraftEntity]) -> dict[str, Any]:
+    usage = [draft.usage for draft in drafts if draft.usage]
+    by_status = {status: sum(1 for d in drafts if d.status == status) for status in SpecDraftStatus}
+    return {
+        "count": len(drafts),
+        "succeeded": by_status[SpecDraftStatus.SUCCEEDED],
+        "needsReview": by_status[SpecDraftStatus.NEEDS_REVIEW],
+        "failed": by_status[SpecDraftStatus.FAILED],
+        "byMode": {mode: sum(1 for d in drafts if d.mode == mode) for mode in sorted({str(d.mode) for d in drafts})},
+        "engineMs": sum(u.get("engineMs", 0) for u in usage),
+        "modelCalls": sum(u.get("modelCalls", 0) for u in usage),
+        "tokens": {
+            "input": sum(u.get("inputTokens", 0) for u in usage),
+            "output": sum(u.get("outputTokens", 0) for u in usage),
+        },
+        "costUsd": round(sum(u.get("costUsd", 0.0) for u in usage), 6),
+        "unpriced": sum(u.get("unpriced", 0) for u in usage),
     }
 
 

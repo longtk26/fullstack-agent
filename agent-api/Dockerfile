@@ -56,6 +56,8 @@ RUN set -eu; . /app/templates/template.lock; \
     rm -rf /opt/bga/fastapi-template/.git
 COPY --from=skills fastapi-skills /opt/bga/skills/fastapi-skills
 COPY --from=skills nextjs-skills /opt/bga/skills/nextjs-skills
+# Example specs: references for requirement drafting and the fake engine's draft fixtures (Stories 2.4, 12.4).
+COPY --from=examples . /opt/bga/examples
 
 # Runs as root: it drives the host Docker socket for sandbox and preview containers (accepted local-only risk, Story 11.3).
 CMD ["python", "-m", "src.worker"]

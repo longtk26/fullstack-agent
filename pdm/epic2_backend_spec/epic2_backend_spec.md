@@ -21,6 +21,8 @@ before generating:
 
 **Status (2026-10-23):** 2.1, 2.2, 2.3 and 2.5 done (branch `feat/epic2-backend-spec`). 2.4 and 2.5's "Refine with AI" wait for 3.2 + 4.2.
 
+**Status (2026-10-30):** 2.4 done (requirement drafting for all three modes, with 12.4); \"Refine with AI\" works in the API, its UI button is open.
+
 ## Stories
 
 | # | Story | Depends on |

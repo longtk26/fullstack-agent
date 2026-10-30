@@ -9,7 +9,7 @@ see validation errors while I type, and only submit when the spec is valid.
 
 ## Acceptance criteria
 
-- [ ] `/generations/new` with three tabs: *(Import and JSON done; Requirement waits for 2.4)*
+- [ ] `/generations/new` with three tabs: *(Requirement, Import and JSON done; "Refine with AI" open)*
   - **Requirement**: textarea (with example prompts), or drop / upload a `.md` / `.txt` file (loaded into the
     textarea so it can be edited; 64 KB, UTF-8; other types rejected), engine select, "Draft spec" → draft job
     progress → the resulting spec opens in the JSON tab, with **Assumptions** and **Unresolved** panels the user
@@ -37,3 +37,9 @@ disabled placeholder, and "Refine with AI" is disabled. Monaco is self-hosted (`
 AMD build and the repo `examples/` into `public/`), so the editor works offline. The editor is uncontrolled; only
 external changes (load, format, clear, import) are pushed in, so fast typing never races React. Importing a site
 with assumptions or unresolved items requires ticking "I reviewed…" before "Edit in JSON tab".
+
+**Status (2026-10-30):** the Requirement tab is done (with 2.4): textarea, `.md` / `.txt` upload or drop (checked in
+the browser for type, 64 KB and UTF-8, and again by the API), the sample requirements as one-click examples, the
+draft polled until it finishes (it survives a reload: the draft id is kept in the per-browser store), Assumptions and
+Unresolved to acknowledge, then "Open in editor". The engine is the one chosen under Options. A generation submitted
+from a draft sends `draftId`. Still open: the "Refine with AI" button of the Import tab (the API path exists).

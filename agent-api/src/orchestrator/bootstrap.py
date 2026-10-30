@@ -12,6 +12,7 @@ from src.preview.docker_preview import DockerPreviewRuntime
 from src.sandbox import DockerSandboxProvider
 
 from .checkpointer import postgres_checkpointer
+from .drafting import DraftRunner
 from .frontend_validation import SandboxFrontendValidationRunner, StaticFrontendValidationRunner
 from .previews import PreviewService
 from .runner import JobRunner
@@ -71,4 +72,5 @@ async def build_worker_service(worker_id: str | None = None):
             workspaces,
             worker_id,
             previews=previews if config.preview_worker else None,
+            drafts=DraftRunner(registry, prompts, store, Path(config.workspace_root), worker_id),
         )

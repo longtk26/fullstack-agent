@@ -486,6 +486,16 @@ def _optional_json(path: Path) -> dict[str, Any] | None:
     return json.loads(path.read_text()) if path.is_file() else None
 
 
+def _requirement(ctx: JobContext, draft_id: str | None) -> tuple[str, str, bytes, str] | None:
+    """The requirement the specs were drafted from (Stories 2.4, 12.4), as an artifact."""
+    draft = ctx.store.draft(uuid.UUID(draft_id)) if draft_id else None
+    if draft is None or not draft.requirement_text:
+        return None
+    markdown = draft.requirement_format == "markdown"
+    name, content_type = ("requirement.md", "text/markdown") if markdown else ("requirement.txt", "text/plain")
+    return name, "requirement", draft.requirement_text.encode(), content_type
+
+
 async def write_artifacts(ctx: JobContext, state: dict[str, Any], completed: bool, error: str | None = None):
     """Story 7.1 (COMPLETED: everything) and 7.2 (FAILED: report, patches, validation reports, engine logs)."""
     generation = ctx.store.generation(ctx.generation_id)
@@ -501,6 +511,9 @@ async def write_artifacts(ctx: JobContext, state: dict[str, Any], completed: boo
     if (workspace.spec_dir / "frontend-spec.raw.json").is_file():
         raw = (workspace.spec_dir / "frontend-spec.raw.json").read_bytes()
         writer.write("frontend-spec.json", "spec", raw, "application/json")
+    requirement = _requirement(ctx, generation.options.get("draftId"))
+    if requirement is not None:
+        writer.write(*requirement)
     if _contract_copy(ctx).is_file():
         writer.write("contract.json", "contract", _contract_copy(ctx).read_bytes(), "application/json")
     if plan:

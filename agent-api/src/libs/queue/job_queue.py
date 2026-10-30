@@ -9,6 +9,7 @@ PROCESSING_PREFIX = "bga:processing:"
 LEASE_PREFIX = "bga:lease:"
 CANCEL_PREFIX = "bga:cancel:"
 EVENTS_PREFIX = "bga:events:"
+DRAFTS_PREFIX = "bga:drafts:"  # drafting jobs (Stories 2.4, 12.4), one queue per engine like generations
 
 
 def events_channel(generation_id: str) -> str:
@@ -17,6 +18,10 @@ def events_channel(generation_id: str) -> str:
 
 def jobs_key(engine: str) -> str:
     return f"{JOBS_PREFIX}{engine}"
+
+
+def drafts_key(engine: str) -> str:
+    return f"{DRAFTS_PREFIX}{engine}"
 
 
 class JobQueue:
@@ -44,6 +49,18 @@ class JobQueue:
             if time.monotonic() >= deadline:
                 return None
             await asyncio.sleep(0.2)
+
+    async def enqueue_draft(self, draft_id: str, engine: str) -> None:
+        await self.redis.lpush(drafts_key(engine), draft_id)
+
+    async def dequeue_draft(self, engines: Sequence[str]) -> str | None:
+        """Oldest draft of any of `engines`, without blocking. Drafts are short and claimed in the DB
+        (PENDING → RUNNING), so a lost one is failed by the reaper instead of being tracked here."""
+        for engine in engines:
+            draft_id = await self.redis.rpop(drafts_key(engine))
+            if draft_id is not None:
+                return draft_id
+        return None
 
     async def ack(self, worker_id: str, generation_id: str) -> None:
         await self.redis.lrem(PROCESSING_PREFIX + worker_id, 0, generation_id)

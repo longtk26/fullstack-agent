@@ -37,6 +37,10 @@ start immediately against mocks of that contract while the backend is being buil
 | 12.5 | [Frontend ↔ contract consistency check](story12.5_consistency_check.md) | 12.1, 12.3 |
 | 12.6 | [Design direction for drafted sites](story12.6_design_direction.md) (added 2026-10-30) | 12.4, 17.7 |
 
+## Status (2026-10-30)
+
+12.4 done (drafting from a requirement, typed or `.md` / `.txt`, with 2.4); 12.6 (design direction) planned.
+
 ## Status (2026-10-27)
 
 12.1, 12.2, 12.3 and 12.5 done; 12.4 (requirement drafting) waits for 2.4, as planned. Until Epic 13 the

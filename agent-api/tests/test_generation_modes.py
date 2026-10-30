@@ -108,13 +108,10 @@ def test_check_pair_compares_unsaved_specs(client, headers):
         assert response.status_code == 200, response.text
         return response.json()
 
-    assert check(TRACKER_FRONTEND, TWO_ENTITY) == {
-        "valid": True,
-        "specVersion": "1.0",
-        "errors": [],
-        "warnings": [],
-        "checked": True,
-    }
+    tracker = check(TRACKER_FRONTEND, TWO_ENTITY)
+    contract = tracker.pop("contract")
+    assert tracker == {"valid": True, "specVersion": "1.0", "errors": [], "warnings": [], "checked": True}
+    assert contract["openapi"].startswith("3.1") and contract["paths"], "the contract is returned for the preview"
     assert check(SHOP_FRONTEND, SHOP)["valid"] is True
 
     mismatch = check(SHOP_FRONTEND, TWO_ENTITY)
@@ -127,6 +124,7 @@ def test_check_pair_compares_unsaved_specs(client, headers):
     for frontend, backend in [({**TRACKER_FRONTEND, "pages": []}, TWO_ENTITY), (TRACKER_FRONTEND, {"entities": []})]:
         skipped = check(frontend, backend)
         assert skipped["checked"] is False and not skipped["valid"] and skipped["errors"] == []
+        assert skipped["contract"] is None
 
     static = check(LANDING, TWO_ENTITY)
     assert static["checked"] is False and static["valid"] and static["warnings"][0]["code"] == "FE_UNSUPPORTED_FEATURE"

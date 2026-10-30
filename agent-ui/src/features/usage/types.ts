@@ -74,7 +74,22 @@ export type TUsageReport = {
   byModel: TModelUsage[];
   byNode: TUsageNode[];
   byLane: { lane: string; wallMs: number; modelCalls: number; cost: TCostSplit }[];
+  /** Requirement drafting (Stories 2.4, 12.4): engine calls made before a generation exists. */
+  drafts?: TDraftUsage;
   generations: TUsageGeneration[];
+};
+
+export type TDraftUsage = {
+  count: number;
+  succeeded: number;
+  needsReview: number;
+  failed: number;
+  byMode: Record<string, number>;
+  engineMs: number;
+  modelCalls: number;
+  tokens: { input: number; output: number };
+  costUsd: number;
+  unpriced: number;
 };
 
 export type TBreakdownDimension = "engine" | "model" | "node" | "lane";
