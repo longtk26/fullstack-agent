@@ -95,7 +95,7 @@ async def package_lane_preview(state: GenerationState, ctx: JobContext, kind: st
                 )
                 writer.write_json("seed.json", "seed", build_seed(spec, plan, ctx.generation_id, ts))
     ctx.store.replace_artifacts(ctx.generation_id, writer.written)
-    async with ctx.previews.locks[ctx.generation_id]:
+    async with ctx.previews.locks[f"{ctx.generation_id}:{kind}"]:
         existing = ctx.store.preview(ctx.generation_id, kind)
         if existing is None or existing.status not in (PreviewStatus.STARTING, PreviewStatus.RUNNING):
             await ctx.previews.start(ctx.generation_id, kind)
@@ -603,7 +603,7 @@ async def integrate(state: GenerationState, ctx: JobContext) -> NodeResult:
         if ctx.previews is not None and "frontend" in ctx.previews.runtimes:
             fe_preview = ctx.store.preview(ctx.generation_id, "frontend")
             if fe_preview is not None and fe_preview.mock_api is not True:
-                async with ctx.previews.locks[ctx.generation_id]:
+                async with ctx.previews.locks[f"{ctx.generation_id}:frontend"]:
                     await ctx.previews.switch_frontend(ctx.generation_id, mock_api=True, api_base_url="")
         await ctx.emit("integration.kept_mocks", step="integrate", reason=reason, mockApi=True)
         await ctx.set_lane("integration", LaneStatus.SKIPPED, reason=reason)
@@ -615,7 +615,7 @@ async def integrate(state: GenerationState, ctx: JobContext) -> NodeResult:
         }
 
     assert ctx.previews is not None
-    async with ctx.previews.locks[ctx.generation_id]:
+    async with ctx.previews.locks[f"{ctx.generation_id}:frontend"]:
         fe_preview = await ctx.previews.switch_frontend(ctx.generation_id, mock_api=False, api_base_url=backend_url)
     be_preview = ctx.store.preview(ctx.generation_id, "backend")
     frontend_url = fe_preview.url if fe_preview and fe_preview.url else f"http://{config.preview_public_host}:3000"
