@@ -90,7 +90,10 @@ async def _resolve_components(
 ) -> list[Resolved]:
     spec = _json(Path(state["frontend_ref"]))
     resolved = await CustomComponents(ctx, plan, spec, _contract(ctx)).resolve(names, state["max_repair_attempts"])
-    ctx.frontend_path(PLAN_REF).write_text(dump_frontend_plan(plan))
+    async with ctx.frontend_plan_lock:
+        current_plan = json.loads(ctx.frontend_path(PLAN_REF).read_text())
+        current_plan["customComponents"] = plan["customComponents"]
+        ctx.frontend_path(PLAN_REF).write_text(dump_frontend_plan(current_plan))
     return resolved
 
 

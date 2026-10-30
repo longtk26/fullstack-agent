@@ -130,9 +130,11 @@ class PreviewService:
 
         # Reserve frontend port first if backend is starting, so backend CORS includes the frontend origin
         if kind == "backend" and "frontend" in self.runtimes:
+            frontend_opts = generation.options.get("frontend") or {}
+            will_generate_fe = generation.mode == "dynamic" and frontend_opts.get("generatePreview", True)
             fe_preview = self.store.preview(generation_id, "frontend")
-            if fe_preview is None and "frontend" in self.startable(generation_id):
-                fe_preview = self.store.upsert_preview(generation_id, "frontend", status=PreviewStatus.STARTING)
+            if fe_preview is None and (will_generate_fe or "frontend" in self.startable(generation_id)):
+                fe_preview = self.store.upsert_preview(generation_id, "frontend", status=PreviewStatus.STOPPED)
             if fe_preview is not None and not fe_preview.host_port:
                 fe_ports = await self._ports(generation_id, "frontend", fe_preview)
                 if fe_ports:

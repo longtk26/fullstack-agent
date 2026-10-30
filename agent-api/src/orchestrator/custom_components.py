@@ -82,7 +82,7 @@ class CustomComponents:
         self.contract = contract
         self.declared = custom_declarations(spec)
         self.lock_sha256, self.overlay_version = overlay_metadata()
-        self.slots = asyncio.Semaphore(max(1, config.engine_concurrency))
+        self.slots = ctx.engine_slots if ctx is not None else asyncio.Semaphore(max(1, config.engine_concurrency))
 
     async def resolve(self, names: list[str] | None = None, max_repairs: int = 2) -> list[Resolved]:
         """Resolves the plan's custom components (or only `names`), records the result in the plan and the registry

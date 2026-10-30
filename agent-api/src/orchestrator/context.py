@@ -113,6 +113,8 @@ class JobContext:
         self._wait_task: asyncio.Task | None = None
         self._state_lock = asyncio.Lock()
         self._commit_lock = asyncio.Lock()
+        self.frontend_plan_lock = asyncio.Lock()
+        self.engine_slots = asyncio.Semaphore(max(1, config.engine_concurrency))
         self._status: GenerationStatus | None = None
         self.trace: tracing.GenerationTrace | None = None
 

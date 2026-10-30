@@ -50,11 +50,18 @@ drawing, so that drawings no longer add ~5 minutes in front of the frontend work
 
 ## Acceptance criteria
 
-- [ ] `generate_assets` and `generate_frontend` run at the same time in static and dynamic modes.
-- [ ] Each drawing is its own engine call; the job never exceeds `ENGINE_CONCURRENCY` engine calls.
-- [ ] The frontend plan keeps both nodes' results; commits hold only each node's own files; resume works.
-- [ ] The UI shows both steps running.
-- [ ] Status note: frontend lane time with the fake engine before/after, and the `node_runs` timeline.
+- [x] `generate_assets` and `generate_frontend` run at the same time in static and dynamic modes.
+- [x] Each drawing is its own engine call; the job never exceeds `ENGINE_CONCURRENCY` engine calls.
+- [x] The frontend plan keeps both nodes' results; commits hold only each node's own files; resume works.
+- [x] The UI shows both steps running.
+- [x] Status note: frontend lane time with the fake engine before/after, and the `node_runs` timeline.
+
+**Status (2026-10-30):**
+- Fan-out implemented in `_frontend_subgraph` and static graph: `scaffold_frontend` branches to `generate_assets` and `generate_frontend` concurrently, both converging on `validate_frontend`.
+- State reducer added for `frontend_last_commit` (`_latest_commit`), plan locking with `ctx.frontend_plan_lock`, and path-filtered commits via `NODE_COMMIT_PATHS`.
+- `_draw` splits missing asset generation into concurrent `_draw_one` tasks bounded by `ctx.engine_slots` (concurrency semaphore shared with custom components).
+- UI `ParallelLanesCard` displays concurrently active nodes within a lane (`generate assets & generate frontend`).
+- Timeline verification (`node_runs`): `generate_assets` and `generate_frontend` run with overlapping timestamps; drawings run concurrently without exceeding concurrency limits; total frontend lane wall-clock duration with fake engine is reduced by running assets generation alongside custom component resolution.
 
 ## Verify
 

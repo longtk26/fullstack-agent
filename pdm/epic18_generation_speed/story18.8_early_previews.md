@@ -41,12 +41,19 @@ completes and the integration step actually runs.
 
 ## Acceptance criteria
 
-- [ ] In dynamic mode the backend preview starts when the backend lane completes.
-- [ ] `integrate` finds the backend running and switches to live during the generation; the generation ends
+- [x] In dynamic mode the backend preview starts when the backend lane completes.
+- [x] `integrate` finds the backend running and switches to live during the generation; the generation ends
       COMPLETED (not `LANES_INCOMPLETE`) when both lanes pass.
-- [ ] The frontend preview is created once, already on the live API; no backend restart after completion.
-- [ ] Early `backend.zip` is reused or rewritten correctly; cancellation stops the early preview.
-- [ ] Status note: seconds from generation COMPLETED to both previews RUNNING, before (~285 s) and after.
+- [x] The frontend preview is created once, already on the live API; no backend restart after completion.
+- [x] Early `backend.zip` is reused or rewritten correctly; cancellation stops the early preview.
+- [x] Status note: seconds from generation COMPLETED to both previews RUNNING, before (~285 s) and after.
+
+**Status (2026-10-30):**
+- In dynamic mode, `package_lane_preview` creates `backend.zip`, `plan.json`, `seed.json`, and records `backend-packaged-head` when the backend lane completes, then immediately triggers backend preview start with early frontend port reservation for CORS.
+- `package_artifacts` detects matching commit HEAD and reuses early artifacts without rebuilding; rewrites if backend HEAD changed.
+- `integrate` checks backend readiness up to `integration_wait_seconds` (180s) and switches frontend preview to live directly (`mockApi=False`, `apiBaseUrl=backend_url`) without recreate and without restarting the backend container.
+- Cancellation cleans up early preview containers.
+- Delay from generation COMPLETED to both previews RUNNING reduced from ~285 s to ~0 s (both previews already RUNNING upon job completion). Verified across unit tests and full fake engine runs.
 
 ## Verify
 
