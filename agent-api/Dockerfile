@@ -24,19 +24,27 @@ CMD ["sh", "-c", "alembic upgrade head && fastapi run src/main.py --host 0.0.0.0
 FROM base AS worker
 
 ARG CLAUDE_CODE_VERSION=2.1.309
-# Antigravity CLI is a Go binary; its install script always takes "latest", so the release is pinned here
-# (from https://antigravity-cli-auto-updater-974169037036.us-central1.run.app/manifests/linux_amd64.json).
+# Antigravity CLI is a Go binary; its install script always takes "latest", so the release is pinned here per
+# architecture (from https://antigravity-cli-auto-updater-974169037036.us-central1.run.app/manifests/linux_<arch>.json).
+# arm64 is for Apple Silicon hosts: an x64 binary cannot run there (no x86-64 loader for Rosetta in this image).
+ARG TARGETARCH
 ARG ANTIGRAVITY_VERSION=1.4.6
-ARG ANTIGRAVITY_URL=https://storage.googleapis.com/antigravity-public/antigravity-cli/1.4.6-4884751325200384/linux-x64/cli_linux_x64.tar.gz
-ARG ANTIGRAVITY_SHA512=4e1244b8b8c1280552f59c1b24b76a9245db9c80032aec6db28fb86033d6088abc30a90dad432d2b246c28fdd87d82abb48727d5ff88ba1d5d4ec76b33348e7d
+ARG ANTIGRAVITY_BASE_URL=https://storage.googleapis.com/antigravity-public/antigravity-cli/1.4.6-4884751325200384
+ARG ANTIGRAVITY_SHA512_AMD64=4e1244b8b8c1280552f59c1b24b76a9245db9c80032aec6db28fb86033d6088abc30a90dad432d2b246c28fdd87d82abb48727d5ff88ba1d5d4ec76b33348e7d
+ARG ANTIGRAVITY_SHA512_ARM64=0daa84244922bd648f940d44dfc33ace8c26217cd710ff116902eb8708829a0cfe70640f0d6b480243442881c9aeb4a905a9aa7887dd8a70159aa0f1a4f98a8f
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git ca-certificates curl \
     && rm -rf /var/lib/apt/lists/*
 
 RUN set -eu; cd /tmp; \
-    curl -fsSL -o agy.tar.gz "$ANTIGRAVITY_URL"; \
-    echo "$ANTIGRAVITY_SHA512  agy.tar.gz" | sha512sum -c -; \
+    case "${TARGETARCH:-amd64}" in \
+      amd64) path=linux-x64/cli_linux_x64.tar.gz; sha="$ANTIGRAVITY_SHA512_AMD64" ;; \
+      arm64) path=linux-arm/cli_linux_arm64.tar.gz; sha="$ANTIGRAVITY_SHA512_ARM64" ;; \
+      *) echo "unsupported architecture: $TARGETARCH" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL -o agy.tar.gz "$ANTIGRAVITY_BASE_URL/$path"; \
+    echo "$sha  agy.tar.gz" | sha512sum -c -; \
     tar -xzf agy.tar.gz antigravity; \
     install -m 0755 antigravity /usr/local/bin/agy; \
     rm -f agy.tar.gz antigravity; \
