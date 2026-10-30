@@ -8,6 +8,7 @@ import { useResults } from "../../hooks/use-results";
 import type { TGenerationDetail } from "../../types";
 import { FrontendPreviewCard } from "../detail/FrontendPreviewCard";
 import { ArtifactList } from "./ArtifactList";
+import { AssetGallery } from "./AssetGallery";
 import { ManifestPanel } from "./ManifestPanel";
 import { MarkdownReport } from "./MarkdownReport";
 import { SourceBrowser } from "./SourceBrowser";
@@ -48,12 +49,22 @@ export function ResultsTab({ detail, onOpenAppTab }: ResultsTabProps) {
           <ArtifactList generationId={id} artifacts={results.artifacts} />
         </Section>
       </div>
-      {results.manifest.data ? (
+      {/* Static sites have no backend, so their manifest has no `api` (only `frontend`). */}
+      {results.manifest.data?.api ? (
         <Section title="Manifest" description="The contract the generated backend implements">
           <ManifestPanel manifest={results.manifest.data} />
         </Section>
       ) : (
         results.manifest.isLoading && <Skeleton className="h-48 w-full" />
+      )}
+      {(results.manifest.data?.frontend?.assets?.length ?? 0) > 0 && (
+        <Section title="Assets" description="The site's images: drawings on the light and dark theme, then the rest">
+          <AssetGallery
+            generationId={id}
+            assets={results.manifest.data?.frontend?.assets ?? []}
+            planArtifact={detail.artifacts.find((artifact) => artifact.name === "frontend-plan.json")}
+          />
+        </Section>
       )}
       {results.hasSource && (
         <Section title="Source" description="Read-only view of backend.zip">

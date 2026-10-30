@@ -26,7 +26,7 @@ export function ManifestPanel({ manifest }: ManifestPanelProps) {
       <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
         <Badge variant="outline">{manifest.architecture}</Badge>
         <Badge variant="outline">template {manifest.templateRef?.slice(0, 8) ?? "—"}</Badge>
-        <Badge variant="outline">operations from {manifest.api.source}</Badge>
+        {manifest.api && <Badge variant="outline">operations from {manifest.api.source}</Badge>}
         {manifest.modules.map((module) => (
           <Badge key={module.name} variant="secondary" className="font-mono">
             {module.path}

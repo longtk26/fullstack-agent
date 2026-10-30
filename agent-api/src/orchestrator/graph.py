@@ -30,6 +30,7 @@ BACKEND_LANE_NODES = (
 FRONTEND_LANE_NODES = (
     "plan_frontend",
     "scaffold_frontend",
+    "generate_assets",
     "generate_frontend",
     "validate_frontend",
     "repair_frontend",
@@ -189,7 +190,8 @@ def _frontend_subgraph(ctx: JobContext | None) -> StateGraph:
         sub.add_node(name, _node(name, ctx))
     sub.add_edge(START, "plan_frontend")
     sub.add_edge("plan_frontend", "scaffold_frontend")
-    sub.add_edge("scaffold_frontend", "generate_frontend")
+    sub.add_edge("scaffold_frontend", "generate_assets")
+    sub.add_edge("generate_assets", "generate_frontend")
     sub.add_edge("generate_frontend", "validate_frontend")
     sub.add_conditional_edges(
         "validate_frontend",
@@ -244,7 +246,8 @@ def build_graph(ctx: JobContext | None, mode: GenerationMode = GenerationMode.BA
         graph.add_edge(START, "validate_inputs")
         graph.add_conditional_edges("validate_inputs", route_after_spec, {"valid": "plan_frontend", "invalid": END})
         graph.add_edge("plan_frontend", "scaffold_frontend")
-        graph.add_edge("scaffold_frontend", "generate_frontend")
+        graph.add_edge("scaffold_frontend", "generate_assets")
+        graph.add_edge("generate_assets", "generate_frontend")
         graph.add_edge("generate_frontend", "validate_frontend")
         graph.add_conditional_edges(
             "validate_frontend",
@@ -277,7 +280,8 @@ def _display_graph(mode: GenerationMode = GenerationMode.BACKEND) -> StateGraph:
     )
     graph.add_edge("repair_code", "run_validation")
     graph.add_edge("plan_frontend", "scaffold_frontend")
-    graph.add_edge("scaffold_frontend", "generate_frontend")
+    graph.add_edge("scaffold_frontend", "generate_assets")
+    graph.add_edge("generate_assets", "generate_frontend")
     graph.add_edge("generate_frontend", "validate_frontend")
     graph.add_conditional_edges(
         "validate_frontend",

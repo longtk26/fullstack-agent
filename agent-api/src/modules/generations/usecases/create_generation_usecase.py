@@ -23,6 +23,7 @@ from src.modules.shared.domain.enums import GenerationMode, SpecDraftStatus, Spe
 from src.modules.shared.domain.frontend_spec import validate_frontend_spec_data
 from src.modules.shared.domain.generation_modes import initial_lanes
 from src.modules.specs.ports.output import IBackendSpecRepoDep, IFrontendSpecRepoDep, ISpecDraftRepoDep
+from src.modules.uploads.ports.output import IUploadRepoDep
 
 IDEMPOTENCY_TTL_S = 24 * 3600
 NEEDS_BACKEND = {GenerationMode.BACKEND, GenerationMode.DYNAMIC}
@@ -73,6 +74,7 @@ class CreateGenerationUsecase:
         spec_repo: IBackendSpecRepoDep,
         frontend_spec_repo: IFrontendSpecRepoDep,
         draft_repo: ISpecDraftRepoDep,
+        upload_repo: IUploadRepoDep,
         queue: JobQueueDep,
         events: EventPublisherDep,
         registry: EngineRegistryDep,
@@ -82,6 +84,7 @@ class CreateGenerationUsecase:
         self.spec_repo = spec_repo
         self.frontend_spec_repo = frontend_spec_repo
         self.draft_repo = draft_repo
+        self.upload_repo = upload_repo
         self.queue = queue
         self.events = events
         self.registry = registry
@@ -208,8 +211,10 @@ class CreateGenerationUsecase:
             ensure_owner(spec.owner_id, user.id, user.is_admin, resource="FrontendSpec")
             if spec.mode is not None and spec.mode != inputs.mode:
                 raise inputs.mode_mismatch(spec.mode)
+            self._check_uploads(user, json.loads(spec.raw_json))
             return spec
         frontend_spec = inputs.frontend_spec
+        self._check_uploads(user, frontend_spec)
         result = validate_frontend_spec_data(frontend_spec)
         version = frontend_spec.get("specVersion")
         return self.frontend_spec_repo.create(
@@ -222,6 +227,29 @@ class CreateGenerationUsecase:
                 **self._origin(draft),
             )
         )
+
+    def _check_uploads(self, user: UserEntity, frontend_spec: Any) -> None:
+        """Story 15.4: every `upload:<id>` asset is one of the user's uploads (FE_UNKNOWN_UPLOAD)."""
+        assets = frontend_spec.get("assets") if isinstance(frontend_spec, dict) else None
+        issues = []
+        for index, asset in enumerate(assets if isinstance(assets, list) else []):
+            source = asset.get("source") if isinstance(asset, dict) else None
+            if not isinstance(source, str) or not source.startswith("upload:"):
+                continue
+            upload = self.upload_repo.find(source.removeprefix("upload:"))
+            if upload is None or (upload.owner_id != user.id and not user.is_admin):
+                issues.append(
+                    {
+                        "code": "FE_UNKNOWN_UPLOAD",
+                        "path": f"/assets/{index}/source",
+                        "message": f"'{source}' is not one of your uploads",
+                        "severity": "error",
+                    }
+                )
+        if issues:
+            raise UnprocessableEntityException(
+                "The FrontendSpec uses uploads that do not exist", code=ErrorCode.SPEC_INVALID, details=issues
+            )
 
 
 CreateGenerationUsecaseDep = Annotated[CreateGenerationUsecase, Depends(CreateGenerationUsecase)]

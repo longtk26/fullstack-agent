@@ -33,7 +33,8 @@ DEV_ENV := DB_URL=postgresql+psycopg://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@loc
            EXAMPLES_DIR=$(CURDIR)/examples \
            CLAUDE_CREDENTIALS_FILE=$(CLAUDE_CREDENTIALS_HOST_FILE) \
            TEMPLATE_DIR=$(TEMPLATE_DIR) \
-           ARTIFACT_ROOT=$(CURDIR)/.data/artifacts
+           ARTIFACT_ROOT=$(CURDIR)/.data/artifacts \
+           UPLOAD_ROOT=$(CURDIR)/.data/uploads
 
 .PHONY: env up down down-all ps logs dev dev-down dev-api dev-worker dev-ui setup venv migrate test lint template runner runner-node frontend-base \
         host-worker host-worker-stop design-data
@@ -45,7 +46,7 @@ env:
 	      .env.example > .env && mkdir -p .data/workspaces && echo "created .env" )
 
 up: env runner runner-node $(if $(HOST_WORKER),template venv)
-	@mkdir -p .data/artifacts
+	@mkdir -p .data/artifacts .data/uploads
 	$(COMPOSE) up -d --build --wait
 	@$(MAKE) --no-print-directory $(if $(HOST_WORKER),host-worker,host-worker-stop)
 

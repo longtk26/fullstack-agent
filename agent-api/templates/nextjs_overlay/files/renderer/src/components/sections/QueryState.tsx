@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { AlertCircle } from "lucide-react";
+import { AssetImage } from "@/components/assets/AssetImage";
 import { Skeleton } from "@/components/ui/skeleton";
 
 type QueryStateProps = {
@@ -7,12 +8,13 @@ type QueryStateProps = {
   error: Error | null;
   isEmpty: boolean;
   emptyText?: string;
+  emptyImage?: string;
   errorText?: string;
   children: ReactNode;
 };
 
 /** The loading, error and empty states every data section shows (FrontendSpec `states`). */
-export function QueryState({ isLoading, error, isEmpty, emptyText, errorText, children }: QueryStateProps) {
+export function QueryState({ isLoading, error, isEmpty, emptyText, emptyImage, errorText, children }: QueryStateProps) {
   if (isLoading) {
     return (
       <div className="flex flex-col gap-2" aria-busy="true">
@@ -29,6 +31,13 @@ export function QueryState({ isLoading, error, isEmpty, emptyText, errorText, ch
       </p>
     );
   }
-  if (isEmpty) return <p className="text-muted-foreground">{emptyText ?? "Nothing here yet"}</p>;
+  if (isEmpty) {
+    return (
+      <div className="flex flex-col items-center gap-4 py-6 text-center">
+        {emptyImage && <AssetImage asset={emptyImage} className="max-w-xs" />}
+        <p className="text-muted-foreground">{emptyText ?? "Nothing here yet"}</p>
+      </div>
+    );
+  }
   return children;
 }

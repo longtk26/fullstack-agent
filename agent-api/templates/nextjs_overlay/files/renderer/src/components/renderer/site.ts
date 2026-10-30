@@ -18,7 +18,7 @@ export type TBinding = {
   link?: TRecordLink;
 };
 
-export type TStates = { loading?: string; empty?: string; error?: string };
+export type TStates = { loading?: string; empty?: string; error?: string; emptyImage?: string };
 
 export type TFormFieldDef = {
   name: string;

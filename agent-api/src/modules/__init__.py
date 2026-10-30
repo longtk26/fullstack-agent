@@ -11,6 +11,7 @@ from src.modules.shared.infrastructure.models import (  # noqa: F401
     PreviewModel,
     SandboxExecModel,
     SpecDraftModel,
+    UploadModel,
     UserModel,
     ValidationRunModel,
 )

@@ -1,5 +1,5 @@
 import { Container } from "@/components/layout/Container";
-import { AssetImage } from "./AssetImage";
+import { AssetImage } from "@/components/assets/AssetImage";
 import { CtaLink, type TCta } from "./CtaLink";
 
 type HeroProps = {

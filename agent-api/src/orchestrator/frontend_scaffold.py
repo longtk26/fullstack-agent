@@ -16,6 +16,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from .asset_registry import external_images_note
 from .frontend_codegen import generated_files
 from .frontend_renderer import library_files
 
@@ -24,7 +25,7 @@ BASE_DIR = TEMPLATES / "nextjs_base"
 OVERLAY_DIR = TEMPLATES / "nextjs_overlay"
 SCAFFOLD_INFO = ".bga/scaffold.json"
 OWNED_INFO = ".bga/owned.json"
-SKIP = {"node_modules", ".next", ".git", "out", "test-results", "playwright-report", "base.lock"}
+SKIP = {"node_modules", ".next", ".git", "out", "test-results", "playwright-report", "base.lock", "lucide-icons.txt"}
 UI_DIR = "src/components/ui"
 SHELL_PLACEHOLDER = """import type { ReactNode } from "react";
 
@@ -116,7 +117,11 @@ def scaffold_frontend(
         if relative in removed or (relative.startswith(f"{UI_DIR}/") and relative not in wanted_ui):
             continue
         _copy(source, project / relative, {})
-    replacements = {"{{PROJECT_NAME}}": plan["project"]["name"], "{{PROJECT_NAME_SLUG}}": plan["project"]["slug"]}
+    replacements = {
+        "{{PROJECT_NAME}}": plan["project"]["name"],
+        "{{PROJECT_NAME_SLUG}}": plan["project"]["slug"],
+        "{{EXTERNAL_IMAGES}}": external_images_note(plan),  # Story 15.4
+    }
     overlay_files: list[str] = []
     for part in ("common", mode, *(("renderer",) if plan.get("rendering") == "renderer" else ())):
         root = overlay / "files" / part
@@ -179,6 +184,14 @@ def update_owned(project: Path, files: list[str]) -> None:
     hashes = json.loads(path.read_text()) if path.exists() else {}
     hashes |= {relative: _sha256(project / relative) for relative in files if (project / relative).is_file()}
     path.write_text(json.dumps(hashes, indent=2, sort_keys=True) + "\n")
+
+
+def drop_owned(project: Path, files: list[str]) -> None:
+    """Forgets generator-owned files the generator itself removed (a drawing that fell back, Story 15.3)."""
+    path = project / OWNED_INFO
+    if path.exists():
+        hashes = {k: v for k, v in json.loads(path.read_text()).items() if k not in set(files)}
+        path.write_text(json.dumps(hashes, indent=2, sort_keys=True) + "\n")
 
 
 def changed_owned(project: Path) -> list[str]:

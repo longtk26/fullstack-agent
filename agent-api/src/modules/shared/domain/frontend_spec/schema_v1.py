@@ -131,6 +131,7 @@ class SectionStates(SpecModel):
     loading: str | None = None
     empty: str | None = None
     error: str | None = None
+    empty_image: str | None = Field(default=None, pattern=r"^asset:[a-z][a-z0-9-]*$")  # shown above `empty` (15.1)
 
 
 class Section(SpecModel):
@@ -193,11 +194,23 @@ class ContentCollection(SpecModel):
     records: list[dict[str, Any]] = []
 
 
+AssetKind = Literal["image", "icon", "video", "file", "illustration", "pattern", "logo"]
+AspectRatio = Literal["16:9", "4:3", "1:1", "3:4", "21:9"]
+
+
 class Asset(SpecModel):
+    """An image the site shows (Story 15.1). `source`: `placeholder` (a themed panel), `generate` (an SVG the code
+    engine draws, 15.2), `upload:<uploadId>` (15.4), `lucide:<IconName>`, or an `https://` URL. Checked in the
+    validator (FE_INSECURE_URL, FE_UNKNOWN_ICON, FE_UNSUPPORTED_ASSET_SOURCE, FE_ASSET_ALT_REQUIRED)."""
+
     id: str = Field(pattern=r"^[a-z][a-z0-9-]*$", max_length=63)
-    kind: Literal["image", "icon", "video", "file"] = "image"
-    alt: str | None = None
-    source: str = "placeholder"  # "placeholder" or an https:// URL
+    kind: AssetKind = "image"
+    alt: str | None = Field(default=None, max_length=300)
+    source: str = Field(default="placeholder", max_length=2048)
+    prompt: str | None = Field(default=None, max_length=600)  # what to draw (generate); defaults to `alt`
+    style: str | None = Field(default=None, max_length=200)
+    aspect_ratio: AspectRatio | None = None  # default per kind
+    decorative: bool = False  # no alt needed; rendered aria-hidden
 
 
 class FrontendSpecV1(SpecModel):

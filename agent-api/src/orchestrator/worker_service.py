@@ -335,6 +335,11 @@ class WorkerService:
             old = self.store.finished_before(datetime.now(UTC) - timedelta(days=config.trace_retention_days))
             if old and self.store.prune_trace_details(old):
                 logger.info("pruned trace details", extra={"generations": len(old)})
+        if config.upload_retention_days:
+            # Story 15.4: uploads no saved FrontendSpec uses go after the retention period.
+            removed = self.store.prune_uploads(datetime.now(UTC) - timedelta(days=config.upload_retention_days))
+            if removed:
+                logger.info("removed unused uploads", extra={"uploads": removed})
 
     async def _shutdown(self) -> None:
         for task in list(self.draft_tasks.values()):

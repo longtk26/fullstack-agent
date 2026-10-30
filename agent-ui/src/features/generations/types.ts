@@ -222,7 +222,8 @@ export type TManifest = {
   framework: string;
   engine: string;
   project: { name: string; slug: string } | null;
-  api: { openapiArtifactId: string | null; basePath: string; source: "openapi" | "plan" };
+  /** Absent in static generations (no backend). */
+  api?: { openapiArtifactId: string | null; basePath: string; source: "openapi" | "plan" };
   operations: TManifestOperation[];
   contractProblems: { operation: string; message: string }[];
   env: { name: string; required: boolean; secret: boolean; description: string | null }[];
@@ -231,6 +232,18 @@ export type TManifest = {
   frontendBindings?: TFrontendBinding[];
   unresolved: { kind?: string; ref?: string; specPath?: string; message?: string; reason?: string }[];
   assumptions: unknown[];
+  frontend?: { assets?: TManifestAsset[] };
+};
+
+/** A FrontendSpec asset in the manifest (Epic 15): how it ended up rendered, its file and hash. */
+export type TManifestAsset = {
+  id: string;
+  source: string;
+  render: "svg-component" | "public-file" | "remote" | "icon" | "placeholder";
+  file: string | null;
+  sha256: string | null;
+  cached?: boolean;
+  fallback?: string;
 };
 
 export type TFileEntry = { name: string; path: string; type: "dir" | "file"; size: number | null };

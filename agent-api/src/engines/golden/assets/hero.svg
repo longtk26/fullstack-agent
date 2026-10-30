@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900">
+  <rect width="1600" height="900" fill="var(--muted)" />
+  <circle cx="1320" cy="160" r="260" fill="var(--accent)" opacity="0.18" />
+  <rect x="180" y="150" width="1240" height="620" rx="36" fill="var(--background)" />
+  <g id="sketchbook">
+    <rect x="300" y="250" width="520" height="380" rx="18" fill="var(--secondary)" />
+    <rect x="300" y="250" width="40" height="380" rx="12" fill="var(--primary)" />
+    <circle cx="470" cy="380" r="70" fill="none" stroke="var(--foreground)" stroke-width="10" />
+    <path d="M560 470 L700 330 L740 470 Z" fill="none" stroke="var(--foreground)" stroke-width="10" stroke-linejoin="round" />
+    <rect x="400" y="530" width="320" height="16" rx="8" fill="var(--foreground)" opacity="0.35" />
+  </g>
+  <rect x="860" y="300" width="22" height="300" rx="11" transform="rotate(-28 871 450)" fill="var(--accent)" />
+  <g id="cup">
+    <rect x="1000" y="360" width="190" height="210" rx="28" fill="var(--primary)" />
+    <path d="M1190 410 a55 55 0 0 1 0 110" fill="none" stroke="var(--primary)" stroke-width="22" />
+    <ellipse cx="1095" cy="372" rx="80" ry="18" fill="var(--foreground)" opacity="0.25" />
+  </g>
+  <g id="swatches" transform="translate(1000 600)">
+    <rect width="70" height="110" rx="10" fill="var(--primary)" />
+    <rect x="80" width="70" height="110" rx="10" fill="var(--accent)" />
+    <rect x="160" width="70" height="110" rx="10" fill="var(--secondary)" stroke="var(--foreground)" stroke-opacity="0.2" stroke-width="2" />
+  </g>
+</svg>

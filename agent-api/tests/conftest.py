@@ -97,3 +97,12 @@ def clean_redis():
 
     asyncio.run(flush())
     yield
+
+
+@pytest.fixture(autouse=True)
+def _fresh_asset_cache():
+    """Story 15.2: drawings are cached under ARTIFACT_ROOT (shared by the session); each test starts without them."""
+    import shutil
+
+    shutil.rmtree(Path(os.environ["ARTIFACT_ROOT"]) / "asset-cache", ignore_errors=True)
+    yield

@@ -2,21 +2,56 @@
   "assets": [
     {
       "alt": "Studio desk with sketches",
+      "aspectRatio": "16:9",
+      "component": "src/components/assets/generated/HeroAsset.tsx",
+      "decorative": false,
+      "file": "src/assets/svg/hero.svg",
       "id": "hero",
-      "kind": "image",
-      "source": "placeholder"
+      "kind": "illustration",
+      "prompt": "A designer's desk seen from above: a sketchbook with logo sketches, a pencil, a coffee cup and a colour fan",
+      "render": "svg-component",
+      "routes": [
+        "/"
+      ],
+      "source": "generate",
+      "style": "flat, geometric, two-tone",
+      "visibleRoutes": [
+        "/"
+      ]
     },
     {
       "alt": "Bakehouse packaging",
+      "aspectRatio": "16:9",
+      "component": "src/components/assets/generated/Work1Asset.tsx",
+      "decorative": false,
+      "file": "src/assets/svg/work-1.svg",
       "id": "work-1",
-      "kind": "image",
-      "source": "placeholder"
+      "kind": "illustration",
+      "prompt": "Bakery packaging: a paper bread bag and a cake box with a simple wheat logo",
+      "render": "svg-component",
+      "routes": [
+        "/work"
+      ],
+      "source": "generate",
+      "style": "flat, geometric, two-tone",
+      "visibleRoutes": [
+        "/work"
+      ]
     },
     {
       "alt": "Harbour Books shop sign",
+      "aspectRatio": "16:9",
+      "decorative": false,
       "id": "work-2",
       "kind": "image",
-      "source": "placeholder"
+      "render": "placeholder",
+      "routes": [
+        "/work"
+      ],
+      "source": "placeholder",
+      "visibleRoutes": [
+        "/work"
+      ]
     }
   ],
   "components": [

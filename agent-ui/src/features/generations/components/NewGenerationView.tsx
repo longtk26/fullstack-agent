@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Stack } from "@/components/layout/Stack";
+import { AssetsPanel } from "@/features/specs/components/AssetsPanel";
 import { ConsistencyIssueList } from "@/features/specs/components/ConsistencyIssueList";
 import { DesignPanel } from "@/features/specs/components/DesignPanel";
 import { FrontendImportTab } from "@/features/specs/components/FrontendImportTab";
@@ -243,6 +244,18 @@ export function NewGenerationView() {
                 </CardHeader>
                 <CardContent>
                   <DesignPanel design={design} specText={frontendSpecText} onApply={setFrontendSpecText} />
+                </CardContent>
+              </Card>
+            )}
+
+            {mode !== "backend" && (
+              <Card size="sm">
+                <CardHeader>
+                  <CardTitle>Images</CardTitle>
+                  <CardDescription>Your logo and photos for the site; drawn images come from the spec.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <AssetsPanel specText={frontendSpecText} onApply={setFrontendSpecText} />
                 </CardContent>
               </Card>
             )}

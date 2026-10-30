@@ -20,3 +20,4 @@ Docker: `docker build -t {{PROJECT_NAME_SLUG}} . && docker run -p 3000:3000 -e M
 Generated, do not edit by hand: `src/app/globals.css` (theme tokens), `src/config/site.ts`, `src/lib/forms.ts`,
 `src/lib/api/*` except `client.ts`, `src/mocks/*.json`, `tests/e2e/*.spec.ts`. Regenerate them from the
 FrontendSpec instead.
+{{EXTERNAL_IMAGES}}

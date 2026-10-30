@@ -27,7 +27,7 @@ export function CardGrid({ title, description, cardStyle, items, columns = [], b
   const [heading, ...rest] = columns.filter((column) => column.format !== "image");
   return (
     <Section title={title} description={description}>
-      <QueryState isLoading={isLoading} error={error} isEmpty={records.length === 0} emptyText={states?.empty} errorText={states?.error}>
+      <QueryState isLoading={isLoading} error={error} isEmpty={records.length === 0} emptyText={states?.empty} emptyImage={states?.emptyImage} errorText={states?.error}>
         <Grid columns={3}>
           {records.map((record, index) => {
             const href = recordHref(binding?.link, record);

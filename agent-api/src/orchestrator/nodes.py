@@ -629,6 +629,24 @@ async def write_artifacts(ctx: JobContext, state: dict[str, Any], completed: boo
     return {artifact.kind: artifact.id for artifact in writer.written if artifact.name in main}, operations
 
 
+def _manifest_asset(asset: dict[str, Any]) -> dict[str, Any]:
+    """Epic 15: each asset with how it ended up rendered, its file and hash (drawings and uploads)."""
+    drawn = asset["render"] == "svg-component" and asset.get("drawn")
+    uploaded = asset["render"] == "public-file" and asset.get("src")
+    entry: dict[str, Any] = {
+        "id": asset["id"],
+        "source": asset["source"],
+        "render": asset["render"] if drawn or uploaded or asset["render"] in ("remote", "icon") else "placeholder",
+        "file": asset.get("file") if drawn or uploaded else None,
+        "sha256": asset.get("sha256"),
+    }
+    if asset["render"] == "svg-component":
+        entry["cached"] = bool(asset.get("cached"))
+        if asset.get("fallback"):
+            entry["fallback"] = asset["fallback"]
+    return entry
+
+
 def frontend_manifest(plan: dict[str, Any], ctx: JobContext, state: dict[str, Any]) -> dict[str, Any]:
     """Story 13.5: what the Integration Agent needs to know about the generated frontend."""
     scaffold = _optional_json(ctx.frontend_path(".bga", "scaffold.json")) or {}
@@ -644,6 +662,7 @@ def frontend_manifest(plan: dict[str, Any], ctx: JobContext, state: dict[str, An
         "theme": {key: plan["theme"][key] for key in ("colorScheme", "radius", "density", "fonts")},
         "validation": state.get("frontend_validation") or {},
         "env": ["MOCK_TEST_API", "API_BASE_URL"] if plan["project"]["mode"] == "dynamic" else [],
+        "assets": [_manifest_asset(asset) for asset in plan.get("assets", [])],
     }
     if contract.is_file():
         section["contractSha256"] = hashlib.sha256(contract.read_bytes()).hexdigest()

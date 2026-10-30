@@ -14,6 +14,7 @@ from typing import Any
 
 from src.modules.shared.domain.backend_spec.naming import pluralize, to_camel, to_kebab, to_pascal, to_snake
 from src.modules.shared.domain.frontend_spec import BUILTIN_SECTIONS, iter_sections, route_params
+from src.modules.shared.domain.frontend_spec.assets import aspect_ratio, render_mode
 
 from .contract import contract_operations, resolve
 from .frontend_renderer import custom_components, library_primitives, renderer_gaps
@@ -101,6 +102,70 @@ class _Planner:
         self.content = {item["collection"]: item["records"] for item in spec.get("content", [])}
         self.declared = {component["name"]: component for component in spec.get("components", [])}
         self.fixtures = ((contract or {}).get("x-bga") or {}).get("fixtures") or {}
+
+    # -- assets (Story 15.1) -------------------------------------------------------------------------------------
+
+    def assets(self, routes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Each asset with how it renders, where its file goes and the routes that show it (the header logo shows
+        on every route; content collections count where a section is bound to them)."""
+        logo = (self.spec.get("layout") or {}).get("header", {}).get("logo")
+        used: dict[str, list[str]] = {}
+        visible: dict[str, list[str]] = {}  # always on the page: what the smoke test asserts (Story 15.3)
+        for route in routes:
+            refs = set(_asset_ids(logo))
+            for section in iter_sections(route["sections"]):
+                refs |= set(_asset_ids(section.get("content"))) | set(_asset_ids(section.get("states")))
+                data = section.get("data") or {}
+                if data.get("kind") == "content":
+                    refs |= set(_asset_ids(self.content.get(data.get("collection"), [])))
+            for ref in refs:
+                used.setdefault(ref, []).append(route["route"])
+            for ref in self.visible_assets(route["sections"]) | set(_asset_ids(logo)):
+                visible.setdefault(ref, []).append(route["route"])
+        planned = []
+        for asset in self.spec.get("assets", []):
+            mode = render_mode(asset)
+            source = asset.get("source") or "placeholder"
+            entry: dict[str, Any] = {
+                "id": asset["id"],
+                "kind": asset.get("kind") or "image",
+                "source": source,
+                "render": mode,
+                "alt": asset.get("alt"),
+                "decorative": bool(asset.get("decorative")),
+                "aspectRatio": aspect_ratio(asset),
+                "routes": sorted(used.get(asset["id"], [])),
+                "visibleRoutes": sorted(visible.get(asset["id"], [])),
+            }
+            if mode == "svg-component":
+                entry |= {
+                    "prompt": asset.get("prompt") or asset.get("alt") or asset["id"],
+                    "style": asset.get("style"),
+                    "file": f"src/assets/svg/{asset['id']}.svg",
+                    "component": f"src/components/assets/generated/{asset_component(asset['id'])}.tsx",
+                }
+            elif mode == "public-file":
+                entry |= {"upload": source.removeprefix("upload:"), "file": f"public/assets/{asset['id']}"}
+            elif mode == "remote":
+                entry["url"] = source
+            elif mode == "icon":
+                entry["icon"] = source.removeprefix("lucide:")
+            planned.append(entry)
+        return planned
+
+    def visible_assets(self, sections: list[dict[str, Any]]) -> set[str]:
+        """Assets a page always shows: in section content and static collections, not in a data state (shown only
+        when a list is empty) and not inside Tabs (only the open tab is in the page)."""
+        found: set[str] = set()
+        for section in sections:
+            if section["component"] == "Tabs":
+                continue
+            found |= set(_asset_ids(section.get("content")))
+            data = section.get("data") or {}
+            if data.get("kind") == "content":
+                found |= set(_asset_ids(self.content.get(data.get("collection"), [])))
+            found |= self.visible_assets(section.get("children") or [])
+        return found
 
     # -- operations ---------------------------------------------------------------------------------------------
 
@@ -399,12 +464,28 @@ class _Planner:
                 {"collection": name, "file": f"{CONTENT_DIR}/{to_kebab(name)}.json", "records": len(records)}
                 for name, records in sorted(self.content.items())
             ],
-            "assets": spec.get("assets", []),
+            "assets": self.assets(routes),
             "tests": self.tests(routes, forms),
         }
         if custom:
             plan["customComponents"] = custom  # Story 17.3: generated one by one, fallbacks registered first
         return plan
+
+
+def _asset_ids(value: Any):
+    if isinstance(value, str) and value.startswith("asset:"):
+        yield value.removeprefix("asset:")
+    elif isinstance(value, dict):
+        for item in value.values():
+            yield from _asset_ids(item)
+    elif isinstance(value, list):
+        for item in value:
+            yield from _asset_ids(item)
+
+
+def asset_component(asset_id: str) -> str:
+    """The React component name of a generated SVG: `work-1` → `Work1Asset`."""
+    return to_pascal(asset_id.replace("-", "_")) + "Asset"
 
 
 def plan_frontend(spec: dict[str, Any], contract: dict[str, Any] | None = None) -> dict[str, Any]:

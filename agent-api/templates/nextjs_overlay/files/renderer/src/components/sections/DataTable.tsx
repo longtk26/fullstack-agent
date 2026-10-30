@@ -22,7 +22,7 @@ export function DataTable({ title, description, items, columns = [], binding, st
   const { records, isLoading, error } = useSectionRecords(items, binding);
   return (
     <Section title={title} description={description}>
-      <QueryState isLoading={isLoading} error={error} isEmpty={records.length === 0} emptyText={states?.empty} errorText={states?.error}>
+      <QueryState isLoading={isLoading} error={error} isEmpty={records.length === 0} emptyText={states?.empty} emptyImage={states?.emptyImage} errorText={states?.error}>
         <Table>
           <TableHeader>
             <TableRow>

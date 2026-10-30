@@ -21,7 +21,7 @@ export function DetailView({ title, description, columns = [], binding, states }
   const [heading, ...rest] = columns;
   return (
     <Section title={title} description={description}>
-      <QueryState isLoading={isLoading} error={error} isEmpty={!record} emptyText={states?.empty} errorText={states?.error}>
+      <QueryState isLoading={isLoading} error={error} isEmpty={!record} emptyText={states?.empty} emptyImage={states?.emptyImage} errorText={states?.error}>
         {record && (
           <Card>
             <CardHeader>

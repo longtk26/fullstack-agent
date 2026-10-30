@@ -153,8 +153,9 @@ async def browse_files(
     user: CurrentUserDep,
     usecase: BrowseFilesUsecaseDep,
     path: Annotated[str, Query(max_length=512)] = "",
+    source: Literal["backend", "frontend"] = "backend",
 ) -> dict[str, Any]:
-    return await usecase.execute(generation_id, user, path)
+    return await usecase.execute(generation_id, user, path, source)
 
 
 @generation_router.get("/{generation_id}/trace", response_model=dict[str, Any])

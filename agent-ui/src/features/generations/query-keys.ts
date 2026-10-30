@@ -10,7 +10,8 @@ export const generationKeys = {
   graph: (mode: string) => [...generationKeys.all, "graph", mode] as const,
   validation: (id: string) => [...generationKeys.all, "validation", id] as const,
   artifact: (id: string, artifactId: string) => [...generationKeys.all, "artifact", id, artifactId] as const,
-  files: (id: string, path: string) => [...generationKeys.all, "files", id, path] as const,
+  files: (id: string, path: string, source: "backend" | "frontend" = "backend") =>
+    [...generationKeys.all, "files", id, source, path] as const,
   preview: (id: string, kind: "backend" | "frontend" = "backend") =>
     [...generationKeys.all, "preview", id, kind] as const,
   previewLogs: (id: string, kind: "backend" | "frontend" = "backend") =>

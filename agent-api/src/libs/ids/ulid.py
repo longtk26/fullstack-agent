@@ -15,3 +15,7 @@ def new_generation_id() -> str:
 
 def new_artifact_id() -> str:
     return f"art_{new_ulid()}"
+
+
+def new_upload_id() -> str:
+    return f"upl_{new_ulid()}"

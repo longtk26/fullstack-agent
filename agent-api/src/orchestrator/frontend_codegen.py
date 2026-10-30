@@ -28,6 +28,7 @@ from typing import Any
 
 from src.modules.shared.domain.backend_spec.naming import to_camel, to_kebab, to_pascal
 
+from .asset_registry import ASSETS_FILE, assets_ts
 from .contract import contract_operations, resolve
 from .frontend_planner import operation_function, resource_keys
 from .frontend_renderer import BINDINGS_FILE, renderer_files
@@ -528,7 +529,6 @@ def site_ts(plan: dict[str, Any], spec: dict[str, Any]) -> str:
         },
         "themeToggle": plan["shell"]["themeToggle"],
         "pages": {route["pageId"]: route["route"] for route in plan["routes"]},
-        "assets": {asset["id"]: {k: v for k, v in asset.items() if k != "id"} for asset in plan["assets"]},
     }
     return (
         HEADER
@@ -652,11 +652,15 @@ def smoke_spec(plan: dict[str, Any], spec: dict[str, Any], contract: dict[str, A
             entry["text"] = text
         if test.get("skip"):
             entry["skip"] = test["skip"]
+        assets = sorted(a["id"] for a in plan.get("assets", []) if route["route"] in a.get("visibleRoutes", []))
+        if assets:
+            entry["assets"] = assets  # Story 15.3: each asset the page shows is on it (`data-bga-asset`)
         routes.append(entry)
     return (
         HEADER
         + 'import { expect, test } from "@playwright/test";\n\n'
-        + "type TRouteCase = { id: string; path: string | null; title: string; text?: string; skip?: string };\n\n"
+        + "type TRouteCase = {\n  id: string;\n  path: string | null;\n  title: string;\n  text?: string;\n"
+        + "  skip?: string;\n  assets?: string[];\n};\n\n"
         + f"const routes: TRouteCase[] = {json.dumps(routes, indent=2, ensure_ascii=False)};\n\n"
         + "for (const route of routes) {\n"
         + '  test(`${route.id} renders ${route.path ?? ""}`, async ({ page }) => {\n'
@@ -670,7 +674,13 @@ def smoke_spec(plan: dict[str, Any], spec: dict[str, Any], contract: dict[str, A
         + "    expect(response?.status() ?? 200).toBeLessThan(400);\n"
         + '    await expect(page).toHaveTitle(new RegExp(route.title.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&")));\n'
         + '    await expect(page.locator("main").first()).toBeVisible();\n'
-        + "    if (route.text) await expect(page.getByText(route.text).first()).toBeVisible();\n"
+        # Visible matches only: a drawing's <title> (Story 15.2) carries the same words as its caption.
+        + "    if (route.text) {\n"
+        + "      await expect(page.getByText(route.text).filter({ visible: true }).first()).toBeVisible();\n"
+        + "    }\n"
+        + "    for (const asset of route.assets ?? []) {\n"
+        + '      await expect(page.locator(`[data-bga-asset="${asset}"]`).first()).toBeAttached();\n'
+        + "    }\n"
         + '    await page.waitForLoadState("networkidle");\n'
         + "    expect(errors).toEqual([]);\n"
         + "  });\n"
@@ -801,6 +811,7 @@ def generated_files(plan: dict[str, Any], spec: dict[str, Any], contract: dict[s
     files = {
         "src/app/globals.css": globals_css(plan["theme"]),
         "src/app/fonts.ts": fonts_ts(plan["theme"]),
+        ASSETS_FILE: assets_ts(plan),
         "src/config/site.ts": site_ts(plan, spec),
         "src/lib/forms.ts": forms_ts(plan, contract),
         "tests/e2e/smoke.spec.ts": smoke_spec(plan, spec, contract),

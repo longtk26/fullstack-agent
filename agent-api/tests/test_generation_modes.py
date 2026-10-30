@@ -215,7 +215,10 @@ def test_workflow_graph_per_mode(client, headers):
     }
     assert "validate_spec" in ids["b"] and "validate_inputs" not in ids["b"]
     assert ids["d"][:3] == ["__start__", "validate_inputs", "build_contract"] and "validate_spec" not in ids["d"]
-    frontend_lane = ["plan_frontend", "scaffold_frontend", "generate_frontend", "validate_frontend", "repair_frontend"]
+    frontend_lane = [
+        "plan_frontend", "scaffold_frontend", "generate_assets", "generate_frontend", "validate_frontend",
+        "repair_frontend",
+    ]  # fmt: skip
     assert ids["s"] == ["__start__", "validate_inputs", *frontend_lane, "package_artifacts", "__end__"]
     assert set(frontend_lane) <= set(ids["d"]) and not set(frontend_lane) & set(ids["b"])
     lanes = {node["id"]: node["lane"] for node in dynamic["nodes"] if not node["id"].startswith("__")}
@@ -264,6 +267,7 @@ def test_dynamic_generation_runs_contract_backend_and_frontend_lanes(client, hea
     frontend_lane_nodes = (
         "plan_frontend",
         "scaffold_frontend",
+        "generate_assets",
         "generate_frontend",
         "validate_frontend",
         "repair_frontend",
@@ -277,12 +281,13 @@ def test_dynamic_generation_runs_contract_backend_and_frontend_lanes(client, hea
         "repair_code",
         "run_validation",
     ]
-    # Story 17.4: every tracker section is in the library, so the frontend lane makes no engine call.
+    # Story 17.4: every tracker section is in the library, so the frontend lane's only engine call draws the
+    # empty-state illustration (Story 15.2).
     assert [n for n in nodes if n in frontend_lane_nodes] == [
-        "plan_frontend", "scaffold_frontend", "generate_frontend", "validate_frontend",
+        "plan_frontend", "scaffold_frontend", "generate_assets", "generate_frontend", "validate_frontend",
     ]  # fmt: skip
     assert {call.purpose for call in cli_invocations(generation_id)} == {
-        "generate_database", "generate_backend", "generate_tests", "repair_code",
+        "generate_database", "generate_backend", "generate_tests", "repair_code", "generate_assets",
     }  # fmt: skip
     frontend = tmp_path / generation_id / "frontend"
     assert (frontend / ".bga" / "contract.json").is_file() and (
@@ -357,10 +362,12 @@ def test_static_generation_renders_the_site_without_the_engine(client, headers, 
     row = generation(generation_id)
     assert row.lanes == {"frontend": "COMPLETED"} and row.error_summary is None
     assert [run.node for run in node_runs(generation_id)] == [
-        "validate_inputs", "plan_frontend", "scaffold_frontend", "generate_frontend", "validate_frontend",
-        "package_artifacts",
+        "validate_inputs", "plan_frontend", "scaffold_frontend", "generate_assets", "generate_frontend",
+        "validate_frontend", "package_artifacts",
     ]  # fmt: skip
-    assert cli_invocations(generation_id) == [] and deployed == [generation_id]
+    # Story 15.2: the hero and work illustrations are drawn in one engine call; the pages need none.
+    assert [call.purpose for call in cli_invocations(generation_id)] == ["generate_assets"]
+    assert deployed == [generation_id]
     generate = next(run for run in node_runs(generation_id) if run.node == "generate_frontend")
     assert generate.summary == {"pages": 5, "sections": 11, "rendering": "renderer", "engineCalls": 0}
     rendered = next(e for e in events(generation_id) if e.type == "frontend.rendered")

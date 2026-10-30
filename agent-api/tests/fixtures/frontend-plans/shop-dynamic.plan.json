@@ -2,15 +2,33 @@
   "assets": [
     {
       "alt": "Coffee beans in a scoop",
+      "aspectRatio": "16:9",
+      "decorative": false,
       "id": "hero",
       "kind": "image",
-      "source": "placeholder"
+      "render": "placeholder",
+      "routes": [
+        "/"
+      ],
+      "source": "placeholder",
+      "visibleRoutes": [
+        "/"
+      ]
     },
     {
       "alt": "Shop front",
+      "aspectRatio": "16:9",
+      "decorative": false,
       "id": "shop-front",
       "kind": "image",
-      "source": "placeholder"
+      "render": "placeholder",
+      "routes": [
+        "/about"
+      ],
+      "source": "placeholder",
+      "visibleRoutes": [
+        "/about"
+      ]
     }
   ],
   "components": [

@@ -13,6 +13,7 @@ from src.modules.generations.usecases.get_generation_usecase import GetGeneratio
 from src.modules.shared.domain.entities import ArtifactEntity, UserEntity
 
 SOURCE_ARTIFACT = "backend.zip"
+SOURCE_ARTIFACTS = {"backend": SOURCE_ARTIFACT, "frontend": "frontend.zip"}
 MAX_TEXT_BYTES = 1_000_000
 
 
@@ -46,15 +47,16 @@ class ArtifactUsecase:
 
 
 class BrowseFilesUsecase:
-    """Read-only view of the generated source, served from the packaged ZIP (workspaces are temporary)."""
+    """Read-only view of the generated source, served from the packaged ZIP (workspaces are temporary):
+    `backend.zip`, or `frontend.zip` with `source="frontend"` (the Assets gallery, Story 15.2)."""
 
     def __init__(self, getter: GetGenerationUsecaseDep, artifact_repo: IArtifactRepoDep):
         self.getter = getter
         self.artifact_repo = artifact_repo
 
-    async def execute(self, generation_id: str, user: UserEntity, path: str) -> dict[str, Any]:
+    async def execute(self, generation_id: str, user: UserEntity, path: str, source: str = "backend") -> dict[str, Any]:
         self.getter.load(generation_id, user)
-        artifact = self.artifact_repo.find_by_name(generation_id, SOURCE_ARTIFACT)
+        artifact = self.artifact_repo.find_by_name(generation_id, SOURCE_ARTIFACTS[source])
         if artifact is None:
             raise ConflictException("The generation has no packaged source yet", code=ErrorCode.ARTIFACT_MISSING)
         wanted = _normalize(path)

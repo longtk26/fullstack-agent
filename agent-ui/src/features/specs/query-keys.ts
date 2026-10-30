@@ -8,4 +8,5 @@ export const specKeys = {
   examples: () => [...specKeys.all, "examples"] as const,
   draft: (draftId: string) => [...specKeys.all, "draft", draftId] as const,
   engines: () => ["engines"] as const,
+  uploads: () => ["uploads"] as const,
 };

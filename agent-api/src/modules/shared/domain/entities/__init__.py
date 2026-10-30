@@ -10,10 +10,13 @@ from .node_run_entity import NodeRunEntity
 from .preview_entity import PreviewEntity
 from .sandbox_exec_entity import SandboxExecEntity
 from .spec_draft_entity import SpecDraftEntity
+from .upload_entity import UPLOAD_EXTENSIONS, UploadEntity
 from .user_entity import UserEntity
 from .validation_run_entity import ValidationRunEntity
 
 __all__ = [
+    "UploadEntity",
+    "UPLOAD_EXTENSIONS",
     "ArtifactEntity",
     "BackendSpecEntity",
     "CliInvocationEntity",

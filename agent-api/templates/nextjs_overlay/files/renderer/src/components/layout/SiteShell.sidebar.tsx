@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { AssetImage } from "@/components/assets/AssetImage";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import {
   Sidebar,
@@ -24,13 +25,17 @@ type SiteShellProps = {
 };
 
 /** FrontendSpec.layout `sidebar`: navigation in a collapsible sidebar and a top bar (copied as SiteShell.tsx). */
+// `siteConfig` is `as const`; widen the logo so a site without one still type-checks.
+const logo: string | null = siteConfig.logo;
+
 export function SiteShell({ children }: SiteShellProps) {
   const pathname = usePathname();
   return (
     <SidebarProvider>
       <Sidebar>
         <SidebarHeader>
-          <Link href="/" className="px-2 py-1.5 text-lg font-semibold tracking-tight">
+          <Link href="/" className="flex items-center gap-2 px-2 py-1.5 text-lg font-semibold tracking-tight">
+            {logo && <AssetImage asset={logo} className="size-7 rounded-none" priority />}
             {siteConfig.logoText}
           </Link>
         </SidebarHeader>

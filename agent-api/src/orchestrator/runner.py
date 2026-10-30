@@ -253,8 +253,12 @@ class JobRunner:
         outcome = state.get("outcome")
         if outcome == Outcome.COMPLETED:
             status = overall_status(ctx.mode, ctx.lanes)
+            fallbacks = _asset_warnings(state)
             if status == GenerationStatus.COMPLETED_WITH_WARNINGS:
-                return await self._finish(ctx, status, _lane_warnings(ctx.lanes, state), "LANES_INCOMPLETE")
+                warning = "; ".join(filter(None, [_lane_warnings(ctx.lanes, state), fallbacks]))
+                return await self._finish(ctx, status, warning, "LANES_INCOMPLETE")
+            if fallbacks:  # Story 15.3: a drawing on its placeholder still makes a working site
+                return await self._finish(ctx, GenerationStatus.COMPLETED_WITH_WARNINGS, fallbacks, "ASSET_FALLBACK")
             return await self._finish(ctx, status, None)
         if outcome == Outcome.SPEC_INVALID:
             return await self._finish(ctx, GenerationStatus.FAILED, state.get("error_summary"), "SPEC_INVALID")
@@ -354,6 +358,13 @@ def _lane_warnings(lanes: dict[str, str], state: dict[str, Any] | None = None) -
             )
             notes.append(f"The {lane} lane failed: {reason}" if reason else f"The {lane} lane failed")
     return "; ".join(notes)
+
+
+def _asset_warnings(state: dict[str, Any]) -> str:
+    fallbacks = state.get("asset_fallbacks") or []
+    if not fallbacks:
+        return ""
+    return "Images shown as placeholders: " + ", ".join(f"{item['id']} ({item['reason']})" for item in fallbacks)
 
 
 def validation_summary(runs) -> dict[str, str]:

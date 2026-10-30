@@ -23,12 +23,14 @@ from src.sandbox import ExecResult, ISandbox
 
 from .checks.frontend_conventions import check_frontend_conventions
 from .checks.parsers import junit_failures, last_lines
+from .frontend_assets import assets_check
 from .validation import CheckResult, ValidationOutcome, build_digest_for, implicated, traced_check
 
-CHECKS = ("install", "typecheck", "lint", "conventions", "build", "routes", "tests")
+# `assets` (Story 15.3) runs before the build: a drawing that falls back must not be built.
+CHECKS = ("install", "typecheck", "lint", "conventions", "assets", "build", "routes", "tests")
 DEPENDS_ON = {"typecheck": ("install",), "lint": ("install",), "build": ("install", "typecheck")}
 DEPENDS_ON |= {"routes": ("build",), "tests": ("build",)}
-DIGEST_ORDER = ("install", "typecheck", "build", "conventions", "lint", "routes", "tests")
+DIGEST_ORDER = ("install", "typecheck", "build", "assets", "conventions", "lint", "routes", "tests")
 TS_ERROR = re.compile(r"^(?:\./)?(src/[^\s(:]+)\((\d+),\d+\): error (TS\d+): (.+)$", re.MULTILINE)
 BUILD_LOCATION = re.compile(r"^\./(src/[^\s:]+):(\d+):\d+", re.MULTILINE)
 NO_OFFLINE = ("ERR_PNPM_NO_OFFLINE", "ERR_PNPM_OFFLINE", "not found in the store", "ERR_PNPM_FETCH")
@@ -156,6 +158,8 @@ class StaticFrontendValidationRunner:
             with traced_check(check) as slot:
                 if check == "conventions":
                     result = conventions_check(request.project, request.plan)
+                elif check == "assets":
+                    result = assets_check(request.project, request.plan)
                 elif check == "tests" and not request.run_tests:
                     result = CheckResult(check=check, status="skipped", summary="runTests=false")
                 else:
@@ -182,6 +186,8 @@ class SandboxFrontendValidationRunner:
                     )
                 elif check == "conventions":
                     result = conventions_check(request.project, request.plan)
+                elif check == "assets":
+                    result = assets_check(request.project, request.plan)
                 elif check == "routes":
                     result = routes_check(request.project, request.plan)
                 else:

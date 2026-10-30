@@ -18,10 +18,12 @@ export class ApiError extends Error {
 type TRequestOptions = Omit<RequestInit, "body"> & {
   json?: unknown;
   rawBody?: string;
+  /** Multipart upload; the browser sets the content type with its boundary. */
+  form?: FormData;
   query?: Record<string, string | number | boolean | null | undefined>;
 };
 
-async function send(path: string, { json, rawBody, query, headers, ...init }: TRequestOptions = {}) {
+async function send(path: string, { json, rawBody, form, query, headers, ...init }: TRequestOptions = {}) {
   const url = new URL(`${PROXY_BASE}${path}`, window.location.origin);
   for (const [key, value] of Object.entries(query ?? {})) {
     if (value !== undefined && value !== null && value !== "") url.searchParams.set(key, String(value));
@@ -29,7 +31,7 @@ async function send(path: string, { json, rawBody, query, headers, ...init }: TR
   const body = json !== undefined ? JSON.stringify(json) : rawBody;
   const response = await fetch(url, {
     ...init,
-    body,
+    body: form ?? body,
     credentials: "same-origin",
     headers: {
       Accept: "application/json",

@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from src.configs import config
 from src.modules.shared.domain.entities import ValidationRunEntity
 from src.modules.shared.domain.enums import GenerationMode, LaneStatus
 from src.modules.shared.domain.frontend_spec import iter_sections
@@ -14,6 +15,14 @@ from .autofix import autofix_before_validation
 from .component_cache import CUSTOM_DIR, drop_files
 from .context import EngineFailure, JobContext
 from .custom_components import CustomComponents, Resolved
+from .frontend_assets import (
+    copy_uploads,
+    due_fallbacks,
+    fall_back,
+    generate_assets,
+    redraw_after_repair,
+    write_registry,
+)
 from .frontend_planner import dump_frontend_plan, plan_frontend
 from .frontend_scaffold import scaffold_frontend
 from .frontend_validation import FrontendValidationRequest
@@ -22,7 +31,7 @@ from .state import GenerationState, Outcome
 from .validation import write_report
 
 DIGEST_LIMIT = 30_000
-FRONTEND_PROMPTS = {"generate_frontend_shell": "v1", "generate_frontend_page": "v1", "repair_frontend": "v1"}
+FRONTEND_PROMPTS = {"generate_frontend_shell": "v1", "generate_frontend_page": "v1", "repair_frontend": "v2"}
 PLAN_REF = ".bga/frontend-plan.json"
 CHECK_PREFIX = "frontend:"
 NodeResult = tuple[dict[str, Any], dict[str, Any]]
@@ -65,6 +74,13 @@ async def scaffold_frontend_node(state: GenerationState, ctx: JobContext) -> Nod
     plan = _plan(ctx, state)
     info = scaffold_frontend(ctx.workspace.frontend, plan, _json(Path(state["frontend_ref"])), _contract(ctx))
     summary = {"mode": info["mode"], "shadcn": len(info["shadcn"]), "generated": len(info["generated"])}
+    if any(asset["render"] == "public-file" for asset in plan.get("assets", [])):
+        # Story 15.4: the user's uploads go to public/assets/ and into the registry.
+        missing = copy_uploads(ctx.workspace.frontend, plan, ctx.store.upload)
+        write_registry(ctx.workspace.frontend, plan)
+        summary["uploads"] = sum(1 for asset in plan["assets"] if asset["render"] == "public-file") - len(missing)
+        for asset_id in missing:
+            await ctx.emit("frontend.asset.missing", step="scaffold_frontend", id=asset_id, reason="upload deleted")
     await ctx.emit("frontend.scaffold.done", step="scaffold_frontend", **summary)
     return {}, summary
 
@@ -146,6 +162,13 @@ async def validate_frontend(state: GenerationState, ctx: JobContext) -> NodeResu
         frontend_contract.write_text(canonical_contract.read_text())  # undo any edit by the engine
     fixes = await autofix_before_validation(ctx, "frontend", attempt, "validate_frontend")
     plan = _plan(ctx, state)
+    # Story 15.3: drawings still failing after their repairs show their placeholder; they never fail the lane.
+    attempts_left = state.get("frontend_repair_attempts", 0) < state["max_repair_attempts"]
+    fallbacks = due_fallbacks(ctx.workspace.frontend, plan, config.frontend_asset_repair_limit, attempts_left)
+    if fallbacks:
+        fall_back(ctx.workspace.frontend, plan, fallbacks)
+        for asset_id, reason in fallbacks.items():
+            await ctx.emit("frontend.asset.fallback", step="validate_frontend", id=asset_id, reason=reason)
     frontend_options = state["options"].get("frontend") or {}
     request = FrontendValidationRequest(
         project=ctx.workspace.frontend,
@@ -186,6 +209,9 @@ async def validate_frontend(state: GenerationState, ctx: JobContext) -> NodeResu
         "frontend_digest_ref": str(digest_path),
         "frontend_implicated_files": outcome.implicated_files,
     }
+    if fallbacks:
+        known = state.get("asset_fallbacks") or []
+        update["asset_fallbacks"] = [*known, *({"id": k, "reason": v} for k, v in fallbacks.items())]
     evicted = await _evict_broken_components(state, ctx, failed, outcome.implicated_files)
     if evicted:
         update["evicted_components"] = evicted
@@ -255,18 +281,29 @@ async def repair_frontend(state: GenerationState, ctx: JobContext) -> NodeResult
         implicated_files=state.get("frontend_implicated_files", []),
         failure_digest=digest or "(no output captured)",
         plan_path=state["frontend_plan_ref"],
+        asset_files=sorted(
+            path for path in state.get("frontend_implicated_files", []) if path.startswith("src/assets/svg/")
+        ),
     )
     try:
         result = await ctx.run_engine("repair_frontend", "repair_frontend", prompt, repo="frontend")
     except EngineFailure:
         await ctx.emit("engine.retry", step="repair_frontend", attempt=attempt)
         result = await ctx.run_engine("repair_frontend", "repair_frontend", prompt, repo="frontend")
-    return {"frontend_repair_attempts": attempt}, {"attempt": attempt, "changedFiles": result.changed_files[:50]}
+    summary: dict[str, Any] = {"attempt": attempt, "changedFiles": result.changed_files[:50]}
+    plan = _plan(ctx, state)
+    if any(asset["render"] == "svg-component" for asset in plan.get("assets", [])):
+        # Story 15.3: the engine may have redrawn an SVG; its component and the registry follow.
+        repaired = redraw_after_repair(ctx.workspace.frontend, plan, state.get("frontend_implicated_files", []))
+        if repaired:
+            summary["assetsRepaired"] = repaired
+    return {"frontend_repair_attempts": attempt}, summary
 
 
 FRONTEND_NODE_FUNCTIONS = {
     "plan_frontend": plan_frontend_node,
     "scaffold_frontend": scaffold_frontend_node,
+    "generate_assets": generate_assets,
     "generate_frontend": generate_frontend,
     "validate_frontend": validate_frontend,
     "repair_frontend": repair_frontend,

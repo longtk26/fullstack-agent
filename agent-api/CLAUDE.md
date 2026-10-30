@@ -74,6 +74,12 @@ Agent-specific notes:
   font pairing, preset, home order, hero variant; contrast-checked). Drafting writes `.bga/design.md`, applies the
   engine's pick (`notes.json` `design`) and stores `spec_drafts.design`; the UI's `lib/design-direction.ts` mirrors
   `apply_direction` / `reorder_sections` (keep both in step).
+- Site images (Epic 15): asset sources and render modes in `frontend_spec/assets.py`; the registry
+  `src/assets/index.ts` (`asset_registry.py`) and the overlay's `components/assets/AssetImage.tsx`. `generate_assets`
+  (`frontend_assets.py`) draws all `source: "generate"` assets in one engine call in a scratch dir (cache in
+  `ARTIFACT_ROOT/asset-cache/`), `svg_assets.py` checks SVGs (`frontend:assets`, before build) and converts them to
+  components; failing drawings fall back to placeholders (`asset_fallbacks` → COMPLETED_WITH_WARNINGS). Uploads
+  (`modules/uploads`) live under `UPLOAD_ROOT`, are copied to `public/assets/` by `scaffold_frontend`.
 - Test doubles (fake engine, golden two-entity project, static validator, fake CLIs, opt-in test flags) are listed in
   `docs/development/test-doubles.md`; add any new fake there and mark it at its definition.
 

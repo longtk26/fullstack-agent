@@ -1,5 +1,23 @@
 {
-  "assets": [],
+  "assets": [
+    {
+      "alt": "An empty project board",
+      "aspectRatio": "4:3",
+      "component": "src/components/assets/generated/EmptyProjectsAsset.tsx",
+      "decorative": false,
+      "file": "src/assets/svg/empty-projects.svg",
+      "id": "empty-projects",
+      "kind": "illustration",
+      "prompt": "An empty kanban board with three columns and one loose sticky note",
+      "render": "svg-component",
+      "routes": [
+        "/"
+      ],
+      "source": "generate",
+      "style": "flat, line art",
+      "visibleRoutes": []
+    }
+  ],
   "components": [
     {
       "description": "Records as cards",
@@ -320,7 +338,8 @@
           },
           "id": "recent",
           "states": {
-            "empty": "Nothing here yet",
+            "empty": "No projects yet",
+            "emptyImage": "asset:empty-projects",
             "error": "Could not load the data",
             "loading": "Loading…"
           }

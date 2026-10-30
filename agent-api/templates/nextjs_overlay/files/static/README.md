@@ -14,3 +14,4 @@ pnpm typecheck && pnpm lint && pnpm test && pnpm build && pnpm test:e2e
 
 Generated, do not edit by hand: `src/app/globals.css` (theme tokens), `src/config/site.ts`, `src/lib/forms.ts`,
 `src/content/*.json`, `tests/e2e/*.spec.ts`. Regenerate them from the FrontendSpec instead.
+{{EXTERNAL_IMAGES}}

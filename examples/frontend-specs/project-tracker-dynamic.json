@@ -16,7 +16,8 @@
       "title": "Overview",
       "sections": [
         { "id": "recent", "component": "CardGrid",
-          "data": { "operationId": "project.list", "params": { "limit": 6, "sort": "-createdAt" }, "fields": ["name", "description"] } }
+          "data": { "operationId": "project.list", "params": { "limit": 6, "sort": "-createdAt" }, "fields": ["name", "description"] },
+          "states": { "empty": "No projects yet", "emptyImage": "asset:empty-projects" } }
       ]
     },
     {
@@ -68,6 +69,10 @@
       ],
       "submitLabel": "Add task",
       "onSuccess": { "toast": "Task added" } }
+  ],
+  "assets": [
+    { "id": "empty-projects", "kind": "illustration", "source": "generate", "alt": "An empty project board",
+      "prompt": "An empty kanban board with three columns and one loose sticky note", "style": "flat, line art", "aspectRatio": "4:3" }
   ],
   "x-backendSpec": "examples/specs/two-entity.json"
 }

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { AssetImage } from "@/components/assets/AssetImage";
 import { Container } from "@/components/layout/Container";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { siteConfig, type TNavItem } from "@/config/site";
@@ -14,6 +15,7 @@ type SiteShellProps = {
 const shell: string = siteConfig.shell;
 const navigation: readonly TNavItem[] = siteConfig.navigation;
 const footerLinks: readonly TNavItem[] = siteConfig.footer.links;
+const logo: string | null = siteConfig.logo;
 
 export function SiteShell({ children }: SiteShellProps) {
   if (shell === "blank") {
@@ -23,7 +25,8 @@ export function SiteShell({ children }: SiteShellProps) {
     <div className="flex min-h-dvh flex-col">
       <header className="sticky top-0 z-40 border-b bg-background/90 backdrop-blur">
         <Container className="flex h-16 items-center justify-between gap-4">
-          <Link href="/" className="font-heading text-lg font-semibold tracking-tight">
+          <Link href="/" className="flex items-center gap-2 font-heading text-lg font-semibold tracking-tight">
+            {logo && <AssetImage asset={logo} className="size-8 rounded-none" priority />}
             {siteConfig.logoText}
           </Link>
           <div className="flex items-center gap-1">

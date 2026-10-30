@@ -97,6 +97,16 @@ class Config(BaseSettings):
     generator_version: str = "0.8.0"
     # Shared by worker (writes) and API (downloads); outlives workspaces.
     artifact_root: str = "/tmp/bga/artifacts"
+    # Site images (Epic 15): generated SVGs per job before the validator warns, repairs before a drawing falls back
+    # to its placeholder.
+    frontend_max_generated_assets: int = 12
+    frontend_asset_repair_limit: int = 1
+    # Uploads (Story 15.4): where the API stores them (the worker only reads them), per file and per user limits,
+    # and how long an upload no generation uses is kept. Empty: `<ARTIFACT_ROOT>/uploads`.
+    upload_root: str = ""
+    upload_max_mb: int = 5
+    upload_quota_mb: int = 200
+    upload_retention_days: int = 30
 
     # Preview containers (Epic 7): each COMPLETED backend runs as its own container, local-only.
     preview_enabled: bool = True
@@ -178,6 +188,11 @@ class Config(BaseSettings):
     def preview_ports(self) -> range:
         low, _, high = self.preview_port_range.partition("-")
         return range(int(low), int(high or low) + 1)
+
+
+def uploads_dir() -> str:
+    """Where uploads live (Story 15.4)."""
+    return config.upload_root or f"{config.artifact_root.rstrip('/')}/uploads"
 
 
 config = Config()

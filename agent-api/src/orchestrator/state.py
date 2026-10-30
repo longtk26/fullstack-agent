@@ -14,6 +14,7 @@ NODES = (
     "repair_code",
     "plan_frontend",
     "scaffold_frontend",
+    "generate_assets",
     "generate_frontend",
     "validate_frontend",
     "repair_frontend",
@@ -29,7 +30,14 @@ BACKEND_NODES = (
     "run_validation",
     "repair_code",
 )
-FRONTEND_NODES = ("plan_frontend", "scaffold_frontend", "generate_frontend", "validate_frontend", "repair_frontend")
+FRONTEND_NODES = (
+    "plan_frontend",
+    "scaffold_frontend",
+    "generate_assets",
+    "generate_frontend",
+    "validate_frontend",
+    "repair_frontend",
+)
 
 # The nodes each mode's graph is built from (Stories 12.2, 13.x; 14.1 runs the two lanes in parallel).
 MODE_NODES: dict[GenerationMode, tuple[str, ...]] = {
@@ -109,6 +117,7 @@ class GenerationState(TypedDict, total=False):
     frontend_last_commit: str | None
     cached_components: list[str]  # Story 17.3: cache keys this job took from the component cache
     evicted_components: list[str]  # … and the ones it evicted because they broke the site
+    asset_fallbacks: list[dict[str, str]]  # Story 15.3: drawings shown as placeholders (id, reason)
     backend_error: str | None
     # integration lane (Epic 14)
     integration: dict[str, Any]
@@ -140,5 +149,6 @@ class FrontendLaneOutput(TypedDict, total=False):
     frontend_last_commit: str | None
     cached_components: list[str]
     evicted_components: list[str]
+    asset_fallbacks: list[dict[str, str]]
     outcome: str | None
     error_summary: str | None

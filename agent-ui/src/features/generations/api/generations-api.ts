@@ -67,8 +67,8 @@ export function fetchArtifactText(id: string, artifactId: string) {
   return apiClient.text(`/generations/${id}/artifacts/${artifactId}`);
 }
 
-export function fetchFiles(id: string, path: string) {
-  return apiClient.get<TFileNode>(`/generations/${id}/files`, { query: { path } });
+export function fetchFiles(id: string, path: string, source: "backend" | "frontend" = "backend") {
+  return apiClient.get<TFileNode>(`/generations/${id}/files`, { query: { path, source } });
 }
 
 // -- preview (Story 9.6, 9.8, 9.9) ---------------------------------------------------------------------------------

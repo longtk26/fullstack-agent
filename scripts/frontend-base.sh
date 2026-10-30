@@ -31,6 +31,12 @@ pnpm add -E $FONTS
 pnpm add -E -D @types/node@22 "msw@$MSW_VERSION" vitest @vitejs/plugin-react jsdom @testing-library/react \
   @testing-library/jest-dom @testing-library/user-event @playwright/test vite-tsconfig-paths
 pnpm exec msw init public --no-save
+# Icon names the FrontendSpec validator accepts for `lucide:<Name>` assets (Story 15.1); not copied into projects.
+node -e 'const m = require("lucide-react"); const v = require("lucide-react/package.json").version;
+const names = Object.keys(m).filter((k) => /^[A-Z]/.test(k) && !k.endsWith("Icon") && !k.startsWith("Lucide") &&
+  k !== "Icon" && typeof m[k] === "object").sort();
+process.stdout.write(`# lucide-react ${v}: icon names for FrontendSpec lucide:<Name> assets (Story 15.1)\n` + names.join("\n") + "\n");' \
+  > lucide-icons.txt
 cat > base.lock <<LOCK
 nextVersion=$NEXT_VERSION
 shadcnVersion=$SHADCN_VERSION

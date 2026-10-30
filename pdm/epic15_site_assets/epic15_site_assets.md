@@ -60,3 +60,18 @@ validate_frontend ⇄ repair_frontend`.
 - An uploaded logo and photo appear in the static export and in the dynamic preview, and the downloaded ZIP
   builds on its own with them.
 - Stories 15.1–15.4 need no new API key.
+
+## Status (2026-10-30)
+
+15.1–15.4 done on `feat/epic15-site-images`; 15.5 (raster images from an image API) not started, only if asked. Epic
+acceptance on `make up` with the fake engine: the static landing shows the golden drawings in the theme's colours,
+`frontend:assets` passed, the manifest lists each asset with its file and hash; an unsafe drawing (fake
+`unsafe_assets`) is caught, repaired or replaced by its placeholder with `COMPLETED_WITH_WARNINGS` (tests); an uploaded
+logo and photo are in the static export, the dynamic preview shows the logo, and the ZIP builds on its own. No new API
+key.
+
+Drafts draw their images (2026-10-30, after review): a drafted site has no placeholders. `draft_frontend_spec@v3` asks
+the engine for `source: "generate"` with a prompt for every image (an editorial illustration when the requirement asks
+for photography), and `drafting.draw_images` turns any placeholder it still left into a drawing (prompt from the alt
+text, style from the chosen direction), up to the limit of 12, noted in the assumptions. Hand-written specs keep an
+explicit `placeholder`; a drawing that fails its checks after the repair still shows its placeholder.

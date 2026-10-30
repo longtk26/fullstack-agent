@@ -10,10 +10,12 @@ from .node_run_model import NodeRunModel
 from .preview_model import PreviewModel
 from .sandbox_exec_model import SandboxExecModel
 from .spec_draft_model import SpecDraftModel
+from .upload_model import UploadModel
 from .user_model import UserModel
 from .validation_run_model import ValidationRunModel
 
 __all__ = [
+    "UploadModel",
     "ArtifactModel",
     "BackendSpecModel",
     "CliInvocationModel",

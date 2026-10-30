@@ -8,6 +8,7 @@ from pydantic import ValidationError
 
 from src.modules.shared.domain.backend_spec.issues import Severity, SpecIssue, ValidationReport
 
+from .assets import ICON_NAME, MAX_GENERATED_ASSETS, SVG_KINDS, UPLOAD_ID, lucide_icons, source_kind
 from .catalogue import BUILTIN_SECTIONS, SHADCN_PRIMITIVES, THEME_PRESETS
 from .fonts import FONTS, closest_font
 from .issues import FrontendIssueCode
@@ -186,6 +187,7 @@ class _SemanticChecker:
     def run(self) -> list[SpecIssue]:
         self._check_duplicates()
         self._check_theme()
+        self._check_assets()
         self._check_layout()
         self._check_pages()
         self._check_components()
@@ -273,6 +275,69 @@ class _SemanticChecker:
                 warning=True,
             )
 
+    def _check_assets(self) -> None:
+        """Story 15.1: each asset's source, its alt text, and how many the engine has to draw."""
+        generated = 0
+        for index, asset in enumerate(self.spec.assets):
+            path = f"/assets/{index}"
+            kind = source_kind(asset.source)
+            if not asset.decorative and not (asset.alt or "").strip():
+                self._add(
+                    C.FE_ASSET_ALT_REQUIRED,
+                    f"{path}/alt",
+                    f"Asset '{asset.id}' needs an 'alt' text",
+                    hint='Describe the image, or set "decorative": true if it carries no meaning',
+                )
+            if kind == "insecure":
+                self._add(
+                    C.FE_INSECURE_URL,
+                    f"{path}/source",
+                    f"Asset '{asset.id}': only https:// links are allowed",
+                    hint="Use an https:// URL, an upload or a generated image",
+                )
+            elif kind == "unknown":
+                self._add(
+                    C.FE_UNSUPPORTED_ASSET_SOURCE,
+                    f"{path}/source",
+                    f"Asset '{asset.id}': unknown source '{asset.source}'",
+                    hint="Use placeholder, generate, upload:<id>, lucide:<Icon> or an https:// URL",
+                )
+            elif kind == "generate":
+                generated += 1
+                if asset.kind not in SVG_KINDS:
+                    hint = "Icons come from lucide:<Name>" if asset.kind == "icon" else "Upload or link the file"
+                    self._add(
+                        C.FE_UNSUPPORTED_ASSET_SOURCE,
+                        f"{path}/source",
+                        f"Asset '{asset.id}': a {asset.kind} cannot be generated",
+                        hint=hint,
+                    )
+            elif kind == "lucide":
+                name = asset.source.removeprefix("lucide:")
+                icons = lucide_icons()
+                if not ICON_NAME.match(name) or (icons and name not in icons):
+                    self._add(
+                        C.FE_UNKNOWN_ICON,
+                        f"{path}/source",
+                        f"Asset '{asset.id}': lucide-react has no icon '{name}'",
+                        hint="Icon names are PascalCase, as on lucide.dev (e.g. lucide:Mail)",
+                    )
+            elif kind == "upload" and not UPLOAD_ID.match(asset.source.removeprefix("upload:")):
+                self._add(
+                    C.FE_UNKNOWN_UPLOAD,
+                    f"{path}/source",
+                    f"Asset '{asset.id}': '{asset.source}' is not an upload id",
+                    hint="Upload the file in the Assets panel and use its upload:upl_… id",
+                )
+        if generated > MAX_GENERATED_ASSETS:
+            self._add(
+                C.FE_TOO_MANY_GENERATED_ASSETS,
+                "/assets",
+                f"{generated} assets are generated; more than {MAX_GENERATED_ASSETS} makes the drawing step slow",
+                warning=True,
+                hint="Keep generated images to the ones a page really needs",
+            )
+
     def _check_link(self, link: NavLink, path: str) -> None:
         if link.page is None:
             return
@@ -340,7 +405,9 @@ class _SemanticChecker:
                     else:
                         form_params = {**form.params, **{f.name: f.value for f in form.fields}}
                         self._check_route_refs(form_params, params, f"{path}/form", f"{page.route} (form '{form.id}')")
-                for asset, asset_path in _asset_refs(section.content, f"{path}/content"):
+                states = section.states.model_dump(by_alias=True) if section.states else None
+                refs = [*_asset_refs(section.content, f"{path}/content"), *_asset_refs(states, f"{path}/states")]
+                for asset, asset_path in refs:
                     if asset not in self.assets:
                         self._add(C.FE_UNKNOWN_ASSET, asset_path, f"Unknown asset '{asset}'")
                 for target, link_path in _page_refs(section.content, f"{path}/content"):

@@ -98,8 +98,11 @@
     ] }
   ],
   "assets": [
-    { "id": "hero", "kind": "image", "alt": "Studio desk with sketches", "source": "placeholder" },
-    { "id": "work-1", "kind": "image", "alt": "Bakehouse packaging", "source": "placeholder" },
+    { "id": "hero", "kind": "illustration", "source": "generate", "alt": "Studio desk with sketches",
+      "prompt": "A designer's desk seen from above: a sketchbook with logo sketches, a pencil, a coffee cup and a colour fan",
+      "style": "flat, geometric, two-tone", "aspectRatio": "16:9" },
+    { "id": "work-1", "kind": "illustration", "source": "generate", "alt": "Bakehouse packaging",
+      "prompt": "Bakery packaging: a paper bread bag and a cake box with a simple wheat logo", "style": "flat, geometric, two-tone" },
     { "id": "work-2", "kind": "image", "alt": "Harbour Books shop sign", "source": "placeholder" }
   ]
 }

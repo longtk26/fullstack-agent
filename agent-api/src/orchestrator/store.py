@@ -2,10 +2,12 @@ import uuid
 from collections.abc import Callable
 from contextlib import contextmanager
 from datetime import datetime
+from pathlib import Path
 from typing import Any, TypeVar
 
 from sqlmodel import Session
 
+from src.configs.config import uploads_dir
 from src.libs.database import db_session_manager
 from src.modules.generations.infrastructure.persistence import (
     ArtifactRepository,
@@ -26,6 +28,7 @@ from src.modules.shared.domain.entities import (
     PreviewEntity,
     SandboxExecEntity,
     SpecDraftEntity,
+    UploadEntity,
     ValidationRunEntity,
 )
 from src.modules.shared.domain.enums import PreviewStatus
@@ -34,6 +37,7 @@ from src.modules.specs.infrastructure.persistence import (
     FrontendSpecRepository,
     SpecDraftRepository,
 )
+from src.modules.uploads.infrastructure.persistence import UploadRepository
 
 T = TypeVar("T")
 
@@ -122,6 +126,24 @@ class JobStore:
         return self._with(lambda s: ExecutionRecordRepository(s).prune_details(generation_ids))
 
     # -- spec drafts (Stories 2.4, 12.4) ----------------------------------------------------------------------------
+
+    def upload(self, upload_id: str) -> UploadEntity | None:
+        return self._with(lambda s: UploadRepository(s).find(upload_id))
+
+    def prune_uploads(self, created_before: datetime) -> int:
+        """Deletes uploads older than the cut-off that no saved FrontendSpec uses, rows and files."""
+
+        def prune(session: Session) -> list[UploadEntity]:
+            repo = UploadRepository(session)
+            old = repo.unreferenced_before(created_before)
+            for upload in old:
+                repo.delete(upload.id)
+            return old
+
+        removed = self._with(prune)
+        for upload in removed:
+            (Path(uploads_dir()) / upload.relative_path).unlink(missing_ok=True)
+        return len(removed)
 
     def draft(self, draft_id: uuid.UUID) -> SpecDraftEntity | None:
         return self._with(lambda s: SpecDraftRepository(s).find_by_id(draft_id))

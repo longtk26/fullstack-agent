@@ -25,6 +25,7 @@ x-agent-env: &agent-env
   ANTIGRAVITY_MODEL: ${ANTIGRAVITY_MODEL:-}
   GEMINI_API_KEY: ${GEMINI_API_KEY:-}
   ARTIFACT_ROOT: /data/artifacts
+  UPLOAD_ROOT: /data/uploads
   PREVIEW_ENABLED: ${PREVIEW_ENABLED:-true}
   PREVIEW_PORT_RANGE: ${PREVIEW_PORT_RANGE:-18000-18099}
   PREVIEW_CORS_ORIGINS: http://localhost:${BGA_UI_PORT:-3100}
@@ -84,6 +85,8 @@ services:
     environment: *agent-env
     volumes:
       - ./.data/artifacts:/data/artifacts:ro
+      # Story 15.4: users' uploads; the API writes them, the worker copies them into sites.
+      - ./.data/uploads:/data/uploads
     ports:
       - "127.0.0.1:${BGA_API_PORT:-8100}:8000"
     depends_on:
@@ -110,6 +113,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       # A host directory (not a volume), so a host dev worker and the Docker API share the same artifacts.
       - ./.data/artifacts:/data/artifacts
+      - ./.data/uploads:/data/uploads  # copied into sites; unused ones pruned (UPLOAD_RETENTION_DAYS)
       # Same absolute path inside and outside, so sibling sandbox containers can bind-mount job workspaces.
       - ${HOST_WORKSPACE_ROOT}:${HOST_WORKSPACE_ROOT}
       # Optional Claude subscription login instead of ANTHROPIC_API_KEY (/dev/null = not configured).

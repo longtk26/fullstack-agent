@@ -3,6 +3,7 @@ BGA_SANDBOX_TESTS=1 (needs Docker and `make runner-node`). Workspaces live under
 only shares configured host paths."""
 
 import asyncio
+import json
 import os
 import shutil
 import uuid
@@ -45,7 +46,7 @@ def test_golden_static_site_passes_every_check_offline(landing):
     project, plan = landing
     outcome = _validate(project, plan)
     assert outcome.summary == dict.fromkeys(
-        ("install", "typecheck", "lint", "conventions", "build", "routes", "tests"), "passed"
+        ("install", "typecheck", "lint", "conventions", "assets", "build", "routes", "tests"), "passed"
     ), outcome.digest
     assert (project / "out" / "services" / "index.html").is_file()
 
@@ -63,7 +64,7 @@ def test_every_library_section_and_layout_node_builds_and_renders():
     try:
         outcome = _validate(project, plan)
         assert outcome.summary == dict.fromkeys(
-            ("install", "typecheck", "lint", "conventions", "build", "routes", "tests"), "passed"
+            ("install", "typecheck", "lint", "conventions", "assets", "build", "routes", "tests"), "passed"
         ), outcome.digest
     finally:
         shutil.rmtree(project.parent, ignore_errors=True)
@@ -81,7 +82,7 @@ def test_a_rendered_dynamic_app_passes_every_check_on_mocks():
     try:
         outcome = _validate(project, plan)
         assert outcome.summary == dict.fromkeys(
-            ("install", "typecheck", "lint", "conventions", "build", "routes", "tests"), "passed"
+            ("install", "typecheck", "lint", "conventions", "assets", "build", "routes", "tests"), "passed"
         ), outcome.digest
     finally:
         shutil.rmtree(project.parent, ignore_errors=True)
@@ -137,7 +138,7 @@ def test_eslint_autofix_then_every_check_passes_on_the_shared_node_modules():
         assert shared is not None and shared.startswith("bga-fe-modules-")
         assert fixed.fixed == ["src/features/home/format-title.ts"] and "const title" in helper.read_text()
         assert outcome.summary == dict.fromkeys(
-            ("install", "typecheck", "lint", "conventions", "build", "routes", "tests"), "passed"
+            ("install", "typecheck", "lint", "conventions", "assets", "build", "routes", "tests"), "passed"
         ), outcome.digest
         install = next(result for result in outcome.results if result.check == "install")
         assert "shared node_modules" in install.summary
@@ -260,3 +261,44 @@ def test_custom_components_pass_isolated_checks_then_come_from_the_cache(client,
     finally:
         if not os.environ.get("BGA_KEEP_SANDBOX_DIRS"):
             shutil.rmtree(root, ignore_errors=True)
+
+
+def test_drawn_and_uploaded_images_build_and_show_on_their_pages(tmp_path):
+    """Epic 15: the landing page with its golden drawings converted to components and an uploaded logo in
+    public/assets builds offline; `frontend:assets` passes and the smoke test finds every image on its page."""
+    import io
+
+    from PIL import Image
+
+    from src.engines.fake_engine import GOLDEN_ASSETS
+    from src.orchestrator.frontend_assets import convert_drawing, write_registry
+
+    spec_data = json.loads((EXAMPLES / "frontend-specs" / "static-landing.json").read_text())
+    spec_data["layout"]["header"]["logo"] = "asset:logo"
+    spec_data["assets"].append({"id": "logo", "kind": "logo", "source": "upload:upl_TESTLOGO01", "alt": "Northwind"})
+    spec = validate_frontend_spec_text(json.dumps(spec_data)).normalized
+    plan = plan_frontend(spec)
+    project = REPO / ".data" / "test-sandbox" / uuid.uuid4().hex[:10] / "frontend"
+    scaffold_frontend(project, plan, spec)
+    try:
+        for asset in plan["assets"]:
+            if asset["render"] == "svg-component":
+                (project / asset["file"]).parent.mkdir(parents=True, exist_ok=True)
+                (project / asset["file"]).write_text((GOLDEN_ASSETS / f"{asset['id']}.svg").read_text())
+                assert convert_drawing(project, asset)
+            elif asset["render"] == "public-file":
+                logo = io.BytesIO()
+                Image.new("RGB", (96, 96), (20, 60, 120)).save(logo, format="PNG")
+                (project / "public/assets").mkdir(parents=True, exist_ok=True)
+                (project / "public/assets/logo.png").write_bytes(logo.getvalue())
+                asset |= {"file": "public/assets/logo.png", "src": "/assets/logo.png", "width": 96, "height": 96}
+        write_registry(project, plan)
+        outcome = _validate(project, plan)
+        assert outcome.summary == dict.fromkeys(
+            ("install", "typecheck", "lint", "conventions", "assets", "build", "routes", "tests"), "passed"
+        ), outcome.digest
+        home = (project / "out" / "index.html").read_text()
+        assert 'data-bga-asset="hero"' in home and 'data-bga-asset="logo"' in home and "<svg" in home
+        assert 'src="/assets/logo.png"' in home
+    finally:
+        shutil.rmtree(project.parent, ignore_errors=True)

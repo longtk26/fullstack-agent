@@ -54,7 +54,7 @@ export function Hero({
             </div>
           )}
         </div>
-        {inline && <AssetImage asset={inline} className={centered ? "max-w-4xl" : undefined} />}
+        {inline && <AssetImage asset={inline} className={centered ? "max-w-4xl" : undefined} priority />}
       </Container>
     </section>
   );
