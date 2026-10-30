@@ -130,6 +130,21 @@ def test_brand_colours_and_fonts_win_and_the_named_brief_is_picked():
     assert pick(found, "e-commerce luxury") == 1 and pick(found, "Something else") == 0 and pick(found, None) == 0
 
 
+def test_a_brand_background_brings_its_own_text_and_surface_colours():
+    found = directions("A Japanese digital marketing agency: strategy, web, branding and content.")
+    brand = {"primary": "#111111", "background": "#FAFAF7", "accent": "#FF5A36"}
+    colors = with_brand(found[0], {"colors": brand})["theme"]["colors"]
+    assert colors["foreground"] == "#0a0a0a", "not the data's text colour, made for another background"
+    assert colors["secondary"] == colors["muted"] != found[0]["theme"]["colors"]["muted"]
+    assert not contrast_failures(with_brand(found[0], {"colors": brand})["theme"])
+    named = with_brand(found[0], {"colors": {**brand, "secondary": "#EAEAE5"}})["theme"]
+    assert named["colors"]["secondary"] == named["colors"]["muted"] == "#eaeae5" and named["colorScheme"] == "light"
+    dark = with_brand(found[0], {"colors": {"background": "#101014"}})["theme"]
+    assert dark["colorScheme"] == "dark" and dark["colors"]["foreground"] == "#ffffff"
+    kept = with_brand(found[0], {"colors": {"primary": "#0a7"}})["theme"]["colors"]
+    assert kept["foreground"] == found[0]["theme"]["colors"]["foreground"], "the data's background keeps its text"
+
+
 def test_design_notes_explain_the_look():
     notes = design_notes(directions(REQUIREMENTS["saas"])[0])
     assert notes[0]["message"].startswith("Design direction: SaaS (General)") and notes[0]["path"] == "/theme"

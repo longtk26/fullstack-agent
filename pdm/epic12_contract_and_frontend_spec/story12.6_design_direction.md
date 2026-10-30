@@ -57,6 +57,12 @@ the site looks.
 
 **Status:** done (2026-10-30), on `feat/story12.6-design-direction` (stacked on 17.7).
 
+- Fix (2026-10-30, Epic 15 branch): brand colours with a background now bring their own text and surface colours.
+  The data's `foreground` / `secondary` / `muted` were made for its own background (a requirement naming near-black,
+  off-white and orange got dark-pink text); now text is near-black or white for the brand's background and the
+  surfaces are the brand's `secondary` (or a step off its background), and a dark brand background sets the dark
+  scheme. The engine may name `secondary` and `muted` too (`draft_frontend_spec@v3`).
+
 - **Data:** `agent-api/design_data/ui-ux-pro-max/` holds the six CSVs, the MIT `LICENSE` and `SOURCE.json` (commit
   `28b3b8dee8c9…`, the one the research note read). `make design-data [COMMIT=<sha>]` (`scripts/design-data.sh`)
   refreshes them; only data is fetched.

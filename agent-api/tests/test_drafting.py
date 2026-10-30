@@ -18,7 +18,7 @@ from src.libs.redaction import Redactor
 from src.modules.generations.infrastructure.adapters import EventPublisher
 from src.modules.shared.domain.requirement import RequirementError, check_requirement
 from src.modules.shared.infrastructure.models import SpecDraftModel
-from src.orchestrator.drafting import DraftRunner, check_draft, read_notes, section_catalogue
+from src.orchestrator.drafting import DraftRunner, check_draft, draw_images, read_notes, section_catalogue
 from src.orchestrator.store import JobStore
 from src.orchestrator.worker_service import WorkerService
 from src.orchestrator.workspace import WorkspaceManager
@@ -148,7 +148,7 @@ def test_static_draft_writes_only_a_frontend_spec(client, user_headers, tmp_path
     assert draft["status"] == "SUCCEEDED", draft["validation"]
     assert draft["frontend_spec"]["project"]["mode"] == "static" and draft["backend_spec"] is None
     assert draft["unresolved"] == [] and set(draft["validation"]) == {"frontend"}
-    assert draft["usage"]["calls"][0]["prompt"] == "draft_frontend_spec@v2"
+    assert draft["usage"]["calls"][0]["prompt"] == "draft_frontend_spec@v3"
     # Story 12.6: three directions, the first applied (the fake engine names none), its notes after the engine's.
     design = draft["design"]
     assert design["selected"] == 0 and len(design["directions"]) == 3
@@ -157,6 +157,12 @@ def test_static_draft_writes_only_a_frontend_spec(client, user_headers, tmp_path
     assert draft["frontend_spec"]["theme"]["colors"] == chosen["theme"]["colors"]
     assert draft["assumptions"][0]["message"].startswith("Fake engine")
     assert draft["assumptions"][1]["message"].startswith("Design direction: ")
+    # Epic 15: no placeholders; the example's placeholder (work-2) is drawn in the direction's style.
+    assets = {asset["id"]: asset for asset in draft["frontend_spec"]["assets"]}
+    assert {asset["source"] for asset in assets.values()} == {"generate"}
+    work = assets["work-2"]
+    assert work["prompt"] == work["alt"] and work["style"].startswith(chosen["style"])
+    assert draft["assumptions"][-1]["message"] == "Drawn from their alt text instead of placeholders: work-2"
     from src.modules.shared.domain.frontend_spec import validate_frontend_spec_data
     from src.orchestrator.frontend_planner import plan_frontend
 
@@ -180,6 +186,25 @@ def test_the_engine_picks_a_brief_and_brand_colours_win(client, user_headers, tm
     assert design["directions"][design["selected"]]["productType"] == "E-commerce Luxury"
     assert all(item["theme"]["colors"]["primary"] == "#0e7490" for item in design["directions"])
     assert draft["frontend_spec"]["theme"]["colors"]["primary"] == "#0e7490"
+
+
+def test_placeholder_images_are_drawn_up_to_the_limit(tmp_path):
+    images = [{"id": f"img-{i}", "alt": f"Picture {i}"} for i in range(14)]
+    images += [
+        {"id": "icon", "kind": "icon", "source": "placeholder"},
+        {"id": "photo", "source": "upload:upl_abcdef12"},
+        {"id": "drawn", "source": "generate", "prompt": "a kite", "style": "ink"},
+    ]
+    (tmp_path / "frontend-spec.json").write_text(json.dumps({"assets": images}))
+    notes = draw_images(tmp_path, None)
+    assets = {asset["id"]: asset for asset in json.loads((tmp_path / "frontend-spec.json").read_text())["assets"]}
+    drawn = [key for key, asset in assets.items() if asset.get("source") == "generate"]
+    assert len(drawn) == 12 and "drawn" in drawn and assets["drawn"]["prompt"] == "a kite"
+    assert assets["img-0"] == {"id": "img-0", "alt": "Picture 0", "source": "generate", "prompt": "Picture 0"}
+    assert assets["img-11"].get("source") is None and assets["img-13"].get("source") is None
+    assert assets["icon"]["source"] == "placeholder" and assets["photo"]["source"] == "upload:upl_abcdef12"
+    assert notes[1]["message"].startswith("Left as placeholders (at most 12 drawings per site): img-11, img-12, img-13")
+    assert draw_images(tmp_path, None) == notes[1:], "a second pass changes nothing"
 
 
 def test_backend_drafts_have_no_design(client, user_headers, tmp_path):

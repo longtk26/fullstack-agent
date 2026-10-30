@@ -8,6 +8,9 @@ NEEDS_REVIEW with its errors; it is never submitted. Each engine call is recorde
 Static and dynamic drafts from a requirement get a design direction (Story 12.6): the engine sees three ranked
 briefs (`.bga/design.md`) and names one in its notes; the theme, the home page order and the hero layout are then
 filled from the design data, and the three directions are kept on the draft (`design`) for the review.
+
+Drafts show no placeholders (Epic 15): an image the engine left as a placeholder is turned into a drawing
+(`source: "generate"`, prompt from its alt text, style from the direction), up to the generated-image limit.
 """
 
 import asyncio
@@ -38,6 +41,7 @@ from src.modules.shared.domain.frontend_spec import (
     frontend_spec_json_schema,
     validate_frontend_spec_data,
 )
+from src.modules.shared.domain.frontend_spec.assets import MAX_GENERATED_ASSETS, SVG_KINDS, source_kind
 
 from . import tracing
 from .checks.consistency import check_spec_pair
@@ -287,6 +291,47 @@ def apply_design(work: Path, found: list[dict[str, Any]]) -> dict[str, Any]:
     return {"selected": selected, "directions": kept}
 
 
+def draw_images(work: Path, chosen: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """Turns the drafted FrontendSpec's placeholder images into drawings (prompt from the alt text, style from the
+    design direction), up to MAX_GENERATED_ASSETS; returns the assumptions saying so."""
+    spec, issue = _load(work / FRONTEND_FILE)
+    if issue is not None or not isinstance(spec, dict) or not isinstance(spec.get("assets"), list):
+        return []
+    assets = [asset for asset in spec["assets"] if isinstance(asset, dict)]
+    drawn = sum(source_kind(str(asset.get("source") or "placeholder")) == "generate" for asset in assets)
+    style = f"{chosen['style']}, flat vector shapes" if chosen else None
+    converted: list[str] = []
+    skipped: list[str] = []
+    for asset in assets:
+        if source_kind(str(asset.get("source") or "placeholder")) != "placeholder":
+            continue
+        if (asset.get("kind") or "image") not in SVG_KINDS or not isinstance(asset.get("id"), str):
+            continue
+        if drawn >= MAX_GENERATED_ASSETS:
+            skipped.append(asset["id"])
+            continue
+        asset["source"] = "generate"
+        asset["prompt"] = asset.get("prompt") or asset.get("alt") or asset["id"].replace("-", " ")
+        if style and not asset.get("style"):
+            asset["style"] = style
+        drawn += 1
+        converted.append(asset["id"])
+    if not converted and not skipped:
+        return []
+    _write_json(work / FRONTEND_FILE, spec)
+    notes = []
+    if converted:
+        message = f"Drawn from their alt text instead of placeholders: {', '.join(converted)}"
+        notes.append({"spec": "frontend", "path": "/assets", "message": message, "suggestion": None})
+    if skipped:
+        message = (
+            f"Left as placeholders (at most {MAX_GENERATED_ASSETS} drawings per site): {', '.join(skipped)}; "
+            "upload an image for them"
+        )
+        notes.append({"spec": "frontend", "path": "/assets", "message": message, "suggestion": None})
+    return notes
+
+
 # -- usage ---------------------------------------------------------------------------------------------------------
 
 
@@ -396,7 +441,7 @@ class DraftRunner:
         found = draft_directions(draft)
         context = write_inputs(work, draft, self.examples_dir, found)
         frontend = mode != GenerationMode.BACKEND
-        purpose, version = ("draft_frontend_spec", "v2") if frontend else ("draft_spec", "v2")
+        purpose, version = ("draft_frontend_spec", "v3") if frontend else ("draft_spec", "v2")
         max_repairs = config.draft_repair_attempts_frontend if frontend else config.draft_repair_attempts_backend
         calls: list[dict[str, Any]] = []
         trace = tracing.GenerationTrace.open(
@@ -441,6 +486,8 @@ class DraftRunner:
             if result.status != EngineStatus.OK:
                 raise DraftFailed(f"The {engine.name} engine stopped: {result.error_message or result.status}")
             design = apply_design(work, found) if found else None
+            chosen = design["directions"][design["selected"]] if design else None
+            image_notes = draw_images(work, chosen) if frontend else []
             self.store.update_draft(draft.id, progress="validating")
             check = check_draft(work, mode)
             attempts = 0
@@ -463,6 +510,7 @@ class DraftRunner:
         assumptions, unresolved = read_notes(work, mode)
         if design is not None:
             assumptions += design_notes(design["directions"][design["selected"]])
+        assumptions += image_notes
         status = SpecDraftStatus.SUCCEEDED if check.ok else SpecDraftStatus.NEEDS_REVIEW
         self.store.update_draft(
             draft.id,

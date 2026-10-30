@@ -21,7 +21,7 @@ from typing import Any
 
 from src.modules.shared.domain.frontend_spec import FONTS, THEME_PRESETS, font_category
 
-from .frontend_theme import build_theme, contrast, luminance
+from .frontend_theme import build_theme, contrast, luminance, mix, on
 
 DATA_DIR = Path(__file__).resolve().parents[2] / "design_data" / "ui-ux-pro-max"
 DIRECTIONS = 3
@@ -424,7 +424,18 @@ def with_brand(chosen: dict[str, Any], brand: dict[str, Any] | None) -> dict[str
     colors = brand.get("colors") if isinstance(brand.get("colors"), dict) else {}
     fonts = brand.get("fonts") if isinstance(brand.get("fonts"), dict) else {}
     theme = out["theme"]
-    theme["colors"] |= {k: v.lower() for k, v in colors.items() if k in theme["colors"] and isinstance(v, str) and v}
+    given = {k: v.lower() for k, v in colors.items() if k in theme["colors"] and isinstance(v, str) and v}
+    palette = theme["colors"] | given
+    if "background" in given:
+        # The data's text and surface colours belong to its own background: on the brand's background, text is
+        # near-black or white and the surfaces are the brand's secondary (or a step off the background).
+        palette["foreground"] = given.get("foreground") or on(palette["background"])
+        surface = given.get("secondary") or given.get("muted")
+        surface = surface or mix(palette["background"], palette["foreground"], 0.06) or palette["muted"]
+        palette["secondary"] = given.get("secondary") or surface
+        palette["muted"] = given.get("muted") or surface
+        theme["colorScheme"] = "dark" if (luminance(palette["background"]) or 1) < 0.2 else "light"
+    theme["colors"] = palette
     theme["typography"] |= {k: v for k, v in fonts.items() if k in ("headingFont", "bodyFont") and isinstance(v, str)}
     return out
 
