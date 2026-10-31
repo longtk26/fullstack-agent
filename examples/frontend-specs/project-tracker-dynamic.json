@@ -15,6 +15,15 @@
       "route": "/",
       "title": "Overview",
       "sections": [
+        {
+          "id": "stats",
+          "component": "Stats",
+          "content": {
+            "items": [
+              { "label": "Total Projects", "data": { "operationId": "project.list", "value": "count" } }
+            ]
+          }
+        },
         { "id": "recent", "component": "CardGrid",
           "data": { "operationId": "project.list", "params": { "limit": 6, "sort": "-createdAt" }, "fields": ["name", "description"] },
           "states": { "empty": "No projects yet", "emptyImage": "asset:empty-projects" } }
@@ -25,6 +34,13 @@
       "title": "Projects",
       "sections": [
         { "id": "table", "component": "DataTable",
+          "content": {
+            "controls": { "sort": ["name", "createdAt"] },
+            "actions": [
+              { "id": "view", "label": "View", "kind": "link", "page": "project", "params": { "id": "$record.id" } },
+              { "id": "delete", "label": "Delete", "kind": "mutation", "operationId": "project.delete", "params": { "id": "$record.id" }, "confirm": "Delete project?", "variant": "destructive" }
+            ]
+          },
           "data": { "operationId": "project.list", "params": { "sort": "name" }, "fields": ["name", "createdAt"] } },
         { "id": "new", "component": "Form", "form": "newProject" }
       ]
@@ -35,6 +51,12 @@
       "title": "Project",
       "sections": [
         { "id": "detail", "component": "DetailView",
+          "content": {
+            "actions": [
+              { "id": "edit", "label": "Edit", "kind": "link", "page": "edit-project", "params": { "id": "$record.id" } },
+              { "id": "delete", "label": "Delete", "kind": "mutation", "operationId": "project.delete", "params": { "id": "$record.id" }, "confirm": "Delete project?", "variant": "destructive", "onSuccess": { "navigate": "projects" } }
+            ]
+          },
           "data": { "operationId": "project.get", "params": { "id": "$route.id" }, "fields": ["name", "description", "createdAt"] } },
         { "id": "tasks", "component": "DataTable",
           "data": { "operationId": "task.list", "params": { "projectId": "$route.id", "sort": "priority" },
@@ -43,10 +65,24 @@
       ]
     },
     {
+      "id": "edit-project",
+      "route": "/projects/[id]/edit",
+      "title": "Edit Project",
+      "sections": [
+        { "id": "edit-form", "component": "Form", "form": "editProject" }
+      ]
+    },
+    {
       "route": "/tasks",
       "title": "Tasks",
       "sections": [
         { "id": "table", "component": "DataTable",
+          "content": {
+            "controls": { "filters": ["status"], "sort": ["priority", "dueDate"] },
+            "actions": [
+              { "id": "delete", "label": "Delete", "kind": "mutation", "operationId": "task.delete", "params": { "id": "$record.id" }, "confirm": "Delete task?", "variant": "destructive" }
+            ]
+          },
           "data": { "operationId": "task.list", "params": { "status": "TODO", "sort": "dueDate" }, "fields": ["title", "status", "dueDate"] } }
       ]
     }
@@ -68,7 +104,16 @@
         { "name": "dueDate", "type": "date", "label": "Due" }
       ],
       "submitLabel": "Add task",
-      "onSuccess": { "toast": "Task added" } }
+      "onSuccess": { "toast": "Task added" } },
+    { "id": "editProject", "operationId": "project.update",
+      "params": { "id": "$route.id" },
+      "load": { "operationId": "project.get", "params": { "id": "$route.id" } },
+      "fields": [
+        { "name": "name", "label": "Name", "required": true, "maxLength": 120 },
+        { "name": "description", "type": "text", "label": "Description" }
+      ],
+      "submitLabel": "Save project",
+      "onSuccess": { "toast": "Project updated", "navigate": "project" } }
   ],
   "assets": [
     { "id": "empty-projects", "kind": "illustration", "source": "generate", "alt": "An empty project board",

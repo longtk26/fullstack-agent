@@ -180,9 +180,15 @@ class OnSuccess(SpecModel):
     navigate: str | None = None  # a page id or a route
 
 
+class FormLoad(SpecModel):
+    operation_id: str = Field(alias="operationId", pattern=OPERATION_ID)
+    params: dict[str, Any] = {}
+
+
 class Form(SpecModel):
     id: str = Field(pattern=IDENTIFIER, max_length=63)
     operation_id: str | None = Field(default=None, pattern=OPERATION_ID)
+    load: FormLoad | None = None
     params: dict[str, Any] = {}  # path parameters of the operation, e.g. {"id": "$route.id"}
     fields: list[FormField] = Field(min_length=1)
     submit_label: str | None = None

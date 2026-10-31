@@ -61,13 +61,13 @@ the generated screens, so that the app does what its API can do.
 
 ## Acceptance criteria
 
-- [ ] Data sections support link and mutation actions (with confirmation for deletes), and `ActionBar` exists.
-- [ ] Forms can load a record and save it as an update.
-- [ ] Lists offer the search, filters, sort and paging their operation declares, kept in the URL.
-- [ ] Stats can show counts and fields from the API.
-- [ ] Mutations refresh the affected lists, details and stats.
-- [ ] Pair checks reject actions, loads and controls that do not match the contract.
-- [ ] `DESIGN_CHECKLIST.md` holds; sandbox and snapshot tests pass.
+- [x] Data sections support link and mutation actions (with confirmation for deletes), and `ActionBar` exists.
+- [x] Forms can load a record and save it as an update.
+- [x] Lists offer the search, filters, sort and paging their operation declares, kept in the URL.
+- [x] Stats can show counts and fields from the API.
+- [x] Mutations refresh the affected lists, details and stats.
+- [x] Pair checks reject actions, loads and controls that do not match the contract.
+- [x] `DESIGN_CHECKLIST.md` holds; sandbox and snapshot tests pass.
 
 ## Verify
 

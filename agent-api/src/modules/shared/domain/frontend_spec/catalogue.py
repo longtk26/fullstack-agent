@@ -5,6 +5,7 @@ from typing import Any
 
 # Built-in section components → the shadcn primitives they are built from.
 BUILTIN_SECTIONS: dict[str, dict[str, Any]] = {
+    "ActionBar": {"uses": ["button", "alert-dialog"], "description": "Bar of action buttons for operations"},
     "Hero": {"uses": ["button"], "description": "Heading, text, image and a call to action"},
     "Features": {"uses": ["card"], "description": "Grid of feature cards"},
     "CallToAction": {"uses": ["button"], "description": "Banner with one primary action"},

@@ -4,10 +4,12 @@ import Link from "next/link";
 import { Section } from "@/components/layout/Section";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import type { TBinding, TColumn, TRecord, TStates } from "@/components/renderer/site";
+import type { TBinding, TColumn, TRecord, TSectionAction, TSectionControls, TStates } from "@/components/renderer/site";
 import { recordHref, useSectionRecords } from "@/components/renderer/use-section-records";
+import { ActionButtons } from "./ActionButtons";
 import { formatValue } from "./format";
 import { QueryState } from "./QueryState";
+import { SectionControls } from "./SectionControls";
 import type { TDataSectionContent } from "./types";
 
 type DataTableProps = TDataSectionContent & {
@@ -15,13 +17,18 @@ type DataTableProps = TDataSectionContent & {
   columns?: TColumn[];
   binding?: TBinding;
   states?: TStates;
+  actions?: TSectionAction[];
+  controls?: TSectionControls;
 };
 
 /** Records as a table, one column per field; the first column links to the record's page. */
-export function DataTable({ title, description, items, columns = [], binding, states }: DataTableProps) {
-  const { records, isLoading, error } = useSectionRecords(items, binding);
+export function DataTable({ title, description, items, columns = [], binding, states, actions = [], controls }: DataTableProps) {
+  const { records, total, isLoading, error } = useSectionRecords(items, binding, controls);
+  const hasActions = actions.length > 0;
+
   return (
     <Section title={title} description={description}>
+      <SectionControls controls={controls} columns={columns} total={total} recordsCount={records.length} />
       <QueryState isLoading={isLoading} error={error} isEmpty={records.length === 0} emptyText={states?.empty} emptyImage={states?.emptyImage} errorText={states?.error}>
         <Table>
           <TableHeader>
@@ -29,13 +36,15 @@ export function DataTable({ title, description, items, columns = [], binding, st
               {columns.map((column) => (
                 <TableHead key={column.key}>{column.label}</TableHead>
               ))}
+              {hasActions && <TableHead className="text-right">Actions</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {records.map((record, row) => {
               const href = recordHref(binding?.link, record);
+              const recordId = String(record.id ?? row);
               return (
-                <TableRow key={String(record.id ?? row)}>
+                <TableRow key={recordId} data-bga-record={recordId}>
                   {columns.map((column, index) => {
                     const text = formatValue(record[column.key], column.format);
                     return (
@@ -52,6 +61,11 @@ export function DataTable({ title, description, items, columns = [], binding, st
                       </TableCell>
                     );
                   })}
+                  {hasActions && (
+                    <TableCell className="text-right">
+                      <ActionButtons actions={actions} record={record} className="inline-flex justify-end gap-1.5" />
+                    </TableCell>
+                  )}
                 </TableRow>
               );
             })}

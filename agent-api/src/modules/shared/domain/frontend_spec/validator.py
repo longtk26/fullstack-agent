@@ -155,13 +155,14 @@ def _unknown_props(model: Props, path: str) -> Iterator[str]:
                     yield from _unknown_props(item, f"{path}/{alias}/{index}")
 
 
-def _page_refs(value: Any, path: str) -> Iterator[tuple[str, str]]:
-    """`{"page": "<id>"}` links inside free-form section content (e.g. a hero's call to action)."""
+def _page_refs(value: Any, path: str) -> Iterator[tuple[str, str, dict[str, Any] | None]]:
+    """`{"page": "<id>"}` links inside free-form section content (e.g. a hero's call to action, or a section action)."""
     if isinstance(value, dict):
+        if "page" in value and isinstance(value["page"], str):
+            params = value.get("params") if isinstance(value.get("params"), dict) else None
+            yield value["page"], f"{path}/page", params
         for key, item in value.items():
-            if key == "page" and isinstance(item, str):
-                yield item, f"{path}/{key}"
-            else:
+            if key != "page":
                 yield from _page_refs(item, f"{path}/{key}")
     elif isinstance(value, list):
         for index, item in enumerate(value):
@@ -367,19 +368,22 @@ class _SemanticChecker:
                 hint="keep photos for the images a page really needs; the rest stay placeholders",
             )
 
-    def _check_link(self, link: NavLink, path: str) -> None:
+    def _check_link(self, link: NavLink, path: str, params: dict[str, Any] | None = None) -> None:
         if link.page is None:
             return
         page = self.pages.get(link.page)
         if page is None:
             self._add(C.FE_UNKNOWN_PAGE, f"{path}/page", f"Unknown page '{link.page}'", hint=self._known_pages())
         elif route_params(page.route):
-            self._add(
-                C.FE_ROUTE_PARAM_UNBOUND,
-                f"{path}/page",
-                f"Page '{link.page}' ({page.route}) needs route parameters a navigation link cannot fill",
-                hint=self._link_param_hint(page),
-            )
+            needed = set(route_params(page.route))
+            provided = set(params.keys()) if params else set()
+            if not needed.issubset(provided):
+                self._add(
+                    C.FE_ROUTE_PARAM_UNBOUND,
+                    f"{path}/page",
+                    f"Page '{link.page}' ({page.route}) needs route parameters a navigation link cannot fill",
+                    hint=self._link_param_hint(page),
+                )
 
     def _link_param_hint(self, page: Page) -> str:
         prefix_pages = [
@@ -455,8 +459,8 @@ class _SemanticChecker:
                 for asset, asset_path in refs:
                     if asset not in self.assets:
                         self._add(C.FE_UNKNOWN_ASSET, asset_path, f"Unknown asset '{asset}'")
-                for target, link_path in _page_refs(section.content, f"{path}/content"):
-                    self._check_link(NavLink(label="link", page=target), link_path.removesuffix("/page"))
+                for target, link_path, link_params in _page_refs(section.content, f"{path}/content"):
+                    self._check_link(NavLink(label="link", page=target), link_path.removesuffix("/page"), link_params)
                 if self._builtin(section.component):
                     self._check_props(section, path)
 

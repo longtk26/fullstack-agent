@@ -192,7 +192,12 @@ def test_routes_check_reads_the_build_output(tmp_path):
     _, _, tracker = inputs(TRACKER)
     project = tmp_path / "dynamic"
     (project / ".next").mkdir(parents=True)
-    manifest = {"/page": "/", "/projects/page": "/projects", "/projects/[id]/page": "/projects/[id]"}
+    manifest = {
+        "/page": "/",
+        "/projects/page": "/projects",
+        "/projects/[id]/page": "/projects/[id]",
+        "/projects/[id]/edit/page": "/projects/[id]/edit",
+    }
     (project / ".next/app-path-routes-manifest.json").write_text(json.dumps(manifest))
     result = routes_check(project, tracker)
     assert result.status == "failed" and result.details == [

@@ -294,7 +294,10 @@ def bindings_ts(contract: dict[str, Any] | None) -> str:
             fetchers.append(f"  {_json(op.id)}: (params) => {call},\n")
             keys.append(f"  {_json(op.id)}: (params) => {op.keys}.{kind}(params),\n")
         else:
-            mutations.append(f"  {_json(op.id)}: {{ run: (params, body) => {call}, keys: {op.keys}.all }},\n")
+            mutations.append(
+                f"  {_json(op.id)}: {{ run: (params, body) => {call}, "
+                f"keys: {op.keys}.all, method: {_json(op.method)} }},\n"
+            )
     imports = ""
     if ops:
         imports = (
@@ -321,7 +324,7 @@ def bindings_ts(contract: dict[str, Any] | None) -> str:
         + "".join(keys)
         + "};\n\n"
         + "const mutations: Record<string, { run: (params: TParams, body: TParams) => Promise<unknown>; "
-        + "keys: readonly unknown[] }> = {\n"
+        + "keys: readonly unknown[]; method: string }> = {\n"
         + "".join(mutations)
         + "};\n\n"
         + "/** A data section's records: the operation's response (disabled without an operation). */\n"
@@ -336,17 +339,17 @@ def bindings_ts(contract: dict[str, Any] | None) -> str:
         + "/** A form's operation; on success the lists of the same resource refresh. */\n"
         + "export function useOperationMutation(operationId: string | undefined) {\n"
         + "  const queryClient = useQueryClient();\n"
-        + "  return useMutation({\n"
+        + "  const mutationMeta = operationId ? mutations[operationId] : undefined;\n"
+        + "  const result = useMutation({\n"
         + "    mutationFn: ({ params, body }: TMutationVariables) => {\n"
-        + "      const mutation = operationId ? mutations[operationId] : undefined;\n"
-        + '      if (!mutation) throw new Error(`Unknown operation ${operationId ?? ""}`);\n'
-        + "      return mutation.run(params, body);\n"
+        + '      if (!mutationMeta) throw new Error(`Unknown operation ${operationId ?? ""}`);\n'
+        + "      return mutationMeta.run(params, body);\n"
         + "    },\n"
         + "    onSuccess: () => {\n"
-        + "      const mutation = operationId ? mutations[operationId] : undefined;\n"
-        + "      if (mutation) return queryClient.invalidateQueries({ queryKey: mutation.keys });\n"
+        + "      if (mutationMeta) return queryClient.invalidateQueries({ queryKey: mutationMeta.keys });\n"
         + "    },\n"
         + "  });\n"
+        + "  return Object.assign(result, { method: mutationMeta?.method });\n"
         + "}\n"
     )
 

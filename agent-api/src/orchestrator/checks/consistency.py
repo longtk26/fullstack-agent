@@ -16,7 +16,7 @@ from src.modules.shared.domain.frontend_spec import FrontendIssueCode
 from src.orchestrator.contract import build_contract, contract_operations, resolve
 
 C = FrontendIssueCode
-_VARIABLE = re.compile(r"^\$(route|query)\.[A-Za-z][A-Za-z0-9]*$")
+_VARIABLE = re.compile(r"^\$(route|query|record)\.[A-Za-z][A-Za-z0-9_]*$")
 # FrontendSpec form field type → the JSON type and format it submits
 FORM_TYPES: dict[str, tuple[str, str | None]] = {
     "string": ("string", None),
@@ -168,6 +168,108 @@ class _Checker:
     def bindings(self) -> None:
         for p_index, page in enumerate(self.frontend.get("pages", [])):
             for section, section_path in _sections(page.get("sections", []), f"/pages/{p_index}/sections"):
+                content = section.get("content") or {}
+                # 1. Section actions (DataTable, CardGrid, List, DetailView, ActionBar)
+                for a_index, action in enumerate(content.get("actions") or []):
+                    action_path = f"{section_path}/content/actions/{a_index}"
+                    kind = action.get("kind", "link")
+                    if kind == "link":
+                        target_page = action.get("page")
+                        if target_page:
+                            known_pages = {p.get("id") for p in self.frontend.get("pages", []) if p.get("id")} | {
+                                p.get("route") for p in self.frontend.get("pages", [])
+                            }
+                            if target_page not in known_pages:
+                                self.add(
+                                    C.FE_UNKNOWN_PAGE,
+                                    f"{action_path}/page",
+                                    f"Action '{action.get('id', a_index)}' links to unknown page '{target_page}'",
+                                )
+                    elif kind == "mutation":
+                        op_id = action.get("operationId")
+                        if not op_id:
+                            self.add(
+                                C.CONTRACT_UNKNOWN_OPERATION,
+                                f"{action_path}/operationId",
+                                "Mutation action requires 'operationId'",
+                            )
+                            continue
+                        found_act = self.lookup(op_id, f"{action_path}/operationId")
+                        if found_act is None:
+                            continue
+                        if found_act["method"] == "GET":
+                            self.add(
+                                C.CONTRACT_METHOD_MISMATCH,
+                                f"{action_path}/operationId",
+                                f"Mutation actions call mutating operations; '{op_id}' is GET",
+                                backend_path=self.op_pointer(op_id),
+                            )
+                        if found_act["method"] == "DELETE" and not action.get("confirm"):
+                            self.add(
+                                C.CONTRACT_PARAM_MISMATCH,
+                                f"{action_path}/confirm",
+                                f"Delete action '{action.get('id', a_index)}' requires 'confirm'",
+                                backend_path=self.op_pointer(op_id),
+                            )
+                        self.parameters(op_id, action.get("params") or {}, f"{action_path}/params")
+                        if action.get("body"):
+                            body_content = (
+                                (found_act["operation"].get("requestBody") or {})
+                                .get("content", {})
+                                .get("application/json", {})
+                            )
+                            body_schema = resolve(self.contract, body_content.get("schema") or {})
+                            props = body_schema.get("properties") or {}
+                            for k, v in action["body"].items():
+                                if k not in props:
+                                    self.add(
+                                        C.CONTRACT_FIELD_MISSING,
+                                        f"{action_path}/body/{k}",
+                                        f"The request of '{op_id}' has no field '{k}'",
+                                        backend_path=self.op_pointer(op_id),
+                                    )
+                                else:
+                                    prob = _value_fits(v, resolve(self.contract, props[k]))
+                                    if prob:
+                                        self.add(
+                                            C.CONTRACT_FIELD_TYPE_MISMATCH,
+                                            f"{action_path}/body/{k}",
+                                            f"Action body field '{k}': {prob}",
+                                            backend_path=self.op_pointer(op_id),
+                                        )
+
+                # 2. Stats items data binding
+                if section.get("component") == "Stats":
+                    for i_index, item in enumerate(content.get("items") or []):
+                        stat_data = item.get("data")
+                        if stat_data:
+                            stat_op = stat_data.get("operationId")
+                            if stat_op:
+                                found_stat = self.lookup(
+                                    stat_op, f"{section_path}/content/items/{i_index}/data/operationId"
+                                )
+                                if found_stat:
+                                    if found_stat["method"] != "GET":
+                                        self.add(
+                                            C.CONTRACT_METHOD_MISMATCH,
+                                            f"{section_path}/content/items/{i_index}/data/operationId",
+                                            f"Stats read data; '{stat_op}' is {found_stat['method']} "
+                                            f"{found_stat['path']}",
+                                            backend_path=self.op_pointer(stat_op),
+                                        )
+                                    val = stat_data.get("value", "count")
+                                    if val != "count":
+                                        stat_record = self.response_record(stat_op)
+                                        stat_props = stat_record.get("properties") or {}
+                                        if val not in stat_props:
+                                            self.add(
+                                                C.CONTRACT_FIELD_MISSING,
+                                                f"{section_path}/content/items/{i_index}/data/value",
+                                                f"The response of '{stat_op}' has no field '{val}'",
+                                                backend_path=self.op_pointer(stat_op),
+                                            )
+
+                # 3. Section data binding
                 data = section.get("data") or {}
                 operation_id = data.get("operationId")
                 if operation_id is None:
@@ -197,12 +299,87 @@ class _Checker:
                             hint=f"Fields: {', '.join(properties)}",
                         )
 
+                # 4. List controls (search, filters, sort)
+                controls = content.get("controls")
+                if controls:
+                    op_query_params = {
+                        p["name"]: p for p in found["operation"].get("parameters") or [] if p.get("in") == "query"
+                    }
+                    if controls.get("search") and "q" not in op_query_params and "search" not in op_query_params:
+                        self.add(
+                            C.CONTRACT_PARAM_MISMATCH,
+                            f"{section_path}/content/controls/search",
+                            f"'{operation_id}' does not declare a search parameter ('q')",
+                            backend_path=self.op_pointer(operation_id),
+                        )
+                    for f_idx, flt in enumerate(controls.get("filters") or []):
+                        if flt not in op_query_params:
+                            self.add(
+                                C.CONTRACT_PARAM_MISMATCH,
+                                f"{section_path}/content/controls/filters/{f_idx}",
+                                f"'{operation_id}' has no query parameter '{flt}'",
+                                backend_path=self.op_pointer(operation_id),
+                            )
+                    if controls.get("sort"):
+                        sort_param = op_query_params.get("sort")
+                        allowed_sort: set[str] = set()
+                        if sort_param:
+                            sort_schema = resolve(self.contract, sort_param.get("schema") or {})
+                            allowed_sort = set(sort_schema.get("enum") or [])
+                        for s_idx, s in enumerate(controls.get("sort") or []):
+                            bare_s = s.removeprefix("-").removesuffix(":asc").removesuffix(":desc")
+                            valid = bool(
+                                sort_param
+                                and (
+                                    not allowed_sort
+                                    or s in allowed_sort
+                                    or bare_s in allowed_sort
+                                    or f"{bare_s}:asc" in allowed_sort
+                                    or f"-{bare_s}" in allowed_sort
+                                )
+                            )
+                            if not valid:
+                                self.add(
+                                    C.CONTRACT_PARAM_MISMATCH,
+                                    f"{section_path}/content/controls/sort/{s_idx}",
+                                    f"Sort field '{s}' is not allowed by '{operation_id}'",
+                                    backend_path=self.op_pointer(operation_id),
+                                )
+
     def forms(self) -> None:
         for f_index, form in enumerate(self.frontend.get("forms", [])):
+            path = f"/forms/{f_index}"
+            load = form.get("load")
+            if load:
+                load_op_id = load.get("operationId")
+                if load_op_id:
+                    found_load = self.lookup(load_op_id, f"{path}/load/operationId")
+                    if found_load:
+                        if found_load["method"] != "GET":
+                            self.add(
+                                C.CONTRACT_METHOD_MISMATCH,
+                                f"{path}/load/operationId",
+                                f"Form load reads data; '{load_op_id}' is {found_load['method']} {found_load['path']}",
+                                backend_path=self.op_pointer(load_op_id),
+                            )
+                        else:
+                            self.parameters(load_op_id, load.get("params") or {}, f"{path}/load/params")
+                            load_record = self.response_record(load_op_id)
+                            load_props = load_record.get("properties") or {}
+                            for i, field in enumerate(form.get("fields", [])):
+                                fname = field.get("name")
+                                if fname and fname not in load_props:
+                                    self.add(
+                                        C.CONTRACT_FIELD_MISSING,
+                                        f"{path}/fields/{i}/name",
+                                        f"The response of '{load_op_id}' has no field '{fname}'",
+                                        backend_path=self.field_pointer(load_op_id),
+                                        hint=f"Fields: {', '.join(load_props)}",
+                                    )
+
             operation_id = form.get("operationId")
             if operation_id is None:
                 continue
-            path = f"/forms/{f_index}"
             found = self.lookup(operation_id, f"{path}/operationId")
             if found is None:
                 continue

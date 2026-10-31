@@ -18,6 +18,26 @@ export type TBinding = {
   link?: TRecordLink;
 };
 
+export type TSectionAction = {
+  id: string;
+  label: string;
+  kind: "link" | "mutation";
+  page?: string;
+  params?: Record<string, unknown>;
+  operationId?: string;
+  body?: Record<string, unknown>;
+  confirm?: string | boolean;
+  variant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link";
+  onSuccess?: { toast?: string; navigate?: string };
+};
+
+export type TSectionControls = {
+  search?: boolean;
+  filters?: string[];
+  sort?: string[];
+  pageSize?: number;
+};
+
 export type TStates = { loading?: string; empty?: string; error?: string; emptyImage?: string };
 
 export type TFormFieldDef = {
@@ -31,8 +51,14 @@ export type TFormFieldDef = {
   placeholder?: string;
 };
 
+export type TFormLoad = {
+  operationId: string;
+  params: Record<string, unknown>;
+};
+
 export type TFormDef = {
   operationId?: string | null;
+  load?: TFormLoad;
   params: Record<string, unknown>;
   fields: TFormFieldDef[];
   submitLabel: string;

@@ -79,7 +79,8 @@
       "propsType": "FormProps",
       "usedBy": [
         "projects",
-        "project"
+        "project",
+        "edit-project"
       ],
       "uses": [
         "button",
@@ -88,6 +89,20 @@
         "input",
         "select",
         "textarea"
+      ]
+    },
+    {
+      "description": "Key numbers",
+      "domain": "sections",
+      "file": "src/components/sections/Stats.tsx",
+      "kind": "section",
+      "name": "Stats",
+      "propsType": "StatsProps",
+      "usedBy": [
+        "home"
+      ],
+      "uses": [
+        "card"
       ]
     }
   ],
@@ -299,6 +314,45 @@
       "schema": "newTaskSchema",
       "submitLabel": "Add task",
       "valuesType": "TNewTaskValues"
+    },
+    {
+      "fields": [
+        {
+          "hidden": false,
+          "label": "Name",
+          "maxLength": 120,
+          "name": "name",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "hidden": false,
+          "label": "Description",
+          "name": "description",
+          "required": false,
+          "type": "text"
+        }
+      ],
+      "file": "src/lib/forms.ts",
+      "function": "updateProject",
+      "hook": "useUpdateProject",
+      "id": "editProject",
+      "onSuccess": {
+        "navigate": "project",
+        "toast": "Project updated"
+      },
+      "operationId": "project.update",
+      "params": {
+        "id": "$route.id"
+      },
+      "requestFields": [
+        "description",
+        "name"
+      ],
+      "requestSchema": "#/components/schemas/UpdateProjectRequest",
+      "schema": "editProjectSchema",
+      "submitLabel": "Save project",
+      "valuesType": "TEditProjectValues"
     }
   ],
   "planVersion": "1",
@@ -318,6 +372,21 @@
       "purpose": null,
       "route": "/",
       "sections": [
+        {
+          "component": "Stats",
+          "content": {
+            "items": [
+              {
+                "data": {
+                  "operationId": "project.list",
+                  "value": "count"
+                },
+                "label": "Total Projects"
+              }
+            ]
+          },
+          "id": "stats"
+        },
         {
           "component": "CardGrid",
           "data": {
@@ -359,6 +428,36 @@
       "sections": [
         {
           "component": "DataTable",
+          "content": {
+            "actions": [
+              {
+                "id": "view",
+                "kind": "link",
+                "label": "View",
+                "page": "project",
+                "params": {
+                  "id": "$record.id"
+                }
+              },
+              {
+                "confirm": "Delete project?",
+                "id": "delete",
+                "kind": "mutation",
+                "label": "Delete",
+                "operationId": "project.delete",
+                "params": {
+                  "id": "$record.id"
+                },
+                "variant": "destructive"
+              }
+            ],
+            "controls": {
+              "sort": [
+                "name",
+                "createdAt"
+              ]
+            }
+          },
           "data": {
             "action": "list",
             "fields": [
@@ -403,6 +502,33 @@
       "sections": [
         {
           "component": "DetailView",
+          "content": {
+            "actions": [
+              {
+                "id": "edit",
+                "kind": "link",
+                "label": "Edit",
+                "page": "edit-project",
+                "params": {
+                  "id": "$record.id"
+                }
+              },
+              {
+                "confirm": "Delete project?",
+                "id": "delete",
+                "kind": "mutation",
+                "label": "Delete",
+                "onSuccess": {
+                  "navigate": "projects"
+                },
+                "operationId": "project.delete",
+                "params": {
+                  "id": "$record.id"
+                },
+                "variant": "destructive"
+              }
+            ]
+          },
           "data": {
             "action": "get",
             "fields": [
@@ -465,6 +591,26 @@
       "title": "Project"
     },
     {
+      "file": "src/app/projects/[id]/edit/page.tsx",
+      "pageId": "edit-project",
+      "params": [
+        "id"
+      ],
+      "purpose": null,
+      "route": "/projects/[id]/edit",
+      "sections": [
+        {
+          "component": "Form",
+          "form": "editProject",
+          "id": "edit-form"
+        }
+      ],
+      "seo": {
+        "title": "Edit Project"
+      },
+      "title": "Edit Project"
+    },
+    {
       "file": "src/app/tasks/page.tsx",
       "pageId": "tasks",
       "params": [],
@@ -473,6 +619,30 @@
       "sections": [
         {
           "component": "DataTable",
+          "content": {
+            "actions": [
+              {
+                "confirm": "Delete task?",
+                "id": "delete",
+                "kind": "mutation",
+                "label": "Delete",
+                "operationId": "task.delete",
+                "params": {
+                  "id": "$record.id"
+                },
+                "variant": "destructive"
+              }
+            ],
+            "controls": {
+              "filters": [
+                "status"
+              ],
+              "sort": [
+                "priority",
+                "dueDate"
+              ]
+            }
+          },
           "data": {
             "action": "list",
             "fields": [
@@ -505,6 +675,7 @@
     }
   ],
   "shadcn": [
+    "alert-dialog",
     "badge",
     "button",
     "card",
@@ -573,6 +744,15 @@
       "path": "/projects/a3650faa-1ee8-5ee1-a1f1-7bab10838956"
     },
     {
+      "expect": "Edit Project",
+      "file": "tests/e2e/smoke.spec.ts",
+      "id": "route:edit-project",
+      "kind": "route",
+      "pageId": "edit-project",
+      "path": null,
+      "skip": "no example value for the route parameters"
+    },
+    {
       "expect": "Tasks",
       "file": "tests/e2e/smoke.spec.ts",
       "id": "route:tasks",
@@ -595,6 +775,15 @@
       "kind": "form",
       "pageId": "project",
       "path": "/projects/a3650faa-1ee8-5ee1-a1f1-7bab10838956"
+    },
+    {
+      "file": "tests/e2e/forms.spec.ts",
+      "formId": "editProject",
+      "id": "form:editProject",
+      "kind": "form",
+      "pageId": "edit-project",
+      "path": null,
+      "skip": "no example value for the route parameters"
     }
   ],
   "theme": {

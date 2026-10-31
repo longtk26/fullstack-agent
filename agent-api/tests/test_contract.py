@@ -251,4 +251,3 @@ def test_custom_operation_mock_plans():
     assert mocked["task.quickCreate"]["mock"] == "create"
     assert mocked["task.stats"]["mock"] == "sample"
     assert mocked["task.stats"]["sample"] == sample
-

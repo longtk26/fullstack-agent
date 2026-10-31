@@ -10,7 +10,7 @@ Variants (Story 17.7) pick a look per section: a background for content sections
 style for list sections. They only switch between theme tokens, so every look follows the preset and light/dark.
 """
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import ConfigDict, Field, model_validator
 
@@ -83,9 +83,58 @@ class PlanItem(Props):
     highlighted: bool = False
 
 
+ActionKind = Literal["link", "mutation"]
+ActionVariant = Literal["default", "destructive", "outline", "secondary", "ghost", "link"]
+
+
+class ActionOnSuccess(Props):
+    toast: str | None = None
+    navigate: str | None = None
+
+
+class SectionAction(Props):
+    id: str = Field(min_length=1, max_length=63)
+    label: str = Field(min_length=1, max_length=60)
+    kind: ActionKind = "link"
+    page: str | None = None
+    params: dict[str, Any] = {}
+    operation_id: str | None = Field(default=None, alias="operationId")
+    body: dict[str, Any] = {}
+    confirm: str | bool | None = None
+    variant: ActionVariant | None = None
+    on_success: ActionOnSuccess | None = Field(default=None, alias="onSuccess")
+
+    @model_validator(mode="after")
+    def _validate_action(self):
+        if self.kind == "link" and not self.page:
+            raise ValueError("a link action requires 'page'")
+        if self.kind == "mutation" and not self.operation_id:
+            raise ValueError("a mutation action requires 'operationId'")
+        return self
+
+
+class SectionControls(Props):
+    search: bool = False
+    filters: list[str] = []
+    sort: list[str] = []
+    page_size: int | None = Field(default=None, ge=1, le=100, alias="pageSize")
+
+
+class StatData(Props):
+    operation_id: str = Field(alias="operationId")
+    value: str = "count"
+
+
 class StatItem(Props):
     label: str = Field(min_length=1, max_length=60)
-    value: str | int | float
+    value: str | int | float = ""
+    data: StatData | None = None
+
+    @model_validator(mode="after")
+    def _check_value_or_data(self):
+        if (self.value is None or self.value == "") and self.data is None:
+            raise ValueError("StatItem requires either 'value' or 'data'")
+        return self
 
 
 class GalleryItem(Props):
@@ -176,10 +225,18 @@ class DataSectionProps(Props):
 
     title: str | None = None
     description: str | None = None
+    actions: list[SectionAction] = []
+    controls: SectionControls | None = None
 
 
 class CardGridProps(DataSectionProps):
     card_style: CardStyle = "outline"
+
+
+class ActionBarProps(Props):
+    title: str | None = None
+    description: str | None = None
+    actions: list[SectionAction] = []
 
 
 class FormProps(Props):
@@ -212,6 +269,7 @@ class TabsProps(Props):
 
 
 SECTION_PROPS: dict[str, type[Props]] = {
+    "ActionBar": ActionBarProps,
     "Hero": HeroProps,
     "Features": FeaturesProps,
     "CallToAction": CallToActionProps,

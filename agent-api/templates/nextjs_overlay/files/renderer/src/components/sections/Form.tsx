@@ -33,7 +33,18 @@ const NUMBERS = new Set(["integer", "number", "decimal"]);
 
 /** A FrontendSpec form from its field definitions; validation from the generated Zod schema. */
 export function Form({ title, description, formId = "", form }: FormProps) {
-  const { methods, onSubmit, pending } = useSectionForm(formId, form ?? { params: {}, fields: [], submitLabel: "Submit", onSuccess: {} });
+  const { methods, onSubmit, pending, isLoading } = useSectionForm(formId, form ?? { params: {}, fields: [], submitLabel: "Submit", onSuccess: {} });
+
+  if (isLoading) {
+    return (
+      <Section title={title} description={description}>
+        <div className="flex max-w-lg flex-col gap-4 py-8">
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        </div>
+      </Section>
+    );
+  }
+
   return (
     <Section title={title} description={description}>
       <form onSubmit={methods.handleSubmit(onSubmit)} className="flex max-w-lg flex-col gap-4" noValidate>
