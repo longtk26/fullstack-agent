@@ -35,7 +35,7 @@ export function SectionRenderer({ pageId, section }: SectionRendererProps) {
   ));
   if (section.children) props.childTitles = section.children.map(childTitle);
   return (
-    <div data-bga-section={`${pageId}/${section.id}`} data-bga-component={section.component}>
+    <div data-bga-section={`${pageId}/${section.id}`} data-bga-section-id={section.id} data-bga-component={section.component}>
       <Component {...props}>{children}</Component>
     </div>
   );

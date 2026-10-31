@@ -1,5 +1,6 @@
 """Tests for Story 19.8: Journeys and domain operations."""
 
+import asyncio
 import copy
 import json
 from pathlib import Path
@@ -15,6 +16,13 @@ from src.modules.shared.domain.frontend_spec import (
     validate_frontend_spec_data,
 )
 from src.orchestrator.checks.consistency import check_spec_pair
+from src.orchestrator.frontend_validation import (
+    FrontendValidationRequest,
+    SandboxFrontendValidationRunner,
+    StaticFrontendValidationRunner,
+)
+from src.orchestrator.integration import run_playwright_live_journeys
+from src.sandbox import ExecResult, ISandbox
 from tests.workflow_helpers import cli_invocations, generation, run_job
 
 EXAMPLES = Path(__file__).parents[2] / "examples"
@@ -379,3 +387,210 @@ def test_fake_dynamic_generation_of_flashcards_completes(client, user_headers, t
 
     review_test = project / "tests/modules/cards/test_card_review_api.py"
     assert review_test.exists()
+
+
+class FakeJourneySandbox(ISandbox):
+    def __init__(self, project: Path, step_results: list[dict[str, Any]] | None = None, ok: bool = True):
+        self.project = project
+        self.step_results = step_results
+        self.ok = ok
+        self.commands: list[str] = []
+
+    async def start(self) -> None:
+        pass
+
+    async def stop(self) -> None:
+        pass
+
+    async def shared_dependencies(self) -> str | None:
+        return "shared"
+
+    async def reset_database(self, name: str) -> None:
+        pass
+
+    async def exec(
+        self, command: str, timeout_s: int | None = None, env: dict[str, str] | None = None, egress: bool = False
+    ) -> ExecResult:
+        self.commands.append(command)
+        if "playwright test tests/e2e/journeys.spec.ts" in command:
+            if self.step_results is not None:
+                reports = self.project / "test-results"
+                reports.mkdir(parents=True, exist_ok=True)
+                (reports / "journeys-summary.json").write_text(json.dumps(self.step_results))
+            return ExecResult(exit_code=0 if self.ok else 1, stdout="ok", stderr="", duration_ms=25)
+        return ExecResult(exit_code=0, stdout="ok", stderr="", duration_ms=5)
+
+
+def test_static_frontend_validation_runner_journeys(tmp_path):
+    async def _run():
+        project = tmp_path / "fe"
+        project.mkdir()
+        plan = {
+            "project": {"mode": "dynamic"},
+            "shell": {"file": "src/components/layout/Shell.tsx"},
+            "components": [],
+            "routes": [],
+        }
+
+        # 1. No journeys.spec.ts
+        req = FrontendValidationRequest(project=project, plan=plan, run_tests=True)
+        res = await StaticFrontendValidationRunner().run(req)
+        j_res = next(r for r in res.results if r.check == "journeys")
+        assert j_res.status == "skipped"
+        assert "no journey tests planned" in j_res.summary
+
+        # 2. journeys.spec.ts present, run_tests=True -> not_run
+        (project / "tests" / "e2e").mkdir(parents=True)
+        (project / "tests" / "e2e" / "journeys.spec.ts").write_text("// spec")
+        res = await StaticFrontendValidationRunner().run(req)
+        j_res = next(r for r in res.results if r.check == "journeys")
+        assert j_res.status == "not_run"
+
+        # 3. run_tests=False -> skipped
+        req_no_tests = FrontendValidationRequest(project=project, plan=plan, run_tests=False)
+        res = await StaticFrontendValidationRunner().run(req_no_tests)
+        j_res = next(r for r in res.results if r.check == "journeys")
+        assert j_res.status == "skipped"
+        assert "runTests=false" in j_res.summary
+
+    asyncio.run(_run())
+
+
+def test_sandbox_frontend_validation_journeys_runs_on_mocks_and_skips_live(tmp_path):
+    async def _run():
+        project = tmp_path / "fe"
+        (project / "tests" / "e2e").mkdir(parents=True)
+        (project / "tests" / "e2e" / "journeys.spec.ts").write_text("// journeys")
+        plan = {
+            "project": {"mode": "dynamic"},
+            "routes": [{"pageId": "home", "file": "src/app/page.tsx", "sections": []}],
+        }
+        step_results = [
+            {"journey": "browse", "step": 0, "do": "visit", "status": "passed", "durationMs": 10},
+            {"journey": "browse", "step": 1, "do": "open", "status": "passed", "durationMs": 12},
+            {"journey": "study", "step": 0, "do": "visit", "status": "passed", "durationMs": 10},
+            {"journey": "study", "step": 1, "do": "action", "status": "passed", "durationMs": 15},
+            {
+                "journey": "study",
+                "step": 2,
+                "do": "expect",
+                "status": "skipped",
+                "durationMs": 0,
+                "live": True,
+                "message": "live-only expectation",
+            },
+        ]
+        sandbox = FakeJourneySandbox(project, step_results=step_results, ok=True)
+        req = FrontendValidationRequest(project=project, plan=plan, run_tests=True, sandbox=sandbox)
+        res = await SandboxFrontendValidationRunner()._journeys(req)
+        assert res.status == "passed"
+        assert "all 4 journey step(s) passed (1 skipped on mocks)" in res.summary
+        assert len(res.details) == 5
+
+    asyncio.run(_run())
+
+
+def test_sandbox_frontend_validation_journeys_failure_implicates_page(tmp_path):
+    async def _run():
+        project = tmp_path / "fe"
+        (project / "tests" / "e2e").mkdir(parents=True)
+        (project / "tests" / "e2e" / "journeys.spec.ts").write_text("// journeys")
+        plan = {
+            "project": {"mode": "dynamic"},
+            "routes": [{"pageId": "study", "file": "src/app/study/page.tsx", "sections": [{"id": "study-actions"}]}],
+        }
+        step_results = [
+            {"journey": "study", "step": 0, "do": "visit", "status": "passed", "durationMs": 10},
+            {
+                "journey": "study",
+                "step": 1,
+                "do": "action",
+                "status": "failed",
+                "durationMs": 15,
+                "selector": "study-actions",
+                "message": "action button not found",
+            },
+            {
+                "journey": "study",
+                "step": 2,
+                "do": "expect",
+                "status": "skipped",
+                "durationMs": 0,
+                "message": "skipped: previous step failed",
+            },
+        ]
+        sandbox = FakeJourneySandbox(project, step_results=step_results, ok=False)
+        req = FrontendValidationRequest(project=project, plan=plan, run_tests=True, sandbox=sandbox)
+        res = await SandboxFrontendValidationRunner()._journeys(req)
+        assert res.status == "failed"
+        assert "study: step 1 (action)" in res.summary
+        failing = next(s for s in res.details if s.get("status") == "failed")
+        assert failing.get("file") == "src/app/study/page.tsx"
+
+    asyncio.run(_run())
+
+
+def test_integration_journeys_live_passes_and_broken_review_fails(tmp_path):
+    from unittest.mock import AsyncMock, MagicMock
+
+    async def _run():
+        frontend_dir = tmp_path / "frontend"
+        (frontend_dir / "tests" / "e2e").mkdir(parents=True)
+        (frontend_dir / "tests" / "e2e" / "journeys.spec.ts").write_text("// journeys")
+
+        ctx = MagicMock()
+        ctx.generation_id = "gen-1"
+        ctx.workspace.frontend = frontend_dir
+
+        state = {"options": {"frontend": {"runTests": True}}}
+
+        # Case 1: Live journeys pass
+        step_results_pass = [
+            {"journey": "browse", "step": 0, "do": "visit", "status": "passed", "durationMs": 10},
+            {"journey": "study", "step": 0, "do": "visit", "status": "passed", "durationMs": 10},
+            {"journey": "study", "step": 1, "do": "action", "status": "passed", "durationMs": 15},
+            {"journey": "study", "step": 2, "do": "expect", "status": "passed", "durationMs": 20, "live": True},
+        ]
+        sandbox_pass = FakeJourneySandbox(frontend_dir, step_results=step_results_pass, ok=True)
+        ctx.frontend_sandbox = AsyncMock(return_value=sandbox_pass)
+
+        res_pass = await run_playwright_live_journeys(
+            ctx,
+            state,
+            frontend_url="http://localhost:3000",
+            backend_url="http://localhost:8000",
+            frontend_port=3000,
+            backend_port=8000,
+        )
+        assert res_pass.status == "passed"
+        assert "all 4 live journey step(s) passed" in res_pass.summary
+
+        # Case 2: Deliberately broken fake card.review fails at review step
+        step_results_fail = [
+            {"journey": "study", "step": 0, "do": "visit", "status": "passed", "durationMs": 10},
+            {"journey": "study", "step": 1, "do": "action", "status": "passed", "durationMs": 15},
+            {
+                "journey": "study",
+                "step": 2,
+                "do": "expect",
+                "status": "failed",
+                "durationMs": 15000,
+                "live": True,
+                "message": "expected dueDate to change, but remained 2026-10-31",
+            },
+        ]
+        sandbox_fail = FakeJourneySandbox(frontend_dir, step_results=step_results_fail, ok=False)
+        ctx.frontend_sandbox = AsyncMock(return_value=sandbox_fail)
+
+        res_fail = await run_playwright_live_journeys(
+            ctx,
+            state,
+            frontend_url="http://localhost:3000",
+            backend_url="http://localhost:8000",
+            frontend_port=3000,
+            backend_port=8000,
+        )
+        assert res_fail.status == "failed"
+        assert "study: step 2 (expect)" in res_fail.summary
+
+    asyncio.run(_run())

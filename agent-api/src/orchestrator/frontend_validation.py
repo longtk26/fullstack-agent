@@ -19,6 +19,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from src.configs import config
+from src.modules.shared.domain.frontend_spec import iter_sections
 from src.sandbox import ExecResult, ISandbox
 
 from .checks.frontend_conventions import check_frontend_conventions
@@ -27,10 +29,10 @@ from .frontend_assets import assets_check
 from .validation import CheckResult, ValidationOutcome, build_digest_for, implicated, traced_check
 
 # `assets` (Story 15.3) runs before the build: a drawing that falls back must not be built.
-CHECKS = ("install", "typecheck", "lint", "conventions", "assets", "build", "routes", "tests")
+CHECKS = ("install", "typecheck", "lint", "conventions", "assets", "build", "routes", "tests", "journeys")
 DEPENDS_ON = {"typecheck": ("install",), "lint": ("install",), "build": ("install", "typecheck")}
-DEPENDS_ON |= {"routes": ("build",), "tests": ("build",)}
-DIGEST_ORDER = ("install", "typecheck", "build", "assets", "conventions", "lint", "routes", "tests")
+DEPENDS_ON |= {"routes": ("build",), "tests": ("build",), "journeys": ("build", "tests")}
+DIGEST_ORDER = ("install", "typecheck", "build", "assets", "conventions", "lint", "routes", "tests", "journeys")
 TS_ERROR = re.compile(r"^(?:\./)?(src/[^\s(:]+)\((\d+),\d+\): error (TS\d+): (.+)$", re.MULTILINE)
 BUILD_LOCATION = re.compile(r"^\./(src/[^\s:]+):(\d+):\d+", re.MULTILINE)
 NO_OFFLINE = ("ERR_PNPM_NO_OFFLINE", "ERR_PNPM_OFFLINE", "not found in the store", "ERR_PNPM_FETCH")
@@ -160,8 +162,10 @@ class StaticFrontendValidationRunner:
                     result = conventions_check(request.project, request.plan)
                 elif check == "assets":
                     result = assets_check(request.project, request.plan)
-                elif check == "tests" and not request.run_tests:
+                elif check in ("tests", "journeys") and not request.run_tests:
                     result = CheckResult(check=check, status="skipped", summary="runTests=false")
+                elif check == "journeys" and not (request.project / "tests" / "e2e" / "journeys.spec.ts").is_file():
+                    result = CheckResult(check=check, status="skipped", summary="no journey tests planned")
                 else:
                     result = CheckResult(check=check, status="not_run", summary="requires the Node sandbox")
                 slot.append(result)
@@ -178,8 +182,10 @@ class SandboxFrontendValidationRunner:
         for check in CHECKS:
             blocked = [d for d in DEPENDS_ON.get(check, ()) if results[d].status != "passed"]
             with traced_check(check) as slot:
-                if check == "tests" and not request.run_tests:
+                if check in ("tests", "journeys") and not request.run_tests:
                     result = CheckResult(check=check, status="skipped", summary="runTests=false")
+                elif check == "journeys" and not (request.project / "tests" / "e2e" / "journeys.spec.ts").is_file():
+                    result = CheckResult(check=check, status="skipped", summary="no journey tests planned")
                 elif blocked:
                     result = CheckResult(
                         check=check, status="skipped", summary=f"skipped: {', '.join(blocked)} did not pass"
@@ -250,7 +256,15 @@ class SandboxFrontendValidationRunner:
             "pnpm exec vitest run --reporter=default --reporter=junit --outputFile.junit=test-results/unit-junit.xml",
             timeout_s=300,
         )
-        e2e = await sandbox.exec("pnpm exec playwright test", timeout_s=600, env={"E2E_PORT": "3100"})
+        test_specs = ["tests/e2e/smoke.spec.ts"]
+        if (project / "tests" / "e2e" / "forms.spec.ts").is_file():
+            test_specs.append("tests/e2e/forms.spec.ts")
+        play_cmd = (
+            f"pnpm exec playwright test {' '.join(test_specs)}"
+            if (project / "tests" / "e2e" / "journeys.spec.ts").is_file()
+            else "pnpm exec playwright test"
+        )
+        e2e = await sandbox.exec(play_cmd, timeout_s=600, env={"E2E_PORT": "3100"})
         failures = []
         for name in ("unit-junit.xml", "e2e-junit.xml"):
             if (reports / name).is_file():
@@ -264,4 +278,71 @@ class SandboxFrontendValidationRunner:
         failing_run = e2e if not e2e.ok else unit
         result = _result("tests", ok, summary, failing_run if not ok else None, details=failures)
         result.duration_ms = unit.duration_ms + e2e.duration_ms
+        return result
+
+    async def _journeys(self, request: FrontendValidationRequest) -> CheckResult:
+        sandbox, project = request.sandbox, request.project
+        journeys_file = project / "tests" / "e2e" / "journeys.spec.ts"
+        if not journeys_file.is_file():
+            return CheckResult(check="journeys", status="skipped", summary="no journey tests planned")
+        reports = project / "test-results"
+        summary_file = reports / "journeys-summary.json"
+        summary_file.unlink(missing_ok=True)
+        (reports / "journeys-junit.xml").unlink(missing_ok=True)
+        timeout_s = int(config.journey_test_timeout_seconds)
+        e2e = await sandbox.exec(
+            "pnpm exec playwright test tests/e2e/journeys.spec.ts",
+            timeout_s=timeout_s,
+            env={"E2E_PORT": "3100", "PLAYWRIGHT_JUNIT_OUTPUT_NAME": "test-results/journeys-junit.xml"},
+        )
+        step_items: list[dict[str, Any]] = []
+        if summary_file.is_file():
+            try:
+                step_items = json.loads(summary_file.read_text(errors="replace"))
+            except Exception:
+                pass
+        if not step_items and (reports / "journeys-junit.xml").is_file():
+            step_items = junit_failures((reports / "journeys-junit.xml").read_text(errors="replace"))
+
+        failures = [s for s in step_items if s.get("status") == "failed"]
+        if not e2e.ok and not failures:
+            failures = [
+                {
+                    "journey": "journeys",
+                    "step": 0,
+                    "do": "test",
+                    "status": "failed",
+                    "message": last_lines(e2e.output, 5) or "Playwright journey test failed",
+                    "excerpt": last_lines(e2e.output, 25),
+                }
+            ]
+
+        for f in failures:
+            if "file" not in f or not f["file"] or f["file"] == "tests/e2e/journeys.spec.ts":
+                sec_id = f.get("selector")
+                for r in request.plan.get("routes", []):
+                    if any(s.get("id") == sec_id for s in iter_sections(r.get("sections", []))):
+                        f["file"] = r.get("file", "tests/e2e/journeys.spec.ts")
+                        break
+
+        ok = e2e.ok and not any(s.get("status") == "failed" for s in step_items)
+        if ok:
+            pass_count = sum(1 for s in step_items if s.get("status") == "passed")
+            skip_count = sum(1 for s in step_items if s.get("status") == "skipped")
+            summary = f"all {pass_count} journey step(s) passed" + (
+                f" ({skip_count} skipped on mocks)" if skip_count else ""
+            )
+        else:
+            first = failures[0] if failures else {}
+            step_info = f"{first.get('journey', '')}: step {first.get('step', '')} ({first.get('do', '')})"
+            summary = f"journey test failed at {step_info}"
+
+        result = _result(
+            "journeys",
+            ok,
+            summary,
+            e2e if not ok else None,
+            details=step_items if step_items else failures,
+        )
+        result.duration_ms = e2e.duration_ms
         return result

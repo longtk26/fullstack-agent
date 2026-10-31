@@ -29,16 +29,16 @@ export function DetailView({ title, description, columns = [], binding, states, 
         {record && (
           <Card data-bga-record={String(record.id ?? "")}>
             <CardHeader className="flex flex-row items-center justify-between gap-4">
-              <CardTitle className="text-2xl">{heading ? formatValue(record[heading.key], heading.format) : ""}</CardTitle>
+              <CardTitle className="text-2xl" data-field-value={heading?.key}>{heading ? formatValue(record[heading.key], heading.format) : ""}</CardTitle>
               {hasActions && <ActionButtons actions={actions} record={record} />}
             </CardHeader>
             <Separator />
             <CardContent>
               <dl className="grid gap-3 sm:grid-cols-[10rem_1fr]">
                 {rest.map((column) => (
-                  <div key={column.key} className="contents">
+                  <div key={column.key} className="contents" data-field={column.key}>
                     <dt className="text-sm text-muted-foreground">{column.label}</dt>
-                    <dd>{formatValue(record[column.key], column.format)}</dd>
+                    <dd data-field-value={column.key}>{formatValue(record[column.key], column.format)}</dd>
                   </div>
                 ))}
               </dl>

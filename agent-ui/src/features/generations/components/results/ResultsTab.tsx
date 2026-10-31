@@ -13,6 +13,7 @@ import { ManifestPanel } from "./ManifestPanel";
 import { MarkdownReport } from "./MarkdownReport";
 import { SourceBrowser } from "./SourceBrowser";
 import { ValidationHistory } from "./ValidationHistory";
+import { JourneyResults } from "./JourneyResults";
 
 type ResultsTabProps = {
   detail: TGenerationDetail;
@@ -32,6 +33,14 @@ export function ResultsTab({ detail, onOpenAppTab }: ResultsTabProps) {
       {detail.status === "FAILED" && results.report.data && (
         <Section title="Diagnostic report" description="What failed, the last validation and the repair history.">
           <MarkdownReport markdown={results.report.data} />
+        </Section>
+      )}
+      {results.validation.data?.checks.some((c) => c.check.endsWith(":journeys") && (c.runs[c.runs.length - 1]?.items?.length ?? 0) > 0) && (
+        <Section
+          title="Journeys"
+          description="Verification of end-to-end user journeys on mock and live API"
+        >
+          <JourneyResults history={results.validation.data} loading={results.validation.isLoading} />
         </Section>
       )}
       <div className="grid gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">

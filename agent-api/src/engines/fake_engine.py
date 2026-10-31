@@ -251,11 +251,18 @@ def shop_demo_scenario(delay_s: float = 0.3) -> dict[str, list[FakeStep]]:
     }
 
 
-def flashcards_demo_scenario(delay_s: float = 0.3) -> dict[str, list[FakeStep]]:
+def flashcards_demo_scenario(delay_s: float = 0.3, broken_review: bool = False) -> dict[str, list[FakeStep]]:
+    cards_step = FakeStep(sleep_s=delay_s, copy_from=GOLDEN_FLASHCARDS / "cards")
+    if broken_review:
+        usecase_file = GOLDEN_FLASHCARDS / "cards" / "src" / "modules" / "cards" / "usecases" / "review_card_usecase.py"
+        broken_usecase = usecase_file.read_text().replace(
+            "card.due_date = due", "# card.due_date = due (broken: rating card does not move due date)"
+        )
+        cards_step.write = {"src/modules/cards/usecases/review_card_usecase.py": broken_usecase}
     return {
         "complete_backend": [
             FakeStep(sleep_s=delay_s, copy_from=GOLDEN_FLASHCARDS / "decks"),
-            FakeStep(sleep_s=delay_s, copy_from=GOLDEN_FLASHCARDS / "cards"),
+            cards_step,
         ],
     }
 
@@ -327,7 +334,12 @@ class FakeEngine(ICodeEngine):
 
     name = "fake"
 
-    def __init__(self, allowed_root: Path, scenario: dict[str, list[FakeStep]] | None = None):
+    def __init__(
+        self,
+        allowed_root: Path,
+        scenario: dict[str, list[FakeStep]] | None = None,
+        broken_review: bool = False,
+    ):
         self.allowed_root = allowed_root
         self.scenario = {purpose: list(steps) for purpose, steps in (scenario or DEFAULT_SCENARIO).items()}
         self._shop_scenario: dict[str, list[FakeStep]] | None = None
@@ -335,7 +347,7 @@ class FakeEngine(ICodeEngine):
         if _is_demo_backend(self.scenario):
             delay_s = self.scenario["generate_database"][0].sleep_s
             self._shop_scenario = shop_demo_scenario(delay_s=delay_s)
-            self._flashcards_scenario = flashcards_demo_scenario(delay_s=delay_s)
+            self._flashcards_scenario = flashcards_demo_scenario(delay_s=delay_s, broken_review=broken_review)
         self.calls: list[EngineRequest] = []
         self._counts: dict[tuple[str, str], int] = {}
         self._cancels: dict[str, asyncio.Event] = {}

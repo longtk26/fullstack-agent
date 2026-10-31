@@ -27,6 +27,7 @@ from collections.abc import Iterator
 from typing import Any
 
 from src.modules.shared.domain.backend_spec.naming import to_camel, to_kebab, to_pascal
+from src.modules.shared.domain.frontend_spec import iter_sections
 
 from .asset_registry import ASSETS_FILE, assets_ts
 from .contract import contract_operations, resolve
@@ -816,6 +817,295 @@ def api_unit_test(contract: dict[str, Any]) -> str:
     )
 
 
+def journeys_spec(plan: dict[str, Any], spec: dict[str, Any], contract: dict[str, Any] | None) -> str | None:
+    journeys = spec.get("journeys") or []
+    if not journeys:
+        return None
+
+    paths = {t["pageId"]: t["path"] for t in plan.get("tests", []) if t.get("kind") == "route"}
+    routes_by_page = {r["pageId"]: r for r in plan.get("routes", [])}
+    forms_by_id = {f["id"]: f for f in plan.get("forms", [])}
+
+    form_by_section: dict[str, dict[str, Any]] = {}
+    for r in plan.get("routes", []):
+        for s in iter_sections(r.get("sections", [])):
+            if s.get("form") and s["form"] in forms_by_id:
+                form_by_section[s["id"]] = forms_by_id[s["form"]]
+
+    tests_code = []
+    for journey in journeys:
+        j_id = journey["id"]
+        j_title = journey.get("title") or j_id
+        steps = journey.get("steps") or []
+
+        # Find mutating steps before expectations that check changed field values
+        before_captures: dict[int, list[tuple[str, str, str]]] = {}
+        for exp_idx, exp_step in enumerate(steps):
+            if exp_step.get("do") == "expect" and exp_step.get("changed"):
+                field = exp_step["changed"]["field"]
+                sec = exp_step.get("section") or ""
+                mutating_idx = None
+                for prev_idx in range(exp_idx - 1, -1, -1):
+                    if steps[prev_idx].get("do") in ("submit", "action"):
+                        mutating_idx = prev_idx
+                        break
+                target_idx = mutating_idx if mutating_idx is not None else exp_idx
+                var_name = f"before_{field.replace('-', '_')}_{target_idx}"
+                before_captures.setdefault(target_idx, []).append((var_name, sec, field))
+
+        step_blocks = []
+        for idx, step in enumerate(steps):
+            step_do = step["do"]
+            is_live = bool(step.get("live"))
+            step_lines = []
+
+            if idx in before_captures:
+                for var_name, b_sec, b_field in before_captures[idx]:
+                    sec_sel = f'[data-bga-section="{b_sec}"], [data-bga-section$="/{b_sec}"]'
+                    step_lines.append(
+                        f"    {var_name} = await readFieldValue(page.locator({_json(sec_sel)}), {_json(b_field)});\n"
+                    )
+
+            step_title = f"{j_id}: {idx} {step_do}"
+            step_body = []
+
+            if is_live:
+                step_body.append(
+                    "      if (!process.env.LIVE_API) {\n"
+                    f"        stepRecords.push({{ journey: {_json(j_id)}, journeyTitle: {_json(j_title)}, "
+                    f'step: {idx}, do: {_json(step_do)}, status: "skipped", durationMs: 0, live: true, '
+                    'message: "live-only expectation" });\n'
+                    '        test.skip(true, "live-only expectation");\n'
+                    "        return;\n"
+                    "      }\n"
+                )
+
+            if step_do == "visit":
+                page_id = step.get("page") or ""
+                path = paths.get(page_id) or (routes_by_page.get(page_id) or {}).get("route") or "/"
+                step_body.append(f"      await page.goto({_json(path)});\n")
+                step_body.append('      await page.waitForLoadState("domcontentloaded");\n')
+
+            elif step_do == "open":
+                sec = step.get("section") or ""
+                record = step.get("record")
+                sec_sel = f'[data-bga-section="{sec}"], [data-bga-section$="/{sec}"]'
+                step_body.append(f"      const sec = page.locator({_json(sec_sel)});\n")
+                if not record or record == "first":
+                    step_body.append('      const rec = sec.locator("[data-bga-record]").first();\n')
+                elif isinstance(record, int):
+                    step_body.append(f'      const rec = sec.locator("[data-bga-record]").nth({record});\n')
+                else:
+                    rec_target = f'[data-bga-record="{record}"]'
+                    step_body.append(f"      const rec = sec.locator({_json(rec_target)});\n")
+                step_body.append('      await rec.locator("a").first().click();\n')
+                step_body.append('      await page.waitForLoadState("domcontentloaded");\n')
+
+            elif step_do == "submit":
+                sec = step.get("section") or ""
+                sec_sel = f'[data-bga-section="{sec}"], [data-bga-section$="/{sec}"]'
+                step_body.append(f"      const sec = page.locator({_json(sec_sel)});\n")
+                for k, v in (step.get("values") or {}).items():
+                    name_target = f'[name="{k}"]'
+                    if isinstance(v, str) and "$unique" in v:
+                        step_body.append(
+                            f"      await sec.locator({_json(name_target)}).first().fill("
+                            f'{_json(v)}.replace("$unique", unique));\n'
+                        )
+                    elif isinstance(v, bool):
+                        bool_val = "true" if v else "false"
+                        step_body.append(
+                            f"      await sec.locator({_json(name_target)}).first().setChecked({bool_val});\n"
+                        )
+                    else:
+                        step_body.append(
+                            f"      await sec.locator({_json(name_target)}).first().fill(String({_json(v)}));\n"
+                        )
+                step_body.append("      await sec.locator('button[type=\"submit\"]').first().click();\n")
+
+                form_def = form_by_section.get(sec)
+                toast = ((form_def or {}).get("onSuccess") or {}).get("toast")
+                navigate = ((form_def or {}).get("onSuccess") or {}).get("navigate")
+                if toast:
+                    step_body.append(
+                        f"      await expect(page.getByText({_json(toast)})"
+                        f".filter({{ visible: true }}).first()).toBeVisible();\n"
+                    )
+                elif navigate:
+                    nav_route = (routes_by_page.get(navigate) or {}).get("route") or navigate
+                    step_body.append(f"      await page.waitForURL(new RegExp({_json(nav_route)}));\n")
+                else:
+                    step_body.append('      await page.waitForLoadState("networkidle");\n')
+
+            elif step_do == "action":
+                sec = step.get("section") or ""
+                action_id = step.get("action") or ""
+                record = step.get("record")
+                sec_sel = f'[data-bga-section="{sec}"], [data-bga-section$="/{sec}"]'
+                step_body.append(f"      const sec = page.locator({_json(sec_sel)});\n")
+                step_body.append('      const hasRecords = await sec.locator("[data-bga-record]").count();\n')
+                rec_sel = f'[data-bga-record="{record}"]' if record and record != "first" else "[data-bga-record]"
+                act_target = f'[data-bga-action="{action_id}"]'
+                step_body.append(
+                    f"      const actionBtn = hasRecords > 0\n"
+                    f"        ? sec.locator({_json(rec_sel)}).first().locator({_json(act_target)}).first()\n"
+                    f"        : sec.locator({_json(act_target)}).first();\n"
+                )
+                step_body.append('      page.once("dialog", (d) => d.accept().catch(() => {}));\n')
+                step_body.append("      await actionBtn.click();\n")
+                step_body.append(
+                    '      const confirmBtn = page.getByRole("button", { name: /confirm|proceed|ok|yes/i });\n'
+                )
+                step_body.append("      if (await confirmBtn.isVisible({ timeout: 500 }).catch(() => false)) {\n")
+                step_body.append("        await confirmBtn.click();\n")
+                step_body.append("      }\n")
+                step_body.append('      await page.waitForLoadState("networkidle");\n')
+
+            elif step_do == "expect":
+                sec = step.get("section") or ""
+                sec_sel = f'[data-bga-section="{sec}"], [data-bga-section$="/{sec}"]' if sec else None
+                if step.get("text"):
+                    text_val = step["text"]
+                    step_body.append(
+                        f'      await expect(page.getByText({_json(text_val)}.replace("$unique", unique))'
+                        f".filter({{ visible: true }}).first()).toBeVisible();\n"
+                    )
+                if step.get("count") is not None:
+                    step_body.append(f"      const sec = page.locator({_json(sec_sel)});\n")
+                    step_body.append(
+                        f'      await expect(sec.locator("[data-bga-record]")).toHaveCount({int(step["count"])});\n'
+                    )
+                if step.get("changed"):
+                    field = step["changed"]["field"]
+                    mutating_idx = None
+                    for prev_idx in range(idx - 1, -1, -1):
+                        if steps[prev_idx].get("do") in ("submit", "action"):
+                            mutating_idx = prev_idx
+                            break
+                    var_name = f"before_{field.replace('-', '_')}_{mutating_idx if mutating_idx is not None else idx}"
+                    step_body.append(f"      const sec = page.locator({_json(sec_sel)});\n")
+                    step_body.append("      await expect.poll(async () => {\n")
+                    step_body.append(f"        return await readFieldValue(sec, {_json(field)});\n")
+                    step_body.append(f"      }}, {{ timeout: 15_000 }}).not.toBe({var_name});\n")
+
+            wrapped = (
+                f"    await test.step({_json(step_title)}, async () => {{\n"
+                "      const t0 = Date.now();\n"
+                "      try {\n"
+                + "".join(step_body)
+                + (
+                    f"        stepRecords.push({{ journey: {_json(j_id)}, journeyTitle: {_json(j_title)}, "
+                    f'step: {idx}, do: {_json(step_do)}, status: "passed", durationMs: Date.now() - t0, '
+                    f"live: {str(is_live).lower()} }});\n"
+                )
+                + "      } catch (err: any) {\n"
+                + (
+                    f"        stepRecords.push({{ journey: {_json(j_id)}, journeyTitle: {_json(j_title)}, "
+                    f'step: {idx}, do: {_json(step_do)}, status: "failed", durationMs: Date.now() - t0, '
+                    f"live: {str(is_live).lower()}, message: err?.message || String(err), "
+                    f"selector: {_json(step.get('section'))} }});\n"
+                )
+                + "        throw err;\n"
+                + "      }\n"
+                + "    });\n"
+                + "    executedSteps++;\n"
+            )
+            step_lines.append(wrapped)
+            step_blocks.append("".join(step_lines))
+
+        before_vars = sorted({var for vars in before_captures.values() for var, _, _ in vars})
+        var_decls = "".join(f'  let {v} = "";\n' for v in before_vars)
+
+        remaining_records = []
+        for s_idx, s in enumerate(steps):
+            remaining_records.append(
+                f"      if (s === {s_idx}) stepRecords.push({{ journey: {_json(j_id)}, "
+                f'journeyTitle: {_json(j_title)}, step: {s_idx}, do: {_json(s["do"])}, status: "skipped", '
+                f"durationMs: 0, live: {str(bool(s.get('live'))).lower()}, "
+                'message: "skipped: previous step failed" });\n'
+            )
+
+        test_body = (
+            f"test({_json(f'{j_id}: {j_title}')}, async ({{ page }}, testInfo) => {{\n"
+            "  test.setTimeout(180_000);\n"
+            "  page.setDefaultTimeout(15_000);\n"
+            "  const unique = Math.random().toString(36).slice(2, 8);\n"
+            "  const stepRecords: TStepRecord[] = [];\n"
+            + var_decls
+            + "  let executedSteps = 0;\n"
+            + "  try {\n"
+            + "".join(step_blocks)
+            + "  } finally {\n"
+            + "    if (testInfo.status !== testInfo.expectedStatus) {\n"
+            + '      const screenshotDir = path.join("test-results", "screenshots");\n'
+            + "      if (!fs.existsSync(screenshotDir)) fs.mkdirSync(screenshotDir, { recursive: true });\n"
+            + f"      const screenshotPath = path.join(screenshotDir, {_json(f'{j_id}_failure.png')});\n"
+            + "      await page.screenshot({ path: screenshotPath, fullPage: true }).catch(() => {});\n"
+            + "      const last = stepRecords[stepRecords.length - 1];\n"
+            + '      if (last && last.status === "failed") last.screenshot = screenshotPath;\n'
+            + "    }\n"
+            + (
+                f"    for (let s = executedSteps + (stepRecords.length > 0 && "
+                f"stepRecords[stepRecords.length - 1].status === 'failed' ? 1 : 0); s < {len(steps)}; s++) {{\n"
+            )
+            + "".join(remaining_records)
+            + "    }\n"
+            + "    allStepRecords.push(...stepRecords);\n"
+            + "  }\n"
+            + "});\n"
+        )
+        tests_code.append(test_body)
+
+    return (
+        HEADER
+        + 'import fs from "node:fs";\n'
+        + 'import path from "node:path";\n'
+        + 'import { expect, test } from "@playwright/test";\n\n'
+        + "type TStepRecord = {\n"
+        + "  journey: string;\n"
+        + "  journeyTitle: string;\n"
+        + "  step: number;\n"
+        + "  do: string;\n"
+        + '  status: "passed" | "failed" | "skipped";\n'
+        + "  durationMs: number;\n"
+        + "  live?: boolean;\n"
+        + "  message?: string;\n"
+        + "  selector?: string;\n"
+        + "  screenshot?: string;\n"
+        + "};\n\n"
+        + "const allStepRecords: TStepRecord[] = [];\n\n"
+        + 'async function readFieldValue(sec: import("@playwright/test").Locator, field: string): Promise<string> {\n'
+        + '  const byAttr = sec.locator(`[data-field-value="${field}"], [data-field="${field}"]`).first();\n'
+        + "  if (await byAttr.isVisible().catch(() => false)) {\n"
+        + '    return (await byAttr.textContent())?.trim() ?? "";\n'
+        + "  }\n"
+        + '  const dtDd = sec.locator(`dt:has-text("${field}") + dd, dt:text-matches("${field}", "i") + dd`).first();\n'
+        + "  if (await dtDd.isVisible().catch(() => false)) {\n"
+        + '    return (await dtDd.textContent())?.trim() ?? "";\n'
+        + "  }\n"
+        + (
+            '  const divDd = sec.locator(`div:has(> dt:has-text("${field}")), '
+            'div:has(> dt:text-matches("${field}", "i"))`).locator("dd").first();\n'
+        )
+        + "  if (await divDd.isVisible().catch(() => false)) {\n"
+        + '    return (await divDd.textContent())?.trim() ?? "";\n'
+        + "  }\n"
+        + '  const rec = sec.locator("[data-bga-record]").first();\n'
+        + "  if (await rec.isVisible().catch(() => false)) {\n"
+        + '    return (await rec.textContent())?.trim() ?? "";\n'
+        + "  }\n"
+        + '  return (await sec.textContent())?.trim() ?? "";\n'
+        + "}\n\n"
+        + "test.afterAll(() => {\n"
+        + '  const dir = "test-results";\n'
+        + "  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });\n"
+        + '  fs.writeFileSync(path.join(dir, "journeys-summary.json"), JSON.stringify(allStepRecords, null, 2));\n'
+        + "});\n\n"
+        + "\n\n".join(tests_code)
+        + "\n"
+    )
+
+
 # -- all files ---------------------------------------------------------------------------------------------------------
 
 
@@ -833,6 +1123,9 @@ def generated_files(plan: dict[str, Any], spec: dict[str, Any], contract: dict[s
     forms = forms_spec(plan)
     if forms:
         files["tests/e2e/forms.spec.ts"] = forms
+    journeys = journeys_spec(plan, spec, contract)
+    if journeys:
+        files["tests/e2e/journeys.spec.ts"] = journeys
     for item in spec.get("content", []):
         files[f"src/content/{to_kebab(item['collection'])}.json"] = (
             json.dumps(item["records"], indent=2, ensure_ascii=False) + "\n"

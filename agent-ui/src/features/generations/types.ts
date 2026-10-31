@@ -178,6 +178,15 @@ export type TCheckItem = {
   message?: string;
   hint?: string;
   excerpt?: string;
+  journey?: string;
+  journeyTitle?: string;
+  step?: number;
+  do?: string;
+  status?: string;
+  durationMs?: number;
+  live?: boolean;
+  selector?: string;
+  screenshot?: string;
 };
 
 export type TCheckRun = {

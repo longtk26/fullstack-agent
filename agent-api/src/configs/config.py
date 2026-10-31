@@ -139,6 +139,7 @@ class Config(BaseSettings):
     # Dynamic integration (Story 14.2): how long `integrate` waits for the backend lane and its preview before
     # keeping the frontend on its mock API.
     integration_wait_seconds: float = 180
+    journey_test_timeout_seconds: int = 180
 
     # LangSmith tracing (Epic 8). Off unless LANGSMITH_TRACING=true and a key is set; the local trace (node runs,
     # CLI invocations, model calls, checks) is recorded either way. LANGSMITH_AGENT_ID (beta, enabled per
