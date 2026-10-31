@@ -6,6 +6,7 @@ import json
 import pytest
 from generation_helpers import EXAMPLES, normalized
 
+from src.modules.shared.domain.backend_spec import Severity
 from src.modules.shared.domain.frontend_spec import validate_frontend_spec_data
 from src.orchestrator.checks.consistency import check_spec_pair
 
@@ -21,7 +22,7 @@ def issues(frontend: dict, backend: str = "shop") -> list:
 @pytest.mark.parametrize(("frontend", "backend"), [("shop-dynamic", "shop"), ("project-tracker-dynamic", "two-entity")])
 def test_example_pairs_are_consistent(frontend, backend):
     spec = json.loads((EXAMPLES / "frontend-specs" / f"{frontend}.json").read_text())
-    assert issues(spec, backend) == []
+    assert [i for i in issues(spec, backend) if i.severity != Severity.WARNING] == []
 
 
 def _mutate(change) -> dict:
@@ -78,14 +79,15 @@ def test_form_enum_and_date_fields_must_match_the_contract():
 
 def test_a_frontend_for_another_backend_fails_on_every_binding():
     found = issues(SHOP_FRONTEND, "two-entity")
-    assert {i.code for i in found} == {"CONTRACT_UNKNOWN_OPERATION"}
-    assert len(found) == 6
+    errors = [i for i in found if i.severity != Severity.WARNING]
+    assert {i.code for i in errors} == {"CONTRACT_UNKNOWN_OPERATION"}
+    assert len(errors) == 6
 
 
 def test_form_load_consistency():
     frontend = json.loads((EXAMPLES / "frontend-specs" / "project-tracker-dynamic.json").read_text())
     # editProject is at forms[2]
-    assert issues(frontend, "two-entity") == []
+    assert [i for i in issues(frontend, "two-entity") if i.severity != Severity.WARNING] == []
 
     # 1. Unknown operation
     f1 = copy.deepcopy(frontend)
@@ -111,7 +113,7 @@ def test_section_controls_consistency():
     # project.list has sort: ["name", "createdAt"], no filters, no search
     table_section = frontend["pages"][1]["sections"][0]
     table_section["content"] = {"controls": {"sort": ["name"]}}
-    assert issues(frontend, "two-entity") == []
+    assert [i for i in issues(frontend, "two-entity") if i.severity != Severity.WARNING] == []
 
     # 1. Search requested but operation has no search parameter
     f1 = copy.deepcopy(frontend)
@@ -148,7 +150,7 @@ def test_section_actions_consistency():
             },
         ]
     }
-    assert issues(frontend, "two-entity") == []
+    assert [i for i in issues(frontend, "two-entity") if i.severity != Severity.WARNING] == []
 
     # 1. Link action with unknown page (caught by validator)
     f1 = copy.deepcopy(frontend)
@@ -180,10 +182,35 @@ def test_section_actions_consistency():
 
 def test_stats_data_consistency():
     frontend = json.loads((EXAMPLES / "frontend-specs" / "project-tracker-dynamic.json").read_text())
-    assert issues(frontend, "two-entity") == []
+    assert [i for i in issues(frontend, "two-entity") if i.severity != Severity.WARNING] == []
 
     # Field missing in stats response
     f1 = copy.deepcopy(frontend)
     f1["pages"][0]["sections"][0]["content"]["items"][0]["data"]["value"] = "nonExistentField"
     found = {(i.code, i.path) for i in issues(f1, "two-entity")}
     assert ("CONTRACT_FIELD_MISSING", "/pages/0/sections/0/content/items/0/data/value") in found
+
+
+def test_uncovered_operations_warning_and_manage_area():
+    from src.modules.shared.domain.frontend_spec import add_manage_area
+    from src.orchestrator.contract import build_contract
+
+    backend_spec = normalized(EXAMPLES / "specs" / "two-entity.json")
+    contract = build_contract(backend_spec)
+    frontend = json.loads((EXAMPLES / "frontend-specs" / "project-tracker-dynamic.json").read_text())
+
+    # Initial check: task.get and task.update are uncovered in project-tracker-dynamic
+    warnings = [i for i in check_spec_pair(frontend, backend_spec) if i.code == "FE_OPERATION_UNUSED"]
+    assert any("task.get" in w.message for w in warnings)
+    assert any("task.update" in w.message for w in warnings)
+
+    # After add_manage_area: all operations are covered
+    managed_spec, notes = add_manage_area(frontend, contract)
+    assert notes == []  # two-entity has no sign-in operations
+    all_issues = check_spec_pair(managed_spec, backend_spec)
+    assert all_issues == []
+
+    # Idempotence: running add_manage_area again produces identical spec
+    managed_again, notes_again = add_manage_area(managed_spec, contract)
+    assert managed_again == managed_spec
+    assert notes_again == []

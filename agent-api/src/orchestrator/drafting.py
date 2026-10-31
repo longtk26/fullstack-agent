@@ -46,6 +46,7 @@ from src.modules.shared.domain.frontend_spec import (
     BUILTIN_SECTIONS,
     LAYOUT_SECTIONS,
     SECTION_PROPS,
+    add_manage_area,
     autofix_frontend_spec,
     frontend_spec_json_schema,
     validate_frontend_spec_data,
@@ -55,6 +56,7 @@ from src.modules.shared.domain.schema_digest import schema_digest
 
 from . import tracing
 from .checks.consistency import check_spec_pair
+from .contract import build_contract
 from .design_direction import (
     PHOTO_STYLES_BY_PRESET,
     apply_direction,
@@ -436,6 +438,21 @@ def autofix_draft(work: Path) -> list[dict[str, Any]]:
     return notes
 
 
+def apply_manage_area(work: Path) -> list[dict[str, Any]]:
+    """Adds a deterministic Manage area for uncovered operations (Story 19.7); returns assumption notes."""
+    frontend_raw, issue_fe = _load(work / FRONTEND_FILE)
+    backend_raw, issue_be = _load(work / BACKEND_FILE)
+    if issue_fe or issue_be or not isinstance(frontend_raw, dict) or not isinstance(backend_raw, dict):
+        return []
+    val = validate_spec_data(backend_raw)
+    if not val.report.valid or val.normalized is None:
+        return []
+    contract = build_contract(val.normalized)
+    managed_spec, notes = add_manage_area(frontend_raw, contract)
+    _write_json(work / FRONTEND_FILE, managed_spec)
+    return [{"spec": "frontend", "path": "/manage", "message": note, "suggestion": None} for note in notes]
+
+
 # -- usage ---------------------------------------------------------------------------------------------------------
 
 
@@ -593,6 +610,7 @@ class DraftRunner:
             chosen = design["directions"][design["selected"]] if design else None
             image_notes = draw_images(work, chosen) if frontend else []
             autofix_notes = autofix_draft(work) if frontend else []
+            manage_notes = apply_manage_area(work) if mode == GenerationMode.DYNAMIC else []
             self.store.update_draft(draft.id, progress="validating")
             check = check_draft(work, mode)
             attempts = 0
@@ -607,6 +625,10 @@ class DraftRunner:
                     if not check.ok:
                         error = f"Repair {attempts} stopped: {result.error_message or result.status}"
                         break
+                if frontend:
+                    autofix_draft(work)
+                if mode == GenerationMode.DYNAMIC:
+                    manage_notes = apply_manage_area(work)
                 check = check_draft(work, mode)
         except BaseException as exc:
             trace.close({"status": "failed"}, error=f"{type(exc).__name__}: {exc}"[:500])
@@ -690,6 +712,7 @@ class DraftRunner:
             assumptions += design_notes(design["directions"][design["selected"]])
         assumptions += image_notes
         assumptions += autofix_notes
+        assumptions += manage_notes
         assumptions += photo_notes
         status = SpecDraftStatus.SUCCEEDED if check.ok else SpecDraftStatus.NEEDS_REVIEW
         usage = usage_summary(calls)

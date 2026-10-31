@@ -5,7 +5,7 @@ Repairs common drafting mistakes deterministically before invoking an engine rep
 
 from typing import Any
 
-from .normalizer import route_params
+from .normalizer import page_id, route_params
 
 
 def _iter_all_sections(sections: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -72,15 +72,19 @@ def autofix_frontend_spec(spec: dict[str, Any]) -> tuple[dict[str, Any], list[di
     points them at the nearest prefix page or list page for the same entity, or removes them if optional.
     Returns `(fixed_spec, notes)` where notes are assumption entries."""
     pages = [p for p in spec.get("pages") or [] if isinstance(p, dict)]
-    pages_by_id = {p["id"]: p for p in pages if "id" in p}
+    pages_by_id = {p.get("id") or page_id(p.get("route", "")): p for p in pages}
     notes: list[dict[str, Any]] = []
 
-    def resolve_target(target_id: str) -> tuple[dict[str, Any] | None, list[str]]:
+    def resolve_target(
+        target_id: str, provided_params: set[str] | None = None
+    ) -> tuple[dict[str, Any] | None, list[str]]:
         target_page = pages_by_id.get(target_id)
         if not target_page:
             return None, []
         params = route_params(target_page.get("route", ""))
         if not params:
+            return None, []
+        if provided_params and set(params).issubset(provided_params):
             return None, []
         # Target needs route params!
         target_route = target_page.get("route", "")
@@ -103,7 +107,7 @@ def autofix_frontend_spec(spec: dict[str, Any]) -> tuple[dict[str, Any], list[di
     ) -> dict[str, Any]:
         param_str = ", ".join(f"[{p}]" for p in params)
         if candidate:
-            cand_id = candidate.get("id")
+            cand_id = candidate.get("id") or page_id(candidate.get("route", ""))
             cand_route = candidate.get("route", "")
             msg = (
                 f"Link to '{target_id}' ({target_route}) now points to '{cand_id}' ({cand_route}): "
@@ -126,7 +130,8 @@ def autofix_frontend_spec(spec: dict[str, Any]) -> tuple[dict[str, Any], list[di
                         target_id = item["page"]
                         target_route = pages_by_id[target_id].get("route", "")
                         if cand:
-                            item["page"] = cand["id"]
+                            cand_id = cand.get("id") or page_id(cand.get("route", ""))
+                            item["page"] = cand_id
                             notes.append(
                                 make_note(
                                     f"/layout/header/navigation/{idx}/page", target_id, target_route, params, cand
@@ -154,7 +159,8 @@ def autofix_frontend_spec(spec: dict[str, Any]) -> tuple[dict[str, Any], list[di
                         target_id = item["page"]
                         target_route = pages_by_id[target_id].get("route", "")
                         if cand:
-                            item["page"] = cand["id"]
+                            cand_id = cand.get("id") or page_id(cand.get("route", ""))
+                            item["page"] = cand_id
                             notes.append(
                                 make_note(f"/layout/footer/links/{idx}/page", target_id, target_route, params, cand)
                             )
@@ -182,16 +188,19 @@ def autofix_frontend_spec(spec: dict[str, Any]) -> tuple[dict[str, Any], list[di
                         target_id = val
                         target_route = pages_by_id[target_id].get("route", "")
                         if cand:
-                            container["page"] = cand["id"]
+                            cand_id = cand.get("id") or page_id(cand.get("route", ""))
+                            container["page"] = cand_id
                             notes.append(make_note(subpath, target_id, target_route, params, cand))
                 elif isinstance(val, dict):
                     if "page" in val and isinstance(val["page"], str):
-                        cand, params = resolve_target(val["page"])
+                        provided = set((val.get("params") or {}).keys())
+                        cand, params = resolve_target(val["page"], provided)
                         if params:
                             target_id = val["page"]
                             target_route = pages_by_id[target_id].get("route", "")
                             if cand:
-                                val["page"] = cand["id"]
+                                cand_id = cand.get("id") or page_id(cand.get("route", ""))
+                                val["page"] = cand_id
                                 notes.append(make_note(f"{subpath}/page", target_id, target_route, params, cand))
                             elif key in ("cta", "secondary_cta", "link"):
                                 keys_to_delete.append((key, target_id, target_route, params))
@@ -209,12 +218,14 @@ def autofix_frontend_spec(spec: dict[str, Any]) -> tuple[dict[str, Any], list[di
                 subpath = f"{path}/{idx}"
                 if isinstance(item, dict):
                     if "page" in item and isinstance(item["page"], str):
-                        cand, params = resolve_target(item["page"])
+                        provided = set((item.get("params") or {}).keys())
+                        cand, params = resolve_target(item["page"], provided)
                         if params:
                             target_id = item["page"]
                             target_route = pages_by_id[target_id].get("route", "")
                             if cand:
-                                item["page"] = cand["id"]
+                                cand_id = cand.get("id") or page_id(cand.get("route", ""))
+                                item["page"] = cand_id
                                 notes.append(make_note(f"{subpath}/page", target_id, target_route, params, cand))
                             else:
                                 items_to_remove.append((item, target_id, target_route, params, subpath))

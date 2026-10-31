@@ -22,7 +22,7 @@ const DEFAULT_OPTIONS: TGenerationOptionsFormValues = {
   runTests: true,
   generateDockerfile: true,
   deployPreview: true,
-  frontend: { runTests: true, generatePreview: true, mockApi: true },
+  frontend: { runTests: true, generatePreview: true, mockApi: true, manageArea: true },
 };
 
 type TNewGenerationInput = {

@@ -10,7 +10,7 @@ from typing import Any
 
 from src.configs import config
 from src.libs.redaction import default_redactor
-from src.modules.shared.domain.backend_spec import SpecIssue, validate_spec_text
+from src.modules.shared.domain.backend_spec import Severity, SpecIssue, validate_spec_text
 from src.modules.shared.domain.entities import ValidationRunEntity
 from src.modules.shared.domain.enums import GenerationMode, LaneStatus
 from src.modules.shared.domain.frontend_spec import validate_frontend_spec_text
@@ -140,9 +140,21 @@ async def validate_inputs(state: GenerationState, ctx: JobContext) -> NodeResult
         errors += [_issue_dump(issue, "backend") for issue in backend.report.errors]
         warnings += len(backend.report.warnings)
         if result.normalized is not None and backend.normalized is not None:
+            frontend_opts = (state.get("options") or {}).get("frontend") or {}
+            if frontend_opts.get("manageArea", True):
+                from src.modules.shared.domain.frontend_spec import add_manage_area
+
+                contract = contract_for(backend.normalized)
+                managed_spec, _ = add_manage_area(result.normalized, contract)
+                result.normalized = managed_spec
+            else:
+                from src.modules.shared.domain.frontend_spec import remove_manage_area
+
+                result.normalized = remove_manage_area(result.normalized)
             consistency = check_spec_pair(result.normalized, backend.normalized)
             _write_json(spec_dir / "consistency-report.json", [i.model_dump(mode="json") for i in consistency])
-            errors += [_issue_dump(issue, "consistency") for issue in consistency]
+            errors += [_issue_dump(issue, "consistency") for issue in consistency if issue.severity != Severity.WARNING]
+            warnings += sum(1 for issue in consistency if issue.severity == Severity.WARNING)
         update["spec_ref"] = ".bga/spec.json"
 
     if errors:

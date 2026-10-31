@@ -14,6 +14,7 @@ export const generationOptionsSchema = z
       runTests: z.boolean(),
       generatePreview: z.boolean(),
       mockApi: z.boolean(),
+      manageArea: z.boolean(),
     }),
   })
   // Mirrors the API's OPTIONS_CONFLICT rule.

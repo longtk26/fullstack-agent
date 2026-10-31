@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { useWatch } from "react-hook-form";
 import { AppWindow, Braces, FileCode, FileInput, Globe, MessageSquareText, Rocket } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -77,6 +77,52 @@ export function NewGenerationView() {
   // The design directions of the draft the editors were filled from (Story 12.6), static and dynamic only.
   const appliedDraftQuery = useSpecDraft(mode !== "backend" && appliedDraft?.mode === mode ? appliedDraft.id : null);
   const design = appliedDraftQuery.data?.design ?? null;
+
+  const hasManagePages = useMemo(
+    () => frontendSummary.pages.some((p) => p.route.startsWith("/manage") || p.id.startsWith("manage-")),
+    [frontendSummary.pages],
+  );
+
+  const handleDropManageArea = useCallback(() => {
+    try {
+      const parsed = JSON.parse(frontendSpecText);
+      if (typeof parsed !== "object" || parsed === null) return;
+      const pages = Array.isArray(parsed.pages)
+        ? parsed.pages.filter(
+            (p: { id?: string; route?: string }) =>
+              !p.route?.startsWith("/manage") && !p.id?.startsWith("manage-"),
+          )
+        : parsed.pages;
+      const forms = Array.isArray(parsed.forms)
+        ? parsed.forms.filter(
+            (f: { id?: string }) =>
+              !f.id?.startsWith("manage-") && !f.id?.startsWith("manage_"),
+          )
+        : parsed.forms;
+      const content = Array.isArray(parsed.content)
+        ? parsed.content.filter((c: { collection?: string }) => c.collection !== "manageEntities")
+        : parsed.content;
+      let layout = parsed.layout;
+      if (layout?.header?.navigation && Array.isArray(layout.header.navigation)) {
+        layout = {
+          ...layout,
+          header: {
+            ...layout.header,
+            navigation: layout.header.navigation.filter(
+              (n: { page?: string; href?: string }) =>
+                n.page !== "manage-index" &&
+                !n.page?.startsWith("manage-") &&
+                !n.href?.startsWith("/manage"),
+            ),
+          },
+        };
+      }
+      const updated = { ...parsed, pages, forms, content, layout };
+      setFrontendSpecText(JSON.stringify(updated, null, 2));
+    } catch {
+      // ignore
+    }
+  }, [frontendSpecText, setFrontendSpecText]);
 
   const canSubmit = {
     backend: backend.isSubmittable,
@@ -267,7 +313,11 @@ export function NewGenerationView() {
                   <CardDescription>What the current FrontendSpec builds.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <FrontendSpecSummaryPanel summary={frontendSummary} showOperations={mode === "dynamic"} />
+                  <FrontendSpecSummaryPanel
+                    summary={frontendSummary}
+                    showOperations={mode === "dynamic"}
+                    onDropManageArea={hasManagePages ? handleDropManageArea : undefined}
+                  />
                 </CardContent>
               </Card>
             )}

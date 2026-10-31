@@ -90,10 +90,23 @@ class _Checker:
             for j, field in enumerate(entity["fields"])
         }
 
-    def add(self, code: FrontendIssueCode, path: str, message: str, backend_path: str | None = None, hint=None):
+    def add(
+        self,
+        code: FrontendIssueCode,
+        path: str,
+        message: str,
+        backend_path: str | None = None,
+        hint=None,
+        warning: bool = False,
+    ):
         self.issues.append(
             SpecIssue(
-                code=code, path=path, message=message, hint=hint, backend_path=backend_path, severity=Severity.ERROR
+                code=code,
+                path=path,
+                message=message,
+                hint=hint,
+                backend_path=backend_path,
+                severity=Severity.WARNING if warning else Severity.ERROR,
             )
         )
 
@@ -511,6 +524,25 @@ class _Checker:
                                     backend_path=f"/seed/{entity_name}/{r_index}/{field_name}",
                                 )
 
+    def coverage(self) -> None:
+        from src.modules.shared.domain.frontend_spec import uncovered_operations
+
+        uncovered = uncovered_operations(self.frontend, self.contract)
+        for op_id in uncovered:
+            found = self.operations.get(op_id)
+            reason = "not referenced in the frontend"
+            if found:
+                op = found["operation"]
+                if op.get("security") or (op.get("x-bga") or {}).get("auth") or (op.get("x-bga") or {}).get("policy"):
+                    reason = f"'{op_id}' needs sign-in, which generated frontends do not have yet"
+            self.add(
+                C.FE_OPERATION_UNUSED,
+                "/pages",
+                f"API operation '{op_id}' is uncovered: {reason}",
+                warning=True,
+                backend_path=self.op_pointer(op_id) if op_id in self.operations else None,
+            )
+
 
 def check_consistency(
     frontend: dict[str, Any], contract: dict[str, Any], backend: dict[str, Any] | None = None
@@ -520,6 +552,7 @@ def check_consistency(
     checker.bindings()
     checker.forms()
     checker.seed_assets()
+    checker.coverage()
     return checker.issues
 
 

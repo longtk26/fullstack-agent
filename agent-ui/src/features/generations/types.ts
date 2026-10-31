@@ -27,7 +27,7 @@ export type TGenerationOptions = {
   deployPreview: boolean;
   engine?: TEngineName | null;
   timeoutSeconds?: number | null;
-  frontend?: { runTests: boolean; generatePreview: boolean; mockApi: boolean } | null;
+  frontend?: { runTests: boolean; generatePreview: boolean; mockApi: boolean; manageArea?: boolean } | null;
 };
 
 export type TGeneration = {

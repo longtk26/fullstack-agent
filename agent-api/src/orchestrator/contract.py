@@ -385,6 +385,12 @@ class _Builder:
             "tags": [module["name"]],
             "x-bga": {"entity": entity, "action": action, "module": module["name"]},
         }
+        if op.get("auth"):
+            if op["auth"].get("auth"):
+                operation["x-bga"]["auth"] = op["auth"]["auth"]
+            if op["auth"].get("policy"):
+                operation["x-bga"]["policy"] = op["auth"]["policy"]
+            operation["security"] = [{"bearerAuth": []}]
         mock_plan = None
         if action is None:
             mock_plan = _mock_plan(op, spec_op, model, entity, self.models)

@@ -1,5 +1,6 @@
 from .autofix import autofix_frontend_spec
 from .catalogue import BUILTIN_SECTIONS, SHADCN_PRIMITIVES, THEME_PRESETS
+from .coverage import add_manage_area, remove_manage_area, uncovered_operations
 from .fonts import FONTS, closest_font, font_category, font_imports
 from .issues import FrontendIssueCode
 from .normalizer import iter_sections, normalize_frontend_spec, page_id, route_params, walk_sections
@@ -20,7 +21,10 @@ from .validator import (
 )
 
 __all__ = [
+    "add_manage_area",
     "autofix_frontend_spec",
+    "remove_manage_area",
+    "uncovered_operations",
     "BUILTIN_SECTIONS",
     "FONTS",
     "FRONTEND_SPEC_MODELS",

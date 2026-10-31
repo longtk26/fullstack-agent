@@ -52,11 +52,11 @@ The measured run used 7 of 13 operations: `card.get`, `card.update`, `card.delet
 
 ## Acceptance criteria
 
-- [ ] After drafting or before generation, every operation that does not need sign-in is reachable from the UI.
-- [ ] The Manage area is deterministic, idempotent, uses only existing operations, and can be switched off.
-- [ ] Sign-in operations are reported, not hidden silently.
-- [ ] `FE_OPERATION_UNUSED` appears in the review and the report for whatever stays uncovered.
-- [ ] The review shows the generated pages as a group with a toggle.
+- [x] After drafting or before generation, every operation that does not need sign-in is reachable from the UI.
+- [x] The Manage area is deterministic, idempotent, uses only existing operations, and can be switched off.
+- [x] Sign-in operations are reported, not hidden silently.
+- [x] `FE_OPERATION_UNUSED` appears in the review and the report for whatever stays uncovered.
+- [x] The review shows the generated pages as a group with a toggle.
 
 ## Verify
 
