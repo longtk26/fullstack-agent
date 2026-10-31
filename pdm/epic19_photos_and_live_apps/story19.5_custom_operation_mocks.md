@@ -42,10 +42,10 @@ runs on mocks, so that the screens built on them pass their checks before the ba
 
 ## Acceptance criteria
 
-- [ ] Every custom operation has a mock plan in the contract (`x-bga.mock`).
-- [ ] The mock API answers every operation of the contract; no 501 for custom operations.
-- [ ] `merge` changes persist in the mock store for the rest of the session.
-- [ ] Contract snapshots updated and reviewed; the sandbox test passes.
+- [x] Every custom operation has a mock plan in the contract (`x-bga.mock`).
+- [x] The mock API answers every operation of the contract; no 501 for custom operations.
+- [x] `merge` changes persist in the mock store for the rest of the session.
+- [x] Contract snapshots updated and reviewed; the sandbox test passes.
 
 ## Verify
 

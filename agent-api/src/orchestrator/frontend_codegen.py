@@ -369,12 +369,22 @@ def mock_operations(contract: dict[str, Any]) -> list[dict[str, Any]]:
             if "id" in (entity_schema.get("properties") or {})
             else next(iter(entity_schema.get("properties") or {}), "id")
         )
+        mock_plan = op.raw.get("x-bga", {}).get("mock")
+        sample = op.raw.get("x-bga", {}).get("sample")
+        envelope = True
+        resp2xx = next((r for s, r in sorted(op.raw.get("responses", {}).items()) if s.startswith("2")), {})
+        content_schema = (resp2xx.get("content") or {}).get("application/json", {}).get("schema", {})
+        if content_schema.get("type") == "array":
+            envelope = False
         entry = {
             "operationId": op.id,
             "method": op.method,
             "path": _PATH_PARAM.sub(lambda m: f":{m.group(1)}", op.path),
             "entity": op.entity,
             "action": op.action,
+            "mock": mock_plan,
+            "sample": sample,
+            "envelope": envelope,
             "primaryKey": pk,
             "status": next((int(s) for s in sorted(op.raw.get("responses") or {}) if s.startswith("2")), 200),
             "filters": [name for name in query if name not in ("limit", "offset", "sort", "q")],

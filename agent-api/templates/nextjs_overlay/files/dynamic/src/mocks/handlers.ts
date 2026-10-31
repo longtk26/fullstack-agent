@@ -11,6 +11,9 @@ type TMockOperation = {
   path: string;
   entity: string | null;
   action: string | null;
+  mock?: "record" | "records" | "merge" | "create" | "sample" | null;
+  sample?: unknown;
+  envelope?: boolean;
   primaryKey: string;
   status: number;
   filters: string[];
@@ -48,9 +51,23 @@ function compare(a: unknown, b: unknown): number {
 
 function list(op: TMockOperation, url: URL) {
   let items = [...records(op.entity)];
-  for (const name of op.filters) {
-    const value = url.searchParams.get(name);
-    if (value !== null && value !== "") items = items.filter((item) => String(item[name]) === value);
+  for (const [name, value] of url.searchParams.entries()) {
+    if (!value || ["limit", "offset", "sort", "q"].includes(name)) continue;
+    if (name.endsWith("Before")) {
+      const field = name.slice(0, -"Before".length);
+      items = items.filter((item) => {
+        const v = item[field];
+        return v !== undefined && v !== null && String(v) <= value;
+      });
+    } else if (name.endsWith("After")) {
+      const field = name.slice(0, -"After".length);
+      items = items.filter((item) => {
+        const v = item[field];
+        return v !== undefined && v !== null && String(v) >= value;
+      });
+    } else if (op.filters.includes(name) || items.some((it) => name in it)) {
+      items = items.filter((item) => String(item[name]) === value);
+    }
   }
   const query = url.searchParams.get("q");
   if (op.search && query) {
@@ -68,7 +85,11 @@ function list(op: TMockOperation, url: URL) {
   }
   const limit = Math.min(Number(url.searchParams.get("limit") ?? op.defaultLimit) || op.defaultLimit, op.maxLimit);
   const offset = Number(url.searchParams.get("offset") ?? 0) || 0;
-  return HttpResponse.json({ items: items.slice(offset, offset + limit), total: items.length, limit, offset });
+  const paged = items.slice(offset, offset + limit);
+  if (op.envelope === false) {
+    return HttpResponse.json(paged);
+  }
+  return HttpResponse.json({ items: paged, total: items.length, limit, offset });
 }
 
 function newId(entity: string | null, primaryKey: string): string | number {
@@ -84,10 +105,10 @@ function handler(op: TMockOperation): HttpHandler {
     const url = new URL(request.url);
     const id = params.id ?? params[op.primaryKey];
     const find = () => records(op.entity).find((item) => String(item[op.primaryKey]) === String(id));
-    if (op.action === "list") return list(op, url);
-    if (op.action === "get") return find() ? HttpResponse.json(find()) : notFound(op.entity);
-    if (op.action === "create") {
-      const body = (await request.json()) as TRecord;
+    if (op.action === "list" || op.mock === "records") return list(op, url);
+    if (op.action === "get" || op.mock === "record") return find() ? HttpResponse.json(find()) : notFound(op.entity);
+    if (op.action === "create" || op.mock === "create") {
+      const body = ((await request.json().catch(() => ({}))) || {}) as TRecord;
       const created = { [op.primaryKey]: newId(op.entity, op.primaryKey), createdAt: new Date().toISOString(), ...body };
       records(op.entity).push(created);
       return HttpResponse.json(created, { status: op.status });
@@ -98,12 +119,28 @@ function handler(op: TMockOperation): HttpHandler {
       Object.assign(current, (await request.json()) as TRecord);
       return HttpResponse.json(current);
     }
+    if (op.mock === "merge") {
+      const current = find();
+      if (!current) return notFound(op.entity);
+      const body = ((await request.json().catch(() => ({}))) || {}) as TRecord;
+      for (const [k, v] of Object.entries(body)) {
+        if (v !== undefined) {
+          current[k] = v;
+        }
+      }
+      return HttpResponse.json(current, { status: op.status });
+    }
+    if (op.mock === "sample") {
+      if (op.status === 204) return new HttpResponse(null, { status: 204 });
+      return HttpResponse.json(op.sample ?? {}, { status: op.status });
+    }
     if (op.action === "delete") {
       const current = find();
       if (!current) return notFound(op.entity);
       store[op.entity as string] = records(op.entity).filter((item) => item !== current);
       return new HttpResponse(null, { status: 204 });
     }
+    console.warn(`[MSW] ${op.operationId} has no mock plan`);
     return HttpResponse.json({ error: { code: "NOT_IMPLEMENTED", message: `${op.operationId} has no mock`, details: null } }, { status: 501 });
   });
 }

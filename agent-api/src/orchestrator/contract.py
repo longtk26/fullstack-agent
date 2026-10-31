@@ -258,6 +258,51 @@ def _parameters(op: dict[str, Any], model: dict[str, Any] | None) -> list[dict[s
     return parameters
 
 
+def _mock_plan(
+    op: dict[str, Any],
+    spec_op: dict[str, Any],
+    model: dict[str, Any] | None,
+    entity: str,
+    models: dict[str, Any],
+) -> str:
+    """Computes the mock plan for a custom operation (Story 19.5)."""
+    method = op.get("method", "GET").upper()
+    path = op.get("path", "")
+    path_params = _PATH_PARAM.findall(path)
+    primary = next((c for c in model["columns"] if c["primaryKey"]), None) if model else None
+    pk_names = {"id"}
+    if primary:
+        pk_names.add(primary["apiName"])
+    if entity:
+        pk_names.add(f"{entity[0].lower() + entity[1:]}Id")
+        pk_names.add(f"{to_snake(entity)}_id")
+        pk_names.add(f"{entity.lower()}Id")
+    has_id = any(p in pk_names for p in path_params)
+
+    spec_resp = spec_op.get("response") or {}
+    has_props = bool(spec_resp.get("properties"))
+    resp_entity = spec_resp.get("entity")
+    is_entity = bool(not has_props and resp_entity and (resp_entity == entity or resp_entity in models))
+    is_array = bool(
+        spec_resp.get("cardinality") == "many"
+        or spec_resp.get("type") == "array"
+        or op.get("pagination")
+        or spec_op.get("pagination")
+    )
+
+    if method == "GET":
+        if has_id and is_entity and not is_array:
+            return "record"
+        if is_entity:
+            return "records"
+    elif method in ("POST", "PUT", "PATCH"):
+        if has_id and is_entity:
+            return "merge"
+        if method == "POST" and not has_id and is_entity:
+            return "create"
+    return "sample"
+
+
 def _error_responses(op: dict[str, Any]) -> dict[str, Any]:
     by_status: dict[int, list[str]] = {}
     for error in op.get("errors", []):
@@ -314,6 +359,19 @@ class _Builder:
         self.schemas[name] = _object(properties, required)
         return f"#/components/schemas/{name}"
 
+    def _sample_response(self, spec_op: dict[str, Any], entity: str, status: int) -> Any:
+        if status == 204:
+            return None
+        spec_resp = spec_op.get("response") or {}
+        resp_entity = spec_resp.get("entity")
+        if resp_entity and self.fixtures.get(resp_entity):
+            return self.fixtures[resp_entity][0]
+        if spec_resp.get("properties"):
+            slug = self.spec["project"].get("slug") or "project"
+            columns = _properties_columns(spec_resp["properties"])
+            return {c["apiName"]: _synthesize(c, entity or "Result", 0, slug) for c in columns}
+        return {"ok": True}
+
     def operation(self, module: dict[str, Any], op: dict[str, Any]) -> dict[str, Any]:
         entity = module["entity"]
         model = self.models.get(entity)
@@ -327,6 +385,10 @@ class _Builder:
             "tags": [module["name"]],
             "x-bga": {"entity": entity, "action": action, "module": module["name"]},
         }
+        mock_plan = None
+        if action is None:
+            mock_plan = _mock_plan(op, spec_op, model, entity, self.models)
+            operation["x-bga"]["mock"] = mock_plan
         if spec_op.get("description"):
             operation["description"] = spec_op["description"]
         parameters = _parameters(op, model)
@@ -353,7 +415,7 @@ class _Builder:
         responses: dict[str, Any] = {}
         if op["status"] == 204:
             responses[status] = {"description": "No content"}
-        elif action == "list" and model:
+        elif (action == "list" or (action is None and mock_plan == "records" and spec_op.get("pagination"))) and model:
             list_name = op["responseDto"].removesuffix("Dto")
             self.schemas[list_name] = _object(
                 {
@@ -375,10 +437,26 @@ class _Builder:
                     }
                 },
             }
+        elif action is None and mock_plan == "records" and not spec_op.get("pagination"):
+            response_entity = (spec_op.get("response") or {}).get("entity") or entity
+            if response_entity in self.models:
+                schema = {"type": "array", "items": {"$ref": self.entity_schema(response_entity)}}
+                body: dict[str, Any] = {"schema": schema}
+                if self.fixtures.get(response_entity):
+                    body["examples"] = _examples(self.fixtures[response_entity], response_entity in self.seeded)
+                responses[status] = {
+                    "description": f"List of {response_entity} records",
+                    "content": {"application/json": body},
+                }
+            else:
+                responses[status] = {
+                    "description": "Result",
+                    "content": {"application/json": {"schema": {"type": "array"}}},
+                }
         else:
             response_entity = (spec_op.get("response") or {}).get("entity") or (entity if action else None)
             if response_entity in self.models:
-                body: dict[str, Any] = {"schema": {"$ref": self.entity_schema(response_entity)}}
+                body = {"schema": {"$ref": self.entity_schema(response_entity)}}
                 if self.fixtures.get(response_entity):
                     body["examples"] = _examples(self.fixtures[response_entity][0], response_entity in self.seeded)
                 responses[status] = {"description": f"The {response_entity}", "content": {"application/json": body}}
@@ -388,6 +466,11 @@ class _Builder:
                 responses[status] = {"description": "Result", "content": {"application/json": {"schema": schema}}}
             else:
                 responses[status] = {"description": "Result", "content": {"application/json": {"schema": {}}}}
+        if action is None and mock_plan == "sample":
+            sample = self._sample_response(spec_op, entity, op["status"])
+            operation["x-bga"]["sample"] = sample
+            if sample is not None and status in responses and "content" in responses[status]:
+                responses[status]["content"]["application/json"]["examples"] = _examples(sample, False)
         responses.update(_error_responses(op))
         operation["responses"] = responses
         return operation

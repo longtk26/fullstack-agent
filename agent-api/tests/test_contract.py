@@ -168,3 +168,87 @@ def test_conformance_reports_each_kind_of_drift(label, change, operation, messag
     change(document)
     problems = compare_contract(contract("two-entity"), document)
     assert any(p["operation"] == operation and p["message"].startswith(message) for p in problems), problems
+
+
+def test_custom_operation_mock_plans():
+    """Story 19.5: every custom operation gets a mock plan in x-bga.mock."""
+    from src.orchestrator.frontend_codegen import mock_operations
+
+    base_spec = normalized(EXAMPLES / "specs" / "two-entity.json")
+    spec = copy.deepcopy(base_spec)
+    spec["operations"].extend(
+        [
+            # 1. merge: POST/PATCH with id returning entity
+            {
+                "operationId": "task.complete",
+                "type": "custom",
+                "entity": "Task",
+                "method": "POST",
+                "path": "/tasks/{id}/complete",
+                "response": {"entity": "Task"},
+            },
+            # 2. record: GET with id returning entity
+            {
+                "operationId": "task.summary",
+                "type": "custom",
+                "entity": "Task",
+                "method": "GET",
+                "path": "/tasks/{id}/summary",
+                "response": {"entity": "Task"},
+            },
+            # 3. records: GET without id returning entity
+            {
+                "operationId": "task.due",
+                "type": "custom",
+                "entity": "Task",
+                "method": "GET",
+                "path": "/tasks/due",
+                "response": {"entity": "Task"},
+            },
+            # 4. create: POST without id returning entity
+            {
+                "operationId": "task.quickCreate",
+                "type": "custom",
+                "entity": "Task",
+                "method": "POST",
+                "path": "/tasks/quick",
+                "response": {"entity": "Task"},
+            },
+            # 5. sample: anything else (e.g. custom properties schema)
+            {
+                "operationId": "task.stats",
+                "type": "custom",
+                "entity": "Task",
+                "method": "GET",
+                "path": "/tasks/stats",
+                "response": {
+                    "properties": [
+                        {"name": "totalCount", "type": "integer"},
+                        {"name": "completionRate", "type": "float"},
+                    ]
+                },
+            },
+        ]
+    )
+    doc = build_contract(spec)
+    ops = contract_operations(doc)
+
+    assert ops["task.complete"]["operation"]["x-bga"]["mock"] == "merge"
+    assert ops["task.summary"]["operation"]["x-bga"]["mock"] == "record"
+    assert ops["task.due"]["operation"]["x-bga"]["mock"] == "records"
+    assert ops["task.quickCreate"]["operation"]["x-bga"]["mock"] == "create"
+    assert ops["task.stats"]["operation"]["x-bga"]["mock"] == "sample"
+
+    sample = ops["task.stats"]["operation"]["x-bga"]["sample"]
+    assert "totalCount" in sample and isinstance(sample["totalCount"], int)
+    assert "completionRate" in sample and isinstance(sample["completionRate"], float)
+
+    # Verify mock_operations carries mock and sample
+    mocked = {m["operationId"]: m for m in mock_operations(doc)}
+    assert mocked["task.complete"]["mock"] == "merge"
+    assert mocked["task.summary"]["mock"] == "record"
+    assert mocked["task.due"]["mock"] == "records"
+    assert mocked["task.quickCreate"]["mock"] == "create"
+    assert mocked["task.stats"]["mock"] == "sample"
+    assert mocked["task.stats"]["sample"] == sample
+
