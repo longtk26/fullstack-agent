@@ -1,5 +1,24 @@
 export type TPageSummary = { id: string; route: string; title: string; sectionCount: number; operations: string[] };
 export type TComponentSummary = { name: string; custom: boolean; pages: string[] };
+export type TJourneyStepSummary = {
+  do: string;
+  page?: string | null;
+  section?: string | null;
+  action?: string | null;
+  operationId?: string | null;
+  record?: string | number | null;
+  values?: Record<string, unknown> | null;
+  text?: string | null;
+  count?: number | null;
+  changed?: { field: string; record?: string | number | null } | null;
+  live?: boolean;
+};
+export type TJourneySummary = {
+  id: string;
+  title: string;
+  goal: string | null;
+  steps: TJourneyStepSummary[];
+};
 export type TThemeSummary = {
   style: string | null;
   colorScheme: string | null;
@@ -14,6 +33,7 @@ export type TFrontendSpecSummary = {
   pages: TPageSummary[];
   theme: TThemeSummary;
   components: TComponentSummary[];
+  journeys: TJourneySummary[];
 };
 
 type TLoose = Record<string, unknown>;
@@ -78,6 +98,37 @@ export function summarizeFrontendSpec(spec: unknown): TFrontendSpecSummary {
     .map(([name, used]) => ({ name, custom: custom.has(name), pages: [...used] }))
     .sort((a, b) => Number(b.custom) - Number(a.custom) || a.name.localeCompare(b.name));
 
+  const journeys: TJourneySummary[] = asArray(root.journeys).map((j) => {
+    const id = asString(j.id) ?? "";
+    const title = asString(j.title) ?? id;
+    const goal = asString(j.goal);
+    const steps: TJourneyStepSummary[] = asArray(j.steps).map((s) => {
+      const changedObj = asObject(s.changed);
+      return {
+        do: asString(s.do) ?? "visit",
+        page: asString(s.page),
+        section: asString(s.section),
+        action: asString(s.action),
+        operationId: asString(s.operationId),
+        record: typeof s.record === "number" || typeof s.record === "string" ? s.record : null,
+        values: asObject(s.values),
+        text: asString(s.text),
+        count: typeof s.count === "number" ? s.count : null,
+        changed: changedObj.field
+          ? {
+              field: String(changedObj.field),
+              record:
+                typeof changedObj.record === "number" || typeof changedObj.record === "string"
+                  ? changedObj.record
+                  : null,
+            }
+          : null,
+        live: Boolean(s.live),
+      };
+    });
+    return { id, title, goal, steps };
+  });
+
   return {
     projectName: asString(project.name),
     mode: asString(project.mode),
@@ -93,5 +144,6 @@ export function summarizeFrontendSpec(spec: unknown): TFrontendSpecSummary {
       radius: asString(theme.radius),
     },
     components,
+    journeys,
   };
 }

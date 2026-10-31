@@ -75,10 +75,31 @@ def covered_operations(frontend_spec: dict[str, Any]) -> set[str]:
             covered.add(form["load"]["operationId"])
 
     # 3. Journeys (Story 19.8)
+    sections_by_id: dict[str, dict[str, Any]] = {}
+    forms_by_id = {f.get("id"): f for f in frontend_spec.get("forms") or []}
+    for page in frontend_spec.get("pages") or []:
+        for s in _iter_sections(page.get("sections") or []):
+            if s.get("id"):
+                sections_by_id[s["id"]] = s
+
     for journey in frontend_spec.get("journeys") or []:
         for step in journey.get("steps") or []:
             if step.get("operationId"):
                 covered.add(step["operationId"])
+            sec_id = step.get("section")
+            if sec_id and sec_id in sections_by_id:
+                sec = sections_by_id[sec_id]
+                if step.get("do") == "action" and step.get("action"):
+                    actions = (sec.get("content") or {}).get("actions") or []
+                    for act in actions:
+                        if act.get("id") == step["action"] and act.get("operationId"):
+                            covered.add(act["operationId"])
+                elif step.get("do") == "submit":
+                    form_id = sec.get("form")
+                    if form_id and form_id in forms_by_id:
+                        f = forms_by_id[form_id]
+                        if f.get("operationId"):
+                            covered.add(f["operationId"])
 
     return covered
 

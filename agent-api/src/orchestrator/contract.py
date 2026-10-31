@@ -210,7 +210,8 @@ def _parameters(op: dict[str, Any], model: dict[str, Any] | None) -> list[dict[s
             column = primary
         schema = field_schema(column, nullable=False) if column else {"type": "string"}
         parameters.append({"name": name, "in": "path", "required": True, "schema": schema})
-    if op.get("action") != "list":
+    has_query = bool(op.get("filters") or op.get("pagination") or op.get("sort") or op.get("search"))
+    if op.get("action") != "list" and not has_query:
         return parameters
     pagination = op.get("pagination")
     if pagination:
@@ -379,11 +380,12 @@ class _Builder:
         action = op.get("action")
         records = self.fixtures.get(entity, [])
         seeded = entity in self.seeded
+        bga_action = action or ("list" if (spec_op.get("response") or {}).get("type") == "array" else None)
         operation: dict[str, Any] = {
             "operationId": op["operationId"],
             "summary": op.get("summary") or spec_op.get("summary") or f"{action or 'custom'} {entity}",
             "tags": [module["name"]],
-            "x-bga": {"entity": entity, "action": action, "module": module["name"]},
+            "x-bga": {"entity": entity, "action": bga_action, "module": module["name"]},
         }
         if op.get("auth"):
             if op["auth"].get("auth"):
@@ -395,6 +397,10 @@ class _Builder:
         if action is None:
             mock_plan = _mock_plan(op, spec_op, model, entity, self.models)
             operation["x-bga"]["mock"] = mock_plan
+            if mock_plan == "records" and not bga_action:
+                operation["x-bga"]["action"] = "list"
+            elif mock_plan == "record" and not bga_action:
+                operation["x-bga"]["action"] = "get"
         if spec_op.get("description"):
             operation["description"] = spec_op["description"]
         parameters = _parameters(op, model)

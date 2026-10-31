@@ -562,7 +562,7 @@ class DraftRunner:
         found = draft_directions(draft)
         context = write_inputs(work, draft, self.examples_dir, found)
         frontend = mode != GenerationMode.BACKEND
-        purpose, version = ("draft_frontend_spec", "v6") if frontend else ("draft_spec", "v3")
+        purpose, version = ("draft_frontend_spec", "v7") if frontend else ("draft_spec", "v3")
         max_repairs = config.draft_repair_attempts_frontend if frontend else config.draft_repair_attempts_backend
         calls: list[dict[str, Any]] = []
         trace = tracing.GenerationTrace.open(

@@ -58,6 +58,7 @@ class SimulatedCrash(BaseException):
 
 GOLDEN = Path(__file__).resolve().parent / "golden" / "two_entity"
 GOLDEN_SHOP = GOLDEN.parent / "shop"
+GOLDEN_FLASHCARDS = GOLDEN.parent / "flashcards"
 _TASK_ROUTER = "src/modules/tasks/presenter/router.py"
 _CONTACT_ROUTER = "src/modules/contact_messages/presenter/router.py"
 # TESTING / DEMO ONLY (docs/development/test-doubles.md). Golden frontends: hand-written, convention-correct
@@ -144,6 +145,27 @@ DRAFT_FIXTURES = [
         {"backend": ["specs/shop.json"], "dynamic": ["frontend-specs/shop-dynamic.json", "specs/shop.json"]},
     ),
     ("northwind", {"static": ["frontend-specs/static-landing.json"]}),
+    (
+        "flashcard",
+        {
+            "backend": ["specs/flashcards.json"],
+            "dynamic": ["frontend-specs/flashcards-dynamic.json", "specs/flashcards.json"],
+        },
+    ),
+    (
+        "vocabulary",
+        {
+            "backend": ["specs/flashcards.json"],
+            "dynamic": ["frontend-specs/flashcards-dynamic.json", "specs/flashcards.json"],
+        },
+    ),
+    (
+        "anki",
+        {
+            "backend": ["specs/flashcards.json"],
+            "dynamic": ["frontend-specs/flashcards-dynamic.json", "specs/flashcards.json"],
+        },
+    ),
 ]
 DRAFT_DEFAULTS = {
     "backend": ["specs/two-entity.json"],
@@ -229,6 +251,15 @@ def shop_demo_scenario(delay_s: float = 0.3) -> dict[str, list[FakeStep]]:
     }
 
 
+def flashcards_demo_scenario(delay_s: float = 0.3) -> dict[str, list[FakeStep]]:
+    return {
+        "complete_backend": [
+            FakeStep(sleep_s=delay_s, copy_from=GOLDEN_FLASHCARDS / "decks"),
+            FakeStep(sleep_s=delay_s, copy_from=GOLDEN_FLASHCARDS / "cards"),
+        ],
+    }
+
+
 def demo_scenario(delay_s: float = 0.3) -> dict[str, list[FakeStep]]:
     """Replays a recorded, convention-correct implementation of `examples/specs/two-entity.json`
     (`golden/two_entity`, one step per planned module; or `golden/shop` when `.bga/spec.json` is `Corner Shop`)
@@ -300,9 +331,11 @@ class FakeEngine(ICodeEngine):
         self.allowed_root = allowed_root
         self.scenario = {purpose: list(steps) for purpose, steps in (scenario or DEFAULT_SCENARIO).items()}
         self._shop_scenario: dict[str, list[FakeStep]] | None = None
+        self._flashcards_scenario: dict[str, list[FakeStep]] | None = None
         if _is_demo_backend(self.scenario):
             delay_s = self.scenario["generate_database"][0].sleep_s
             self._shop_scenario = shop_demo_scenario(delay_s=delay_s)
+            self._flashcards_scenario = flashcards_demo_scenario(delay_s=delay_s)
         self.calls: list[EngineRequest] = []
         self._counts: dict[tuple[str, str], int] = {}
         self._cancels: dict[str, asyncio.Event] = {}
@@ -319,14 +352,23 @@ class FakeEngine(ICodeEngine):
         self._cancels.setdefault(invocation_id, asyncio.Event()).set()
         return True
 
-    def _next_step(self, workdir: Path, purpose: str) -> FakeStep:
+    def _next_step(self, workdir: Path, purpose: str, prompt: str = "") -> FakeStep:
         active = self.scenario
-        if (
-            self._shop_scenario is not None
-            and purpose in self._shop_scenario
-            and _project_name(workdir / ".bga" / "spec.json") == "Corner Shop"
-        ):
+        project_name = _project_name(workdir / ".bga" / "spec.json")
+        if self._shop_scenario is not None and purpose in self._shop_scenario and project_name == "Corner Shop":
             active = self._shop_scenario
+        elif (
+            self._flashcards_scenario is not None
+            and purpose in self._flashcards_scenario
+            and project_name == "Flashcards"
+        ):
+            if purpose == "complete_backend":
+                delay_s = self._flashcards_scenario["complete_backend"][0].sleep_s
+                if "complete the `decks` module" in prompt:
+                    return FakeStep(sleep_s=delay_s, copy_from=GOLDEN_FLASHCARDS / "decks")
+                if "complete the `cards` module" in prompt:
+                    return FakeStep(sleep_s=delay_s, copy_from=GOLDEN_FLASHCARDS / "cards")
+            active = self._flashcards_scenario
         steps = active.get(purpose) or self.scenario.get("*") or [FakeStep()]
         key = (str(workdir), purpose)
         index = self._counts.get(key, 0)
@@ -337,7 +379,7 @@ class FakeEngine(ICodeEngine):
         workdir = ensure_inside(request.workdir, self.allowed_root)
         ensure_inside(request.state_dir, self.allowed_root)
         self.calls.append(request)
-        step = self._next_step(workdir, request.purpose)
+        step = self._next_step(workdir, request.purpose, request.prompt)
         if step.crash:
             raise SimulatedCrash(f"simulated crash during {request.purpose}")
         started = time.monotonic()

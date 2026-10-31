@@ -6,9 +6,6 @@ Read `.bga/context.md` first: it has the APIs, types, primitives and an example 
 
 ### `src/components/renderer/site.ts`
 ```typescript
-import data from "@/content/site.json";
-import type { TValueFormat } from "@/components/sections/format";
-
 export type TRecord = Record<string, unknown>;
 
 export type TColumn = { key: string; label: string; format?: TValueFormat };
@@ -26,6 +23,26 @@ export type TBinding = {
   link?: TRecordLink;
 };
 
+export type TSectionAction = {
+  id: string;
+  label: string;
+  kind: "link" | "mutation";
+  page?: string;
+  params?: Record<string, unknown>;
+  operationId?: string;
+  body?: Record<string, unknown>;
+  confirm?: string | boolean;
+  variant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link";
+  onSuccess?: { toast?: string; navigate?: string };
+};
+
+export type TSectionControls = {
+  search?: boolean;
+  filters?: string[];
+  sort?: string[];
+  pageSize?: number;
+};
+
 export type TStates = { loading?: string; empty?: string; error?: string; emptyImage?: string };
 
 export type TFormFieldDef = {
@@ -39,8 +56,14 @@ export type TFormFieldDef = {
   placeholder?: string;
 };
 
+export type TFormLoad = {
+  operationId: string;
+  params: Record<string, unknown>;
+};
+
 export type TFormDef = {
   operationId?: string | null;
+  load?: TFormLoad;
   params: Record<string, unknown>;
   fields: TFormFieldDef[];
   submitLabel: string;
@@ -67,58 +90,25 @@ export type TSite = {
 
 /** The FrontendSpec pages, content collections and forms, validated when the spec was (Story 17.1). */
 export const site = data as TSite;
-
 ```
 
 ### `src/components/renderer/use-section-records.ts`
 ```typescript
-"use client";
-
-import { useParams } from "next/navigation";
-import { useOperationQuery } from "./bindings";
-import type { TBinding, TRecord, TRecordLink } from "./site";
-
-type TRouteParams = Record<string, string | string[] | undefined>;
-
 /** `$route.<name>` values become the current route's parameters; everything else stays as written. */
-export function resolveParams(params: Record<string, unknown>, route: TRouteParams): Record<string, unknown> {
-  return Object.fromEntries(
-    Object.entries(params).map(([name, value]) => {
-      if (typeof value === "string" && value.startsWith("$route.")) {
-        const resolved = route[value.slice("$route.".length)];
-        return [name, Array.isArray(resolved) ? resolved[0] : resolved];
-      }
-      return [name, value];
-    }),
-  );
-}
+export function resolveParams(params: Record<string, unknown>, route: TRouteParams): Record<string, unknown>
 
 /** The href of a record's own page, or undefined when the site has none. */
-export function recordHref(link: TRecordLink | undefined, record: TRecord): string | undefined {
-  if (!link) return undefined;
-  return Object.entries(link.params).reduce(
-    (href, [param, field]) => href.replace(`[${param}]`, encodeURIComponent(String(record[field] ?? ""))),
-    link.route,
-  );
-}
+export function recordHref(link: TRecordLink | undefined, record: TRecord): string | undefined
 
 /**
  * A data section's records: the content collection's `items` (static, already in the page) or the response of its
  * operation (dynamic: the generated client, on mocks or the live backend). `record` is set for get operations.
  */
-export function useSectionRecords(items: TRecord[] | undefined, binding: TBinding | undefined) {
-  const route = useParams<TRouteParams>() ?? {};
-  const operationId = binding?.operationId;
-  const query = useOperationQuery(operationId, resolveParams(binding?.params ?? {}, route));
-  if (!operationId) {
-    return { records: items ?? [], record: undefined, isLoading: false, error: null };
-  }
-  const data = query.data as { items?: TRecord[] } | TRecord | undefined;
-  const list = data && Array.isArray((data as { items?: TRecord[] }).items) ? (data as { items: TRecord[] }).items : [];
-  const record = binding?.action === "get" ? (data as TRecord | undefined) : undefined;
-  return { records: list, record, isLoading: query.isLoading, error: query.error };
-}
-
+export function useSectionRecords(
+  items: TRecord[] | undefined,
+  binding: TBinding | undefined,
+  controls?: TSectionControls,
+)
 ```
 
 ### `src/components/renderer/bindings.ts`
@@ -379,13 +369,15 @@ export { Skeleton }
 import Link from "next/link";
 import { Grid } from "@/components/layout/Grid";
 import { Section } from "@/components/layout/Section";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { TBinding, TColumn, TRecord, TStates } from "@/components/renderer/site";
+import type { TBinding, TColumn, TRecord, TSectionAction, TSectionControls, TStates } from "@/components/renderer/site";
 import { recordHref, useSectionRecords } from "@/components/renderer/use-section-records";
+import { ActionButtons } from "./ActionButtons";
 import { AssetImage } from "./AssetImage";
 import { formatValue } from "./format";
 import { QueryState } from "./QueryState";
+import { SectionControls } from "./SectionControls";
 import { cardClass } from "./styles";
 import type { TCardGridContent } from "./types";
 
@@ -394,47 +386,63 @@ type CardGridProps = TCardGridContent & {
   columns?: TColumn[];
   binding?: TBinding;
   states?: TStates;
+  actions?: TSectionAction[];
+  controls?: TSectionControls;
 };
 
 /** Records as cards: image fields first, the first other field as the title; linked to the record's page. */
-export function CardGrid({ title, description, cardStyle, items, columns = [], binding, states }: CardGridProps) {
-  const { records, isLoading, error } = useSectionRecords(items, binding);
+export function CardGrid({ title, description, cardStyle, items, columns = [], binding, states, actions = [], controls }: CardGridProps) {
+  const { records, total, isLoading, error } = useSectionRecords(items, binding, controls);
   const images = columns.filter((column) => column.format === "image");
   const [heading, ...rest] = columns.filter((column) => column.format !== "image");
+  const hasActions = actions.length > 0;
+
   return (
     <Section title={title} description={description}>
+      <SectionControls controls={controls} columns={columns} total={total} recordsCount={records.length} />
       <QueryState isLoading={isLoading} error={error} isEmpty={records.length === 0} emptyText={states?.empty} emptyImage={states?.emptyImage} errorText={states?.error}>
         <Grid columns={3}>
           {records.map((record, index) => {
             const href = recordHref(binding?.link, record);
+            const recordId = String(record.id ?? index);
             const card = (
               <Card
                 className={cn(
                   cardClass(cardStyle),
-                  "h-full",
+                  "flex h-full flex-col justify-between",
                   href && "transition-transform duration-200 hover:-translate-y-0.5 motion-reduce:transition-none motion-reduce:hover:translate-y-0",
                 )}
               >
-                {images.map((column) => (
-                  <AssetImage key={column.key} asset={String(record[column.key] ?? "")} />
-                ))}
-                <CardHeader>{heading && <CardTitle>{formatValue(record[heading.key], heading.format)}</CardTitle>}</CardHeader>
-                {rest.length > 0 && (
-                  <CardContent className="flex flex-col gap-1 text-sm text-muted-foreground">
-                    {rest.map((column) => (
-                      <span key={column.key}>{formatValue(record[column.key], column.format)}</span>
-                    ))}
-                  </CardContent>
+                <div>
+                  {images.map((column) => (
+                    <AssetImage key={column.key} asset={String(record[column.key] ?? "")} />
+                  ))}
+                  <CardHeader>{heading && <CardTitle>{formatValue(record[heading.key], heading.format)}</CardTitle>}</CardHeader>
+                  {rest.length > 0 && (
+                    <CardContent className="flex flex-col gap-1 text-sm text-muted-foreground">
+                      {rest.map((column) => (
+                        <span key={column.key}>{formatValue(record[column.key], column.format)}</span>
+                      ))}
+                    </CardContent>
+                  )}
+                </div>
+                {hasActions && (
+                  <CardFooter className="pt-2">
+                    <ActionButtons actions={actions} record={record} />
+                  </CardFooter>
                 )}
               </Card>
             );
-            const key = String(record.id ?? index);
             return href ? (
-              <Link key={key} href={href}>
-                {card}
-              </Link>
+              <div key={recordId} data-bga-record={recordId}>
+                <Link href={href} className="block h-full">
+                  {card}
+                </Link>
+              </div>
             ) : (
-              <div key={key}>{card}</div>
+              <div key={recordId} data-bga-record={recordId}>
+                {card}
+              </div>
             );
           })}
         </Grid>

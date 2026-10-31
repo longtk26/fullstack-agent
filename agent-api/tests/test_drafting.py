@@ -158,7 +158,7 @@ def test_static_draft_writes_only_a_frontend_spec(client, user_headers, tmp_path
     assert draft["status"] == "SUCCEEDED", draft["validation"]
     assert draft["frontend_spec"]["project"]["mode"] == "static" and draft["backend_spec"] is None
     assert draft["unresolved"] == [] and set(draft["validation"]) == {"frontend"}
-    assert draft["usage"]["calls"][0]["prompt"] == "draft_frontend_spec@v6"
+    assert draft["usage"]["calls"][0]["prompt"] == "draft_frontend_spec@v7"
     # Story 12.6: three directions, the first applied (the fake engine names none), its notes after the engine's.
     design = draft["design"]
     assert design["selected"] == 0 and len(design["directions"]) == 3

@@ -1,0 +1,315 @@
+{
+  "specVersion": "1.0",
+  "project": {
+    "name": "Flashcards",
+    "description": "Spaced-repetition vocabulary learning app with decks, cards and SM-2 reviews",
+    "mode": "dynamic",
+    "locale": "en"
+  },
+  "theme": {
+    "style": "minimal",
+    "colorScheme": "light",
+    "colors": {
+      "primary": "#2563eb",
+      "accent": "#10b981"
+    },
+    "typography": {
+      "headingFont": "Inter",
+      "bodyFont": "Inter",
+      "scale": "default"
+    },
+    "radius": "md",
+    "density": "comfortable"
+  },
+  "layout": {
+    "shell": "header-footer",
+    "header": {
+      "logoText": "Flashcards",
+      "navigation": [
+        { "label": "Decks", "page": "decks" },
+        { "label": "New Card", "page": "card-new" }
+      ]
+    },
+    "footer": {
+      "text": "© Flashcards",
+      "links": [
+        { "label": "Decks", "page": "decks" }
+      ]
+    }
+  },
+  "pages": [
+    {
+      "id": "decks",
+      "route": "/",
+      "title": "Decks",
+      "purpose": "browse vocabulary decks",
+      "sections": [
+        {
+          "id": "hero",
+          "component": "Hero",
+          "content": {
+            "heading": "Master vocabulary with spaced repetition",
+            "body": "Learn faster, remember forever.",
+            "cta": { "label": "Browse Decks", "page": "decks" }
+          }
+        },
+        {
+          "id": "decks-grid",
+          "component": "CardGrid",
+          "data": {
+            "operationId": "deck.list",
+            "params": { "sort": "name" },
+            "fields": ["name", "description"]
+          },
+          "content": {
+            "actions": [
+              {
+                "id": "study",
+                "label": "Study",
+                "kind": "link",
+                "page": "study",
+                "params": { "id": "$record.id" }
+              },
+              {
+                "id": "progress",
+                "label": "Stats",
+                "kind": "link",
+                "page": "deck-progress",
+                "params": { "id": "$record.id" }
+              }
+            ]
+          },
+          "states": { "empty": "No decks found" }
+        }
+      ]
+    },
+    {
+      "id": "deck-detail",
+      "route": "/decks/[id]",
+      "title": "Deck Cards",
+      "purpose": "inspect cards belonging to a deck",
+      "sections": [
+        {
+          "id": "deck-info",
+          "component": "DetailView",
+          "data": {
+            "operationId": "deck.get",
+            "params": { "id": "$route.id" },
+            "fields": ["name", "description"]
+          },
+          "content": {
+            "actions": [
+              {
+                "id": "study-deck",
+                "label": "Study Due Cards",
+                "kind": "link",
+                "page": "study",
+                "params": { "id": "$route.id" }
+              }
+            ]
+          }
+        },
+        {
+          "id": "cards-grid",
+          "component": "DataTable",
+          "data": {
+            "operationId": "card.list",
+            "params": { "deckId": "$route.id" },
+            "fields": ["front", "back", "dueDate", "intervalDays"]
+          },
+          "content": {
+            "actions": [
+              {
+                "id": "delete",
+                "label": "Delete",
+                "kind": "mutation",
+                "operationId": "card.delete",
+                "params": { "id": "$record.id" },
+                "confirm": "Delete this card?"
+              }
+            ]
+          },
+          "states": { "empty": "No cards in this deck" }
+        }
+      ]
+    },
+    {
+      "id": "study",
+      "route": "/study/[id]",
+      "title": "Study Due Cards",
+      "purpose": "review due cards and submit SM-2 ratings",
+      "sections": [
+        {
+          "id": "due-cards-list",
+          "component": "CardGrid",
+          "data": {
+            "operationId": "card.listDue",
+            "params": { "deckId": "$route.id" },
+            "fields": ["front", "back"]
+          },
+          "states": { "empty": "No due cards for today!" }
+        },
+        {
+          "id": "study-card",
+          "component": "DetailView",
+          "data": {
+            "operationId": "card.get",
+            "params": { "id": "$route.id" },
+            "fields": ["front", "back", "example", "dueDate", "intervalDays"]
+          }
+        },
+        {
+          "id": "study-actions",
+          "component": "ActionBar",
+          "content": {
+            "title": "Rate your recall",
+            "actions": [
+              {
+                "id": "again",
+                "label": "Again",
+                "kind": "mutation",
+                "operationId": "card.review",
+                "params": { "id": "$route.id" },
+                "body": { "rating": "again" }
+              },
+              {
+                "id": "hard",
+                "label": "Hard",
+                "kind": "mutation",
+                "operationId": "card.review",
+                "params": { "id": "$route.id" },
+                "body": { "rating": "hard" }
+              },
+              {
+                "id": "good",
+                "label": "Good",
+                "kind": "mutation",
+                "operationId": "card.review",
+                "params": { "id": "$route.id" },
+                "body": { "rating": "good" }
+              },
+              {
+                "id": "easy",
+                "label": "Easy",
+                "kind": "mutation",
+                "operationId": "card.review",
+                "params": { "id": "$route.id" },
+                "body": { "rating": "easy" }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "card-new",
+      "route": "/cards/new",
+      "title": "New Card",
+      "purpose": "create a new vocabulary card",
+      "sections": [
+        {
+          "id": "card-form-section",
+          "component": "Form",
+          "form": "new_card_form"
+        }
+      ]
+    },
+    {
+      "id": "deck-progress",
+      "route": "/progress/[id]",
+      "title": "Deck Progress",
+      "purpose": "view study metrics for a deck",
+      "sections": [
+        {
+          "id": "stats-section",
+          "component": "Stats",
+          "content": {
+            "title": "Deck Study Statistics",
+            "items": [
+              {
+                "label": "Total Cards",
+                "data": { "operationId": "deck.stats", "value": "total" }
+              },
+              {
+                "label": "Due Today",
+                "data": { "operationId": "deck.stats", "value": "dueToday" }
+              },
+              {
+                "label": "Learned Cards",
+                "data": { "operationId": "deck.stats", "value": "learned" }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "forms": [
+    {
+      "id": "new_card_form",
+      "operationId": "card.create",
+      "submitLabel": "Create Card",
+      "onSuccess": { "toast": "Card created", "navigate": "decks" },
+      "fields": [
+        { "name": "deckId", "type": "string", "required": true, "label": "Deck ID" },
+        { "name": "front", "type": "string", "required": true, "label": "Front" },
+        { "name": "back", "type": "string", "required": true, "label": "Back" },
+        { "name": "example", "type": "text", "required": false, "label": "Example" },
+        { "name": "dueDate", "type": "date", "required": true, "label": "Due Date" },
+        { "name": "intervalDays", "type": "integer", "required": false, "label": "Interval Days" },
+        { "name": "ease", "type": "number", "required": false, "label": "Ease Factor" },
+        { "name": "repetitionCount", "type": "integer", "required": false, "label": "Repetitions" }
+      ]
+    }
+  ],
+  "journeys": [
+    {
+      "id": "browse",
+      "title": "Browse Decks",
+      "goal": "View available vocabulary decks and inspect cards",
+      "steps": [
+        { "do": "visit", "page": "decks" },
+        { "do": "open", "section": "decks-grid", "record": "first" },
+        { "do": "expect", "section": "cards-grid", "text": "Cards" }
+      ]
+    },
+    {
+      "id": "add",
+      "title": "Add Flashcard",
+      "goal": "Add a new vocabulary card to a deck",
+      "steps": [
+        { "do": "visit", "page": "card-new" },
+        {
+          "do": "submit",
+          "section": "card-form-section",
+          "values": {
+            "deckId": "11111111-1111-4111-8111-111111111111",
+            "front": "gato-$unique",
+            "back": "cat",
+            "dueDate": "2026-10-31"
+          }
+        },
+        { "do": "expect", "section": "card-form-section", "text": "Card created" }
+      ]
+    },
+    {
+      "id": "study",
+      "title": "Study Due Cards",
+      "goal": "Review due cards and submit ratings using SM-2",
+      "steps": [
+        { "do": "visit", "page": "study" },
+        { "do": "action", "section": "study-actions", "action": "good", "record": "first" },
+        { "do": "expect", "section": "study-card", "changed": { "field": "dueDate", "record": "first" }, "live": true }
+      ]
+    },
+    {
+      "id": "progress",
+      "title": "Track Study Progress",
+      "goal": "Inspect learning statistics for a deck",
+      "steps": [
+        { "do": "visit", "page": "deck-progress" },
+        { "do": "expect", "section": "stats-section", "text": "Total Cards" }
+      ]
+    }
+  ]
+}

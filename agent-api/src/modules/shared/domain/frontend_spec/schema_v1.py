@@ -202,6 +202,33 @@ class ContentCollection(SpecModel):
 
 AssetKind = Literal["image", "icon", "video", "file", "illustration", "pattern", "logo"]
 AspectRatio = Literal["16:9", "4:3", "1:1", "3:4", "21:9"]
+JourneyStepDo = Literal["visit", "open", "submit", "action", "expect"]
+
+
+class JourneyExpectChanged(SpecModel):
+    field: str = Field(min_length=1, max_length=63)
+    record: Literal["first"] | int | str | None = None
+
+
+class JourneyStep(SpecModel):
+    do: JourneyStepDo
+    page: str | None = None
+    section: str | None = None
+    record: Literal["first"] | int | str | None = None
+    action: str | None = None
+    values: dict[str, Any] | None = None
+    text: str | None = None
+    count: int | None = None
+    changed: JourneyExpectChanged | None = None
+    live: bool = False
+    operation_id: str | None = Field(default=None, alias="operationId")
+
+
+class Journey(SpecModel):
+    id: str = Field(pattern=r"^[A-Za-z0-9_-]+$", max_length=63)
+    title: str = Field(min_length=1, max_length=120)
+    goal: str | None = None
+    steps: list[JourneyStep] = Field(min_length=1)
 
 
 class Asset(SpecModel):
@@ -233,5 +260,6 @@ class FrontendSpecV1(SpecModel):
     forms: list[Form] = []
     content: list[ContentCollection] = []
     assets: list[Asset] = []
+    journeys: list[Journey] = []
     auth: dict[str, Any] | None = None  # reserved for Epic 10
     backend_spec: str | None = Field(default=None, alias="x-backendSpec")

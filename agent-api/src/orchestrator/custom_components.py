@@ -124,6 +124,34 @@ class CustomComponents:
             if section["component"] == name
         )
 
+    def _journeys_and_operations(self, name: str) -> tuple[list[dict[str, Any]], list[str]]:
+        component_section_ids = set()
+        operations = set()
+        for route in self.plan.get("routes", []):
+            for sec in iter_sections(route.get("sections", [])):
+                if sec.get("component") == name:
+                    if sec.get("id"):
+                        component_section_ids.add(sec["id"])
+                    for act in (sec.get("content") or {}).get("actions", []):
+                        if act.get("operationId"):
+                            operations.add(act["operationId"])
+                    if sec.get("data") and sec["data"].get("operationId"):
+                        operations.add(sec["data"]["operationId"])
+
+        journeys = []
+        for journey in self.spec.get("journeys", []):
+            touches = False
+            for step in journey.get("steps", []):
+                sec_id = step.get("section")
+                if sec_id in component_section_ids:
+                    touches = True
+                    if step.get("operationId"):
+                        operations.add(step["operationId"])
+            if touches:
+                journeys.append(journey)
+
+        return journeys, sorted(operations)
+
     async def _one(self, key: str, names: list[str], max_repairs: int) -> Resolved:
         entry = self.ctx.store.component_cache(key)
         source = cached_file(key)
@@ -159,6 +187,7 @@ class CustomComponents:
         engine_error: str | None = None
         installed = False
         try:
+            journeys, operations = self._journeys_and_operations(name)
             prompt = self.ctx.prompts.render(
                 "generate_custom_component",
                 PROMPT_VERSION,
@@ -169,6 +198,8 @@ class CustomComponents:
                 props_schema_json=json.dumps(component.get("propsSchema") or {}, indent=2, sort_keys=True),
                 spec_path=SPEC_FILE,
                 test_path=RENDER_TEST,
+                journeys=journeys,
+                operations=operations,
             )
             sha_before = _file_sha256(component_path)
             try:

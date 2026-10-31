@@ -317,6 +317,7 @@ export function NewGenerationView() {
                     summary={frontendSummary}
                     showOperations={mode === "dynamic"}
                     onDropManageArea={hasManagePages ? handleDropManageArea : undefined}
+                    issues={frontend.issues}
                   />
                 </CardContent>
               </Card>

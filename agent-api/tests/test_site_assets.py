@@ -77,9 +77,14 @@ def test_too_many_generated_assets_is_a_warning():
 
 def test_an_empty_state_image_must_be_a_declared_asset():
     spec = json.loads((EXAMPLES / "frontend-specs" / "project-tracker-dynamic.json").read_text())
-    spec["pages"][0]["sections"][0]["states"]["emptyImage"] = "asset:missing"
+    section_idx, section = next(
+        (i, s) for i, s in enumerate(spec["pages"][0]["sections"]) if "states" in s
+    )
+    section["states"]["emptyImage"] = "asset:missing"
     report = validate_frontend_spec_data(spec).report
-    assert ("FE_UNKNOWN_ASSET", "/pages/0/sections/0/states/emptyImage") in [(e.code, e.path) for e in report.errors]
+    assert ("FE_UNKNOWN_ASSET", f"/pages/0/sections/{section_idx}/states/emptyImage") in [
+        (e.code, e.path) for e in report.errors
+    ]
 
 
 # -- 15.1 plan and registry --------------------------------------------------------------------------------------------

@@ -6,15 +6,22 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Stack } from "@/components/layout/Stack";
 import type { TFrontendSpecSummary } from "../lib/frontend-spec-summary";
+import type { TSpecIssue } from "../types";
 
 type FrontendSpecSummaryPanelProps = {
   summary: TFrontendSpecSummary;
   showOperations: boolean;
   onDropManageArea?: () => void;
+  issues?: TSpecIssue[];
 };
 
 /** What the FrontendSpec will build (Story 9.7b): pages and routes, theme, components and, in dynamic mode, API use. */
-export function FrontendSpecSummaryPanel({ summary, showOperations, onDropManageArea }: FrontendSpecSummaryPanelProps) {
+export function FrontendSpecSummaryPanel({
+  summary,
+  showOperations,
+  onDropManageArea,
+  issues,
+}: FrontendSpecSummaryPanelProps) {
   const [manageOpen, setManageOpen] = useState(false);
 
   if (summary.pages.length === 0) {
@@ -134,6 +141,78 @@ export function FrontendSpecSummaryPanel({ summary, showOperations, onDropManage
           {fonts.length > 0 && <Badge variant="outline">{[...new Set(fonts)].join(" / ")}</Badge>}
         </Stack>
       </Stack>
+
+      {summary.journeys && summary.journeys.length > 0 && (
+        <Stack gap="xs">
+          <h3 className="text-sm font-medium">Journeys ({summary.journeys.length})</h3>
+          <div className="space-y-2">
+            {summary.journeys.map((journey, jIdx) => (
+              <div key={journey.id || jIdx} className="rounded-md border p-2 text-xs">
+                <div className="font-medium text-foreground">
+                  {journey.title} <span className="font-mono text-muted-foreground font-normal">({journey.id})</span>
+                </div>
+                {journey.goal && <p className="text-muted-foreground text-[11px] mt-0.5">{journey.goal}</p>}
+                <ol className="mt-1.5 list-decimal list-inside space-y-1">
+                  {journey.steps.map((step, sIdx) => {
+                    const stepPath = `/journeys/${jIdx}/steps/${sIdx}`;
+                    const stepErrors = (issues ?? []).filter((issue) => issue.path.startsWith(stepPath));
+                    return (
+                      <li key={sIdx} className="text-muted-foreground leading-normal">
+                        <span className="font-semibold text-foreground">{step.do}</span>
+                        {step.page && (
+                          <>
+                            {" "}page <span className="font-mono text-foreground">{step.page}</span>
+                          </>
+                        )}
+                        {step.section && (
+                          <>
+                            {" "}section <span className="font-mono text-foreground">{step.section}</span>
+                          </>
+                        )}
+                        {step.action && (
+                          <>
+                            {" "}action <span className="font-mono text-foreground">{step.action}</span>
+                          </>
+                        )}
+                        {step.operationId && (
+                          <>
+                            {" "}op <span className="font-mono text-foreground">{step.operationId}</span>
+                          </>
+                        )}
+                        {step.text && (
+                          <>
+                            {" "}expect text <span className="italic text-foreground">&quot;{step.text}&quot;</span>
+                          </>
+                        )}
+                        {step.count !== null && step.count !== undefined && (
+                          <>
+                            {" "}count {step.count}
+                          </>
+                        )}
+                        {step.changed && (
+                          <>
+                            {" "}changed <span className="font-mono text-foreground">{step.changed.field}</span>
+                          </>
+                        )}
+                        {step.live && (
+                          <Badge variant="outline" className="ml-1 text-[10px] py-0 px-1">
+                            live
+                          </Badge>
+                        )}
+                        {stepErrors.map((err, eIdx) => (
+                          <div key={eIdx} className="text-destructive font-medium text-[11px] mt-0.5 ml-4">
+                            ⚠ {err.message}
+                          </div>
+                        ))}
+                      </li>
+                    );
+                  })}
+                </ol>
+              </div>
+            ))}
+          </div>
+        </Stack>
+      )}
 
       <Stack gap="xs">
         <h3 className="text-sm font-medium">Components ({summary.components.length})</h3>

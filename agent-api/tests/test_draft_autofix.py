@@ -265,6 +265,7 @@ def test_draft_with_bad_cta_autofixes_and_succeeds_with_zero_attempts(client, us
 
     assert draft["status"] == "SUCCEEDED"
     assert draft["attempts"] == 0
-    cta_page = draft["frontend_spec"]["pages"][0]["sections"][0]["content"]["cta"]["page"]
+    home_page = next(p for p in draft["frontend_spec"]["pages"] if p["id"] == "home")
+    cta_page = home_page["sections"][0]["content"]["cta"]["page"]
     assert cta_page == "study"
     assert any("a link cannot fill [id]" in a["message"] for a in draft["assumptions"])

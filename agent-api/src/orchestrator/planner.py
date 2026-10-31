@@ -317,10 +317,11 @@ def _operation(op: dict[str, Any], model: dict[str, Any] | None) -> dict[str, An
             planned["errors"].append({"status": 400, "exception": "BadRequestException", "code": "REFERENCE_NOT_FOUND"})
     if action in ("create", "get", "update"):
         planned["responseDto"] = f"{entity}ResponseDto"
-    if action == "list":
+    if action == "list" or op.get("filters") or op.get("sort") or op.get("search"):
         pagination = op.get("pagination") or None
-        planned["responseDto"] = f"{to_pascal(handler)}ResponseDto"
-        planned["dtoFile"] = f"{handler}_dto.py"
+        if action == "list":
+            planned["responseDto"] = f"{to_pascal(handler)}ResponseDto"
+            planned["dtoFile"] = f"{handler}_dto.py"
         planned["pagination"] = pagination
         by_api = {c["apiName"]: c for c in model["columns"]} if model else {}
         planned["filters"] = [

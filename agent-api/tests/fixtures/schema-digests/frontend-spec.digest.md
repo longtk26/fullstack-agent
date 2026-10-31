@@ -10,6 +10,7 @@ type FrontendSpec = {
   forms?: Form[];
   content?: ContentCollection[];
   assets?: Asset[];
+  journeys?: Journey[];
   auth?: Record<string, unknown> | null;
   x-backendSpec?: string | null;
 };
@@ -55,6 +56,7 @@ type Footer = {
 type Form = {
   id: string;
   operationId?: string | null;
+  load?: FormLoad | null;
   params?: Record<string, unknown>;
   fields: FormField[];
   submitLabel?: string | null;
@@ -75,10 +77,41 @@ type FormField = {
   placeholder?: string | null;
 };
 
+type FormLoad = {
+  operationId: string;
+  params?: Record<string, unknown>;
+};
+
 type Header = {
   logoText?: string | null;
   logo?: string | null;
   navigation?: NavLink[];
+};
+
+type Journey = {
+  id: string;
+  title: string;
+  goal?: string | null;
+  steps: JourneyStep[];
+};
+
+type JourneyExpectChanged = {
+  field: string;
+  record?: string | number | null;
+};
+
+type JourneyStep = {
+  do: "visit" | "open" | "submit" | "action" | "expect";
+  page?: string | null;
+  section?: string | null;
+  record?: string | number | null;
+  action?: string | null;
+  values?: Record<string, unknown> | null;
+  text?: string | null;
+  count?: number | null;
+  changed?: JourneyExpectChanged | null;
+  live?: boolean;
+  operationId?: string | null;
 };
 
 type Layout = {
@@ -173,6 +206,30 @@ type Typography = {
   scale?: "compact" | "default" | "large";
 };
 
+type ActionOnSuccess = {
+  toast?: string | null;
+  navigate?: string | null;
+};
+
+type SectionAction = {
+  id: string;
+  label: string;
+  kind?: "link" | "mutation";
+  page?: string | null;
+  params?: Record<string, unknown>;
+  operationId?: string | null;
+  body?: Record<string, unknown>;
+  confirm?: string | boolean | null;
+  variant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link" | null;
+  onSuccess?: ActionOnSuccess | null;
+};
+
+type ActionBarProps = {
+  title?: string | null;
+  description?: string | null;
+  actions?: SectionAction[];
+};
+
 type Cta = {
   label: string;
   page?: string | null;
@@ -258,9 +315,15 @@ type PricingProps = {
   cardStyle?: "outline" | "filled" | "plain";
 };
 
+type StatData = {
+  operationId: string;
+  value?: string;
+};
+
 type StatItem = {
   label: string;
-  value: string | number;
+  value?: string | number;
+  data?: StatData | null;
 };
 
 type StatsProps = {
@@ -307,9 +370,18 @@ type FormProps = {
   description?: string | null;
 };
 
+type SectionControls = {
+  search?: boolean;
+  filters?: string[];
+  sort?: string[];
+  pageSize?: number | null;
+};
+
 type CardGridProps = {
   title?: string | null;
   description?: string | null;
+  actions?: SectionAction[];
+  controls?: SectionControls | null;
   cardStyle?: "outline" | "filled" | "plain";
 };
 
@@ -317,6 +389,8 @@ type CardGridProps = {
 type DataSectionProps = {
   title?: string | null;
   description?: string | null;
+  actions?: SectionAction[];
+  controls?: SectionControls | null;
 };
 
 type ColumnsProps = {

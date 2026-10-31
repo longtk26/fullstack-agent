@@ -173,6 +173,8 @@ class _Checker:
         responses = operation.get("responses") or {}
         success = next((r for s, r in sorted(responses.items()) if s.startswith("2")), {})
         schema = resolve(self.contract, (success.get("content") or {}).get("application/json", {}).get("schema", {}))
+        if schema.get("type") == "array" and "items" in schema:
+            return resolve(self.contract, schema["items"])
         items = (schema.get("properties") or {}).get("items")
         if isinstance(items, dict) and items.get("type") == "array":
             return resolve(self.contract, items.get("items", {}))
@@ -543,6 +545,49 @@ class _Checker:
                 backend_path=self.op_pointer(op_id) if op_id in self.operations else None,
             )
 
+    def journeys(self) -> None:
+        sections_by_id: dict[str, dict[str, Any]] = {}
+        forms_by_id = {f.get("id"): f for f in self.frontend.get("forms") or []}
+        for p_index, page in enumerate(self.frontend.get("pages") or []):
+            for sec, _ in _sections(page.get("sections") or [], f"/pages/{p_index}/sections"):
+                if sec.get("id"):
+                    sections_by_id[sec["id"]] = sec
+
+        for j_index, journey in enumerate(self.frontend.get("journeys") or []):
+            for s_index, step in enumerate(journey.get("steps") or []):
+                step_path = f"/journeys/{j_index}/steps/{s_index}"
+                op_id = step.get("operationId")
+                if op_id and op_id not in self.operations:
+                    self.add(
+                        C.CONTRACT_UNKNOWN_OPERATION,
+                        f"{step_path}/operationId",
+                        f"Journey step references unknown operation '{op_id}'",
+                    )
+                sec_id = step.get("section")
+                if sec_id and sec_id in sections_by_id:
+                    sec = sections_by_id[sec_id]
+                    if step.get("do") == "action" and step.get("action"):
+                        for act in (sec.get("content") or {}).get("actions") or []:
+                            if act.get("id") == step["action"] and act.get("operationId"):
+                                act_op = act["operationId"]
+                                if act_op not in self.operations:
+                                    self.add(
+                                        C.CONTRACT_UNKNOWN_OPERATION,
+                                        f"{step_path}/action",
+                                        f"Journey action '{step['action']}' references unknown operation '{act_op}'",
+                                    )
+                    elif step.get("do") == "submit":
+                        form_id = sec.get("form")
+                        if form_id and form_id in forms_by_id:
+                            f = forms_by_id[form_id]
+                            f_op = f.get("operationId")
+                            if f_op and f_op not in self.operations:
+                                self.add(
+                                    C.CONTRACT_UNKNOWN_OPERATION,
+                                    f"{step_path}/section",
+                                    f"Journey form '{form_id}' references unknown operation '{f_op}'",
+                                )
+
 
 def check_consistency(
     frontend: dict[str, Any], contract: dict[str, Any], backend: dict[str, Any] | None = None
@@ -553,6 +598,7 @@ def check_consistency(
     checker.forms()
     checker.seed_assets()
     checker.coverage()
+    checker.journeys()
     return checker.issues
 
 

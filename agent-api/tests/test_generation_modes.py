@@ -110,7 +110,9 @@ def test_check_pair_compares_unsaved_specs(client, headers):
 
     tracker = check(TRACKER_FRONTEND, TWO_ENTITY)
     contract = tracker.pop("contract")
-    assert tracker == {"valid": True, "specVersion": "1.0", "errors": [], "warnings": [], "checked": True}
+    assert tracker["valid"] is True and tracker["specVersion"] == "1.0"
+    assert tracker["errors"] == [] and tracker["checked"] is True
+    assert [w["code"] for w in tracker["warnings"]] == ["FE_OPERATION_UNUSED", "FE_OPERATION_UNUSED"]
     assert contract["openapi"].startswith("3.1") and contract["paths"], "the contract is returned for the preview"
     assert check(SHOP_FRONTEND, SHOP)["valid"] is True
 
@@ -317,7 +319,7 @@ def test_dynamic_generation_runs_contract_backend_and_frontend_lanes(client, hea
     )
     assert manifest["artifacts"]["contract"] == artifacts["contract.json"]["artifactId"]
     assert manifest["artifacts"]["frontend"] == artifacts["frontend.zip"]["artifactId"]
-    assert manifest["frontend"]["mode"] == "dynamic" and len(manifest["frontend"]["routes"]) == 4
+    assert manifest["frontend"]["mode"] == "dynamic" and len(manifest["frontend"]["routes"]) == 5
     assert manifest["frontend"]["contractSha256"] and manifest["frontend"]["env"] == ["MOCK_TEST_API", "API_BASE_URL"]
 
     stored = events(generation_id)

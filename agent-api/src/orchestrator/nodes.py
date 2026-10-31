@@ -54,7 +54,7 @@ DIGEST_LIMIT = 30_000
 PROMPT_VERSIONS = {
     "generate_database": "v2",
     "generate_backend": "v3",
-    "complete_backend": "v1",
+    "complete_backend": "v2",
     "generate_tests": "v2",
     "repair_code": "v3",
 }
@@ -140,21 +140,23 @@ async def validate_inputs(state: GenerationState, ctx: JobContext) -> NodeResult
         errors += [_issue_dump(issue, "backend") for issue in backend.report.errors]
         warnings += len(backend.report.warnings)
         if result.normalized is not None and backend.normalized is not None:
-            frontend_opts = (state.get("options") or {}).get("frontend") or {}
-            if frontend_opts.get("manageArea", True):
-                from src.modules.shared.domain.frontend_spec import add_manage_area
-
-                contract = contract_for(backend.normalized)
-                managed_spec, _ = add_manage_area(result.normalized, contract)
-                result.normalized = managed_spec
-            else:
-                from src.modules.shared.domain.frontend_spec import remove_manage_area
-
-                result.normalized = remove_manage_area(result.normalized)
             consistency = check_spec_pair(result.normalized, backend.normalized)
             _write_json(spec_dir / "consistency-report.json", [i.model_dump(mode="json") for i in consistency])
             errors += [_issue_dump(issue, "consistency") for issue in consistency if issue.severity != Severity.WARNING]
             warnings += sum(1 for issue in consistency if issue.severity == Severity.WARNING)
+
+            if not errors:
+                frontend_opts = (state.get("options") or {}).get("frontend") or {}
+                if frontend_opts.get("manageArea") is True:
+                    from src.modules.shared.domain.frontend_spec import add_manage_area
+
+                    contract = contract_for(backend.normalized)
+                    managed_spec, _ = add_manage_area(result.normalized, contract)
+                    result.normalized = managed_spec
+                elif "manageArea" in frontend_opts and not frontend_opts["manageArea"]:
+                    from src.modules.shared.domain.frontend_spec import remove_manage_area
+
+                    result.normalized = remove_manage_area(result.normalized)
         update["spec_ref"] = ".bga/spec.json"
 
     if errors:
@@ -370,10 +372,13 @@ async def generate_backend(state: GenerationState, ctx: JobContext) -> NodeResul
     await _write_generated(ctx, files, owned)
     await ctx.emit("backend.generated", step="generate_backend", part="modules", files=len(files))
     completed = []
+    frontend_spec = _read_json(ctx, state["frontend_ref"]) if state.get("frontend_ref") else None
     for module in plan["modules"]:
         gaps = codegen_gaps(module)
         if not gaps:
             continue
+        module_op_ids = {op["operationId"] for op in module.get("operations", [])}
+        touching = _touching_journeys(frontend_spec, module_op_ids)
         prompt = ctx.prompts.render(
             "complete_backend",
             PROMPT_VERSIONS["complete_backend"],
@@ -385,6 +390,7 @@ async def generate_backend(state: GenerationState, ctx: JobContext) -> NodeResul
             plan_path=state["plan_ref"],
             contract_path=state.get("contract_ref"),
             file_tree=ctx.file_tree(),
+            journeys=touching,
         )
         await ctx.run_engine("generate_backend", "complete_backend", prompt)
         completed.append(module["name"])
@@ -398,6 +404,47 @@ async def generate_backend(state: GenerationState, ctx: JobContext) -> NodeResul
 
 def _module_json(module: dict[str, Any]) -> str:
     return json.dumps({k: v for k, v in module.items() if k != "tests"}, indent=2, sort_keys=True)
+
+
+def _touching_journeys(frontend_spec: dict[str, Any] | None, module_op_ids: set[str]) -> list[dict[str, Any]]:
+    if not frontend_spec or not module_op_ids:
+        return []
+    from src.modules.shared.domain.frontend_spec.coverage import _iter_sections
+
+    sections_by_id: dict[str, dict[str, Any]] = {}
+    forms_by_id = {f.get("id"): f for f in frontend_spec.get("forms") or []}
+    for page in frontend_spec.get("pages") or []:
+        for s in _iter_sections(page.get("sections") or []):
+            if s.get("id"):
+                sections_by_id[s["id"]] = s
+
+    touching = []
+    for journey in frontend_spec.get("journeys") or []:
+        touches = False
+        for step in journey.get("steps") or []:
+            if step.get("operationId") in module_op_ids:
+                touches = True
+                break
+            sec_id = step.get("section")
+            if sec_id and sec_id in sections_by_id:
+                sec = sections_by_id[sec_id]
+                if step.get("do") == "action" and step.get("action"):
+                    for act in (sec.get("content") or {}).get("actions") or []:
+                        if act.get("id") == step["action"] and act.get("operationId") in module_op_ids:
+                            touches = True
+                            break
+                elif step.get("do") == "submit":
+                    form_id = sec.get("form")
+                    if form_id and form_id in forms_by_id:
+                        f = forms_by_id[form_id]
+                        if f.get("operationId") in module_op_ids:
+                            touches = True
+                            break
+            if touches:
+                break
+        if touches:
+            touching.append(journey)
+    return touching
 
 
 async def generate_tests(state: GenerationState, ctx: JobContext) -> NodeResult:
