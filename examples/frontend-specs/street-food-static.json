@@ -1,0 +1,227 @@
+{
+  "specVersion": "1.0",
+  "project": {
+    "name": "Saigon Street Food",
+    "description": "Authentic street food and culinary culture guide: heritage recipes, bustling food markets, and iconic dishes.",
+    "mode": "static",
+    "locale": "en"
+  },
+  "theme": {
+    "style": "editorial",
+    "colorScheme": "light",
+    "colors": {
+      "primary": "#b91c1c",
+      "accent": "#f59e0b",
+      "background": "#fafaf9",
+      "foreground": "#1c1917"
+    },
+    "typography": {
+      "headingFont": "Playfair Display",
+      "bodyFont": "Inter"
+    },
+    "radius": "md"
+  },
+  "layout": {
+    "shell": "header-footer",
+    "header": {
+      "logoText": "Saigon Street",
+      "navigation": [
+        { "label": "Dishes", "page": "dishes" },
+        { "label": "Culture", "page": "culture" },
+        { "label": "About", "page": "about" }
+      ]
+    },
+    "footer": {
+      "text": "© Saigon Street Food Guide",
+      "links": [
+        { "label": "Dishes", "page": "dishes" },
+        { "label": "Culture", "page": "culture" }
+      ]
+    }
+  },
+  "pages": [
+    {
+      "route": "/",
+      "title": "Home",
+      "seo": { "description": "Discover authentic street food culture and heritage dishes" },
+      "sections": [
+        {
+          "id": "hero",
+          "component": "Hero",
+          "content": {
+            "heading": "Flavours of the Night Market",
+            "body": "Experience authentic street food culture, from morning pho stalls to sizzling woks under glowing lanterns.",
+            "image": "asset:hero-stall",
+            "cta": { "label": "Explore Dishes", "page": "dishes" }
+          }
+        },
+        {
+          "id": "featured-dishes",
+          "component": "CardGrid",
+          "data": { "collection": "dishes" }
+        },
+        {
+          "id": "market-glimpse",
+          "component": "RichText",
+          "content": {
+            "heading": "Market Heritage",
+            "body": "Every morning at dawn, local cooks gather ingredients from bustling markets where centuries-old recipes come alive.",
+            "backgroundImage": "asset:market-scene"
+          }
+        },
+        {
+          "id": "cta",
+          "component": "CallToAction",
+          "content": {
+            "heading": "Taste the Culture",
+            "body": "Join our food walking tour through Saigon's most historic alleyways.",
+            "cta": { "label": "Learn More", "page": "culture" }
+          }
+        }
+      ]
+    },
+    {
+      "route": "/dishes",
+      "title": "Iconic Dishes",
+      "seo": { "description": "Our selection of beloved street food classics" },
+      "sections": [
+        {
+          "id": "dishes-grid",
+          "component": "CardGrid",
+          "data": { "collection": "dishes" }
+        }
+      ]
+    },
+    {
+      "route": "/culture",
+      "title": "Street Food Culture",
+      "seo": { "description": "The stories and craft behind the street stalls" },
+      "sections": [
+        {
+          "id": "wok-craft",
+          "component": "RichText",
+          "content": {
+            "heading": "The Art of Wok Hei",
+            "body": "Mastering wok heat requires timing, precision, and decades of family craft passed from generation to generation.",
+            "backgroundImage": "asset:cooking-scene"
+          }
+        }
+      ]
+    },
+    {
+      "route": "/about",
+      "title": "About Us",
+      "sections": [
+        {
+          "id": "about-story",
+          "component": "RichText",
+          "content": {
+            "heading": "Preserving Street Flavours",
+            "body": "Founded by local chefs and food writers dedicated to documenting traditional street recipes and family stalls."
+          }
+        },
+        {
+          "id": "contact",
+          "component": "ContactInfo",
+          "content": {
+            "title": "Visit Us",
+            "email": "hello@saigonstreet.example",
+            "address": "District 1, Ho Chi Minh City, Vietnam"
+          }
+        }
+      ]
+    }
+  ],
+  "content": [
+    {
+      "collection": "dishes",
+      "records": [
+        {
+          "title": "Pho Bo",
+          "description": "Slow-simmered beef bone broth with flat rice noodles and fresh cilantro.",
+          "image": "asset:dish-pho"
+        },
+        {
+          "title": "Banh Mi Thit",
+          "description": "Crisp airy baguette with pork pate, cucumber, pickled daikon, and chili.",
+          "image": "asset:dish-banh-mi"
+        },
+        {
+          "title": "Bun Cha",
+          "description": "Charcoal grilled pork patties served with dipping broth, garlic, and vermicelli.",
+          "image": "asset:dish-bun-cha"
+        },
+        {
+          "title": "Goi Cuon",
+          "description": "Delicate fresh spring rolls with poached shrimp, pork, mint, and peanut dip.",
+          "image": "asset:dish-goi-cuon"
+        }
+      ]
+    }
+  ],
+  "assets": [
+    {
+      "id": "hero-stall",
+      "kind": "image",
+      "source": "photo",
+      "prompt": "A vibrant street food stall in Hanoi at dusk, glowing red lanterns, steam rising from broth pots, shallow depth of field",
+      "style": "rich contrast, thoughtful composition, warm film tones",
+      "aspectRatio": "16:9",
+      "alt": "Bustling street food stall at dusk"
+    },
+    {
+      "id": "market-scene",
+      "kind": "image",
+      "source": "photo",
+      "prompt": "A bustling morning fresh produce market, colourful tropical fruit baskets, warm natural sunlight",
+      "style": "warm natural light, soft shadows, muted tones",
+      "aspectRatio": "16:9",
+      "alt": "Morning fresh produce market"
+    },
+    {
+      "id": "cooking-scene",
+      "kind": "image",
+      "source": "photo",
+      "prompt": "Chef sizzling fresh herbs and noodles in a smoking wok over an open flame, crisp action shot",
+      "style": "rich contrast, thoughtful composition, warm film tones",
+      "aspectRatio": "16:9",
+      "alt": "Chef cooking over flame in a street wok"
+    },
+    {
+      "id": "dish-pho",
+      "kind": "image",
+      "source": "photo",
+      "prompt": "A steaming bowl of Vietnamese beef pho with rice noodles, thin sliced beef, fresh herbs, morning light, close-up",
+      "style": "warm natural light, soft shadows, muted tones",
+      "aspectRatio": "16:9",
+      "alt": "Steaming bowl of beef pho"
+    },
+    {
+      "id": "dish-banh-mi",
+      "kind": "image",
+      "source": "photo",
+      "prompt": "A crisp Vietnamese banh mi baguette sandwich with cilantro, pickled carrots, cucumber and pate on parchment paper",
+      "style": "warm natural light, soft shadows, muted tones",
+      "aspectRatio": "16:9",
+      "alt": "Crispy banh mi sandwich"
+    },
+    {
+      "id": "dish-bun-cha",
+      "kind": "image",
+      "source": "photo",
+      "prompt": "Grilled pork patties and noodles in a savory dipping broth with fresh herbs, traditional ceramic bowls",
+      "style": "warm natural light, soft shadows, muted tones",
+      "aspectRatio": "16:9",
+      "alt": "Grilled bun cha pork and noodles"
+    },
+    {
+      "id": "dish-goi-cuon",
+      "kind": "image",
+      "source": "photo",
+      "prompt": "Fresh Vietnamese spring rolls with shrimp and herbs in translucent rice paper, with peanut dipping sauce",
+      "style": "warm natural light, soft shadows, muted tones",
+      "aspectRatio": "16:9",
+      "alt": "Fresh translucent shrimp spring rolls"
+    }
+  ]
+}

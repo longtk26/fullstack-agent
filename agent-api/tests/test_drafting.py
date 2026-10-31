@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-from sqlmodel import Session
+from sqlmodel import Session, delete
 
 from src.configs import config
 from src.engines import EngineRegistry, PromptLibrary
@@ -17,7 +17,7 @@ from src.libs.queue import JobQueue
 from src.libs.redaction import Redactor
 from src.modules.generations.infrastructure.adapters import EventPublisher
 from src.modules.shared.domain.requirement import RequirementError, check_requirement
-from src.modules.shared.infrastructure.models import SpecDraftModel
+from src.modules.shared.infrastructure.models import ImageCallModel, SpecDraftModel, UploadModel
 from src.orchestrator.drafting import DraftRunner, check_draft, draw_images, read_notes, section_catalogue
 from src.orchestrator.store import JobStore
 from src.orchestrator.worker_service import WorkerService
@@ -29,6 +29,16 @@ REQUIREMENTS = REPO / "examples" / "requirements"
 EXAMPLES = REPO / "examples"
 
 pytestmark = pytest.mark.usefixtures("clean_redis")
+
+
+@pytest.fixture(autouse=True)
+def cleanup_drafts_and_uploads():
+    yield
+    with Session(db_session_manager.engine) as session:
+        session.exec(delete(ImageCallModel))
+        session.exec(delete(SpecDraftModel))
+        session.exec(delete(UploadModel))
+        session.commit()
 
 
 # -- requirement input ---------------------------------------------------------------------------------------------
@@ -148,7 +158,7 @@ def test_static_draft_writes_only_a_frontend_spec(client, user_headers, tmp_path
     assert draft["status"] == "SUCCEEDED", draft["validation"]
     assert draft["frontend_spec"]["project"]["mode"] == "static" and draft["backend_spec"] is None
     assert draft["unresolved"] == [] and set(draft["validation"]) == {"frontend"}
-    assert draft["usage"]["calls"][0]["prompt"] == "draft_frontend_spec@v5"
+    assert draft["usage"]["calls"][0]["prompt"] == "draft_frontend_spec@v6"
     # Story 12.6: three directions, the first applied (the fake engine names none), its notes after the engine's.
     design = draft["design"]
     assert design["selected"] == 0 and len(design["directions"]) == 3
@@ -157,12 +167,20 @@ def test_static_draft_writes_only_a_frontend_spec(client, user_headers, tmp_path
     assert draft["frontend_spec"]["theme"]["colors"] == chosen["theme"]["colors"]
     assert draft["assumptions"][0]["message"].startswith("Fake engine")
     assert draft["assumptions"][1]["message"].startswith("Design direction: ")
-    # Epic 15: no placeholders; the example's placeholder (work-2) is drawn in the direction's style.
+    # Story 19.3: when photos are enabled, the example's placeholder (work-2) becomes a real photo upload.
+    from src.images.factory import photos_enabled
+
     assets = {asset["id"]: asset for asset in draft["frontend_spec"]["assets"]}
-    assert {asset["source"] for asset in assets.values()} == {"generate"}
     work = assets["work-2"]
-    assert work["prompt"] == work["alt"] and work["style"].startswith(chosen["style"])
-    assert draft["assumptions"][-1]["message"] == "Drawn from their alt text instead of placeholders: work-2"
+    if photos_enabled():
+        assert work["source"].startswith("upload:")
+        assert work["prompt"] == work["alt"]
+        assert any("Real photos drafted from their alt text" in a["message"] for a in draft["assumptions"])
+        assert draft["usage"]["images"]["count"] == 1
+    else:
+        assert {asset["source"] for asset in assets.values()} == {"generate"}
+        assert work["prompt"] == work["alt"] and work["style"].startswith(chosen["style"])
+        assert draft["assumptions"][-1]["message"] == "Drawn from their alt text instead of placeholders: work-2"
     from src.modules.shared.domain.frontend_spec import validate_frontend_spec_data
     from src.orchestrator.frontend_planner import plan_frontend
 
@@ -188,7 +206,8 @@ def test_the_engine_picks_a_brief_and_brand_colours_win(client, user_headers, tm
     assert draft["frontend_spec"]["theme"]["colors"]["primary"] == "#0e7490"
 
 
-def test_placeholder_images_are_drawn_up_to_the_limit(tmp_path):
+def test_placeholder_images_are_drawn_up_to_the_limit(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "image_provider", "none")
     images = [{"id": f"img-{i}", "alt": f"Picture {i}"} for i in range(14)]
     images += [
         {"id": "icon", "kind": "icon", "source": "placeholder"},
@@ -203,7 +222,8 @@ def test_placeholder_images_are_drawn_up_to_the_limit(tmp_path):
     assert assets["img-0"] == {"id": "img-0", "alt": "Picture 0", "source": "generate", "prompt": "Picture 0"}
     assert assets["img-11"].get("source") is None and assets["img-13"].get("source") is None
     assert assets["icon"]["source"] == "placeholder" and assets["photo"]["source"] == "upload:upl_abcdef12"
-    assert notes[1]["message"].startswith("Left as placeholders (at most 12 drawings per site): img-11, img-12, img-13")
+    expected_msg = "Left as placeholders (at most 8 photos, 12 drawings per site): img-11, img-12, img-13"
+    assert notes[1]["message"].startswith(expected_msg)
     assert draw_images(tmp_path, None) == notes[1:], "a second pass changes nothing"
 
 

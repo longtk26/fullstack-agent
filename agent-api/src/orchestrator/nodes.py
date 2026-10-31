@@ -208,8 +208,46 @@ async def _scaffold(state: GenerationState, ctx: JobContext, project_name: str) 
     project = ctx.workspace.project
     if (project / SCAFFOLD_INFO).exists():
         return
+    seed_assets_note = ""
+    spec = state.get("spec") or {}
+    seed = spec.get("seed") or []
+    has_seed_assets = False
+    if isinstance(seed, list):
+        for entry in seed:
+            if isinstance(entry, dict):
+                records = entry.get("records") or []
+                if isinstance(records, list):
+                    for record in records:
+                        if isinstance(record, dict) and any(
+                            isinstance(v, str) and v.startswith("asset:") for v in record.values()
+                        ):
+                            has_seed_assets = True
+                            break
+            if has_seed_assets:
+                break
+    elif isinstance(seed, dict):
+        for records in seed.values():
+            if isinstance(records, list):
+                for record in records:
+                    if isinstance(record, dict) and any(
+                        isinstance(v, str) and v.startswith("asset:") for v in record.values()
+                    ):
+                        has_seed_assets = True
+                        break
+            if has_seed_assets:
+                break
+    if has_seed_assets:
+        seed_assets_note = (
+            "## Seed data\n\n"
+            "Image fields of seed records name frontend assets; "
+            "the generated frontend serves the file at `/assets/<id>.webp`."
+        )
     info = scaffold_project(
-        ctx.template_dir, project, project_name, bool(state["options"].get("generateDockerfile", True))
+        ctx.template_dir,
+        project,
+        project_name,
+        bool(state["options"].get("generateDockerfile", True)),
+        seed_assets_note=seed_assets_note,
     )
     sandbox = await ctx.sandbox()
     if sandbox is not None:

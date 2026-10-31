@@ -62,6 +62,15 @@ STYLE_PRESETS: dict[str, tuple[str, str, str]] = {
 }
 DEFAULT_STYLE = ("minimal", "md", "comfortable")
 
+# Photo lighting, composition and color treatment derived from the preset style (Story 19.3).
+PHOTO_STYLES_BY_PRESET: dict[str, str] = {
+    "minimal": "warm natural light, soft shadows, muted tones",
+    "editorial": "rich contrast, thoughtful composition, warm film tones",
+    "playful": "bright saturated colours, high contrast, crisp cheerful light",
+    "corporate": "clean professional lighting, balanced exposure, modern setting",
+    "dashboard": "crisp focused lighting, clear subject, neutral background",
+}
+
 # Landing pattern parts → the catalogue sections of the home page, in order, and the hero layout (17.7 variants).
 PATTERN_SECTIONS: dict[str, tuple[list[str], str | None]] = {
     "hero-centric design": (["Hero", "Features", "CallToAction"], "banner"),
@@ -345,10 +354,12 @@ def direction(index: int, data: DesignData | None = None, variation: int = 0) ->
         "density": density,
         "direction": meta,
     }
+    photo_style = PHOTO_STYLES_BY_PRESET.get(preset, PHOTO_STYLES_BY_PRESET["minimal"])
     return {
         **meta,
         "label": product["Product Type"] if not variation else f"{product['Product Type']}: {style}",
         "style": style,
+        "photoStyle": photo_style,
         "theme": theme,
         "homeOrder": order,
         "heroVariant": hero,
@@ -450,6 +461,17 @@ def apply_direction(spec: dict[str, Any], chosen: dict[str, Any]) -> dict[str, A
         theme["colorScheme"] = current.get("colorScheme") or "light"
     theme["typography"]["scale"] = (current.get("typography") or {}).get("scale") or "default"
     out["theme"] = theme
+    photo_style = chosen.get("photoStyle") or PHOTO_STYLES_BY_PRESET.get(
+        theme.get("style", "minimal"), PHOTO_STYLES_BY_PRESET["minimal"]
+    )
+    if photo_style and isinstance(out.get("assets"), list):
+        for asset in out["assets"]:
+            if not isinstance(asset, dict):
+                continue
+            source = str(asset.get("source") or "")
+            is_photo = source == "photo" or (source.startswith("upload:") and bool(asset.get("prompt")))
+            if is_photo and not asset.get("style"):
+                asset["style"] = photo_style
     for page in out.get("pages") or []:
         if page.get("route") != HOME_ROUTE:
             continue

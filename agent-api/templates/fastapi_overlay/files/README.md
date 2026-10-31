@@ -26,3 +26,4 @@ status and durationMs; no query strings or bodies).
 
 Errors use one body shape: `{"error": {"code", "message", "details"}}`. List endpoints return
 `{items, total, limit, offset}`.
+{{SEED_ASSETS_NOTE}}

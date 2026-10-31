@@ -33,6 +33,7 @@ class GetTraceUsecase:
             node_runs=self.records.list_node_runs(generation.id),
             invocations=self.records.list_cli_invocations(generation.id),
             model_calls=self.records.list_model_calls(generation.id),
+            image_calls=self.records.list_image_calls(generation.id),
             validation_runs=self.records.list_validation_runs(generation.id),
             sandbox_execs=self.records.list_sandbox_execs(generation.id),
         )

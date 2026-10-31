@@ -110,6 +110,11 @@ def _totals(items) -> dict[str, Any]:
         "modelCalls": sum(usage["modelCalls"] for _, usage in items),
         "cacheHits": sum(usage["cacheHits"] for _, usage in items),
         "savedEngineMs": sum(usage["savedEngineMs"] for _, usage in items),
+        "images": {
+            "count": sum(u.get("images", {}).get("count", 0) for _, u in items),
+            "cached": sum(u.get("images", {}).get("cached", 0) for _, u in items),
+            "costUsd": round(sum(u.get("images", {}).get("costUsd", 0.0) for _, u in items), 6),
+        },
         "tokens": tokens,
         "cost": cost or {"reported": 0.0, "estimated": 0.0, "total": 0.0, "unpriced": 0},
         "avgCostPerCompleted": round(sum(u["cost"]["total"] for u in completed) / len(completed), 6)
@@ -133,6 +138,11 @@ def _drafts(drafts: list[SpecDraftEntity]) -> dict[str, Any]:
         "tokens": {
             "input": sum(u.get("inputTokens", 0) for u in usage),
             "output": sum(u.get("outputTokens", 0) for u in usage),
+        },
+        "images": {
+            "count": sum(u.get("images", {}).get("count", 0) for u in usage),
+            "cached": sum(u.get("images", {}).get("cached", 0) for u in usage),
+            "costUsd": round(sum(u.get("images", {}).get("costUsd", 0.0) for u in usage), 6),
         },
         "costUsd": round(sum(u.get("costUsd", 0.0) for u in usage), 6),
         "unpriced": sum(u.get("unpriced", 0) for u in usage),
@@ -256,6 +266,7 @@ def _row(row: GenerationEntity, usage: dict[str, Any], names: dict[str, str | No
         "modelCalls": usage["modelCalls"],
         "tokens": usage["tokens"],
         "cost": usage["cost"],
+        "images": usage.get("images", {"count": 0, "cached": 0, "costUsd": 0.0}),
         "langsmithUrl": row.langsmith_run_url,
     }
 

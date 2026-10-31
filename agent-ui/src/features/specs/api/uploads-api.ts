@@ -10,6 +10,8 @@ export type TUpload = {
   width: number | null;
   height: number | null;
   sha256: string;
+  origin?: "user" | "photo";
+  prompt?: string | null;
   createdAt: string | null;
 };
 

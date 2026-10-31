@@ -101,10 +101,19 @@ class Config(BaseSettings):
     generator_version: str = "0.8.0"
     # Shared by worker (writes) and API (downloads); outlives workspaces.
     artifact_root: str = "/tmp/bga/artifacts"
-    # Site images (Epic 15): generated SVGs per job before the validator warns, repairs before a drawing falls back
-    # to its placeholder.
+    # Site images (Epic 15, 19): generated SVGs and AI photos per job before the validator warns,
+    # repairs before a drawing falls back to its placeholder.
     frontend_max_generated_assets: int = 12
+    frontend_max_photos: int = 8
     frontend_asset_repair_limit: int = 1
+    # Gemini AI Photos (Epic 19): provider ("gemini" | "fake" | "none"), API key, model and limits.
+    image_provider: Literal["gemini", "fake", "none"] = "gemini"
+    gemini_image_api_key: str | None = None
+    gemini_image_model: str = "gemini-3.1-flash-lite-image"
+    gemini_image_size: str = "1K"
+    gemini_image_price_usd: float = 0.0336
+    image_concurrency: int = 4
+    image_timeout_seconds: int = 60
     # Uploads (Story 15.4): where the API stores them (the worker only reads them), per file and per user limits,
     # and how long an upload no generation uses is kept. Empty: `<ARTIFACT_ROOT>/uploads`.
     upload_root: str = ""
@@ -162,12 +171,12 @@ class Config(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    @field_validator("langsmith_api_key", "langsmith_agent_id", mode="before")
+    @field_validator("langsmith_api_key", "langsmith_agent_id", "gemini_image_api_key", mode="before")
     @classmethod
     def _blank_is_unset(cls, value):
         return value or None
 
-    @field_validator("claude_code_model", "antigravity_model", mode="before")
+    @field_validator("claude_code_model", "antigravity_model", "image_provider", mode="before")
     @classmethod
     def _blank_model_means_default(cls, value, info):
         # Compose passes `CLAUDE_CODE_MODEL=` when .env leaves it empty; that means "the default", not "none".

@@ -28,7 +28,9 @@ function usageLine(draft: TSpecDraft): string {
   const seconds = Math.round((usage.engineMs ?? 0) / 1000);
   const tokens = (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0);
   const cost = usage.unpriced ? "cost unknown" : formatUsd(usage.costUsd ?? 0);
-  return `${draft.engine} · ${usage.modelCalls ?? 0} model calls · ${formatTokens(tokens)} tokens · ${cost} · ${seconds} s`;
+  const images = usage.images;
+  const imagePart = images ? ` · ${images.count} photos (${formatUsd(images.costUsd)})` : "";
+  return `${draft.engine} · ${usage.modelCalls ?? 0} model calls · ${formatTokens(tokens)} tokens · ${cost}${imagePart} · ${seconds} s`;
 }
 
 function ReportBadge({ name, report }: { name: keyof typeof REPORT_LABELS; report: TValidationReport }) {

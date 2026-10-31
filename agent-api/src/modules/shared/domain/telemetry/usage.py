@@ -13,6 +13,7 @@ from typing import Any
 from src.modules.shared.domain.entities import (
     CliInvocationEntity,
     GenerationEntity,
+    ImageCallEntity,
     ModelCallEntity,
     NodeRunEntity,
     SandboxExecEntity,
@@ -29,6 +30,7 @@ class ExecutionRecords:
     node_runs: list[NodeRunEntity] = field(default_factory=list)
     invocations: list[CliInvocationEntity] = field(default_factory=list)
     model_calls: list[ModelCallEntity] = field(default_factory=list)
+    image_calls: list[ImageCallEntity] = field(default_factory=list)
     validation_runs: list[ValidationRunEntity] = field(default_factory=list)
     sandbox_execs: list[SandboxExecEntity] = field(default_factory=list)
 
@@ -158,9 +160,18 @@ def rollup(records: ExecutionRecords, now: datetime | None = None) -> dict[str, 
         if node in node_meta or by_node[node].engine_calls
     ]
     summaries = [run.summary or {} for run in records.node_runs]
+    image_calls = records.image_calls
+    image_count = len(image_calls)
+    image_cached = sum(1 for c in image_calls if c.status == "cached")
+    image_cost = round(sum(c.cost_usd or 0.0 for c in image_calls), 6)
     return {
         "wallMs": wall_ms,
         **total.as_dict(),
+        "images": {
+            "count": image_count,
+            "cached": image_cached,
+            "costUsd": image_cost,
+        },
         # Story 17.3: custom components taken from the component cache, and the engine time that saved
         "cacheHits": sum(summary.get("cacheHits", 0) for summary in summaries),
         "savedEngineMs": sum(summary.get("savedEngineMs", 0) for summary in summaries),

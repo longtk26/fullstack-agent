@@ -16,6 +16,8 @@ class UploadEntity(BaseModel):
     width: int | None = None
     height: int | None = None
     sha256: str  # of the uploaded content (the same file uploaded twice is one upload)
+    origin: str = "user"
+    prompt: str | None = None
     created_at: datetime | None = None
 
     @property

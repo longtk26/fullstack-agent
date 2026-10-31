@@ -3,12 +3,12 @@ from datetime import datetime
 from typing import Annotated
 
 from fastapi import Depends
-from sqlalchemy import exists, func
+from sqlalchemy import Text, cast, exists, func
 from sqlmodel import Session, col, select
 
 from src.libs.database.session import SessionDep
 from src.modules.shared.domain.entities import UploadEntity
-from src.modules.shared.infrastructure.models import FrontendSpecModel, UploadModel
+from src.modules.shared.infrastructure.models import FrontendSpecModel, SpecDraftModel, UploadModel
 from src.modules.uploads.ports.output import IUploadRepository
 
 
@@ -51,9 +51,14 @@ class UploadRepository(IUploadRepository):
             self.session.flush()
 
     def unreferenced_before(self, created_before: datetime) -> list[UploadEntity]:
-        # A saved FrontendSpec names it (generations keep their specs as long as their artifacts).
-        used = exists().where(col(FrontendSpecModel.raw_json).contains(func.concat("upload:", UploadModel.id)))
-        rows = self.session.exec(select(UploadModel).where(UploadModel.created_at < created_before, ~used)).all()
+        # A saved FrontendSpec or an existing draft names it (Story 19.3).
+        used_in_specs = exists().where(col(FrontendSpecModel.raw_json).contains(func.concat("upload:", UploadModel.id)))
+        used_in_drafts = exists().where(
+            cast(SpecDraftModel.frontend_spec, Text).contains(func.concat("upload:", UploadModel.id))
+        )
+        rows = self.session.exec(
+            select(UploadModel).where(UploadModel.created_at < created_before, ~used_in_specs, ~used_in_drafts)
+        ).all()
         return [self.__to_entity(row) for row in rows]
 
     @staticmethod

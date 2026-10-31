@@ -144,8 +144,20 @@ class _Planner:
                     "file": f"src/assets/svg/{asset['id']}.svg",
                     "component": f"src/components/assets/generated/{asset_component(asset['id'])}.tsx",
                 }
+            elif mode == "photo":
+                entry |= {
+                    "prompt": asset.get("prompt") or asset.get("alt") or asset["id"],
+                    "style": asset.get("style"),
+                    "file": f"public/assets/{asset['id']}.webp",
+                    "src": f"/assets/{asset['id']}.webp",
+                    "generated": False,
+                }
             elif mode == "public-file":
                 entry |= {"upload": source.removeprefix("upload:"), "file": f"public/assets/{asset['id']}"}
+                if asset.get("prompt"):
+                    entry["prompt"] = asset["prompt"]
+                if asset.get("style"):
+                    entry["style"] = asset["style"]
             elif mode == "remote":
                 entry["url"] = source
             elif mode == "icon":

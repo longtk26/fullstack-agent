@@ -28,6 +28,7 @@ from typing import Any
 
 from src.configs import config, get_logger
 from src.configs.config import uploads_dir
+from src.images import generate_single_photo, get_image_generator
 
 from .asset_registry import ASSETS_FILE, assets_ts
 from .context import EngineFailure, JobContext
@@ -83,13 +84,19 @@ def convert_drawing(project: Path, asset: dict[str, Any]) -> bool:
 
 def write_registry(project: Path, plan: dict[str, Any]) -> list[str]:
     """Rewrites the registry and the plan after the drawings changed; returns the owned files to record."""
-    (project / ASSETS_FILE).write_text(assets_ts(plan))
-    (project / PLAN_REF).write_text(dump_frontend_plan(plan))
+    assets_file = project / ASSETS_FILE
+    assets_file.parent.mkdir(parents=True, exist_ok=True)
+    assets_file.write_text(assets_ts(plan))
+    plan_ref = project / PLAN_REF
+    plan_ref.parent.mkdir(parents=True, exist_ok=True)
+    plan_ref.write_text(dump_frontend_plan(plan))
     owned = [ASSETS_FILE]
     for asset in plan.get("assets", []):
         if asset["render"] == "svg-component" and asset.get("drawn"):
             owned += [asset["file"], asset["component"]]
         elif asset["render"] == "public-file" and asset.get("src"):
+            owned.append(asset["file"])
+        elif asset["render"] == "photo" and asset.get("generated") and asset.get("file"):
             owned.append(asset["file"])
     update_owned(project, owned)
     return owned
@@ -100,13 +107,7 @@ def _out_of_scope(scratch: Path, requested: set[str]) -> list[str]:
     return sorted(p for p in written if p not in requested and not p.startswith(ENGINE_MANAGED))
 
 
-async def generate_assets(state: GenerationState, ctx: JobContext) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Story 15.2: draw the plan's generated assets (cache first, then one engine call for the rest)."""
-    plan = json.loads(ctx.frontend_path(state["frontend_plan_ref"]).read_text())
-    wanted = [asset for asset in plan.get("assets", []) if asset["render"] == "svg-component"]
-    if not wanted:
-        return {}, {"_status": "skipped", "reason": "no generated assets"}
-    project = ctx.workspace.frontend
+async def _run_svgs(ctx: JobContext, project: Path, wanted: list[dict[str, Any]]) -> tuple[int, int, int]:
     cached: set[str] = set()
     misses = []
     for asset in wanted:
@@ -130,13 +131,117 @@ async def generate_assets(state: GenerationState, ctx: JobContext) -> tuple[dict
             await ctx.emit("frontend.asset.ready", step="generate_assets", id=asset["id"], cached=asset["cached"])
         else:
             await ctx.emit("frontend.asset.missing", step="generate_assets", id=asset["id"], file=asset["file"])
+    return drawn, len(cached), engine_calls
+
+
+async def _run_photos(
+    ctx: JobContext, project: Path, wanted: list[dict[str, Any]]
+) -> tuple[list[dict[str, str]], int, int]:
+    generator = get_image_generator()
+    sem = asyncio.Semaphore(config.image_concurrency)
+    image_records = []
+    photo_fallbacks: list[dict[str, str]] = []
+    photos_ready = 0
+    photos_cached = 0
+
+    async def _process_photo(asset: dict[str, Any]) -> None:
+        nonlocal photos_ready, photos_cached
+        target_path = project / asset["file"]
+        ok, record, fallback_reason = await generate_single_photo(
+            asset,
+            target_path,
+            generator=generator,
+            generation_id=ctx.generation_id,
+            node_run_id=getattr(ctx, "current_node_run_id", None),
+            semaphore=sem,
+        )
+        image_records.append(record)
+        if ok:
+            is_cached = record.status == "cached"
+            if is_cached:
+                photos_cached += 1
+            photos_ready += 1
+            await ctx.emit(
+                "frontend.photo.ready",
+                step="generate_assets",
+                id=asset["id"],
+                cached=is_cached,
+                durationMs=record.duration_ms,
+            )
+        else:
+            asset["fallback"] = fallback_reason
+            asset["generated"] = False
+            photo_fallbacks.append({"id": asset["id"], "reason": fallback_reason or "failed"})
+            await ctx.emit("frontend.photo.fallback", step="generate_assets", id=asset["id"], reason=fallback_reason)
+
+    tasks = [_process_photo(asset) for asset in wanted]
+    if tasks:
+        await asyncio.gather(*tasks)
+
+    if image_records:
+        ctx.store.add_image_calls(image_records)
+
+    return photo_fallbacks, photos_ready, photos_cached
+
+
+async def generate_assets(state: GenerationState, ctx: JobContext) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Stories 15.2, 19.2: draw SVGs and generate AI photos in parallel, caching both."""
+    plan = json.loads(ctx.frontend_path(state["frontend_plan_ref"]).read_text())
+    wanted_svgs = [asset for asset in plan.get("assets", []) if asset["render"] == "svg-component"]
+    wanted_photos = [asset for asset in plan.get("assets", []) if asset["render"] == "photo"]
+
+    # Story 19.2 step 7a: Missing uploads with a prompt are remade as photos
+    for asset in plan.get("assets", []):
+        if asset["render"] == "public-file" and not asset.get("src") and asset.get("prompt"):
+            asset["render"] = "photo"
+            asset["file"] = f"public/assets/{asset['id']}.webp"
+            asset["src"] = f"/assets/{asset['id']}.webp"
+            asset["generated"] = False
+            wanted_photos.append(asset)
+            await ctx.emit("frontend.photo.remade", step="generate_assets", id=asset["id"], upload=asset.get("upload"))
+
+    if not wanted_svgs and not wanted_photos:
+        return {}, {"_status": "skipped", "reason": "no generated assets or photos"}
+
+    project = ctx.workspace.frontend
+
+    # Run drawings and photos concurrently
+    svg_coro = _run_svgs(ctx, project, wanted_svgs) if wanted_svgs else None
+    photo_coro = _run_photos(ctx, project, wanted_photos) if wanted_photos else None
+
+    drawn_svgs, cached_svgs, engine_calls = 0, 0, 0
+    photo_fallbacks: list[dict[str, str]] = []
+    photos_ready, photos_cached = 0, 0
+
+    if svg_coro and photo_coro:
+        (drawn_svgs, cached_svgs, engine_calls), (photo_fallbacks, photos_ready, photos_cached) = await asyncio.gather(
+            svg_coro, photo_coro
+        )
+    elif svg_coro:
+        drawn_svgs, cached_svgs, engine_calls = await svg_coro
+    elif photo_coro:
+        photo_fallbacks, photos_ready, photos_cached = await photo_coro
+
     async with ctx.frontend_plan_lock:
         current_plan = json.loads(ctx.frontend_path(PLAN_REF).read_text())
         current_plan["assets"] = plan["assets"]
         write_registry(project, current_plan)
-    summary = {"assets": len(wanted), "drawn": drawn, "cacheHits": len(cached), "engineCalls": engine_calls}
+
+    summary = {
+        "assets": len(wanted_svgs) + len(wanted_photos),
+        "drawn": drawn_svgs,
+        "cacheHits": cached_svgs + photos_cached,
+        "engineCalls": engine_calls,
+    }
+    if wanted_photos:
+        summary["photos"] = len(wanted_photos)
+        summary["photosReady"] = photos_ready
     await ctx.emit("frontend.assets.done", step="generate_assets", **summary)
-    return {}, summary
+    update: dict[str, Any] = {}
+    if photo_fallbacks:
+        known = state.get("asset_fallbacks") or []
+        update["asset_fallbacks"] = [*known, *photo_fallbacks]
+    return update, summary
 
 
 async def _draw_one(ctx: JobContext, project: Path, asset: dict[str, Any]) -> bool:
@@ -244,17 +349,59 @@ def assets_check(project: Path, plan: dict[str, Any]) -> CheckResult:
                         "message": f"'{asset['id']}' shows its placeholder: {asset['fallback']}",
                     }
                 )
+        elif asset["render"] == "photo":
+            if not asset.get("generated") or asset.get("fallback"):
+                reason = asset.get("fallback") or "photo was not generated"
+                warnings.append(
+                    {
+                        "asset": asset["id"],
+                        "file": asset.get("file", f"public/assets/{asset['id']}.webp"),
+                        "rule": "fallback",
+                        "code": "FE_PHOTO_FALLBACK",
+                        "severity": "warning",
+                        "message": f"'{asset['id']}' shows its placeholder: {reason}",
+                    }
+                )
+            else:
+                photo_file = project / asset["file"]
+                if not photo_file.is_file():
+                    failures.append(
+                        {
+                            "asset": asset["id"],
+                            "file": asset["file"],
+                            "rule": "exists",
+                            "severity": "error",
+                            "message": f"'{asset['id']}' file '{asset['file']}' is missing",
+                        }
+                    )
+                elif photo_file.suffix.lower() != ".webp":
+                    failures.append(
+                        {
+                            "asset": asset["id"],
+                            "file": asset["file"],
+                            "rule": "format",
+                            "severity": "error",
+                            "message": f"'{asset['id']}' file must be WebP, got '{photo_file.name}'",
+                        }
+                    )
         if not asset.get("routes"):
             warnings.append(
                 {"asset": asset["id"], "rule": "referenced", "severity": "warning",
                  "message": f"'{asset['id']}' is declared but no page uses it"}
             )  # fmt: skip
     drawings = sum(1 for asset in plan.get("assets", []) if asset["render"] == "svg-component")
+    photos = sum(1 for asset in plan.get("assets", []) if asset["render"] == "photo")
     if failures:
-        summary = f"{len(failures)} asset problem(s) in {len({f['asset'] for f in failures})} drawing(s)"
+        summary = f"{len(failures)} asset problem(s) in {len({f['asset'] for f in failures})} asset(s)"
     else:
         fell_back = sum(1 for w in warnings if w["rule"] == "fallback")
-        summary = f"{drawings} drawing(s) checked" + (f", {fell_back} on their placeholder" if fell_back else "")
+        parts = []
+        if drawings:
+            parts.append(f"{drawings} drawing(s)")
+        if photos:
+            parts.append(f"{photos} photo(s)")
+        count_desc = " and ".join(parts) if parts else f"{drawings} drawing(s)"
+        summary = f"{count_desc} checked" + (f", {fell_back} on their placeholder" if fell_back else "")
     return CheckResult(
         check="assets",
         status="failed" if failures else "passed",

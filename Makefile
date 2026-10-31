@@ -34,7 +34,9 @@ DEV_ENV := DB_URL=postgresql+psycopg://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@loc
            CLAUDE_CREDENTIALS_FILE=$(CLAUDE_CREDENTIALS_HOST_FILE) \
            TEMPLATE_DIR=$(TEMPLATE_DIR) \
            ARTIFACT_ROOT=$(CURDIR)/.data/artifacts \
-           UPLOAD_ROOT=$(CURDIR)/.data/uploads
+           UPLOAD_ROOT=$(CURDIR)/.data/uploads \
+           GEMINI_IMAGE_API_KEY=$(GEMINI_IMAGE_API_KEY) \
+           IMAGE_PROVIDER=$(or $(IMAGE_PROVIDER),gemini)
 
 .PHONY: env up down down-all ps logs dev dev-down dev-api dev-worker dev-ui setup venv migrate test lint template runner runner-node frontend-base \
         host-worker host-worker-stop design-data
@@ -141,7 +143,7 @@ migrate:
 	cd $(API_DIR) && $(DEV_ENV) $(PY)/alembic upgrade head
 
 test: template
-	cd $(API_DIR) && $(DEV_ENV) $(PY)/pytest
+	cd $(API_DIR) && $(DEV_ENV) IMAGE_PROVIDER=fake $(PY)/pytest
 
 lint:
 	cd $(API_DIR) && $(PY)/ruff check . && $(PY)/ruff format --check .

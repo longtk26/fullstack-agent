@@ -8,6 +8,7 @@ from src.libs.database.session import SessionDep
 from src.modules.generations.ports.output import IExecutionRecordRepository
 from src.modules.shared.domain.entities import (
     CliInvocationEntity,
+    ImageCallEntity,
     ModelCallEntity,
     NodeRunEntity,
     SandboxExecEntity,
@@ -15,6 +16,7 @@ from src.modules.shared.domain.entities import (
 )
 from src.modules.shared.infrastructure.models import (
     CliInvocationModel,
+    ImageCallModel,
     ModelCallModel,
     NodeRunModel,
     SandboxExecModel,
@@ -104,6 +106,24 @@ class ExecutionRecordRepository(IExecutionRecordRepository):
         )
         return [ModelCallEntity.model_validate(m.model_dump()) for m in self.session.exec(query)]
 
+    def add_image_calls(self, calls: list[ImageCallEntity]) -> None:
+        self.session.add_all(ImageCallModel(**call.model_dump(exclude_none=True)) for call in calls)
+        self.session.flush()
+
+    def list_image_calls(self, generation_id: str) -> list[ImageCallEntity]:
+        query = (
+            select(ImageCallModel)
+            .where(ImageCallModel.generation_id == generation_id)
+            .order_by(col(ImageCallModel.created_at))
+        )
+        return [ImageCallEntity.model_validate(m.model_dump()) for m in self.session.exec(query)]
+
+    def list_draft_image_calls(self, draft_id: Any) -> list[ImageCallEntity]:
+        query = (
+            select(ImageCallModel).where(ImageCallModel.draft_id == draft_id).order_by(col(ImageCallModel.created_at))
+        )
+        return [ImageCallEntity.model_validate(m.model_dump()) for m in self.session.exec(query)]
+
     def add_sandbox_exec(self, run: SandboxExecEntity) -> None:
         self.session.add(SandboxExecModel(**run.model_dump(exclude_none=True)))
         self.session.flush()
@@ -130,7 +150,7 @@ class ExecutionRecordRepository(IExecutionRecordRepository):
         if not generation_ids:
             return 0
         removed = 0
-        for model in (ModelCallModel, SandboxExecModel):
+        for model in (ModelCallModel, SandboxExecModel, ImageCallModel):
             removed += self.session.exec(delete(model).where(col(model.generation_id).in_(generation_ids))).rowcount
         self.session.flush()
         return removed
@@ -140,6 +160,7 @@ _BULK = (
     ("node_runs", NodeRunModel, NodeRunEntity, NodeRunModel.started_at),
     ("invocations", CliInvocationModel, CliInvocationEntity, CliInvocationModel.created_at),
     ("model_calls", ModelCallModel, ModelCallEntity, ModelCallModel.started_at),
+    ("image_calls", ImageCallModel, ImageCallEntity, ImageCallModel.created_at),
     ("validation_runs", ValidationRunModel, ValidationRunEntity, ValidationRunModel.created_at),
     ("sandbox_execs", SandboxExecModel, SandboxExecEntity, SandboxExecModel.started_at),
 )

@@ -67,6 +67,23 @@ export function AssetImage({ asset, className, priority = false }: AssetImagePro
       </div>
     );
   }
+  // Story 19.4: runtime https:// URLs and site paths (/assets/...)
+  const isHttps = asset.startsWith("https://");
+  const isSitePath = asset.startsWith("/assets/");
+  if (!entry && (isHttps || isSitePath)) {
+    return (
+      <div data-bga-asset={asset} className={frame}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={asset}
+          alt=""
+          loading={priority ? "eager" : "lazy"}
+          referrerPolicy={isHttps ? "no-referrer" : undefined}
+          className="size-full object-cover"
+        />
+      </div>
+    );
+  }
   return (
     <div
       data-bga-asset={id}

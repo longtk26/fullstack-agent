@@ -199,9 +199,11 @@ AspectRatio = Literal["16:9", "4:3", "1:1", "3:4", "21:9"]
 
 
 class Asset(SpecModel):
-    """An image the site shows (Story 15.1). `source`: `placeholder` (a themed panel), `generate` (an SVG the code
-    engine draws, 15.2), `upload:<uploadId>` (15.4), `lucide:<IconName>`, or an `https://` URL. Checked in the
-    validator (FE_INSECURE_URL, FE_UNKNOWN_ICON, FE_UNSUPPORTED_ASSET_SOURCE, FE_ASSET_ALT_REQUIRED)."""
+    """An image the site shows (Stories 15.1, 19.1). `source`: `placeholder` (a themed panel),
+    `generate` (an SVG the code engine draws, 15.2), `photo` (an AI photograph, 19.2),
+    `upload:<uploadId>` (15.4; may keep `prompt`/`style` for regenerable photos),
+    `lucide:<IconName>`, or an `https://` URL. Checked in the validator (FE_INSECURE_URL,
+    FE_UNKNOWN_ICON, FE_UNSUPPORTED_ASSET_SOURCE, FE_TOO_MANY_PHOTOS, FE_ASSET_ALT_REQUIRED)."""
 
     id: str = Field(pattern=r"^[a-z][a-z0-9-]*$", max_length=63)
     kind: AssetKind = "image"

@@ -4,6 +4,7 @@ from typing import Any
 
 from src.modules.shared.domain.entities import (
     CliInvocationEntity,
+    ImageCallEntity,
     ModelCallEntity,
     NodeRunEntity,
     SandboxExecEntity,
@@ -57,6 +58,18 @@ class IExecutionRecordRepository(ABC):
 
     @abstractmethod
     def list_model_calls(self, generation_id: str) -> list[ModelCallEntity]:
+        pass
+
+    @abstractmethod
+    def add_image_calls(self, calls: list[ImageCallEntity]) -> None:
+        pass
+
+    @abstractmethod
+    def list_image_calls(self, generation_id: str) -> list[ImageCallEntity]:
+        pass
+
+    @abstractmethod
+    def list_draft_image_calls(self, draft_id: Any) -> list[ImageCallEntity]:
         pass
 
     @abstractmethod

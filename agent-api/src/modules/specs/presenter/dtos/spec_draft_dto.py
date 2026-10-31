@@ -29,6 +29,11 @@ class CreateSpecDraftResponseDto(CamelModel):
     status: SpecDraftStatus
 
 
+class RegenerateAssetRequestDto(CamelModel):
+    prompt: str | None = None
+    style: str | None = None
+
+
 class DraftNoteDto(CamelModel):
     path: str
     message: str

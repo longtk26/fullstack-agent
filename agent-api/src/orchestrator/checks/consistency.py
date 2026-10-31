@@ -81,12 +81,12 @@ class _Checker:
         self.contract = contract
         self.operations = contract_operations(contract)
         self.issues: list[SpecIssue] = []
-        backend = backend or {}
-        self.op_index = {op["operationId"]: i for i, op in enumerate(backend.get("operations", []))}
-        self.entity_index = {entity["name"]: i for i, entity in enumerate(backend.get("entities", []))}
+        self.backend = backend or {}
+        self.op_index = {op["operationId"]: i for i, op in enumerate(self.backend.get("operations", []))}
+        self.entity_index = {entity["name"]: i for i, entity in enumerate(self.backend.get("entities", []))}
         self.field_index = {
             (entity["name"], field["name"]): j
-            for entity in backend.get("entities", [])
+            for entity in self.backend.get("entities", [])
             for j, field in enumerate(entity["fields"])
         }
 
@@ -291,6 +291,49 @@ class _Checker:
                 backend_path=backend_path,
             )
 
+    def seed_assets(self) -> None:
+        if not self.backend:
+            return
+        assets = {a.get("id") for a in self.frontend.get("assets", []) if isinstance(a, dict)}
+        seed = self.backend.get("seed") or []
+        if isinstance(seed, list):
+            for s_index, entry in enumerate(seed):
+                if not isinstance(entry, dict):
+                    continue
+                records = entry.get("records") or []
+                if not isinstance(records, list):
+                    continue
+                for r_index, record in enumerate(records):
+                    if not isinstance(record, dict):
+                        continue
+                    for field_name, value in record.items():
+                        if isinstance(value, str) and value.startswith("asset:"):
+                            asset_id = value[len("asset:") :]
+                            if asset_id not in assets:
+                                self.add(
+                                    C.FE_UNKNOWN_ASSET,
+                                    "/assets",
+                                    f"Seed record references unknown asset '{asset_id}'",
+                                    backend_path=f"/seed/{s_index}/records/{r_index}/{field_name}",
+                                )
+        elif isinstance(seed, dict):
+            for entity_name, records in seed.items():
+                if not isinstance(records, list):
+                    continue
+                for r_index, record in enumerate(records):
+                    if not isinstance(record, dict):
+                        continue
+                    for field_name, value in record.items():
+                        if isinstance(value, str) and value.startswith("asset:"):
+                            asset_id = value[len("asset:") :]
+                            if asset_id not in assets:
+                                self.add(
+                                    C.FE_UNKNOWN_ASSET,
+                                    "/assets",
+                                    f"Seed record references unknown asset '{asset_id}'",
+                                    backend_path=f"/seed/{entity_name}/{r_index}/{field_name}",
+                                )
+
 
 def check_consistency(
     frontend: dict[str, Any], contract: dict[str, Any], backend: dict[str, Any] | None = None
@@ -299,6 +342,7 @@ def check_consistency(
     checker = _Checker(frontend, contract, backend)
     checker.bindings()
     checker.forms()
+    checker.seed_assets()
     return checker.issues
 
 

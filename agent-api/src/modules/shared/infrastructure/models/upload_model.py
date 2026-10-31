@@ -22,4 +22,6 @@ class UploadModel(SQLModel, table=True):
     width: int | None = None
     height: int | None = None
     sha256: str = Field(max_length=64)
+    origin: str = Field(default="user", max_length=16)
+    prompt: str | None = None
     created_at: datetime = Field(default_factory=utcnow, sa_type=TZDateTime, index=True)

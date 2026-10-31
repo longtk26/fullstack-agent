@@ -23,6 +23,7 @@ from src.modules.shared.domain.entities import (
     ComponentCacheEntity,
     FrontendSpecEntity,
     GenerationEntity,
+    ImageCallEntity,
     ModelCallEntity,
     NodeRunEntity,
     PreviewEntity,
@@ -116,6 +117,16 @@ class JobStore:
     def model_calls(self, generation_id: str) -> list[ModelCallEntity]:
         return self._with(lambda s: ExecutionRecordRepository(s).list_model_calls(generation_id))
 
+    def add_image_calls(self, calls: list[ImageCallEntity]) -> None:
+        if calls:
+            self._with(lambda s: ExecutionRecordRepository(s).add_image_calls(calls))
+
+    def image_calls(self, generation_id: str) -> list[ImageCallEntity]:
+        return self._with(lambda s: ExecutionRecordRepository(s).list_image_calls(generation_id))
+
+    def draft_image_calls(self, draft_id: uuid.UUID) -> list[ImageCallEntity]:
+        return self._with(lambda s: ExecutionRecordRepository(s).list_draft_image_calls(draft_id))
+
     def add_sandbox_exec(self, run: SandboxExecEntity) -> None:
         self._with(lambda s: ExecutionRecordRepository(s).add_sandbox_exec(run))
 
@@ -129,6 +140,12 @@ class JobStore:
 
     def upload(self, upload_id: str) -> UploadEntity | None:
         return self._with(lambda s: UploadRepository(s).find(upload_id))
+
+    def upload_by_sha256(self, owner_id: uuid.UUID, sha256: str) -> UploadEntity | None:
+        return self._with(lambda s: UploadRepository(s).find_by_sha256(owner_id, sha256))
+
+    def create_upload(self, upload: UploadEntity) -> UploadEntity:
+        return self._with(lambda s: UploadRepository(s).create(upload))
 
     def prune_uploads(self, created_before: datetime) -> int:
         """Deletes uploads older than the cut-off that no saved FrontendSpec uses, rows and files."""

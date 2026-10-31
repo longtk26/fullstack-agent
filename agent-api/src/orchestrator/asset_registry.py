@@ -15,6 +15,8 @@ def _effective_mode(asset: dict[str, Any]) -> str:
     mode = asset["render"]
     if mode == "svg-component" and not asset.get("drawn"):
         return "placeholder"
+    if mode == "photo":
+        return "public-file" if asset.get("generated") and asset.get("src") else "placeholder"
     if mode == "public-file" and not asset.get("src"):
         return "placeholder"
     return mode

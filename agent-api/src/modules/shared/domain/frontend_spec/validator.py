@@ -8,7 +8,7 @@ from pydantic import ValidationError
 
 from src.modules.shared.domain.backend_spec.issues import Severity, SpecIssue, ValidationReport
 
-from .assets import ICON_NAME, MAX_GENERATED_ASSETS, SVG_KINDS, UPLOAD_ID, lucide_icons, source_kind
+from .assets import ICON_NAME, MAX_GENERATED_ASSETS, MAX_PHOTOS, SVG_KINDS, UPLOAD_ID, lucide_icons, source_kind
 from .catalogue import BUILTIN_SECTIONS, SHADCN_PRIMITIVES, THEME_PRESETS
 from .fonts import FONTS, closest_font
 from .issues import FrontendIssueCode
@@ -192,6 +192,7 @@ class _SemanticChecker:
         self._check_pages()
         self._check_components()
         self._check_forms()
+        self._check_content()
         if self.spec.auth is not None:
             self._add(C.FE_UNSUPPORTED_FEATURE, "/auth", "Auth pages arrive with Epic 10; 'auth' is ignored", True)
         return self.issues
@@ -278,6 +279,7 @@ class _SemanticChecker:
     def _check_assets(self) -> None:
         """Story 15.1: each asset's source, its alt text, and how many the engine has to draw."""
         generated = 0
+        photos = 0
         for index, asset in enumerate(self.spec.assets):
             path = f"/assets/{index}"
             kind = source_kind(asset.source)
@@ -300,7 +302,7 @@ class _SemanticChecker:
                     C.FE_UNSUPPORTED_ASSET_SOURCE,
                     f"{path}/source",
                     f"Asset '{asset.id}': unknown source '{asset.source}'",
-                    hint="Use placeholder, generate, upload:<id>, lucide:<Icon> or an https:// URL",
+                    hint="Use placeholder, generate, photo, upload:<id>, lucide:<Icon> or an https:// URL",
                 )
             elif kind == "generate":
                 generated += 1
@@ -312,6 +314,15 @@ class _SemanticChecker:
                         f"Asset '{asset.id}': a {asset.kind} cannot be generated",
                         hint=hint,
                     )
+            elif kind == "photo":
+                photos += 1
+                if asset.kind != "image":
+                    self._add(
+                        C.FE_UNSUPPORTED_ASSET_SOURCE,
+                        f"{path}/source",
+                        f"Asset '{asset.id}': a {asset.kind} cannot be a photo",
+                        hint="photos are for kind 'image'; use 'generate' for illustrations, logos and patterns",
+                    )
             elif kind == "lucide":
                 name = asset.source.removeprefix("lucide:")
                 icons = lucide_icons()
@@ -322,13 +333,17 @@ class _SemanticChecker:
                         f"Asset '{asset.id}': lucide-react has no icon '{name}'",
                         hint="Icon names are PascalCase, as on lucide.dev (e.g. lucide:Mail)",
                     )
-            elif kind == "upload" and not UPLOAD_ID.match(asset.source.removeprefix("upload:")):
-                self._add(
-                    C.FE_UNKNOWN_UPLOAD,
-                    f"{path}/source",
-                    f"Asset '{asset.id}': '{asset.source}' is not an upload id",
-                    hint="Upload the file in the Assets panel and use its upload:upl_… id",
-                )
+            elif kind == "upload":
+                if not UPLOAD_ID.match(asset.source.removeprefix("upload:")):
+                    self._add(
+                        C.FE_UNKNOWN_UPLOAD,
+                        f"{path}/source",
+                        f"Asset '{asset.id}': '{asset.source}' is not an upload id",
+                        hint="Upload the file in the Assets panel and use its upload:upl_… id",
+                    )
+                elif asset.prompt:
+                    # Regenerable photo that became an upload (Story 19.1 step 2a)
+                    photos += 1
         if generated > MAX_GENERATED_ASSETS:
             self._add(
                 C.FE_TOO_MANY_GENERATED_ASSETS,
@@ -336,6 +351,20 @@ class _SemanticChecker:
                 f"{generated} assets are generated; more than {MAX_GENERATED_ASSETS} makes the drawing step slow",
                 warning=True,
                 hint="Keep generated images to the ones a page really needs",
+            )
+        try:
+            from src.configs import config
+
+            max_photos = getattr(config, "frontend_max_photos", MAX_PHOTOS)
+        except Exception:
+            max_photos = MAX_PHOTOS
+        if photos > max_photos:
+            self._add(
+                C.FE_TOO_MANY_PHOTOS,
+                "/assets",
+                f"{photos} assets are photos; more than {max_photos} is not recommended",
+                warning=True,
+                hint="keep photos for the images a page really needs; the rest stay placeholders",
             )
 
     def _check_link(self, link: NavLink, path: str) -> None:
@@ -550,3 +579,10 @@ class _SemanticChecker:
                     f"Unknown page '{navigate}'",
                     hint=self._known_pages(),
                 )
+
+    def _check_content(self) -> None:
+        for c_index, collection in enumerate(self.spec.content):
+            for r_index, record in enumerate(collection.records):
+                for asset, path in _asset_refs(record, f"/content/{c_index}/records/{r_index}"):
+                    if asset not in self.assets:
+                        self._add(C.FE_UNKNOWN_ASSET, path, f"Unknown asset '{asset}'")

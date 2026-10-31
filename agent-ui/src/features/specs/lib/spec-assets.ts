@@ -1,6 +1,14 @@
 /** Reading and editing a FrontendSpec's `assets` in the editor text (Story 15.4); null while the JSON does not parse. */
 
-export type TSpecAsset = { id: string; kind?: string; source?: string; alt?: string; decorative?: boolean };
+export type TSpecAsset = {
+  id: string;
+  kind?: string;
+  source?: string;
+  alt?: string;
+  prompt?: string;
+  style?: string;
+  decorative?: boolean;
+};
 
 type TSpec = Record<string, unknown> & { assets?: TSpecAsset[] };
 
@@ -22,11 +30,16 @@ export function specAssets(text: string): TSpecAsset[] {
   return Array.isArray(assets) ? assets.filter((asset) => typeof asset?.id === "string") : [];
 }
 
-/** The text with one asset's `source` replaced (e.g. by `upload:<id>`). */
-export function setAssetSource(text: string, assetId: string, source: string): string | null {
+/** The text with one asset's `source` replaced (e.g. by `upload:<id>`), optionally dropping prompt when replaced. */
+export function setAssetSource(text: string, assetId: string, source: string, dropPrompt = false): string | null {
   const spec = parse(text);
   if (!spec) return null;
-  const assets = (spec.assets ?? []).map((asset) => (asset.id === assetId ? { ...asset, source } : asset));
+  const assets = (spec.assets ?? []).map((asset) => {
+    if (asset.id !== assetId) return asset;
+    const next = { ...asset, source };
+    if (dropPrompt) delete next.prompt;
+    return next;
+  });
   return serialize({ ...spec, assets });
 }
 

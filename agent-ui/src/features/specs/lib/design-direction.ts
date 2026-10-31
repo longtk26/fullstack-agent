@@ -8,6 +8,14 @@ type TSpec = Record<string, unknown> & {
 
 const HOME_ROUTE = "/";
 
+export const PHOTO_STYLES_BY_PRESET: Record<string, string> = {
+  minimal: "warm natural light, soft shadows, muted tones",
+  editorial: "rich contrast, thoughtful composition, warm film tones",
+  playful: "bright saturated colours, high contrast, crisp cheerful light",
+  corporate: "clean professional lighting, balanced exposure, modern setting",
+  dashboard: "crisp focused lighting, clear subject, neutral background",
+};
+
 /**
  * Sections in the direction's order; any other section stays right after the one it followed. Same rule as
  * `reorder_sections` in the agent (orchestrator/design_direction.py).
@@ -33,6 +41,19 @@ export function applyDirection(spec: TSpec, direction: TDesignDirection): TSpec 
   const theme = structuredClone(direction.theme);
   if (theme.colorScheme !== "dark") theme.colorScheme = (current.colorScheme as typeof theme.colorScheme) ?? "light";
   theme.typography.scale = current.typography?.scale ?? "default";
+  const photoStyle =
+    direction.photoStyle ?? PHOTO_STYLES_BY_PRESET[direction.theme.style] ?? PHOTO_STYLES_BY_PRESET.minimal;
+  const assets = Array.isArray(spec.assets)
+    ? (spec.assets as Record<string, unknown>[]).map((asset) => {
+        if (!asset || typeof asset !== "object") return asset;
+        const source = typeof asset.source === "string" ? asset.source : "";
+        const isPhoto = source === "photo" || (source.startsWith("upload:") && Boolean(asset.prompt));
+        if (isPhoto && !asset.style && photoStyle) {
+          return { ...asset, style: photoStyle };
+        }
+        return asset;
+      })
+    : spec.assets;
   const pages = (spec.pages ?? []).map((page) => {
     if (page.route !== HOME_ROUTE) return page;
     let heroDone = false;
@@ -43,7 +64,7 @@ export function applyDirection(spec: TSpec, direction: TDesignDirection): TSpec 
     });
     return { ...page, sections };
   });
-  return { ...spec, theme, pages };
+  return { ...spec, theme, pages, ...(assets !== undefined ? { assets } : {}) };
 }
 
 /** The editor text with the direction applied, or null while the JSON does not parse. */

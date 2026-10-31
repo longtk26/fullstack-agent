@@ -451,3 +451,112 @@ def test_unused_old_uploads_are_pruned(client, auth):
     assert JobStore().prune_uploads(datetime.now(UTC) + timedelta(days=1)) >= 1
     ids = [u["uploadId"] for u in client.get("/api/v1/uploads", headers=auth).json()["uploads"]]
     assert kept["uploadId"] in ids and dropped["uploadId"] not in ids
+
+
+# -- Story 19.1 photos -------------------------------------------------------------------------------------------------
+
+
+def test_photo_asset_validation_and_cap():
+    from src.modules.shared.domain.frontend_spec.issues import FrontendIssueCode as C
+
+    # 1. Valid photo on kind="image"
+    valid_photo = [{"id": "soup", "kind": "image", "source": "photo", "alt": "A bowl of pho"}]
+    assert _issues(valid_photo) == []
+
+    # 2. Invalid photo on kind="logo"
+    invalid_photo = [{"id": "bad-logo", "kind": "logo", "source": "photo", "alt": "A logo"}]
+    issues = _issues(invalid_photo)
+    assert any(code == C.FE_UNSUPPORTED_ASSET_SOURCE for code, _ in issues)
+
+    # 3. Upload with prompt (regenerable photo) counts towards photo cap
+    # LANDING has 3 assets already. Let's add photos and upload-with-prompt to exceed 8 photos.
+    nine_photos = [{"id": f"p{i}", "kind": "image", "source": "photo", "alt": f"Photo {i}"} for i in range(7)] + [
+        {"id": "p7", "kind": "image", "source": "upload:upl_01J8ABCDEF7", "alt": "Upload 7", "prompt": "Prompt 7"},
+        {"id": "p8", "kind": "image", "source": "upload:upl_01J8ABCDEF8", "alt": "Upload 8", "prompt": "Prompt 8"},
+    ]
+    report_issues = _issues(nine_photos)
+    assert any(code == C.FE_TOO_MANY_PHOTOS for code, _ in report_issues)
+
+
+def test_photo_asset_planner_and_registry():
+    from src.orchestrator.asset_registry import _effective_mode
+
+    spec = copy.deepcopy(LANDING)
+    spec["assets"].append(
+        {
+            "id": "dish",
+            "kind": "image",
+            "source": "photo",
+            "alt": "Delicious Pho",
+            "prompt": "steaming bowl of pho",
+            "style": "warm light",
+        }
+    )
+    spec["assets"].append(
+        {
+            "id": "custom-upload",
+            "kind": "image",
+            "source": "upload:upl_01J8ABCDEF9",
+            "alt": "Regenerable upload",
+            "prompt": "sunset over rice fields",
+        }
+    )
+    plan = _plan(spec)
+    dish_asset = next(a for a in plan["assets"] if a["id"] == "dish")
+    upload_asset = next(a for a in plan["assets"] if a["id"] == "custom-upload")
+
+    # Planner fields for photo
+    assert dish_asset["render"] == "photo"
+    assert dish_asset["file"] == "public/assets/dish.webp"
+    assert dish_asset["src"] == "/assets/dish.webp"
+    assert dish_asset["generated"] is False
+    assert dish_asset["prompt"] == "steaming bowl of pho"
+    assert dish_asset["style"] == "warm light"
+
+    # Planner fields for upload with prompt
+    assert upload_asset["render"] == "public-file"
+    assert upload_asset["prompt"] == "sunset over rice fields"
+
+    # Registry effective mode: placeholder before generation
+    assert _effective_mode(dish_asset) == "placeholder"
+
+    # Registry effective mode: public-file after generation
+    dish_asset["generated"] = True
+    assert _effective_mode(dish_asset) == "public-file"
+
+
+def test_check_assets_photo_warnings_and_validation(tmp_path):
+    from src.orchestrator.frontend_assets import assets_check
+
+    plan = {
+        "assets": [
+            {
+                "id": "unbuilt-photo",
+                "render": "photo",
+                "file": "public/assets/unbuilt-photo.webp",
+                "src": "/assets/unbuilt-photo.webp",
+                "generated": False,
+                "routes": ["/"],
+            },
+            {
+                "id": "built-photo",
+                "render": "photo",
+                "file": "public/assets/built-photo.webp",
+                "src": "/assets/built-photo.webp",
+                "generated": True,
+                "routes": ["/"],
+            },
+        ]
+    }
+    # Before file is written, built-photo fails exists check and unbuilt warns FE_PHOTO_FALLBACK
+    res1 = assets_check(tmp_path, plan)
+    fallback_warning = next((d for d in res1.details if d.get("code") == "FE_PHOTO_FALLBACK"), None)
+    assert fallback_warning is not None
+    assert fallback_warning["asset"] == "unbuilt-photo"
+
+    # Write the valid WebP file for built-photo
+    built_path = tmp_path / "public/assets/built-photo.webp"
+    built_path.parent.mkdir(parents=True, exist_ok=True)
+    built_path.write_bytes(b"RIFF....WEBPVP8 ...")
+    res2 = assets_check(tmp_path, plan)
+    assert not any(d.get("asset") == "built-photo" for d in res2.details if d.get("severity") == "error")

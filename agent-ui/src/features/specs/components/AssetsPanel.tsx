@@ -23,10 +23,11 @@ function formatSize(bytes: number): string {
   return bytes < 1024 * 1024 ? `${Math.round(bytes / 1024)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-function sourceLabel(source: string | undefined): string {
+function sourceLabel(source: string | undefined, hasPrompt?: boolean): string {
   if (!source || source === "placeholder") return "placeholder";
+  if (source === "photo") return "photo";
   if (source === "generate") return "drawn";
-  if (source.startsWith("upload:")) return "upload";
+  if (source.startsWith("upload:")) return hasPrompt ? "photo (upload)" : "upload";
   if (source.startsWith("lucide:")) return "icon";
   return "link";
 }
@@ -51,7 +52,14 @@ function UploadRow({
         className="size-12 shrink-0 rounded-md border bg-muted object-contain"
       />
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <span className="truncate text-xs font-medium">{upload.filename}</span>
+        <div className="flex items-center gap-1.5 truncate">
+          <span className="truncate text-xs font-medium">{upload.filename}</span>
+          {upload.origin === "photo" && (
+            <Badge variant="secondary" className="px-1 text-[10px]">
+              AI photo
+            </Badge>
+          )}
+        </div>
         <span className="text-xs text-muted-foreground">
           {upload.width && upload.height ? `${upload.width}×${upload.height} · ` : ""}
           {formatSize(upload.bytes)}
@@ -110,7 +118,7 @@ export function AssetsPanel({ specText, onApply }: AssetsPanelProps) {
           {assets.map((asset) => (
             <li key={asset.id} className="flex items-center gap-2 text-xs">
               <span className="font-mono">{asset.id}</span>
-              <Badge variant="outline">{sourceLabel(asset.source)}</Badge>
+              <Badge variant="outline">{sourceLabel(asset.source, Boolean(asset.prompt))}</Badge>
               <span className="truncate text-muted-foreground">{asset.alt}</span>
             </li>
           ))}

@@ -100,6 +100,7 @@ export type TDraftUsage = {
   outputTokens?: number;
   costUsd?: number;
   unpriced?: number;
+  images?: { count: number; cached: number; costUsd: number };
 };
 
 /** A design direction for a drafted site (Story 12.6), from UI UX Pro Max's data. */
@@ -111,6 +112,7 @@ export type TDesignDirection = {
   fontPairing: string;
   source: string;
   style: string;
+  photoStyle?: string;
   heroVariant: "split" | "centered" | "banner";
   homeOrder: string[];
   avoid: string[];

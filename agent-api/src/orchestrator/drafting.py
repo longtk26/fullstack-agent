@@ -14,6 +14,8 @@ Drafts show no placeholders (Epic 15): an image the engine left as a placeholder
 """
 
 import asyncio
+import hashlib
+import io
 import json
 import shutil
 import uuid
@@ -22,17 +24,23 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from PIL import Image
+
 from src.configs import config, get_logger
+from src.configs.config import uploads_dir
 from src.engines import EngineRegistry, PromptLibrary
 from src.engines.port import EngineContext, EngineRequest, EngineResult, EngineStatus
 from src.engines.prompts import RenderedPrompt
+from src.images.factory import get_image_generator, photos_enabled
+from src.images.service import generate_single_photo
+from src.libs.ids.ulid import new_upload_id
 from src.modules.shared.domain.backend_spec import (
     SpecIssue,
     ValidationReport,
     spec_json_schema,
     validate_spec_data,
 )
-from src.modules.shared.domain.entities import SpecDraftEntity
+from src.modules.shared.domain.entities import ImageCallEntity, SpecDraftEntity, UploadEntity
 from src.modules.shared.domain.enums import GenerationMode, SpecDraftStatus, SpecSource
 from src.modules.shared.domain.frontend_spec import (
     BUILTIN_SECTIONS,
@@ -47,7 +55,15 @@ from src.modules.shared.domain.schema_digest import schema_digest
 
 from . import tracing
 from .checks.consistency import check_spec_pair
-from .design_direction import apply_direction, brief_markdown, design_notes, directions, pick, with_brand
+from .design_direction import (
+    PHOTO_STYLES_BY_PRESET,
+    apply_direction,
+    brief_markdown,
+    design_notes,
+    directions,
+    pick,
+    with_brand,
+)
 from .store import JobStore
 
 logger = get_logger(__name__)
@@ -160,6 +176,8 @@ def write_inputs(
             "sections_path": f"{INPUTS}/sections.md",
             "output_frontend_path": FRONTEND_FILE,
             "design_path": None,
+            "photos_enabled": photos_enabled(),
+            "max_photos": config.frontend_max_photos,
         }
     if design:
         (inputs / "design.md").write_text(brief_markdown(design))
@@ -345,41 +363,63 @@ def apply_design(work: Path, found: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def draw_images(work: Path, chosen: dict[str, Any] | None) -> list[dict[str, Any]]:
-    """Turns the drafted FrontendSpec's placeholder images into drawings (prompt from the alt text, style from the
-    design direction), up to MAX_GENERATED_ASSETS; returns the assumptions saying so."""
+    """Turns the drafted FrontendSpec's placeholder images into photos (when enabled and under cap) or drawings
+    (prompt from the alt text, style from the design direction), up to MAX_GENERATED_ASSETS; returns assumptions."""
     spec, issue = _load(work / FRONTEND_FILE)
     if issue is not None or not isinstance(spec, dict) or not isinstance(spec.get("assets"), list):
         return []
     assets = [asset for asset in spec["assets"] if isinstance(asset, dict)]
     drawn = sum(source_kind(str(asset.get("source") or "placeholder")) == "generate" for asset in assets)
-    style = f"{chosen['style']}, flat vector shapes" if chosen else None
-    converted: list[str] = []
+    photos_on = photos_enabled()
+    max_photos = config.frontend_max_photos
+    photos_count = sum(
+        1
+        for a in assets
+        if a.get("source") == "photo" or (str(a.get("source") or "").startswith("upload:") and bool(a.get("prompt")))
+    )
+    photo_style = (chosen or {}).get("photoStyle") or PHOTO_STYLES_BY_PRESET.get(
+        (chosen or {}).get("theme", {}).get("style", "minimal"), PHOTO_STYLES_BY_PRESET["minimal"]
+    )
+    style = f"{chosen['style']}, flat vector shapes" if chosen and "style" in chosen else None
+    converted_photos: list[str] = []
+    converted_drawings: list[str] = []
     skipped: list[str] = []
     for asset in assets:
         if source_kind(str(asset.get("source") or "placeholder")) != "placeholder":
             continue
-        if (asset.get("kind") or "image") not in SVG_KINDS or not isinstance(asset.get("id"), str):
+        if not isinstance(asset.get("id"), str):
             continue
-        if drawn >= MAX_GENERATED_ASSETS:
+        kind = asset.get("kind") or "image"
+        if photos_on and kind == "image" and photos_count < max_photos:
+            asset["source"] = "photo"
+            asset["prompt"] = asset.get("prompt") or asset.get("alt") or asset["id"].replace("-", " ")
+            if photo_style and not asset.get("style"):
+                asset["style"] = photo_style
+            photos_count += 1
+            converted_photos.append(asset["id"])
+        elif drawn < MAX_GENERATED_ASSETS and kind in SVG_KINDS:
+            asset["source"] = "generate"
+            asset["prompt"] = asset.get("prompt") or asset.get("alt") or asset["id"].replace("-", " ")
+            if style and not asset.get("style"):
+                asset["style"] = style
+            drawn += 1
+            converted_drawings.append(asset["id"])
+        else:
             skipped.append(asset["id"])
-            continue
-        asset["source"] = "generate"
-        asset["prompt"] = asset.get("prompt") or asset.get("alt") or asset["id"].replace("-", " ")
-        if style and not asset.get("style"):
-            asset["style"] = style
-        drawn += 1
-        converted.append(asset["id"])
-    if not converted and not skipped:
+    if not converted_photos and not converted_drawings and not skipped:
         return []
     _write_json(work / FRONTEND_FILE, spec)
     notes = []
-    if converted:
-        message = f"Drawn from their alt text instead of placeholders: {', '.join(converted)}"
+    if converted_photos:
+        message = f"Real photos drafted from their alt text instead of placeholders: {', '.join(converted_photos)}"
+        notes.append({"spec": "frontend", "path": "/assets", "message": message, "suggestion": None})
+    if converted_drawings:
+        message = f"Drawn from their alt text instead of placeholders: {', '.join(converted_drawings)}"
         notes.append({"spec": "frontend", "path": "/assets", "message": message, "suggestion": None})
     if skipped:
         message = (
-            f"Left as placeholders (at most {MAX_GENERATED_ASSETS} drawings per site): {', '.join(skipped)}; "
-            "upload an image for them"
+            f"Left as placeholders (at most {max_photos} photos, {MAX_GENERATED_ASSETS} drawings per site): "
+            f"{', '.join(skipped)}; upload an image for them"
         )
         notes.append({"spec": "frontend", "path": "/assets", "message": message, "suggestion": None})
     return notes
@@ -505,7 +545,7 @@ class DraftRunner:
         found = draft_directions(draft)
         context = write_inputs(work, draft, self.examples_dir, found)
         frontend = mode != GenerationMode.BACKEND
-        purpose, version = ("draft_frontend_spec", "v5") if frontend else ("draft_spec", "v3")
+        purpose, version = ("draft_frontend_spec", "v6") if frontend else ("draft_spec", "v3")
         max_repairs = config.draft_repair_attempts_frontend if frontend else config.draft_repair_attempts_backend
         calls: list[dict[str, Any]] = []
         trace = tracing.GenerationTrace.open(
@@ -574,12 +614,93 @@ class DraftRunner:
         if check.backend_spec is None and check.frontend_spec is None:
             trace.close({"status": "failed"}, error="no spec written")
             raise DraftFailed(error or "The engine wrote no spec")
+        photo_notes: list[dict[str, Any]] = []
+        if check.ok and frontend and photos_enabled():
+            spec, issue = _load(work / FRONTEND_FILE)
+            if issue is None and isinstance(spec, dict) and isinstance(spec.get("assets"), list):
+                photo_assets = [a for a in spec["assets"] if isinstance(a, dict) and a.get("source") == "photo"]
+                if photo_assets:
+                    self.store.update_draft(draft.id, progress="photos")
+                    semaphore = asyncio.Semaphore(config.image_concurrency)
+                    generator = get_image_generator()
+
+                    async def make_photo(
+                        asset: dict[str, Any],
+                    ) -> tuple[dict[str, Any], bool, ImageCallEntity, str | None]:
+                        target_path = work / f"photo_{asset['id']}.webp"
+                        success, record, reason = await generate_single_photo(
+                            asset,
+                            target_path,
+                            generator=generator,
+                            draft_id=draft.id,
+                            semaphore=semaphore,
+                        )
+                        return asset, success, record, reason
+
+                    results = await asyncio.gather(*(make_photo(a) for a in photo_assets))
+                    records = []
+                    for asset, success, record, reason in results:
+                        records.append(record)
+                        if success:
+                            webp_file = work / f"photo_{asset['id']}.webp"
+                            webp_bytes = webp_file.read_bytes()
+                            sha256 = hashlib.sha256(webp_bytes).hexdigest()
+                            existing = self.store.upload_by_sha256(draft.owner_id, sha256)
+                            if existing is not None:
+                                upload_id = existing.id
+                            else:
+                                with Image.open(io.BytesIO(webp_bytes)) as im:
+                                    width, height = im.size
+                                upload = UploadEntity(
+                                    id=new_upload_id(),
+                                    owner_id=draft.owner_id,
+                                    filename=f"{asset['id']}.webp",
+                                    mime="image/webp",
+                                    bytes=len(webp_bytes),
+                                    width=width,
+                                    height=height,
+                                    sha256=sha256,
+                                    origin="photo",
+                                    prompt=asset.get("prompt"),
+                                )
+                                target_file = Path(uploads_dir()) / upload.relative_path
+                                target_file.parent.mkdir(parents=True, exist_ok=True)
+                                target_file.write_bytes(webp_bytes)
+                                self.store.create_upload(upload)
+                                upload_id = upload.id
+                            asset["source"] = f"upload:{upload_id}"
+                        else:
+                            msg = (
+                                f"Photo for '{asset['id']}' could not be generated "
+                                f"({reason or 'failed'}); generation will retry"
+                            )
+                            photo_notes.append(
+                                {
+                                    "spec": "frontend",
+                                    "path": f"/assets/{asset['id']}",
+                                    "message": msg,
+                                    "suggestion": None,
+                                }
+                            )
+                    self.store.add_image_calls(records)
+                    _write_json(work / FRONTEND_FILE, spec)
+                    check = check_draft(work, mode)
         assumptions, unresolved = read_notes(work, mode)
         if design is not None:
             assumptions += design_notes(design["directions"][design["selected"]])
         assumptions += image_notes
         assumptions += autofix_notes
+        assumptions += photo_notes
         status = SpecDraftStatus.SUCCEEDED if check.ok else SpecDraftStatus.NEEDS_REVIEW
+        usage = usage_summary(calls)
+        image_calls_records = self.store.draft_image_calls(draft.id)
+        if image_calls_records:
+            img_count = len(image_calls_records)
+            img_cached = sum(1 for c in image_calls_records if c.status == "cached")
+            img_cost = round(sum(c.cost_usd for c in image_calls_records if c.cost_usd is not None), 6)
+            usage["images"] = {"count": img_count, "cached": img_cached, "costUsd": img_cost}
+            if img_cost > 0:
+                usage["costUsd"] = round((usage.get("costUsd") or 0.0) + img_cost, 6)
         self.store.update_draft(
             draft.id,
             status=status,
@@ -590,7 +711,7 @@ class DraftRunner:
             unresolved=unresolved,
             design=design,
             validation=check.validation(),
-            usage=usage_summary(calls),
+            usage=usage,
             error=error,
             finished_at=datetime.now(UTC),
         )

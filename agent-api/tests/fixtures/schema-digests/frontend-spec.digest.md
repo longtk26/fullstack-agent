@@ -14,7 +14,7 @@ type FrontendSpec = {
   x-backendSpec?: string | null;
 };
 
-// An image the site shows (Story 15.1).
+// An image the site shows (Stories 15.1, 19.1).
 type Asset = {
   id: string;
   kind?: "image" | "icon" | "video" | "file" | "illustration" | "pattern" | "logo";

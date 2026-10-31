@@ -1,8 +1,13 @@
 # AI Fullstack Generation Agent — Requirements Specification
 
-**Version:** 1.5  
+**Version:** 1.6  
 **Status:** Approved for MVP — backlog in [`pdm/`](pdm/README.md)  
 **Priority:** High
+
+**Changes in 1.6 (2026-10-31):**
+- **Real photos**: FrontendSpec assets can have `source: "photo"` with Gemini image API generation (`gemini-3.1-flash-lite-image`), WebP post-processing, and caching. Photos are created during drafting and stored as uploads, with fallback to placeholders when unconfigured (FR-31).
+- **API-driven dynamic apps**: Dynamic web apps start from user journeys; the section library supports row actions, edit forms with record loading, list controls, and action bars; uncovered operations get an auto-generated Manage area; Playwright journey tests verify user journeys on mocks and the live API; one-click generation flow (FR-32).
+- Backlog: Epic 19.
 
 **Changes in 1.5 (2026-10-30):**
 - The requirement for drafting can be plain text or Markdown, typed or uploaded as a `.md` / `.txt` file, in all
@@ -751,6 +756,26 @@ The code engine must be used only for what cannot be produced deterministically:
 - Mechanical fixes (`ruff --fix`, `eslint --fix`, restoring generator-owned files) run before validation, and
   sandboxes start with the pinned dependencies installed.
 - Engine calls avoided, cache hits and the time they saved are recorded in usage.
+
+### FR-31: Real Photos
+
+The platform supports photorealistic images generated through the Gemini image API (`gemini-3.1-flash-lite-image`):
+- FrontendSpec assets can declare `source: "photo"`, with `prompt` and `style`, restricted to `kind: "image"`.
+- During requirement drafting, photos are generated concurrently, post-processed to optimized WebP format, and stored as uploads attached to the draft owner (`upload:<id>`), retaining their prompts for regeneration.
+- Collections and seed records can reference photo assets (`asset:<id>`), enabling dishes, products, or locations to display real-world imagery.
+- Photo generation is cached by content hash to prevent redundant paid API calls. When photos are unconfigured or fail, assets safely fall back to placeholders with clear warnings.
+- Users can preview, regenerate, or replace draft photos before generation.
+
+### FR-32: API-Driven Dynamic Apps
+
+Dynamic fullstack applications are driven by user journeys and complete API coverage:
+- FrontendSpec defines `journeys` specifying step-by-step user interactions (`visit`, `open`, `submit`, `action`, `expect`) validating core product loops.
+- BackendSpec incorporates domain operations needed by journeys with implementable rules, descriptions, and filters.
+- Section components support interactive capabilities: row actions on tables and cards, edit forms with record preloading (`load`), action bars for mutations, list search/filter/sort controls, and API-driven statistics.
+- Operations not covered by drafted journey screens are automatically exposed through an idempotent, generated **Manage** area (`/manage`), ensuring 100% operation coverage without requiring manual admin screen design.
+- The mock API (MSW) supports custom domain operations, avoiding 501 responses during frontend development.
+- Automated Playwright journey tests execute on mock fixtures during frontend validation, and against the live backend during integration.
+- The UI offers a one-click generation flow from requirement to running application with automated transitions across `DRAFTING`, `PENDING`, and execution phases.
 
 ---
 

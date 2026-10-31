@@ -18,6 +18,7 @@ from src.modules.specs.presenter.dtos import (
     GetFrontendSpecResponseDto,
     GetSpecDraftResponseDto,
     GetSpecResponseDto,
+    RegenerateAssetRequestDto,
     SpecIssueDto,
     SpecPairReportDto,
     ValidationReportDto,
@@ -34,6 +35,7 @@ from src.modules.specs.usecases import (
     GetSpecSchemaUsecaseDep,
     GetSpecUsecaseDep,
     ImportFrontendSpecUsecaseDep,
+    RegenerateAssetUsecaseDep,
     ValidateFrontendSpecUsecaseDep,
     ValidateSpecUsecaseDep,
 )
@@ -182,3 +184,16 @@ async def get_spec_draft(
     draft_id: uuid.UUID, user: CurrentUserDep, usecase: GetSpecDraftUsecaseDep
 ) -> GetSpecDraftResponseDto:
     return GetSpecDraftResponseDto.from_entity(await usecase.execute(draft_id, user))
+
+
+@spec_draft_router.post("/{draft_id}/assets/{asset_id}/regenerate", response_model=dict[str, Any])
+async def regenerate_draft_asset(
+    draft_id: uuid.UUID,
+    asset_id: str,
+    user: CurrentUserDep,
+    usecase: RegenerateAssetUsecaseDep,
+    body: RegenerateAssetRequestDto | None = None,
+) -> dict[str, Any]:
+    prompt = body.prompt if body else None
+    style = body.style if body else None
+    return await usecase.execute(draft_id, asset_id, user, prompt=prompt, style=style)

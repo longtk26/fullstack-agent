@@ -3,6 +3,7 @@ from .spec_draft_dto import (
     CreateSpecDraftRequestDto,
     CreateSpecDraftResponseDto,
     GetSpecDraftResponseDto,
+    RegenerateAssetRequestDto,
 )
 from .spec_dto import CreateSpecResponseDto, GetFrontendSpecResponseDto, GetSpecResponseDto
 from .validation_report_dto import CheckSpecPairRequestDto, SpecIssueDto, SpecPairReportDto, ValidationReportDto
@@ -17,6 +18,7 @@ __all__ = [
     "GetSpecDraftResponseDto",
     "GetSpecResponseDto",
     "ImportNoteDto",
+    "RegenerateAssetRequestDto",
     "SpecIssueDto",
     "SpecPairReportDto",
     "ValidationReportDto",

@@ -72,6 +72,7 @@ def scaffold_project(
     project_name: str,
     generate_dockerfile: bool = True,
     overlay: Path = OVERLAY_DIR,
+    seed_assets_note: str = "",
 ) -> dict[str, Any]:
     problems = check_template(template, overlay)
     if problems:
@@ -104,6 +105,10 @@ def scaffold_project(
         content = source.read_bytes()
         if PLACEHOLDER.encode() in content:
             content = content.replace(PLACEHOLDER.encode(), project_name.encode())
+        if b"{{SEED_ASSETS_NOTE}}" in content:
+            replacement = f"\n\n{seed_assets_note}\n" if seed_assets_note else ""
+            content = content.replace(b"\n{{SEED_ASSETS_NOTE}}", replacement.encode())
+            content = content.replace(b"{{SEED_ASSETS_NOTE}}", replacement.encode())
         target.write_bytes(content)
         target.chmod(source.stat().st_mode & 0o777)
     if not generate_dockerfile:

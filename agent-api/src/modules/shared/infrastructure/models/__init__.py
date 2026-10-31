@@ -5,6 +5,7 @@ from .component_cache_model import ComponentCacheModel
 from .frontend_spec_model import FrontendSpecModel
 from .generation_event_model import GenerationEventModel
 from .generation_model import GenerationModel
+from .image_call_model import ImageCallModel
 from .model_call_model import ModelCallModel
 from .node_run_model import NodeRunModel
 from .preview_model import PreviewModel
@@ -23,6 +24,7 @@ __all__ = [
     "FrontendSpecModel",
     "GenerationEventModel",
     "GenerationModel",
+    "ImageCallModel",
     "ModelCallModel",
     "NodeRunModel",
     "PreviewModel",

@@ -13,6 +13,8 @@ class UploadDto(CamelModel):
     width: int | None
     height: int | None
     sha256: str
+    origin: str = "user"
+    prompt: str | None = None
     created_at: datetime | None
 
     @classmethod
@@ -26,6 +28,8 @@ class UploadDto(CamelModel):
             width=upload.width,
             height=upload.height,
             sha256=upload.sha256,
+            origin=upload.origin,
+            prompt=upload.prompt,
             created_at=upload.created_at,
         )
 

@@ -1,7 +1,8 @@
-"""Asset sources (Story 15.1): how each FrontendSpec asset is rendered, and the facts the validator checks.
+"""Asset sources (Stories 15.1, 19.1): how each FrontendSpec asset is rendered, and the facts the validator checks.
 
 placeholder        a themed panel (no file)
 generate           an SVG drawn by the code engine (15.2) → a React component; until drawn, a placeholder
+photo              an AI photograph (19.2) → public/assets/<id>.webp; until made, a placeholder
 upload:<id>        a file the user uploaded (15.4) → public/assets/<id>.<ext>
 lucide:<Name>      a lucide-react icon from the pinned base
 https://…          a remote image (never fetched by the sandbox)
@@ -12,13 +13,14 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-RenderMode = Literal["svg-component", "public-file", "remote", "icon", "placeholder"]
+RenderMode = Literal["svg-component", "public-file", "remote", "icon", "placeholder", "photo"]
 
 # The base's lucide-react icon names, written by scripts/frontend-base.sh next to the base's lock file.
 LUCIDE_ICONS_FILE = Path(__file__).resolve().parents[5] / "templates" / "nextjs_base" / "lucide-icons.txt"
 SVG_KINDS = frozenset({"illustration", "pattern", "logo", "image"})  # what the engine can draw (15.2)
 DEFAULT_ASPECT = {"illustration": "16:9", "image": "16:9", "pattern": "1:1", "logo": "1:1", "icon": "1:1"}
 MAX_GENERATED_ASSETS = 12  # FRONTEND_MAX_GENERATED_ASSETS default; above it the validator warns
+MAX_PHOTOS = 8  # FRONTEND_MAX_PHOTOS default; above it the validator warns
 UPLOAD_ID = re.compile(r"^upl_[A-Za-z0-9]{6,40}$")
 ICON_NAME = re.compile(r"^[A-Z][A-Za-z0-9]*$")
 
@@ -33,8 +35,8 @@ def lucide_icons(path: Path = LUCIDE_ICONS_FILE) -> frozenset[str]:
 
 
 def source_kind(source: str) -> str:
-    """placeholder | generate | upload | lucide | https | insecure (another scheme) | unknown."""
-    if source in ("placeholder", "generate"):
+    """placeholder | generate | photo | upload | lucide | https | insecure (another scheme) | unknown."""
+    if source in ("placeholder", "generate", "photo"):
         return source
     if source.startswith("upload:"):
         return "upload"
@@ -50,6 +52,7 @@ def source_kind(source: str) -> str:
 def render_mode(asset: dict) -> RenderMode:
     return {
         "generate": "svg-component",
+        "photo": "photo",
         "upload": "public-file",
         "https": "remote",
         "lucide": "icon",

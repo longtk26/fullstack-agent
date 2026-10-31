@@ -5,6 +5,7 @@ from .component_cache_entity import ComponentCacheEntity
 from .frontend_spec_entity import FrontendSpecEntity
 from .generation_entity import GenerationEntity
 from .generation_event_entity import GenerationEventEntity
+from .image_call_entity import ImageCallEntity
 from .model_call_entity import ModelCallEntity
 from .node_run_entity import NodeRunEntity
 from .preview_entity import PreviewEntity
@@ -24,6 +25,7 @@ __all__ = [
     "FrontendSpecEntity",
     "GenerationEntity",
     "GenerationEventEntity",
+    "ImageCallEntity",
     "ModelCallEntity",
     "NodeRunEntity",
     "PreviewEntity",
