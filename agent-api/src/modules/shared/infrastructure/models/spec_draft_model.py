@@ -37,6 +37,9 @@ class SpecDraftModel(SQLModel, table=True):
     usage: dict[str, Any] = Field(default_factory=dict, sa_type=Json)
     error: str | None = Field(default=None, sa_type=Text)
     worker_id: str | None = Field(default=None, max_length=64)
+    generation_id: str | None = Field(
+        default=None, max_length=32, foreign_key="generations.id", ondelete="SET NULL", index=True
+    )
     created_at: datetime = Field(default_factory=utcnow, sa_type=TZDateTime, index=True)
     updated_at: datetime = Field(default_factory=utcnow, sa_type=TZDateTime)
     started_at: datetime | None = Field(default=None, sa_type=TZDateTime)

@@ -1,6 +1,7 @@
 from .artifact_usecases import ArtifactUsecaseDep, BrowseFilesUsecaseDep
 from .cancel_generation_usecase import CancelGenerationUsecaseDep
-from .create_generation_usecase import CreateGenerationUsecaseDep, GenerationInputs
+from .continue_generation_usecase import ContinueGenerationInputs, ContinueGenerationUsecaseDep
+from .create_generation_usecase import CreateGenerationUsecaseDep, GenerationInputs, RequirementInput
 from .get_generation_usecase import GetGenerationUsecaseDep
 from .get_trace_usecase import GetTraceUsecaseDep
 from .get_validation_usecase import GetValidationUsecaseDep
@@ -13,6 +14,8 @@ __all__ = [
     "ArtifactUsecaseDep",
     "BrowseFilesUsecaseDep",
     "CancelGenerationUsecaseDep",
+    "ContinueGenerationInputs",
+    "ContinueGenerationUsecaseDep",
     "CreateGenerationUsecaseDep",
     "GenerationInputs",
     "GetGenerationUsecaseDep",
@@ -21,5 +24,6 @@ __all__ = [
     "GetWorkflowGraphUsecaseDep",
     "ListGenerationsUsecaseDep",
     "PurgeComponentCacheUsecaseDep",
+    "RequirementInput",
     "StreamGenerationEventsUsecaseDep",
 ]

@@ -62,9 +62,10 @@ async def build_worker_service(worker_id: str | None = None):
             previews=previews if config.preview_worker else None,
         )
         # Every worker requests previews for its finished jobs; only a preview worker drives the containers.
+        queue = JobQueue(redis)
         yield WorkerService(
             runner,
-            JobQueue(redis),
+            queue,
             store,
             events,
             redis,
@@ -72,5 +73,14 @@ async def build_worker_service(worker_id: str | None = None):
             workspaces,
             worker_id,
             previews=previews if config.preview_worker else None,
-            drafts=DraftRunner(registry, prompts, store, Path(config.workspace_root), worker_id),
+            drafts=DraftRunner(
+                registry,
+                prompts,
+                store,
+                Path(config.workspace_root),
+                worker_id,
+                queue=queue,
+                events=events,
+                redis=redis,
+            ),
         )

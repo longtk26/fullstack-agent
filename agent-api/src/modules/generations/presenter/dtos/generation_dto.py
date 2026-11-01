@@ -21,6 +21,7 @@ class FrontendOptionsDto(CamelModel):
     run_tests: bool = True
     generate_preview: bool = True
     mock_api: bool = True
+    manage_area: bool = True
 
 
 class GenerationOptionsDto(CamelModel):
@@ -39,11 +40,19 @@ class GenerationOptionsDto(CamelModel):
     frontend: FrontendOptionsDto | None = None
 
 
+class RequirementDto(CamelModel):
+    text: str | None = None
+    format: str | None = None
+    file_name: str | None = None
+
+
 class CreateGenerationRequestDto(CamelModel):
     """Inputs per mode (checked by the use case, 422 MODE_INPUT_MISMATCH otherwise):
-    backend: `backendSpec` | `specId`; static: `frontendSpec` | `frontendSpecId`; dynamic: one of each."""
+    backend: `backendSpec` | `specId`; static: `frontendSpec` | `frontendSpecId`; dynamic: one of each.
+    Or Story 19.10: `requirement` for one-click generation directly from requirement text."""
 
     mode: GenerationMode = GenerationMode.BACKEND
+    requirement: RequirementDto | None = None
     backend_spec: dict[str, Any] | None = None
     spec_id: uuid.UUID | None = None
     frontend_spec: dict[str, Any] | None = None
@@ -51,6 +60,13 @@ class CreateGenerationRequestDto(CamelModel):
     # The draft the specs came from (Stories 2.4, 12.4): its requirement is kept as `requirement.md` / `.txt`.
     draft_id: uuid.UUID | None = None
     options: GenerationOptionsDto = GenerationOptionsDto()
+
+
+class ContinueGenerationRequestDto(CamelModel):
+    """Story 19.10: resume a generation in NEEDS_REVIEW with edited specs."""
+
+    backend_spec: dict[str, Any] | None = None
+    frontend_spec: dict[str, Any] | None = None
 
 
 class CreateGenerationResponseDto(CamelModel):

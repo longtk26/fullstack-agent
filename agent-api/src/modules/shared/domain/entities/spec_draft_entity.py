@@ -30,6 +30,7 @@ class SpecDraftEntity(BaseModel):
     usage: dict[str, Any] = {}
     error: str | None = None
     worker_id: str | None = None
+    generation_id: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
     started_at: datetime | None = None
@@ -40,4 +41,6 @@ class SpecDraftEntity(BaseModel):
         return self.status in TERMINAL_DRAFT_STATUSES
 
 
-TERMINAL_DRAFT_STATUSES = frozenset({SpecDraftStatus.SUCCEEDED, SpecDraftStatus.NEEDS_REVIEW, SpecDraftStatus.FAILED})
+TERMINAL_DRAFT_STATUSES = frozenset(
+    {SpecDraftStatus.SUCCEEDED, SpecDraftStatus.NEEDS_REVIEW, SpecDraftStatus.FAILED, SpecDraftStatus.CANCELLED}
+)

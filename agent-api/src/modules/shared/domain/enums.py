@@ -15,6 +15,8 @@ class GenerationStatus(StrEnum):
     COMPLETED_WITH_WARNINGS = "COMPLETED_WITH_WARNINGS"  # a lane was skipped or failed but the result works (12.2)
     FAILED = "FAILED"
     CANCELLED = "CANCELLED"
+    DRAFTING = "DRAFTING"
+    NEEDS_REVIEW = "NEEDS_REVIEW"
 
     @property
     def is_terminal(self) -> bool:
@@ -78,3 +80,4 @@ class SpecDraftStatus(StrEnum):
     SUCCEEDED = "SUCCEEDED"
     NEEDS_REVIEW = "NEEDS_REVIEW"
     FAILED = "FAILED"
+    CANCELLED = "CANCELLED"

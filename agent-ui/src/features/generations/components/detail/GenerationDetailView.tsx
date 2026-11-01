@@ -13,6 +13,7 @@ import { TraceTab } from "../trace/TraceTab";
 import { EventLog } from "./EventLog";
 import { GenerationHeader } from "./GenerationHeader";
 import { ParallelLanesCard } from "./ParallelLanesCard";
+import { SpecPhaseCard } from "./SpecPhaseCard";
 import { StepDrawer } from "./StepDrawer";
 import type { TDetailTab } from "../../types";
 import { TerminalBanner } from "./TerminalBanner";
@@ -43,6 +44,7 @@ export function GenerationDetailView({ id }: GenerationDetailViewProps) {
     <Stack gap="lg">
       <GenerationHeader detail={detail} streamState={view.streamState} />
       <TerminalBanner detail={detail} events={view.events} onOpenTab={view.setTab} />
+      <SpecPhaseCard detail={detail} events={view.events} />
       <ParallelLanesCard
         mode={detail.mode}
         lanes={detail.lanes}

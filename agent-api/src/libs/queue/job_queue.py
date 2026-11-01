@@ -71,6 +71,12 @@ class JobQueue:
             removed += await self.redis.lrem(key, 0, generation_id)
         return removed
 
+    async def remove_queued_draft(self, draft_id: str) -> int:
+        removed = 0
+        async for key in self.redis.scan_iter(match=DRAFTS_PREFIX + "*"):
+            removed += await self.redis.lrem(key, 0, draft_id)
+        return removed
+
     async def is_queued(self, generation_id: str) -> bool:
         async for key in self.redis.scan_iter(match=JOBS_PREFIX + "*"):
             if await self.redis.lpos(key, generation_id) is not None:

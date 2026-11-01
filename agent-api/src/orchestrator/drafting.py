@@ -41,7 +41,7 @@ from src.modules.shared.domain.backend_spec import (
     validate_spec_data,
 )
 from src.modules.shared.domain.entities import ImageCallEntity, SpecDraftEntity, UploadEntity
-from src.modules.shared.domain.enums import GenerationMode, SpecDraftStatus, SpecSource
+from src.modules.shared.domain.enums import GenerationMode, GenerationStatus, SpecDraftStatus, SpecSource
 from src.modules.shared.domain.frontend_spec import (
     BUILTIN_SECTIONS,
     LAYOUT_SECTIONS,
@@ -52,6 +52,7 @@ from src.modules.shared.domain.frontend_spec import (
     validate_frontend_spec_data,
 )
 from src.modules.shared.domain.frontend_spec.assets import MAX_GENERATED_ASSETS, SVG_KINDS, source_kind
+from src.modules.shared.domain.generation_modes import initial_lanes
 from src.modules.shared.domain.schema_digest import schema_digest
 
 from . import tracing
@@ -493,6 +494,10 @@ def usage_summary(calls: list[dict[str, Any]]) -> dict[str, Any]:
 # -- runner --------------------------------------------------------------------------------------------------------
 
 
+class DraftCancelled(Exception):
+    """Raised when a draft is cancelled while running."""
+
+
 class DraftRunner:
     def __init__(
         self,
@@ -503,6 +508,9 @@ class DraftRunner:
         worker_id: str,
         examples_dir: Path | None = None,
         heartbeat_s: float | None = None,
+        queue: Any | None = None,
+        events: Any | None = None,
+        redis: Any | None = None,
     ):
         self.registry = registry
         self.prompts = prompts
@@ -511,6 +519,54 @@ class DraftRunner:
         self.worker_id = worker_id
         self.examples_dir = examples_dir or Path(config.examples_dir)
         self.heartbeat_s = heartbeat_s if heartbeat_s is not None else config.worker_heartbeat_seconds
+        self.queue = queue
+        self.events = events
+        self.redis = redis
+
+    async def _is_cancelled(self, draft: SpecDraftEntity) -> bool:
+        if self.redis is not None:
+            try:
+                flag = await self.redis.get(f"bga:cancel:draft:{draft.id}")
+                if flag:
+                    return True
+            except Exception:
+                pass
+        curr_draft = self.store.draft(draft.id)
+        if curr_draft is not None and curr_draft.status == SpecDraftStatus.CANCELLED:
+            return True
+        if draft.generation_id:
+            gen = self.store.generation(draft.generation_id)
+            if gen is not None and (gen.status == GenerationStatus.CANCELLED or gen.cancel_requested):
+                return True
+        return False
+
+    async def _chain_generation(self, draft: SpecDraftEntity, errors: list[dict[str, Any]] | None = None) -> None:
+        if not draft.generation_id:
+            return
+        latest = self.store.draft(draft.id)
+        if latest is None:
+            return
+        if latest.status == SpecDraftStatus.SUCCEEDED:
+            self.store.attach_draft_specs(draft.generation_id, latest)
+            self.store.update_generation(draft.generation_id, status=GenerationStatus.PENDING)
+            if self.events is not None:
+                await self.events.publish(
+                    draft.generation_id,
+                    "status.changed",
+                    status=GenerationStatus.PENDING,
+                    payload={"engine": latest.engine, "mode": latest.mode, "lanes": initial_lanes(latest.mode)},
+                )
+            if self.queue is not None:
+                await self.queue.enqueue(draft.generation_id, latest.engine)
+        elif latest.status == SpecDraftStatus.NEEDS_REVIEW:
+            self.store.update_generation(draft.generation_id, status=GenerationStatus.NEEDS_REVIEW)
+            if self.events is not None:
+                await self.events.publish(
+                    draft.generation_id,
+                    "status.changed",
+                    status=GenerationStatus.NEEDS_REVIEW,
+                    payload={"errors": errors or (latest.validation or {}).get("errors", [])},
+                )
 
     async def run(self, draft_id: str) -> None:
         try:
@@ -520,10 +576,28 @@ class DraftRunner:
             return
         if draft is None:
             return  # finished, or taken by another worker
+        if await self._is_cancelled(draft):
+            return
         heartbeat = asyncio.create_task(self._heartbeat(draft.id))
         directory = self.root / str(draft.id)
         try:
             await self._run(draft, directory)
+            if not await self._is_cancelled(draft):
+                await self._chain_generation(draft)
+        except DraftCancelled:
+            self.store.update_draft(
+                draft.id,
+                status=SpecDraftStatus.CANCELLED,
+                error="Cancelled",
+                progress=None,
+                finished_at=datetime.now(UTC),
+            )
+            if draft.generation_id:
+                self.store.update_generation(
+                    draft.generation_id,
+                    status=GenerationStatus.CANCELLED,
+                    finished_at=datetime.now(UTC),
+                )
         except asyncio.CancelledError:
             raise  # shutdown: the reaper fails the draft once its heartbeat stops
         except Exception as exc:
@@ -537,6 +611,20 @@ class DraftRunner:
                 progress=None,
                 finished_at=datetime.now(UTC),
             )
+            if draft.generation_id:
+                self.store.update_generation(
+                    draft.generation_id,
+                    status=GenerationStatus.FAILED,
+                    error_summary=f"DRAFT_FAILED: {message}",
+                    finished_at=datetime.now(UTC),
+                )
+                if self.events is not None:
+                    await self.events.publish(
+                        draft.generation_id,
+                        "status.changed",
+                        status=GenerationStatus.FAILED,
+                        payload={"code": "DRAFT_FAILED", "error": message},
+                    )
         finally:
             heartbeat.cancel()
             shutil.rmtree(directory, ignore_errors=True)
@@ -575,7 +663,21 @@ class DraftRunner:
             name="spec-draft",
         )
 
+        async def update_progress(prog: str, attempts_count: int | None = None) -> None:
+            fields: dict[str, Any] = {"progress": prog}
+            if attempts_count is not None:
+                fields["attempts"] = attempts_count
+            self.store.update_draft(draft.id, **fields)
+            if draft.generation_id and self.events is not None:
+                await self.events.publish(
+                    draft.generation_id,
+                    "draft.progress",
+                    payload={"progress": prog, "attempts": attempts_count or 0},
+                )
+
         async def call(step: str, prompt: RenderedPrompt) -> EngineResult:
+            if await self._is_cancelled(draft):
+                raise DraftCancelled("Draft cancelled")
             await engine.prepare_workspace(work, EngineContext(conventions=self.prompts.draft_conventions()))
             span = trace.root.child(
                 f"engine:{engine.name}",
@@ -591,6 +693,8 @@ class DraftRunner:
             except BaseException as exc:
                 span.end(error=f"{type(exc).__name__}: {exc}"[:500])
                 raise
+            if await self._is_cancelled(draft):
+                raise DraftCancelled("Draft cancelled")
             record = usage_record(result, prompt)
             calls.append(record)
             span.end(
@@ -602,7 +706,7 @@ class DraftRunner:
 
         error: str | None = None
         try:
-            self.store.update_draft(draft.id, progress="drafting")
+            await update_progress("drafting")
             result = await call("draft", self.prompts.render(purpose, version, **context))
             if result.status != EngineStatus.OK:
                 raise DraftFailed(f"The {engine.name} engine stopped: {result.error_message or result.status}")
@@ -611,12 +715,12 @@ class DraftRunner:
             image_notes = draw_images(work, chosen) if frontend else []
             autofix_notes = autofix_draft(work) if frontend else []
             manage_notes = apply_manage_area(work) if mode == GenerationMode.DYNAMIC else []
-            self.store.update_draft(draft.id, progress="validating")
+            await update_progress("validating")
             check = check_draft(work, mode)
             attempts = 0
             while not check.ok and attempts < max_repairs:
                 attempts += 1
-                self.store.update_draft(draft.id, progress=f"repairing ({attempts}/{max_repairs})", attempts=attempts)
+                await update_progress(f"repairing ({attempts}/{max_repairs})", attempts_count=attempts)
                 errors = check.repair_errors()
                 files = sorted({error["file"] for error in errors})
                 result = await call("repair", self.prompts.render("repair_spec", "v2", files=files, errors=errors))
@@ -638,11 +742,13 @@ class DraftRunner:
             raise DraftFailed(error or "The engine wrote no spec")
         photo_notes: list[dict[str, Any]] = []
         if check.ok and frontend and photos_enabled():
+            if await self._is_cancelled(draft):
+                raise DraftCancelled("Draft cancelled")
             spec, issue = _load(work / FRONTEND_FILE)
             if issue is None and isinstance(spec, dict) and isinstance(spec.get("assets"), list):
                 photo_assets = [a for a in spec["assets"] if isinstance(a, dict) and a.get("source") == "photo"]
                 if photo_assets:
-                    self.store.update_draft(draft.id, progress="photos")
+                    await update_progress("photos")
                     semaphore = asyncio.Semaphore(config.image_concurrency)
                     generator = get_image_generator()
 

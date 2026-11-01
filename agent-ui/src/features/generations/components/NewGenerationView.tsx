@@ -189,7 +189,12 @@ export function NewGenerationView() {
           </TabsList>
           {tabs.includes("requirement") && (
             <TabsContent value="requirement" className="pt-2" keepMounted>
-              <RequirementTab mode={mode} engine={engine ?? null} />
+              <RequirementTab
+                mode={mode}
+                engine={engine ?? null}
+                onGenerateDirect={submit.generateFromRequirement}
+                isGenerating={submit.isSubmitting}
+              />
             </TabsContent>
           )}
           {tabs.includes("import") && (

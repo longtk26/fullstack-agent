@@ -2,6 +2,7 @@ from .generation_dto import (
     ArtifactDto,
     ArtifactListDto,
     CancelGenerationResponseDto,
+    ContinueGenerationRequestDto,
     CreateGenerationRequestDto,
     CreateGenerationResponseDto,
     EngineInvocationDto,
@@ -9,6 +10,7 @@ from .generation_dto import (
     GenerationOptionsDto,
     GenerationPageDto,
     GenerationSummaryDto,
+    RequirementDto,
     StepDto,
     UsageTotalsDto,
 )
@@ -17,6 +19,7 @@ __all__ = [
     "ArtifactDto",
     "ArtifactListDto",
     "CancelGenerationResponseDto",
+    "ContinueGenerationRequestDto",
     "CreateGenerationRequestDto",
     "CreateGenerationResponseDto",
     "EngineInvocationDto",
@@ -24,6 +27,7 @@ __all__ = [
     "GenerationOptionsDto",
     "GenerationPageDto",
     "GenerationSummaryDto",
+    "RequirementDto",
     "StepDto",
     "UsageTotalsDto",
 ]

@@ -39,6 +39,15 @@ export function createGeneration(payload: TCreateGenerationPayload, idempotencyK
   });
 }
 
+export function continueGeneration(
+  id: string,
+  payload: { backendSpec?: Record<string, unknown> | null; frontendSpec?: Record<string, unknown> | null },
+) {
+  return apiClient.post<TCreateGenerationResult>(`/generations/${id}/continue`, {
+    json: payload,
+  });
+}
+
 export function cancelGeneration(id: string) {
   return apiClient.post<{ generationId: string; status: string; cancelRequested: boolean }>(
     `/generations/${id}/cancel`,

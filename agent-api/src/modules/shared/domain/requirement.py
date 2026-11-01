@@ -61,3 +61,24 @@ def check_requirement(
         TEXT_EXTENSIONS[PurePosixPath(name).suffix.lower()] if name else "text"
     )
     return Requirement(text=normalized, format=fmt, file_name=name)
+
+
+def validate_requirement(
+    text: str | None,
+    file_name: str | None = None,
+    requested_format: RequirementFormat | None = None,
+    max_bytes: int | None = None,
+) -> Requirement:
+    """Convenience helper that converts RequirementError to UnprocessableEntityException."""
+    from src.configs import config
+    from src.libs.exceptions import ErrorCode, UnprocessableEntityException
+
+    try:
+        return check_requirement(
+            text,
+            max_bytes if max_bytes is not None else config.requirement_max_bytes,
+            file_name,
+            requested_format,
+        )
+    except RequirementError as exc:
+        raise UnprocessableEntityException(str(exc), code=ErrorCode.REQUIREMENT_INVALID) from exc

@@ -174,6 +174,28 @@ class JobStore:
     def stale_drafts(self, updated_before: datetime) -> list[SpecDraftEntity]:
         return self._with(lambda s: SpecDraftRepository(s).find_stale_running(updated_before))
 
+    def attach_draft_specs(
+        self,
+        generation_id: str,
+        draft: SpecDraftEntity,
+        backend_spec_data: dict[str, Any] | None = None,
+        frontend_spec_data: dict[str, Any] | None = None,
+    ) -> GenerationEntity:
+        from src.modules.generations.domain.attach_specs import attach_draft_specs
+
+        return self._with(
+            lambda s: attach_draft_specs(
+                generation_id,
+                draft,
+                GenerationRepository(s),
+                BackendSpecRepository(s),
+                FrontendSpecRepository(s),
+                UploadRepository(s),
+                backend_spec_data=backend_spec_data,
+                frontend_spec_data=frontend_spec_data,
+            )
+        )
+
     # -- artifacts (Story 7.1) ----------------------------------------------------------------------------------
 
     def replace_artifacts(self, generation_id: str, artifacts: list[ArtifactEntity]) -> None:

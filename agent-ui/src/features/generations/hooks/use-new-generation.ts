@@ -96,9 +96,33 @@ export function useNewGeneration({
   };
   const handleSubmit = (event?: BaseSyntheticEvent) => form.handleSubmit(submitOptions)(event);
 
+  const generateFromRequirement = async (requirement: { text: string; fileName: string | null }) => {
+    const options = form.getValues();
+    const payload: TCreateGenerationPayload = {
+      mode,
+      requirement: {
+        text: requirement.text,
+        fileName: requirement.fileName,
+      },
+      options: {
+        ...options,
+        frontend: mode !== "backend" ? options.frontend : undefined,
+      },
+    };
+    const key = crypto.randomUUID();
+    try {
+      const created = await create.mutateAsync({ payload, idempotencyKey: key });
+      onCreated();
+      router.push(`/generations/${created.generationId}`);
+    } catch (error) {
+      toast.error(error instanceof ApiError ? `${error.code}: ${error.message}` : "Could not start the generation");
+    }
+  };
+
   return {
     form,
     handleSubmit,
+    generateFromRequirement,
     engines: engines.data?.engines ?? [],
     enginesReportedByWorker: engines.data?.reportedByWorker ?? true,
     isSubmitting: create.isPending,

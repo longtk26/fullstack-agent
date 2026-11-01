@@ -10,7 +10,7 @@ from src.libs.exceptions import ErrorCode, PayloadTooLargeException, Unprocessab
 from src.modules.generations.infrastructure.adapters import EngineRegistryDep, JobQueueDep
 from src.modules.shared.domain.entities import SpecDraftEntity, UserEntity
 from src.modules.shared.domain.enums import GenerationMode, SpecSource
-from src.modules.shared.domain.requirement import RequirementError, RequirementFormat, check_requirement
+from src.modules.shared.domain.requirement import RequirementFormat, validate_requirement
 from src.modules.specs.ports.output import ISpecDraftRepoDep
 
 
@@ -46,15 +46,11 @@ class CreateSpecDraftUsecase:
     def _persist(self, user: UserEntity, request: DraftRequest, engine: str) -> SpecDraftEntity:
         fields: dict[str, Any] = {}
         if request.source == SpecSource.REQUIREMENT:
-            try:
-                requirement = check_requirement(
-                    request.requirement_text,
-                    config.requirement_max_bytes,
-                    request.requirement_file_name,
-                    request.requirement_format,
-                )
-            except RequirementError as exc:
-                raise UnprocessableEntityException(str(exc), code=ErrorCode.REQUIREMENT_INVALID) from exc
+            requirement = validate_requirement(
+                request.requirement_text,
+                request.requirement_file_name,
+                request.requirement_format,
+            )
             fields = {
                 "requirement_text": requirement.text,
                 "requirement_format": requirement.format,

@@ -18,7 +18,10 @@ class SpecDraftRepository(ISpecDraftRepository):
         self.session = session
 
     def create(self, draft: SpecDraftEntity) -> SpecDraftEntity:
-        model = SpecDraftModel(**draft.model_dump(exclude_none=True, exclude={"id", "created_at", "updated_at"}))
+        exclude = {"created_at", "updated_at"}
+        if draft.id is None:
+            exclude.add("id")
+        model = SpecDraftModel(**draft.model_dump(exclude_none=True, exclude=exclude))
         self.session.add(model)
         self.session.flush()
         return self.__to_entity(model)

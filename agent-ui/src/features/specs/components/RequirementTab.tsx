@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { FileText, FileUp, Sparkles, X } from "lucide-react";
+import { FileText, FileUp, Rocket, Sparkles, X } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -42,9 +42,11 @@ const PROGRESS: Record<string, string> = {
 type RequirementTabProps = {
   mode: TGenerationMode;
   engine: string | null;
+  onGenerateDirect?: (requirement: { text: string; fileName: string | null }) => void;
+  isGenerating?: boolean;
 };
 
-export function RequirementTab({ mode, engine }: RequirementTabProps) {
+export function RequirementTab({ mode, engine, onGenerateDirect, isGenerating }: RequirementTabProps) {
   const tab = useRequirementTab({ mode, engine });
   const [isDragging, setIsDragging] = useState(false);
   const now = useNow(tab.isRunning);
@@ -107,9 +109,33 @@ export function RequirementTab({ mode, engine }: RequirementTabProps) {
       )}
 
       <Stack direction="row" gap="sm" align="center" wrap>
-        <Button onClick={tab.startDraft} disabled={!tab.canDraft}>
-          {tab.isStarting || tab.isRunning ? <Spinner /> : <Sparkles />} {copy.action}
-        </Button>
+        {onGenerateDirect ? (
+          <>
+            <Button
+              onClick={() => {
+                if (typeof window !== "undefined") localStorage.setItem("bga:requirement_flow", "generate");
+                onGenerateDirect({ text: tab.text, fileName: tab.fileName });
+              }}
+              disabled={!tab.canDraft || isGenerating}
+            >
+              {isGenerating ? <Spinner /> : <Rocket />} Generate
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (typeof window !== "undefined") localStorage.setItem("bga:requirement_flow", "draft");
+                tab.startDraft();
+              }}
+              disabled={!tab.canDraft || isGenerating}
+            >
+              {tab.isStarting || tab.isRunning ? <Spinner /> : <Sparkles />} Draft and review first
+            </Button>
+          </>
+        ) : (
+          <Button onClick={tab.startDraft} disabled={!tab.canDraft}>
+            {tab.isStarting || tab.isRunning ? <Spinner /> : <Sparkles />} {copy.action}
+          </Button>
+        )}
         {tab.tooShort && tab.text.length > 0 && (
           <span className="text-xs text-muted-foreground">At least {REQUIREMENT_MIN_CHARS} characters.</span>
         )}

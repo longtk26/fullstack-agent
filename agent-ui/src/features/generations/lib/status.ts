@@ -1,6 +1,8 @@
 import type { TGenerationStatus } from "../types";
 
 export const GENERATION_STATUSES: TGenerationStatus[] = [
+  "DRAFTING",
+  "NEEDS_REVIEW",
   "PENDING",
   "RUNNING",
   "VALIDATING",

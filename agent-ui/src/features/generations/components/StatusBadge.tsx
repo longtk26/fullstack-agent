@@ -5,6 +5,8 @@ import { cn } from "@/lib/utils";
 import type { TGenerationStatus } from "../types";
 
 const STATUS_STYLE: Record<TGenerationStatus, { icon: LucideIcon; className: string; spin?: boolean }> = {
+  DRAFTING: { icon: Loader2, className: "bg-info/15 text-info", spin: true },
+  NEEDS_REVIEW: { icon: TriangleAlert, className: "bg-warning/20 text-warning-foreground dark:text-warning" },
   PENDING: { icon: CircleDashed, className: "bg-muted text-muted-foreground" },
   RUNNING: { icon: Loader2, className: "bg-info/15 text-info", spin: true },
   VALIDATING: { icon: ShieldCheck, className: "bg-info/15 text-info" },

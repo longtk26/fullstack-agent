@@ -8,7 +8,9 @@ export type TGenerationStatus =
   | "COMPLETED"
   | "COMPLETED_WITH_WARNINGS"
   | "FAILED"
-  | "CANCELLED";
+  | "CANCELLED"
+  | "DRAFTING"
+  | "NEEDS_REVIEW";
 
 export type TGenerationMode = "backend" | "static" | "dynamic";
 
@@ -27,6 +29,8 @@ export type TGenerationOptions = {
   deployPreview: boolean;
   engine?: TEngineName | null;
   timeoutSeconds?: number | null;
+  draftId?: string | null;
+  autoGenerate?: boolean | null;
   frontend?: { runTests: boolean; generatePreview: boolean; mockApi: boolean; manageArea?: boolean } | null;
 };
 
@@ -102,6 +106,7 @@ export type TGenerationDetail = TGeneration & {
 
 export type TCreateGenerationPayload = {
   mode?: TGenerationMode;
+  requirement?: { text?: string | null; format?: string | null; fileName?: string | null } | null;
   backendSpec?: unknown;
   specId?: string;
   frontendSpec?: unknown;

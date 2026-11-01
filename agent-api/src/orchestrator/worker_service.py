@@ -308,6 +308,21 @@ class WorkerService:
             self.store.update_draft(
                 draft.id, status=SpecDraftStatus.FAILED, error=message, progress=None, finished_at=now
             )
+            if draft.generation_id:
+                self.store.update_generation(
+                    draft.generation_id,
+                    status=GenerationStatus.FAILED,
+                    error_summary=f"DRAFT_FAILED: {message}",
+                    finished_at=now,
+                )
+                asyncio.create_task(
+                    self.events.publish(
+                        draft.generation_id,
+                        "status.changed",
+                        status=GenerationStatus.FAILED,
+                        payload={"code": "DRAFT_FAILED", "error": message},
+                    )
+                )
             logger.warning("failed stale draft", extra={"draft_id": str(draft.id), "reason": message})
 
     async def cleanup_sandboxes(self) -> int:

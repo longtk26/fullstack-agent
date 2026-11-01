@@ -9,6 +9,7 @@ from src.modules.generations.presenter.dtos import (
     ArtifactDto,
     ArtifactListDto,
     CancelGenerationResponseDto,
+    ContinueGenerationRequestDto,
     CreateGenerationRequestDto,
     CreateGenerationResponseDto,
     GenerationDetailDto,
@@ -19,6 +20,8 @@ from src.modules.generations.usecases import (
     ArtifactUsecaseDep,
     BrowseFilesUsecaseDep,
     CancelGenerationUsecaseDep,
+    ContinueGenerationInputs,
+    ContinueGenerationUsecaseDep,
     CreateGenerationUsecaseDep,
     GenerationInputs,
     GetGenerationUsecaseDep,
@@ -26,6 +29,7 @@ from src.modules.generations.usecases import (
     GetValidationUsecaseDep,
     GetWorkflowGraphUsecaseDep,
     ListGenerationsUsecaseDep,
+    RequirementInput,
     StreamGenerationEventsUsecaseDep,
 )
 from src.modules.previews.presenter.dtos import PreviewDto
@@ -45,6 +49,7 @@ async def create_generation(
         user,
         GenerationInputs(
             mode=body.mode,
+            requirement=RequirementInput(**body.requirement.model_dump()) if body.requirement else None,
             backend_spec=body.backend_spec,
             spec_id=body.spec_id,
             frontend_spec=body.frontend_spec,
@@ -53,6 +58,28 @@ async def create_generation(
         ),
         body.options.model_dump(by_alias=True),
         idempotency_key,
+    )
+    return CreateGenerationResponseDto(
+        generation_id=generation.id, status=generation.status, created_at=generation.created_at
+    )
+
+
+@generation_router.post(
+    "/{generation_id}/continue", response_model=CreateGenerationResponseDto, status_code=status.HTTP_202_ACCEPTED
+)
+async def continue_generation(
+    generation_id: str,
+    body: ContinueGenerationRequestDto,
+    user: CurrentUserDep,
+    usecase: ContinueGenerationUsecaseDep,
+) -> CreateGenerationResponseDto:
+    generation = await usecase.execute(
+        generation_id,
+        user,
+        ContinueGenerationInputs(
+            backend_spec=body.backend_spec,
+            frontend_spec=body.frontend_spec,
+        ),
     )
     return CreateGenerationResponseDto(
         generation_id=generation.id, status=generation.status, created_at=generation.created_at

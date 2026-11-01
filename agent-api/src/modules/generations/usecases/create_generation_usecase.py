@@ -9,6 +9,7 @@ from src.libs.decorators.transactional_decorator import Transactional
 from src.libs.exceptions import ErrorCode, UnprocessableEntityException
 from src.libs.ids import new_generation_id
 from src.libs.security import ensure_owner
+from src.modules.generations.domain.attach_specs import attach_draft_specs
 from src.modules.generations.infrastructure.adapters import EngineRegistryDep, EventPublisherDep, JobQueueDep, RedisDep
 from src.modules.generations.ports.output import IGenerationRepoDep
 from src.modules.shared.domain.backend_spec import validate_spec_data
@@ -19,9 +20,10 @@ from src.modules.shared.domain.entities import (
     SpecDraftEntity,
     UserEntity,
 )
-from src.modules.shared.domain.enums import GenerationMode, SpecDraftStatus, SpecSource
+from src.modules.shared.domain.enums import GenerationMode, GenerationStatus, SpecDraftStatus, SpecSource
 from src.modules.shared.domain.frontend_spec import validate_frontend_spec_data
 from src.modules.shared.domain.generation_modes import initial_lanes
+from src.modules.shared.domain.requirement import Requirement, validate_requirement
 from src.modules.specs.ports.output import IBackendSpecRepoDep, IFrontendSpecRepoDep, ISpecDraftRepoDep
 from src.modules.uploads.ports.output import IUploadRepoDep
 
@@ -35,8 +37,15 @@ EXPECTED_INPUTS = {
 }
 
 
+class RequirementInput(BaseModel):
+    text: str | None = None
+    format: str | None = None
+    file_name: str | None = None
+
+
 class GenerationInputs(BaseModel):
     mode: GenerationMode = GenerationMode.BACKEND
+    requirement: RequirementInput | None = None
     backend_spec: dict[str, Any] | None = None
     spec_id: uuid.UUID | None = None
     frontend_spec: dict[str, Any] | None = None
@@ -44,7 +53,29 @@ class GenerationInputs(BaseModel):
     draft_id: uuid.UUID | None = None
 
     def check(self) -> None:
-        """Story 12.2: exactly the inputs the mode needs, else 422 MODE_INPUT_MISMATCH."""
+        """Story 12.2 & 19.10: exactly the inputs the mode needs, else 422 MODE_INPUT_MISMATCH."""
+        if self.requirement is not None:
+            if any(
+                value is not None
+                for value in (
+                    self.backend_spec,
+                    self.spec_id,
+                    self.frontend_spec,
+                    self.frontend_spec_id,
+                    self.draft_id,
+                )
+            ):
+                raise UnprocessableEntityException(
+                    "Cannot provide both requirement and specs/draftId",
+                    code=ErrorCode.MODE_INPUT_MISMATCH,
+                )
+            validate_requirement(
+                self.requirement.text,
+                self.requirement.file_name,
+                self.requirement.format,  # type: ignore[arg-type]
+            )
+            return
+
         backend = [value for value in (self.backend_spec, self.spec_id) if value is not None]
         frontend = [value for value in (self.frontend_spec, self.frontend_spec_id) if value is not None]
         ok = len(backend) == (1 if self.mode in NEEDS_BACKEND else 0) and len(frontend) == (
@@ -122,6 +153,28 @@ class CreateGenerationUsecase:
             if existing is not None:
                 return existing
 
+        if inputs.requirement is not None:
+            req = validate_requirement(
+                inputs.requirement.text,
+                inputs.requirement.file_name,
+                inputs.requirement.format,  # type: ignore[arg-type]
+            )
+            draft_id = uuid.uuid4()
+            gen_id = new_generation_id()
+            options = {**options, "draftId": str(draft_id), "autoGenerate": True}
+            generation = await self._persist_from_requirement(user, inputs, options, engine, gen_id, draft_id, req)
+            if idempotency_redis_key:
+                await self.redis.set(idempotency_redis_key, generation.id, ex=IDEMPOTENCY_TTL_S, nx=True)
+            # Queued draft, not generation:
+            await self.queue.enqueue_draft(str(draft_id), engine)
+            await self.events.publish(
+                generation.id,
+                "status.changed",
+                status=generation.status,
+                payload={"engine": engine, "mode": generation.mode, "lanes": generation.lanes},
+            )
+            return generation
+
         generation = await self._persist(user, inputs, options, engine)
         if idempotency_redis_key:
             await self.redis.set(idempotency_redis_key, generation.id, ex=IDEMPOTENCY_TTL_S, nx=True)
@@ -136,23 +189,79 @@ class CreateGenerationUsecase:
         return generation
 
     @Transactional
-    async def _persist(self, user, inputs: GenerationInputs, options, engine) -> GenerationEntity:
-        draft = self._draft(user, inputs)
-        if draft is not None:
-            options = {**options, "draftId": str(draft.id)}
-        backend = self._backend_spec(user, inputs, draft) if inputs.mode in NEEDS_BACKEND else None
-        frontend = self._frontend_spec(user, inputs, draft) if inputs.mode in NEEDS_FRONTEND else None
-        return self.generation_repo.create(
+    async def _persist_from_requirement(
+        self,
+        user: UserEntity,
+        inputs: GenerationInputs,
+        options: dict[str, Any],
+        engine: str,
+        gen_id: str,
+        draft_id: uuid.UUID,
+        req: Requirement,
+    ) -> GenerationEntity:
+        generation = self.generation_repo.create(
             GenerationEntity(
-                id=new_generation_id(),
+                id=gen_id,
                 owner_id=user.id,
                 mode=inputs.mode,
-                spec_id=backend.id if backend else None,
-                frontend_spec_id=frontend.id if frontend else None,
+                status=GenerationStatus.DRAFTING,
+                spec_id=None,
+                frontend_spec_id=None,
                 lanes=initial_lanes(inputs.mode),
                 options=options,
                 engine=engine,
             )
+        )
+        self.draft_repo.create(
+            SpecDraftEntity(
+                id=draft_id,
+                owner_id=user.id,
+                source=SpecSource.REQUIREMENT,
+                mode=inputs.mode,
+                requirement_text=req.text,
+                requirement_format=req.format,
+                requirement_file_name=req.file_name,
+                engine=engine,
+                status=SpecDraftStatus.PENDING,
+                generation_id=gen_id,
+            )
+        )
+        return generation
+
+    @Transactional
+    async def _persist(self, user, inputs: GenerationInputs, options, engine) -> GenerationEntity:
+        draft = self._draft(user, inputs)
+        if draft is not None:
+            options = {**options, "draftId": str(draft.id)}
+        generation = self.generation_repo.create(
+            GenerationEntity(
+                id=new_generation_id(),
+                owner_id=user.id,
+                mode=inputs.mode,
+                lanes=initial_lanes(inputs.mode),
+                options=options,
+                engine=engine,
+            )
+        )
+        if draft is not None:
+            attach_draft_specs(
+                generation.id,
+                draft,
+                self.generation_repo,
+                self.spec_repo,
+                self.frontend_spec_repo,
+                self.upload_repo,
+                backend_spec_data=inputs.backend_spec,
+                frontend_spec_data=inputs.frontend_spec,
+                is_admin=user.is_admin,
+            )
+            return self.generation_repo.find_by_id(generation.id)  # type: ignore[return-value]
+        backend = self._backend_spec(user, inputs, None) if inputs.mode in NEEDS_BACKEND else None
+        frontend = self._frontend_spec(user, inputs, None) if inputs.mode in NEEDS_FRONTEND else None
+        return self.generation_repo.update(
+            generation.id,
+            spec_id=backend.id if backend else None,
+            frontend_spec_id=frontend.id if frontend else None,
         )
 
     def _draft(self, user: UserEntity, inputs: GenerationInputs) -> SpecDraftEntity | None:
