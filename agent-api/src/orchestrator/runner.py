@@ -191,7 +191,7 @@ class JobRunner:
         }
         snapshot = await graph.aget_state(run_config, subgraphs=True)
         inputs: GenerationState | None
-        if snapshot.values:
+        if snapshot.values and snapshot.values.get("outcome") != Outcome.SPEC_INVALID:
             self.store.abandon_running(generation.id)
             last_commit, frontend_last_commit, next_steps = _checkpoint_state(snapshot)
             if last_commit:
@@ -204,6 +204,8 @@ class JobRunner:
                 return await self._finish_from_state(ctx, snapshot.values)
             inputs = None
         else:
+            if snapshot.values and hasattr(self.checkpointer, "adelete_thread"):
+                await self.checkpointer.adelete_thread(generation.id)
             self.store.update_generation(generation.id, worker_id=self.worker_id, started_at=datetime.now(UTC))
             await ctx.emit("job.started", engine=generation.engine, mode=generation.mode, options=generation.options)
             for lane, reason in UNAVAILABLE_LANES.items():
