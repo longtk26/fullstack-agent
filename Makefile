@@ -37,6 +37,8 @@ DEV_ENV := DB_URL=postgresql+psycopg://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@loc
            ARTIFACT_ROOT=$(CURDIR)/.data/artifacts \
            UPLOAD_ROOT=$(CURDIR)/.data/uploads \
            GEMINI_IMAGE_API_KEY=$(GEMINI_IMAGE_API_KEY) \
+           GEMINI_API_KEY=$(GEMINI_API_KEY) \
+           ANTIGRAVITY_AUTH=$(ANTIGRAVITY_AUTH) \
            IMAGE_PROVIDER=$(or $(IMAGE_PROVIDER),gemini)
 
 .PHONY: env up down down-all ps logs dev dev-down dev-api dev-worker dev-ui setup venv migrate test lint template runner runner-node frontend-base \
