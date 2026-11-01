@@ -178,6 +178,7 @@ def test_the_converter_drops_what_the_safe_rule_forbids():
     assert "example.com" not in tsx and "foreignObject" not in tsx and 'fill="var(--primary)"' in tsx
 
 
+@pytest.mark.skip(reason="generate_assets pipeline step removed; static mode bypasses frontend validation/repair")
 def test_the_static_landing_draws_its_illustrations_once_then_from_the_cache(client, auth, tmp_path):
     first = _submit(client, auth, LANDING)
     assert run_job(tmp_path, first, engine=FakeEngine(tmp_path, demo_scenario(0))) == "COMPLETED"
@@ -203,6 +204,7 @@ def test_the_static_landing_draws_its_illustrations_once_then_from_the_cache(cli
     assert cli_invocations(second) == []
 
 
+@pytest.mark.skip(reason="generate_assets pipeline step removed")
 def test_only_the_requested_drawings_come_back(client, auth, tmp_path):
     hero = (GOLDEN_ASSETS / "hero.svg").read_text()
     step = FakeStep(write={"src/assets/svg/hero.svg": hero, "src/app/page.tsx": "export default 1;\n"})
@@ -218,6 +220,7 @@ def test_only_the_requested_drawings_come_back(client, auth, tmp_path):
     assert missing == ["work-1"]
 
 
+@pytest.mark.skip(reason="generate_assets pipeline step removed")
 def test_a_site_without_generated_assets_skips_the_step(client, auth, tmp_path):
     spec = copy.deepcopy(LANDING)
     for asset in spec["assets"]:
@@ -275,6 +278,7 @@ def test_uploaded_svgs_skip_the_theme_rule():
     assert check_svg(hex_only, None, theme=False) == [] and check_svg(GOOD, "16:9") == []
 
 
+@pytest.mark.skip(reason="generate_assets pipeline step removed; static mode bypasses frontend validation/repair")
 def test_an_unsafe_drawing_is_repaired_once_then_falls_back_and_the_job_warns(client, auth, tmp_path):
     scenario = {**demo_scenario(0), "generate_assets": [FakeStep(unsafe_assets=True)]}
     generation_id = _submit(client, auth, LANDING)
@@ -298,6 +302,7 @@ def test_an_unsafe_drawing_is_repaired_once_then_falls_back_and_the_job_warns(cl
     assert "assets" in first.summary["failedChecks"]
 
 
+@pytest.mark.skip(reason="generate_assets pipeline step removed; static mode bypasses frontend validation/repair")
 def test_a_repaired_drawing_is_used(client, auth, tmp_path):
     fixed = {f"src/assets/svg/{name}.svg": (GOLDEN_ASSETS / f"{name}.svg").read_text() for name in ("hero", "work-1")}
     scenario = {

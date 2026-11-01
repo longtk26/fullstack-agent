@@ -218,10 +218,19 @@ def test_workflow_graph_per_mode(client, headers):
     assert "validate_spec" in ids["b"] and "validate_inputs" not in ids["b"]
     assert ids["d"][:3] == ["__start__", "validate_inputs", "build_contract"] and "validate_spec" not in ids["d"]
     frontend_lane = [
-        "plan_frontend", "scaffold_frontend", "generate_assets", "generate_frontend", "validate_frontend",
+        "plan_frontend", "scaffold_frontend", "generate_frontend", "validate_frontend",
         "repair_frontend",
     ]  # fmt: skip
-    assert ids["s"] == ["__start__", "validate_inputs", *frontend_lane, "package_artifacts", "__end__"]
+    static_nodes = [
+        "__start__",
+        "validate_inputs",
+        "plan_frontend",
+        "scaffold_frontend",
+        "generate_frontend",
+        "package_artifacts",
+        "__end__",
+    ]
+    assert ids["s"] == static_nodes
     assert set(frontend_lane) <= set(ids["d"]) and not set(frontend_lane) & set(ids["b"])
     lanes = {node["id"]: node["lane"] for node in dynamic["nodes"] if not node["id"].startswith("__")}
     assert lanes["generate_backend"] == "backend" and lanes["build_contract"] is None
@@ -269,7 +278,6 @@ def test_dynamic_generation_runs_contract_backend_and_frontend_lanes(client, hea
     frontend_lane_nodes = (
         "plan_frontend",
         "scaffold_frontend",
-        "generate_assets",
         "generate_frontend",
         "validate_frontend",
         "repair_frontend",
@@ -283,13 +291,12 @@ def test_dynamic_generation_runs_contract_backend_and_frontend_lanes(client, hea
         "repair_code",
         "run_validation",
     ]
-    # Story 17.4: every tracker section is in the library, so the frontend lane's only engine call draws the
-    # empty-state illustration (Story 15.2).
+    # Every tracker section is in the library; generate_assets removed as photos/images are handled via Gemini AI.
     assert [n for n in nodes if n in frontend_lane_nodes] == [
-        "plan_frontend", "scaffold_frontend", "generate_assets", "generate_frontend", "validate_frontend",
+        "plan_frontend", "scaffold_frontend", "generate_frontend", "validate_frontend",
     ]  # fmt: skip
     assert {call.purpose for call in cli_invocations(generation_id)} == {
-        "generate_database", "generate_backend", "generate_tests", "repair_code", "generate_assets",
+        "generate_database", "generate_backend", "generate_tests", "repair_code",
     }  # fmt: skip
     frontend = tmp_path / generation_id / "frontend"
     assert (frontend / ".bga" / "contract.json").is_file() and (
@@ -364,11 +371,10 @@ def test_static_generation_renders_the_site_without_the_engine(client, headers, 
     row = generation(generation_id)
     assert row.lanes == {"frontend": "COMPLETED"} and row.error_summary is None
     assert [run.node for run in node_runs(generation_id)] == [
-        "validate_inputs", "plan_frontend", "scaffold_frontend", "generate_assets", "generate_frontend",
-        "validate_frontend", "package_artifacts",
+        "validate_inputs", "plan_frontend", "scaffold_frontend", "generate_frontend", "package_artifacts",
     ]  # fmt: skip
-    # Story 18.7: one engine call per drawing; LANDING has 2 illustrations (hero and work-1).
-    assert [call.purpose for call in cli_invocations(generation_id)] == ["generate_assets", "generate_assets"]
+    # Static mode bypasses generate_assets and validate_frontend; 0 engine calls.
+    assert [call.purpose for call in cli_invocations(generation_id)] == []
     assert deployed == [generation_id]
     generate = next(run for run in node_runs(generation_id) if run.node == "generate_frontend")
     assert generate.summary == {"pages": 5, "sections": 11, "rendering": "renderer", "engineCalls": 0}
@@ -378,7 +384,6 @@ def test_static_generation_renders_the_site_without_the_engine(client, headers, 
 
     artifacts = _artifacts(client, auth, generation_id)
     expected = {"frontend-spec.json", "frontend-plan.json", "frontend.zip", "manifest.json", "report.json"}
-    expected |= {"frontend-validation-1.json"}
     assert expected <= set(artifacts) and "frontend-repair-1.patch" not in artifacts
     assert "backend.zip" not in artifacts and "contract.json" not in artifacts
     report = client.get(

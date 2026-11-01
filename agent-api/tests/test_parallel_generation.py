@@ -722,7 +722,6 @@ def test_story18_7_parallel_assets_and_frontend_with_shared_semaphore(client, he
     assert status in ("COMPLETED", "COMPLETED_WITH_WARNINGS")
     runs = node_runs(generation_id)
     node_names = [r.node for r in runs]
-    assert "generate_assets" in node_names
     assert "generate_frontend" in node_names
     assert "validate_frontend" in node_names
     assert node_names.count("validate_frontend") == 1

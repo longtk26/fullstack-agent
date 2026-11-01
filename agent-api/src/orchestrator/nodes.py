@@ -790,6 +790,8 @@ def frontend_manifest(plan: dict[str, Any], ctx: JobContext, state: dict[str, An
 async def package_artifacts(state: GenerationState, ctx: JobContext) -> NodeResult:
     if ctx.mode == GenerationMode.BACKEND:
         await ctx.set_lane("backend", LaneStatus.COMPLETED)
+    elif ctx.mode == GenerationMode.STATIC:
+        await ctx.set_lane("frontend", LaneStatus.COMPLETED)
     artifact_ids, operations = await write_artifacts(ctx, state, completed=True)
     summary = {"artifacts": sorted(artifact_ids), "operations": operations}
     return {"outcome": Outcome.COMPLETED, "artifact_ids": artifact_ids}, summary

@@ -42,7 +42,7 @@ async def generate_single_photo(
     """
     raw_prompt = custom_prompt or asset.get("prompt") or asset.get("alt") or asset["id"]
     raw_style = custom_style if custom_style is not None else asset.get("style")
-    prompt_text = build_photo_prompt(raw_prompt, raw_style)
+    prompt_text = build_photo_prompt(raw_prompt, raw_style, kind=asset.get("kind", "image"))
     aspect_ratio = asset.get("aspectRatio", "16:9")
 
     if generator is _UNSET:

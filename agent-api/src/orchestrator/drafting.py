@@ -393,7 +393,7 @@ def draw_images(work: Path, chosen: dict[str, Any] | None) -> list[dict[str, Any
         if not isinstance(asset.get("id"), str):
             continue
         kind = asset.get("kind") or "image"
-        if photos_on and kind == "image" and photos_count < max_photos:
+        if photos_on and kind in ("image", "logo", "illustration") and photos_count < max_photos:
             asset["source"] = "photo"
             asset["prompt"] = asset.get("prompt") or asset.get("alt") or asset["id"].replace("-", " ")
             if photo_style and not asset.get("style"):

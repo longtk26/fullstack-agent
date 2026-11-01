@@ -30,23 +30,11 @@ BACKEND_LANE_NODES = (
 FRONTEND_LANE_NODES = (
     "plan_frontend",
     "scaffold_frontend",
-    "generate_assets",
     "generate_frontend",
     "validate_frontend",
     "repair_frontend",
 )
-NODE_COMMIT_PATHS: dict[str, list[str]] = {
-    "generate_assets": [
-        "src/assets",
-        "src/components/assets",
-        "public/assets",
-    ],
-    "generate_frontend": [
-        ":!src/assets",
-        ":!src/components/assets",
-        ":!public/assets",
-    ],
-}
+NODE_COMMIT_PATHS: dict[str, list[str]] = {}
 # State that goes into a node span: identifiers and refs only (Story 8.1); files stay in the workspace.
 TRACED_STATE = (
     "spec_ref",
@@ -203,9 +191,7 @@ def _frontend_subgraph(ctx: JobContext | None) -> StateGraph:
         sub.add_node(name, _node(name, ctx))
     sub.add_edge(START, "plan_frontend")
     sub.add_edge("plan_frontend", "scaffold_frontend")
-    sub.add_edge("scaffold_frontend", "generate_assets")
     sub.add_edge("scaffold_frontend", "generate_frontend")
-    sub.add_edge("generate_assets", "validate_frontend")
     sub.add_edge("generate_frontend", "validate_frontend")
     sub.add_conditional_edges(
         "validate_frontend",
@@ -256,13 +242,17 @@ def build_graph(ctx: JobContext | None, mode: GenerationMode = GenerationMode.BA
             {"passed": "package_artifacts", "failed": "repair_code", "repair limit reached": END},
         )
         graph.add_edge("repair_code", "run_validation")
+    elif mode == GenerationMode.STATIC:
+        graph.add_edge(START, "validate_inputs")
+        graph.add_conditional_edges("validate_inputs", route_after_spec, {"valid": "plan_frontend", "invalid": END})
+        graph.add_edge("plan_frontend", "scaffold_frontend")
+        graph.add_edge("scaffold_frontend", "generate_frontend")
+        graph.add_edge("generate_frontend", "package_artifacts")
     else:
         graph.add_edge(START, "validate_inputs")
         graph.add_conditional_edges("validate_inputs", route_after_spec, {"valid": "plan_frontend", "invalid": END})
         graph.add_edge("plan_frontend", "scaffold_frontend")
-        graph.add_edge("scaffold_frontend", "generate_assets")
         graph.add_edge("scaffold_frontend", "generate_frontend")
-        graph.add_edge("generate_assets", "validate_frontend")
         graph.add_edge("generate_frontend", "validate_frontend")
         graph.add_conditional_edges(
             "validate_frontend",
@@ -295,9 +285,7 @@ def _display_graph(mode: GenerationMode = GenerationMode.BACKEND) -> StateGraph:
     )
     graph.add_edge("repair_code", "run_validation")
     graph.add_edge("plan_frontend", "scaffold_frontend")
-    graph.add_edge("scaffold_frontend", "generate_assets")
     graph.add_edge("scaffold_frontend", "generate_frontend")
-    graph.add_edge("generate_assets", "validate_frontend")
     graph.add_edge("generate_frontend", "validate_frontend")
     graph.add_conditional_edges(
         "validate_frontend",

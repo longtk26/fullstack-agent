@@ -33,10 +33,17 @@ BACKEND_NODES = (
 FRONTEND_NODES = (
     "plan_frontend",
     "scaffold_frontend",
-    "generate_assets",
     "generate_frontend",
     "validate_frontend",
     "repair_frontend",
+)
+
+STATIC_NODES = (
+    "validate_inputs",
+    "plan_frontend",
+    "scaffold_frontend",
+    "generate_frontend",
+    "package_artifacts",
 )
 
 # The nodes each mode's graph is built from (Stories 12.2, 13.x; 14.1 runs the two lanes in parallel).
@@ -50,7 +57,7 @@ MODE_NODES: dict[GenerationMode, tuple[str, ...]] = {
         "integrate",
         "package_artifacts",
     ),
-    GenerationMode.STATIC: ("validate_inputs", *FRONTEND_NODES, "package_artifacts"),
+    GenerationMode.STATIC: STATIC_NODES,
 }
 
 NODE_STATUS = {

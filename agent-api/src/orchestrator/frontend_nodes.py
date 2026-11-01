@@ -77,13 +77,14 @@ async def scaffold_frontend_node(state: GenerationState, ctx: JobContext) -> Nod
     plan = _plan(ctx, state)
     info = scaffold_frontend(ctx.workspace.frontend, plan, _json(Path(state["frontend_ref"])), _contract(ctx))
     summary = {"mode": info["mode"], "shadcn": len(info["shadcn"]), "generated": len(info["generated"])}
+    missing = []
     if any(asset["render"] == "public-file" for asset in plan.get("assets", [])):
         # Story 15.4: the user's uploads go to public/assets/ and into the registry.
         missing = copy_uploads(ctx.workspace.frontend, plan, ctx.store.upload)
-        write_registry(ctx.workspace.frontend, plan)
         summary["uploads"] = sum(1 for asset in plan["assets"] if asset["render"] == "public-file") - len(missing)
         for asset_id in missing:
             await ctx.emit("frontend.asset.missing", step="scaffold_frontend", id=asset_id, reason="upload deleted")
+    write_registry(ctx.workspace.frontend, plan)
     await ctx.emit("frontend.scaffold.done", step="scaffold_frontend", **summary)
     if ctx.sandboxes is not None and config.frontend_shared_modules:
 
