@@ -26,6 +26,7 @@ HOST_WORKER_LOG       := $(CURDIR)/.data/host-worker.log
 # Host-side overrides for running api/worker/ui outside Docker.
 DEV_ENV := DB_URL=postgresql+psycopg://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@localhost:$(BGA_PG_PORT)/$(POSTGRES_DB) \
            REDIS_URL=redis://localhost:$(BGA_REDIS_PORT)/0 \
+           JWT_SECRET=$(JWT_SECRET) \
            CORS_ORIGINS=http://localhost:$(BGA_UI_PORT) \
            WORKSPACE_ROOT=$(HOST_WORKSPACE_ROOT) \
            WORKER_HEARTBEAT_FILE=$(CURDIR)/.data/worker.heartbeat \
@@ -55,8 +56,7 @@ up: env runner runner-node $(if $(HOST_WORKER),template venv)
 # Worker on the host for Antigravity's account login (started by `make up`, stopped by `make down`).
 host-worker: host-worker-stop
 	@command -v $(or $(ANTIGRAVITY_BIN),agy) >/dev/null || echo "warning: agy not found on PATH; Antigravity will be unavailable"
-	@( cd $(API_DIR) && exec env $(DEV_ENV) WORKER_ENGINES=antigravity PREVIEW_WORKER=false \
-	    $(PY)/python -m src.worker ) > $(HOST_WORKER_LOG) 2>&1 & echo $$! > $(HOST_WORKER_PID)
+	@nohup bash -c 'cd $(API_DIR) && exec env $(DEV_ENV) WORKER_ENGINES=antigravity PREVIEW_WORKER=false $(PY)/python -u -m src.worker' > $(HOST_WORKER_LOG) 2>&1 & echo $$! > $(HOST_WORKER_PID)
 	@echo "host worker (antigravity) started: pid $$(cat $(HOST_WORKER_PID)), log .data/host-worker.log"
 
 host-worker-stop:
