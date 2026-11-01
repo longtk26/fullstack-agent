@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from src.engines import PromptLibrary
 from src.engines.fake_engine import FakeEngine, demo_scenario
 from src.modules.shared.domain.backend_spec import validate_spec_data
@@ -317,9 +319,8 @@ def test_prompt_snapshots_v7_and_complete_backend_v2():
         photos_enabled=False,
         max_photos=0,
     )
-    assert "Journeys first" in v7_rendered.text
-    assert "BackendSpec second" in v7_rendered.text
-    assert "FrontendSpec screens third" in v7_rendered.text
+    assert "FrontendSpec screens" in v7_rendered.text
+    assert "BackendSpec" in v7_rendered.text
     assert "Manage area" in v7_rendered.text
     assert "</untrusted-data>" in v7_rendered.text
 
@@ -437,21 +438,20 @@ def test_static_frontend_validation_runner_journeys(tmp_path):
         res = await StaticFrontendValidationRunner().run(req)
         j_res = next(r for r in res.results if r.check == "journeys")
         assert j_res.status == "skipped"
-        assert "no journey tests planned" in j_res.summary
+        assert "disabled" in j_res.summary
 
-        # 2. journeys.spec.ts present, run_tests=True -> not_run
+        # 2. journeys.spec.ts present -> still skipped because frontend e2e tests are disabled
         (project / "tests" / "e2e").mkdir(parents=True)
         (project / "tests" / "e2e" / "journeys.spec.ts").write_text("// spec")
         res = await StaticFrontendValidationRunner().run(req)
         j_res = next(r for r in res.results if r.check == "journeys")
-        assert j_res.status == "not_run"
+        assert j_res.status == "skipped"
 
         # 3. run_tests=False -> skipped
         req_no_tests = FrontendValidationRequest(project=project, plan=plan, run_tests=False)
         res = await StaticFrontendValidationRunner().run(req_no_tests)
         j_res = next(r for r in res.results if r.check == "journeys")
         assert j_res.status == "skipped"
-        assert "runTests=false" in j_res.summary
 
     asyncio.run(_run())
 
@@ -530,6 +530,7 @@ def test_sandbox_frontend_validation_journeys_failure_implicates_page(tmp_path):
     asyncio.run(_run())
 
 
+@pytest.mark.skip(reason="Frontend live journeys disabled per user instruction")
 def test_integration_journeys_live_passes_and_broken_review_fails(tmp_path):
     from unittest.mock import AsyncMock, MagicMock
 

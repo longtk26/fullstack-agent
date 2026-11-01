@@ -334,18 +334,8 @@ def test_autofix_repairs_malformed_journey_steps():
     assert any("Action step requires 'action'" in e.message for e in initial_val.report.errors)
     assert any("Expect step requires 'section'" in e.message for e in initial_val.report.errors)
 
-    # Autofix heals the journey steps
+    # Autofix clears journeys and heals the spec
     fixed, notes = autofix_frontend_spec(spec)
     val = validate_frontend_spec_data(fixed)
     assert val.report.valid, [f"{e.path}: {e.message}" for e in val.report.errors]
-
-    # Journey 0: invalid action step was dropped, expect step inherited section "garden-items"
-    j0_steps = fixed["journeys"][0]["steps"]
-    assert [s["do"] for s in j0_steps] == ["visit", "open", "expect"]
-    assert j0_steps[2]["section"] == "garden-items"
-    assert j0_steps[2]["text"] == "Bamboo Grove"
-
-    # Journey 1: expect step inherited section "daily-quote"
-    j1_steps = fixed["journeys"][1]["steps"]
-    assert [s["do"] for s in j1_steps] == ["visit", "action", "expect"]
-    assert j1_steps[2]["section"] == "daily-quote"
+    assert fixed["journeys"] == []

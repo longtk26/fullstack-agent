@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { cn } from "cn";
 import { siteConfig } from "@/config/site";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -57,9 +58,13 @@ export function ActionButton({ action, record }: { action: TSectionAction; recor
     }
     const variant = action.variant ?? "outline";
     return (
-      <Button asChild variant={variant} size="sm" data-bga-action={action.id}>
-        <Link href={href}>{action.label}</Link>
-      </Button>
+      <Link
+        href={href}
+        className={cn(buttonVariants({ variant, size: "sm" }))}
+        data-bga-action={action.id}
+      >
+        {action.label}
+      </Link>
     );
   }
 
@@ -105,11 +110,13 @@ export function ActionButton({ action, record }: { action: TSectionAction; recor
       typeof action.confirm === "string" ? action.confirm : "Are you sure you want to proceed?";
     return (
       <AlertDialog>
-        <AlertDialogTrigger asChild>
-          <Button variant={variant} size="sm" data-bga-action={action.id} disabled={mutation.isPending}>
-            {action.label}
-          </Button>
-        </AlertDialogTrigger>
+        <AlertDialogTrigger
+          render={
+            <Button variant={variant} size="sm" data-bga-action={action.id} disabled={mutation.isPending}>
+              {action.label}
+            </Button>
+          }
+        />
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{action.label}</AlertDialogTitle>

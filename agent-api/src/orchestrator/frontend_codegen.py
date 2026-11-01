@@ -1117,15 +1117,7 @@ def generated_files(plan: dict[str, Any], spec: dict[str, Any], contract: dict[s
         ASSETS_FILE: assets_ts(plan),
         "src/config/site.ts": site_ts(plan, spec),
         "src/lib/forms.ts": forms_ts(plan, contract),
-        "tests/e2e/smoke.spec.ts": smoke_spec(plan, spec, contract),
-        "tests/unit/forms.test.ts": forms_unit_test(plan),
     }
-    forms = forms_spec(plan)
-    if forms:
-        files["tests/e2e/forms.spec.ts"] = forms
-    journeys = journeys_spec(plan, spec, contract)
-    if journeys:
-        files["tests/e2e/journeys.spec.ts"] = journeys
     for item in spec.get("content", []):
         files[f"src/content/{to_kebab(item['collection'])}.json"] = (
             json.dumps(item["records"], indent=2, ensure_ascii=False) + "\n"

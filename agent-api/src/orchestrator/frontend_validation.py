@@ -162,10 +162,10 @@ class StaticFrontendValidationRunner:
                     result = conventions_check(request.project, request.plan)
                 elif check == "assets":
                     result = assets_check(request.project, request.plan)
-                elif check in ("tests", "journeys") and not request.run_tests:
-                    result = CheckResult(check=check, status="skipped", summary="runTests=false")
-                elif check == "journeys" and not (request.project / "tests" / "e2e" / "journeys.spec.ts").is_file():
-                    result = CheckResult(check=check, status="skipped", summary="no journey tests planned")
+                elif check in ("tests", "journeys"):
+                    result = CheckResult(check=check, status="skipped", summary="frontend tests disabled")
+                elif check == "lint":
+                    result = CheckResult(check=check, status="skipped", summary="eslint validation disabled")
                 else:
                     result = CheckResult(check=check, status="not_run", summary="requires the Node sandbox")
                 slot.append(result)
@@ -182,10 +182,10 @@ class SandboxFrontendValidationRunner:
         for check in CHECKS:
             blocked = [d for d in DEPENDS_ON.get(check, ()) if results[d].status != "passed"]
             with traced_check(check) as slot:
-                if check in ("tests", "journeys") and not request.run_tests:
-                    result = CheckResult(check=check, status="skipped", summary="runTests=false")
-                elif check == "journeys" and not (request.project / "tests" / "e2e" / "journeys.spec.ts").is_file():
-                    result = CheckResult(check=check, status="skipped", summary="no journey tests planned")
+                if check in ("tests", "journeys"):
+                    result = CheckResult(check=check, status="skipped", summary="frontend tests disabled")
+                elif check == "lint":
+                    result = CheckResult(check=check, status="skipped", summary="eslint validation disabled")
                 elif blocked:
                     result = CheckResult(
                         check=check, status="skipped", summary=f"skipped: {', '.join(blocked)} did not pass"

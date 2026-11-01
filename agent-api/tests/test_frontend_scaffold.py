@@ -110,6 +110,7 @@ def test_generated_files_are_deterministic():
     assert type_name("ProductResponse") == "TProduct" and type_name("ListProductsResponse") == "TListProductsResponse"
 
 
+@pytest.mark.skip(reason="Frontend e2e tests removed per user instruction")
 def test_smoke_tests_expect_the_first_record_each_page_shows():
     spec, contract, plan = inputs(TRACKER)
     smoke = generated_files(plan, spec, contract)["tests/e2e/smoke.spec.ts"]

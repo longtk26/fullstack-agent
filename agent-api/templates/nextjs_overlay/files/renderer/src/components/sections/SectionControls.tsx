@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useState, useEffect } from "react";
+import { useCallback, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -27,10 +27,12 @@ export function SectionControls({ controls, columns = [], total }: SectionContro
 
   const currentQ = searchParams?.get("q") ?? "";
   const [searchValue, setSearchValue] = useState(currentQ);
+  const [prevQ, setPrevQ] = useState(currentQ);
 
-  useEffect(() => {
+  if (currentQ !== prevQ) {
+    setPrevQ(currentQ);
     setSearchValue(currentQ);
-  }, [currentQ]);
+  }
 
   const updateParam = useCallback(
     (key: string, value: string | null) => {
