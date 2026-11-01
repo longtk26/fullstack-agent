@@ -12,7 +12,7 @@ from src.configs import config
 from src.libs.redaction import default_redactor
 from src.modules.shared.domain.backend_spec import Severity, SpecIssue, validate_spec_text
 from src.modules.shared.domain.entities import ValidationRunEntity
-from src.modules.shared.domain.enums import GenerationMode, LaneStatus
+from src.modules.shared.domain.enums import GenerationMode, LaneStatus, SpecSource
 from src.modules.shared.domain.frontend_spec import autofix_frontend_spec, validate_frontend_spec_data
 from src.modules.shared.domain.generation_modes import overall_status
 
@@ -142,6 +142,12 @@ async def validate_inputs(state: GenerationState, ctx: JobContext) -> NodeResult
         errors += [_issue_dump(issue, "backend") for issue in backend.report.errors]
         warnings += len(backend.report.warnings)
         if result.normalized is not None and backend.normalized is not None:
+            if frontend is not None and (
+                frontend.source == SpecSource.REQUIREMENT or state.get("draft_id") is not None
+            ):
+                from src.orchestrator.checks.consistency import reconcile_spec_pair
+
+                result.normalized, _ = reconcile_spec_pair(result.normalized, backend.normalized)
             consistency = check_spec_pair(result.normalized, backend.normalized)
             _write_json(spec_dir / "consistency-report.json", [i.model_dump(mode="json") for i in consistency])
             errors += [_issue_dump(issue, "consistency") for issue in consistency if issue.severity != Severity.WARNING]

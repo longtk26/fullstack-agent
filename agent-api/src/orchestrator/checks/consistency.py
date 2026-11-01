@@ -605,3 +605,268 @@ def check_consistency(
 def check_spec_pair(frontend: dict[str, Any], backend: dict[str, Any]) -> list[SpecIssue]:
     """Both normalized specs: builds the contract the backend lane would get and checks the frontend against it."""
     return check_consistency(frontend, build_contract(backend), backend)
+
+
+def reconcile_spec_pair(
+    frontend: dict[str, Any], backend: dict[str, Any]
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Auto-heals FrontendSpec inconsistencies against the BackendSpec contract:
+    - Clears dangling/unknown or invalid operationIds on forms so they become client-only forms
+    - Prunes form fields not in request schema, or adds hidden defaults for missing required fields
+    - Clears unknown load.operationId on forms
+    - Converts mutation actions with unknown operations to link actions
+    - Adds confirmation prompt to DELETE actions if missing
+    - Clears unknown operationIds from section data bindings or stats items
+    - Prunes unsupported section controls (search/filter/sort)
+    Returns (healed_frontend, notes).
+    """
+    if not isinstance(frontend, dict) or not isinstance(backend, dict):
+        return frontend, []
+
+    try:
+        contract = build_contract(backend)
+    except Exception:
+        return frontend, []
+
+    ops = contract_operations(contract)
+    notes: list[dict[str, Any]] = []
+
+    # 1. Forms
+    forms = frontend.get("forms")
+    if isinstance(forms, list):
+        for f_idx, form in enumerate(forms):
+            if not isinstance(form, dict):
+                continue
+            f_id = form.get("id") or f"form-{f_idx}"
+            op_id = form.get("operationId")
+            if op_id:
+                if op_id not in ops:
+                    form["operationId"] = None
+                    notes.append(
+                        {
+                            "spec": "frontend",
+                            "path": f"/forms/{f_idx}/operationId",
+                            "message": (
+                                f"Operation '{op_id}' is not in the API contract; "
+                                f"cleared form '{f_id}' to client-only submission."
+                            ),
+                            "suggestion": None,
+                        }
+                    )
+                elif ops[op_id]["method"] == "GET":
+                    form["operationId"] = None
+                    notes.append(
+                        {
+                            "spec": "frontend",
+                            "path": f"/forms/{f_idx}/operationId",
+                            "message": f"Operation '{op_id}' is GET; cleared form '{f_id}' to client-only submission.",
+                            "suggestion": None,
+                        }
+                    )
+                else:
+                    found_op = ops[op_id]
+                    op_params = found_op["operation"].get("parameters") or []
+                    for p in op_params:
+                        if p.get("in") == "path" and p.get("required", True):
+                            p_name = p.get("name")
+                            if p_name:
+                                if not isinstance(form.get("params"), dict):
+                                    form["params"] = {}
+                                if p_name not in form["params"]:
+                                    form["params"][p_name] = f"$route.{p_name}"
+
+                    body_content = (
+                        (found_op["operation"].get("requestBody") or {}).get("content", {}).get("application/json", {})
+                    )
+                    schema = resolve(contract, body_content.get("schema") or {})
+                    props = schema.get("properties") or {}
+                    required = set(schema.get("required") or [])
+
+                    if props and isinstance(form.get("fields"), list):
+                        valid_fields = []
+                        for fld_idx, fld in enumerate(form["fields"]):
+                            if isinstance(fld, dict):
+                                fname = fld.get("name")
+                                if fname in props:
+                                    valid_fields.append(fld)
+                                else:
+                                    notes.append(
+                                        {
+                                            "spec": "frontend",
+                                            "path": f"/forms/{f_idx}/fields/{fld_idx}",
+                                            "message": f"Field '{fname}' not in request for '{op_id}'; removed.",
+                                            "suggestion": None,
+                                        }
+                                    )
+                        form["fields"] = valid_fields
+
+                    existing_names = {f.get("name") for f in form.get("fields") or [] if isinstance(f, dict)}
+                    for req_name in sorted(required - existing_names):
+                        prop_schema = resolve(contract, props.get(req_name) or {})
+                        types = _types(prop_schema)
+                        field_type = "string"
+                        val: Any = ""
+                        if "integer" in types or "number" in types:
+                            field_type = "integer"
+                            val = 0
+                        elif "boolean" in types:
+                            field_type = "boolean"
+                            val = False
+                        form.setdefault("fields", []).append(
+                            {
+                                "name": req_name,
+                                "type": field_type,
+                                "hidden": True,
+                                "value": val,
+                            }
+                        )
+                        notes.append(
+                            {
+                                "spec": "frontend",
+                                "path": f"/forms/{f_idx}/fields",
+                                "message": f"Added required hidden field '{req_name}' to form '{f_id}'.",
+                                "suggestion": None,
+                            }
+                        )
+
+            load = form.get("load")
+            if isinstance(load, dict):
+                load_op = load.get("operationId")
+                if load_op and (load_op not in ops or ops[load_op]["method"] != "GET"):
+                    del form["load"]
+                    notes.append(
+                        {
+                            "spec": "frontend",
+                            "path": f"/forms/{f_idx}/load",
+                            "message": f"Invalid load operationId '{load_op}' removed from form '{f_id}'.",
+                            "suggestion": None,
+                        }
+                    )
+                elif load_op and load_op in ops:
+                    load_params = ops[load_op]["operation"].get("parameters") or []
+                    for p in load_params:
+                        if p.get("in") == "path" and p.get("required", True):
+                            p_name = p.get("name")
+                            if p_name:
+                                if not isinstance(load.get("params"), dict):
+                                    load["params"] = {}
+                                if p_name not in load["params"]:
+                                    load["params"][p_name] = f"$route.{p_name}"
+
+    # 2. Pages and sections
+    pages = frontend.get("pages")
+    known_pages: set[str] = set()
+    first_page: str = "/"
+    if isinstance(pages, list):
+        known_pages = {p.get("id") for p in pages if isinstance(p, dict) and p.get("id")} | {
+            p.get("route") for p in pages if isinstance(p, dict) and p.get("route")
+        }
+        for p in pages:
+            if isinstance(p, dict) and (p.get("id") or p.get("route")):
+                first_page = p.get("id") or p.get("route")
+                break
+        for p_idx, page in enumerate(pages):
+            if not isinstance(page, dict):
+                continue
+            for sec, sec_path in _sections(page.get("sections") or [], f"/pages/{p_idx}/sections"):
+                if not isinstance(sec, dict):
+                    continue
+                content = sec.get("content")
+                if isinstance(content, dict):
+                    # Actions
+                    actions = content.get("actions")
+                    if isinstance(actions, list):
+                        for a_idx, action in enumerate(actions):
+                            if not isinstance(action, dict):
+                                continue
+                            if action.get("kind") == "link":
+                                target_page = action.get("page")
+                                if target_page and target_page not in known_pages:
+                                    action["page"] = first_page
+                            elif action.get("kind") == "mutation":
+                                act_op = action.get("operationId")
+                                if not act_op or act_op not in ops or ops[act_op]["method"] == "GET":
+                                    action["kind"] = "link"
+                                    action["page"] = action.get("page") or first_page
+                                    action.pop("operationId", None)
+                                    action.pop("body", None)
+                                    action.pop("params", None)
+                                    notes.append(
+                                        {
+                                            "spec": "frontend",
+                                            "path": f"{sec_path}/content/actions/{a_idx}",
+                                            "message": (
+                                                f"Mutation action with invalid operation '{act_op}' converted to link."
+                                            ),
+                                            "suggestion": None,
+                                        }
+                                    )
+                                else:
+                                    if ops[act_op]["method"] == "DELETE" and not action.get("confirm"):
+                                        action["confirm"] = "Are you sure you want to proceed?"
+                                    act_params = ops[act_op]["operation"].get("parameters") or []
+                                    for p in act_params:
+                                        if p.get("in") == "path" and p.get("required", True):
+                                            p_name = p.get("name")
+                                            if p_name:
+                                                if not isinstance(action.get("params"), dict):
+                                                    action["params"] = {}
+                                                if p_name not in action["params"]:
+                                                    action["params"][p_name] = f"$route.{p_name}"
+                    # Stats
+                    if sec.get("component") == "Stats" and isinstance(content.get("items"), list):
+                        for i_idx, item in enumerate(content["items"]):
+                            if isinstance(item, dict) and isinstance(item.get("data"), dict):
+                                stat_op = item["data"].get("operationId")
+                                if stat_op and (stat_op not in ops or ops[stat_op]["method"] != "GET"):
+                                    del item["data"]
+                                    notes.append(
+                                        {
+                                            "spec": "frontend",
+                                            "path": f"{sec_path}/content/items/{i_idx}/data",
+                                            "message": f"Stats item invalid operation '{stat_op}' removed.",
+                                            "suggestion": None,
+                                        }
+                                    )
+
+                # Section data binding
+                data = sec.get("data")
+                if isinstance(data, dict):
+                    sec_op = data.get("operationId")
+                    if sec_op:
+                        if sec_op not in ops or ops[sec_op]["method"] != "GET":
+                            del sec["data"]
+                            notes.append(
+                                {
+                                    "spec": "frontend",
+                                    "path": f"{sec_path}/data",
+                                    "message": f"Section data binding with invalid operation '{sec_op}' removed.",
+                                    "suggestion": None,
+                                }
+                            )
+                        else:
+                            sec_path_params = ops[sec_op]["operation"].get("parameters") or []
+                            for p in sec_path_params:
+                                if p.get("in") == "path" and p.get("required", True):
+                                    p_name = p.get("name")
+                                    if p_name:
+                                        if not isinstance(data.get("params"), dict):
+                                            data["params"] = {}
+                                        if p_name not in data["params"]:
+                                            data["params"][p_name] = f"$route.{p_name}"
+
+                            if isinstance(content, dict) and isinstance(content.get("controls"), dict):
+                                controls = content["controls"]
+                                op_params = {
+                                    p["name"]: p
+                                    for p in ops[sec_op]["operation"].get("parameters") or []
+                                    if p.get("in") == "query"
+                                }
+                                if controls.get("search") and "q" not in op_params and "search" not in op_params:
+                                    controls["search"] = False
+                                if isinstance(controls.get("filters"), list):
+                                    controls["filters"] = [f for f in controls["filters"] if f in op_params]
+                                if controls.get("sort") and "sort" not in op_params:
+                                    controls["sort"] = []
+
+    return frontend, notes

@@ -434,8 +434,15 @@ def autofix_draft(work: Path) -> list[dict[str, Any]]:
     if issue is not None or not isinstance(spec, dict) or not isinstance(spec.get("pages"), list):
         return []
     fixed_spec, notes = autofix_frontend_spec(spec)
-    if notes:
-        _write_json(work / FRONTEND_FILE, fixed_spec)
+    backend_file = work / BACKEND_FILE
+    if backend_file.is_file():
+        b_spec, b_issue = _load(backend_file)
+        if b_issue is None and isinstance(b_spec, dict):
+            from src.orchestrator.checks.consistency import reconcile_spec_pair
+
+            fixed_spec, r_notes = reconcile_spec_pair(fixed_spec, b_spec)
+            notes.extend(r_notes)
+    _write_json(work / FRONTEND_FILE, fixed_spec)
     return notes
 
 

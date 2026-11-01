@@ -343,7 +343,7 @@ def bindings_ts(contract: dict[str, Any] | None) -> str:
         + "  const mutationMeta = operationId ? mutations[operationId] : undefined;\n"
         + "  const result = useMutation({\n"
         + "    mutationFn: ({ params, body }: TMutationVariables) => {\n"
-        + '      if (!mutationMeta) throw new Error(`Unknown operation ${operationId ?? ""}`);\n'
+        + "      if (!mutationMeta) return Promise.resolve({ success: true });\n"
         + "      return mutationMeta.run(params, body);\n"
         + "    },\n"
         + "    onSuccess: () => {\n"

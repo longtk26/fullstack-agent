@@ -8,7 +8,7 @@ from generation_helpers import EXAMPLES, normalized
 
 from src.modules.shared.domain.backend_spec import Severity
 from src.modules.shared.domain.frontend_spec import validate_frontend_spec_data
-from src.orchestrator.checks.consistency import check_spec_pair
+from src.orchestrator.checks.consistency import check_spec_pair, reconcile_spec_pair
 
 SHOP_FRONTEND = json.loads((EXAMPLES / "frontend-specs" / "shop-dynamic.json").read_text())
 
@@ -214,3 +214,47 @@ def test_uncovered_operations_warning_and_manage_area():
     managed_again, notes_again = add_manage_area(managed_spec, contract)
     assert managed_again == managed_spec
     assert notes_again == []
+
+
+def test_reconcile_spec_pair_heals_unbacked_and_invalid_operations():
+    backend_spec = normalized(EXAMPLES / "specs" / "shop.json")
+    frontend = copy.deepcopy(SHOP_FRONTEND)
+
+    # 1. Unbacked auth.signin form operation
+    frontend["forms"][1]["operationId"] = "auth.signin"
+
+    # 2. Unknown action mutation
+    frontend["pages"][0]["sections"][0]["content"] = {
+        "actions": [
+            {"id": "action1", "label": "Unknown Action", "kind": "mutation", "operationId": "dangling.op"},
+            {"id": "deleteItem", "label": "Delete", "kind": "mutation", "operationId": "cartItem.delete"},
+        ]
+    }
+
+    # 3. Invalid form load
+    frontend["forms"][0]["load"] = {"operationId": "auth.me"}
+
+    # 4. Unknown section data operation
+    frontend["pages"][1]["sections"][0]["data"] = {"operationId": "nonexistent.list"}
+
+    # Run reconciliation
+    healed, notes = reconcile_spec_pair(frontend, backend_spec)
+
+    # Verify form operationId is reset to None (so it becomes a client-only form)
+    assert healed["forms"][1]["operationId"] is None
+    # Verify dangling mutation was converted to link
+    assert healed["pages"][0]["sections"][0]["content"]["actions"][0]["kind"] == "link"
+    assert healed["pages"][0]["sections"][0]["content"]["actions"][0].get("operationId") is None
+    # Verify missing confirm on DELETE action was automatically added
+    assert healed["pages"][0]["sections"][0]["content"]["actions"][1].get("confirm") is not None
+    # Verify invalid load was removed
+    assert "load" not in healed["forms"][0]
+    # Verify invalid section data binding was removed
+    assert "data" not in healed["pages"][1]["sections"][0]
+    # Verify notes were produced
+    assert any("auth.signin" in n["message"] for n in notes)
+
+    # Verify check_spec_pair now reports zero fatal consistency errors for those healed parts
+    remaining_issues = check_spec_pair(healed, backend_spec)
+    errors = [i for i in remaining_issues if i.severity != Severity.WARNING]
+    assert errors == []
