@@ -269,3 +269,83 @@ def test_draft_with_bad_cta_autofixes_and_succeeds_with_zero_attempts(client, us
     cta_page = home_page["sections"][0]["content"]["cta"]["page"]
     assert cta_page == "study"
     assert any("a link cannot fill [id]" in a["message"] for a in draft["assumptions"])
+
+
+def test_autofix_repairs_malformed_journey_steps():
+    spec = {
+        "specVersion": "1.0",
+        "project": {"name": "Garden", "mode": "dynamic"},
+        "layout": {"header": {"navigation": []}, "footer": {"links": []}},
+        "theme": {"style": "minimal"},
+        "pages": [
+            {
+                "id": "garden",
+                "route": "/garden",
+                "title": "Garden",
+                "sections": [
+                    {
+                        "id": "garden-items",
+                        "component": "CardGrid",
+                        "content": {"title": "Items", "cardStyle": "outline"},
+                    }
+                ],
+            },
+            {
+                "id": "inspiration",
+                "route": "/inspiration",
+                "title": "Inspiration",
+                "sections": [
+                    {
+                        "id": "daily-quote",
+                        "component": "DetailView",
+                        "content": {
+                            "title": "Daily Quote",
+                            "actions": [{"id": "draw", "label": "Draw", "kind": "link", "page": "inspiration"}],
+                        },
+                    }
+                ],
+            },
+        ],
+        "journeys": [
+            {
+                "id": "explore-garden",
+                "title": "Explore Garden",
+                "steps": [
+                    {"do": "visit", "page": "garden"},
+                    {"do": "action", "section": "garden-items", "values": {"category": "Places"}},
+                    {"do": "open", "section": "garden-items", "record": "first"},
+                    {"do": "expect", "text": "Bamboo Grove"},
+                ],
+            },
+            {
+                "id": "draw-inspiration",
+                "title": "Draw Inspiration",
+                "steps": [
+                    {"do": "visit", "page": "inspiration"},
+                    {"do": "action", "section": "daily-quote", "action": "draw"},
+                    {"do": "expect", "text": "Today's Inspiration"},
+                ],
+            },
+        ],
+    }
+    # Initially invalid
+    initial_val = validate_frontend_spec_data(spec)
+    assert not initial_val.report.valid
+    assert any("Action step requires 'action'" in e.message for e in initial_val.report.errors)
+    assert any("Expect step requires 'section'" in e.message for e in initial_val.report.errors)
+
+    # Autofix heals the journey steps
+    fixed, notes = autofix_frontend_spec(spec)
+    val = validate_frontend_spec_data(fixed)
+    assert val.report.valid, [f"{e.path}: {e.message}" for e in val.report.errors]
+
+    # Journey 0: invalid action step was dropped, expect step inherited section "garden-items"
+    j0_steps = fixed["journeys"][0]["steps"]
+    assert [s["do"] for s in j0_steps] == ["visit", "open", "expect"]
+    assert j0_steps[2]["section"] == "garden-items"
+    assert j0_steps[2]["text"] == "Bamboo Grove"
+
+    # Journey 1: expect step inherited section "daily-quote"
+    j1_steps = fixed["journeys"][1]["steps"]
+    assert [s["do"] for s in j1_steps] == ["visit", "action", "expect"]
+    assert j1_steps[2]["section"] == "daily-quote"

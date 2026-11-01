@@ -240,4 +240,203 @@ def autofix_frontend_spec(spec: dict[str, Any]) -> tuple[dict[str, Any], list[di
             if isinstance(section, dict) and "content" in section:
                 fix_content(section["content"], f"/pages/{p_idx}/sections/{s_idx}/content")
 
+    _autofix_journeys(spec, pages, pages_by_id, notes)
+
     return spec, notes
+
+
+def _autofix_journeys(
+    spec: dict[str, Any],
+    pages: list[dict[str, Any]],
+    pages_by_id: dict[str, Any],
+    notes: list[dict[str, Any]],
+) -> None:
+    journeys = spec.get("journeys")
+    if not isinstance(journeys, list):
+        return
+
+    all_sections = _iter_all_sections([s for p in pages for s in (p.get("sections") or []) if isinstance(s, dict)])
+    sections_by_id = {sec["id"]: sec for sec in all_sections if isinstance(sec.get("id"), str)}
+    forms_by_id = {f["id"]: f for f in spec.get("forms") or [] if isinstance(f, dict) and isinstance(f.get("id"), str)}
+
+    clean_journeys = []
+    for j_idx, journey in enumerate(journeys):
+        if not isinstance(journey, dict):
+            continue
+        steps = journey.get("steps")
+        if not isinstance(steps, list):
+            continue
+
+        clean_steps = []
+        last_section: str | None = None
+        last_page: str | None = None
+
+        for s_idx, step in enumerate(steps):
+            if not isinstance(step, dict):
+                continue
+            do = step.get("do")
+            if do not in ("visit", "open", "submit", "action", "expect"):
+                continue
+
+            step_path = f"/journeys/{j_idx}/steps/{s_idx}"
+
+            if do == "visit":
+                page = step.get("page")
+                if not page or page not in pages_by_id:
+                    target = next((p for p in pages if p.get("route") == page or p.get("route") == f"/{page}"), None)
+                    if target:
+                        step["page"] = target.get("id") or page_id(target.get("route", ""))
+                        page = step["page"]
+                if page and page in pages_by_id:
+                    last_page = page
+                    clean_steps.append(step)
+                    p_secs = pages_by_id[page].get("sections") or []
+                    if p_secs and isinstance(p_secs[0], dict) and p_secs[0].get("id"):
+                        last_section = p_secs[0]["id"]
+                else:
+                    notes.append(
+                        {
+                            "spec": "frontend",
+                            "path": f"{step_path}/page",
+                            "message": f"Dropped visit step to unknown page '{page}'",
+                            "suggestion": None,
+                        }
+                    )
+
+            elif do == "open":
+                sec_id = step.get("section") or last_section
+                if sec_id and sec_id in sections_by_id:
+                    step["section"] = sec_id
+                    last_section = sec_id
+                    clean_steps.append(step)
+                else:
+                    notes.append(
+                        {
+                            "spec": "frontend",
+                            "path": f"{step_path}/section",
+                            "message": f"Dropped open step on invalid section '{sec_id}'",
+                            "suggestion": None,
+                        }
+                    )
+
+            elif do == "submit":
+                sec_id = step.get("section") or last_section
+                if sec_id and sec_id in sections_by_id:
+                    sec = sections_by_id[sec_id]
+                    form_id = sec.get("form")
+                    form = forms_by_id.get(form_id) if form_id else None
+                    if form is not None or sec.get("component") == "Form":
+                        step["section"] = sec_id
+                        last_section = sec_id
+                        if form is not None and isinstance(step.get("values"), dict):
+                            valid_fields = {
+                                f["name"] for f in form.get("fields") or [] if isinstance(f, dict) and "name" in f
+                            }
+                            step["values"] = {k: v for k, v in step["values"].items() if k in valid_fields}
+                        clean_steps.append(step)
+                    else:
+                        notes.append(
+                            {
+                                "spec": "frontend",
+                                "path": f"{step_path}/section",
+                                "message": f"Dropped submit step on non-form section '{sec_id}'",
+                                "suggestion": None,
+                            }
+                        )
+                else:
+                    notes.append(
+                        {
+                            "spec": "frontend",
+                            "path": f"{step_path}/section",
+                            "message": f"Dropped submit step on unknown section '{sec_id}'",
+                            "suggestion": None,
+                        }
+                    )
+
+            elif do == "action":
+                sec_id = step.get("section") or last_section
+                if sec_id and sec_id in sections_by_id:
+                    sec = sections_by_id[sec_id]
+                    content = sec.get("content") or {}
+                    actions = content.get("actions") or []
+                    action_ids = [act["id"] for act in actions if isinstance(act, dict) and "id" in act]
+                    act_id = step.get("action")
+                    if not act_id and action_ids:
+                        act_id = action_ids[0]
+                        step["action"] = act_id
+                        notes.append(
+                            {
+                                "spec": "frontend",
+                                "path": f"{step_path}/action",
+                                "message": f"Filled action '{act_id}' for section '{sec_id}'",
+                                "suggestion": None,
+                            }
+                        )
+                    if act_id and act_id in action_ids:
+                        step["section"] = sec_id
+                        last_section = sec_id
+                        clean_steps.append(step)
+                    else:
+                        notes.append(
+                            {
+                                "spec": "frontend",
+                                "path": step_path,
+                                "message": f"Dropped action step on section '{sec_id}' without valid action",
+                                "suggestion": None,
+                            }
+                        )
+                else:
+                    notes.append(
+                        {
+                            "spec": "frontend",
+                            "path": f"{step_path}/section",
+                            "message": f"Dropped action step on unknown section '{sec_id}'",
+                            "suggestion": None,
+                        }
+                    )
+
+            elif do == "expect":
+                sec_id = step.get("section") or last_section
+                if not sec_id and last_page and last_page in pages_by_id:
+                    p_secs = pages_by_id[last_page].get("sections") or []
+                    if p_secs and isinstance(p_secs[0], dict) and p_secs[0].get("id"):
+                        sec_id = p_secs[0]["id"]
+                if sec_id and sec_id in sections_by_id:
+                    if step.get("text") is not None or step.get("count") is not None or step.get("changed") is not None:
+                        step["section"] = sec_id
+                        last_section = sec_id
+                        clean_steps.append(step)
+                    else:
+                        notes.append(
+                            {
+                                "spec": "frontend",
+                                "path": step_path,
+                                "message": "Dropped expect step missing text/count/changed",
+                                "suggestion": None,
+                            }
+                        )
+                else:
+                    notes.append(
+                        {
+                            "spec": "frontend",
+                            "path": f"{step_path}/section",
+                            "message": f"Dropped expect step on unknown section '{sec_id}'",
+                            "suggestion": None,
+                        }
+                    )
+
+        if clean_steps:
+            journey["steps"] = clean_steps
+            clean_journeys.append(journey)
+        else:
+            j_id = journey.get("id") or str(j_idx)
+            notes.append(
+                {
+                    "spec": "frontend",
+                    "path": f"/journeys/{j_idx}",
+                    "message": f"Dropped journey '{j_id}' because all steps were invalid",
+                    "suggestion": None,
+                }
+            )
+
+    spec["journeys"] = clean_journeys

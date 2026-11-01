@@ -80,6 +80,9 @@ def create_specs_from_draft(
 
     frontend_entity: FrontendSpecEntity | None = None
     if mode in NEEDS_FRONTEND and frontend_data is not None:
+        from src.modules.shared.domain.frontend_spec.autofix import autofix_frontend_spec
+
+        frontend_data, _ = autofix_frontend_spec(frontend_data)
         check_uploads(draft.owner_id, frontend_data, upload_repo, is_admin=is_admin)
         result = validate_frontend_spec_data(frontend_data)
         version = frontend_data.get("specVersion")

@@ -93,6 +93,9 @@ class ContinueGenerationUsecase:
         if backend_spec is not None:
             update_fields["backend_spec"] = backend_spec
         if frontend_spec is not None:
+            from src.modules.shared.domain.frontend_spec.autofix import autofix_frontend_spec
+
+            frontend_spec, _ = autofix_frontend_spec(frontend_spec)
             update_fields["frontend_spec"] = frontend_spec
         draft = self.draft_repo.update(draft.id, **update_fields)
 

@@ -13,7 +13,7 @@ from src.libs.redaction import default_redactor
 from src.modules.shared.domain.backend_spec import Severity, SpecIssue, validate_spec_text
 from src.modules.shared.domain.entities import ValidationRunEntity
 from src.modules.shared.domain.enums import GenerationMode, LaneStatus
-from src.modules.shared.domain.frontend_spec import validate_frontend_spec_text
+from src.modules.shared.domain.frontend_spec import autofix_frontend_spec, validate_frontend_spec_data
 from src.modules.shared.domain.generation_modes import overall_status
 
 from .autofix import autofix_before_validation
@@ -117,9 +117,11 @@ async def validate_inputs(state: GenerationState, ctx: JobContext) -> NodeResult
     """Static and dynamic modes (Stories 12.1, 12.5): the FrontendSpec, in dynamic mode also the BackendSpec and
     the frontend ↔ contract consistency check, all before any engine time is spent."""
     frontend = ctx.store.frontend_spec(uuid.UUID(state["frontend_spec_id"]))
-    result = validate_frontend_spec_text(frontend.raw_json)
+    raw_dict = json.loads(frontend.raw_json)
+    fixed_dict, _ = autofix_frontend_spec(raw_dict)
+    result = validate_frontend_spec_data(fixed_dict)
     spec_dir = ctx.workspace.spec_dir
-    (spec_dir / "frontend-spec.raw.json").write_text(frontend.raw_json)
+    (spec_dir / "frontend-spec.raw.json").write_text(json.dumps(fixed_dict, ensure_ascii=False, indent=2))
     _write_json(spec_dir / "frontend-validation-report.json", result.report.model_dump(mode="json"))
     errors = [_issue_dump(issue, "frontend") for issue in result.report.errors]
     warnings = len(result.report.warnings)
