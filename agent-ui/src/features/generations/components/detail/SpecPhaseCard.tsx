@@ -144,9 +144,20 @@ export function SpecPhaseCard({ detail, events }: SpecPhaseCardProps) {
               <AlertTriangle className="size-4 text-warning" />
               Draft Needs Review
             </CardTitle>
-            <Badge variant="secondary" className="bg-warning/20 text-warning-foreground dark:text-warning">
-              Needs review
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary" className="bg-warning/20 text-warning-foreground dark:text-warning">
+                Needs review
+              </Badge>
+              {draftId && (
+                <Link
+                  href={`/generations/new?mode=${detail.mode}&draftId=${draftId}`}
+                  className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+                >
+                  <FileCode2 className="size-3.5" />
+                  View full draft
+                </Link>
+              )}
+            </div>
           </div>
           <CardDescription>
             The spec draft could not resolve every requirement automatically. Review and fix the spec below to continue.
@@ -252,7 +263,7 @@ export function SpecPhaseCard({ detail, events }: SpecPhaseCardProps) {
           </div>
           {draftId && (
             <Link
-              href={`/generations/new?draftId=${draftId}`}
+              href={`/generations/new?mode=${detail.mode}&draftId=${draftId}`}
               className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
             >
               <FileCode2 className="size-3.5" />

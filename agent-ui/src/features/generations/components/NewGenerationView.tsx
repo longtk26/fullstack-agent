@@ -1,14 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { useWatch } from "react-hook-form";
+import { toast } from "sonner";
 import { AppWindow, Braces, FileCode, FileInput, Globe, MessageSquareText, Rocket } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Stack } from "@/components/layout/Stack";
+import { prettyJson } from "@/lib/files";
 import { AssetsPanel } from "@/features/specs/components/AssetsPanel";
 import { ConsistencyIssueList } from "@/features/specs/components/ConsistencyIssueList";
 import { DesignPanel } from "@/features/specs/components/DesignPanel";
@@ -27,7 +31,7 @@ import type { TEditorIssue } from "@/features/specs/hooks/use-spec-validation";
 import { summarizeFrontendSpec } from "@/features/specs/lib/frontend-spec-summary";
 import { summarizeSpec } from "@/features/specs/lib/spec-summary";
 import type { TSpecKind, TSpecTab } from "@/features/specs/types";
-import { useSpecDraftStore } from "@/store/spec-draft-store";
+import { useSpecDraftHydrated, useSpecDraftStore } from "@/store/spec-draft-store";
 import { useGenerationMode } from "../hooks/use-generation-mode";
 import { useNewGeneration } from "../hooks/use-new-generation";
 import type { TGenerationMode } from "../types";
@@ -54,6 +58,13 @@ const EMPTY_TEXT: Record<TSpecKind, string> = {
 
 export function NewGenerationView() {
   const { mode, setMode } = useGenerationMode();
+  const searchParams = useSearchParams();
+  const urlDraftId = searchParams.get("draftId");
+  const urlTab = searchParams.get("tab") as TSpecTab | null;
+  const urlDraftQuery = useSpecDraft(urlDraftId);
+  const loadedDraftRef = useRef<string | null>(null);
+  const hydrated = useSpecDraftHydrated();
+
   const specText = useSpecDraftStore((state) => state.specText);
   const setSpecText = useSpecDraftStore((state) => state.setSpecText);
   const frontendSpecText = useSpecDraftStore((state) => state.frontendSpecText);
@@ -62,6 +73,9 @@ export function NewGenerationView() {
   const setActiveTab = useSpecDraftStore((state) => state.setActiveTab);
   const clearDraft = useSpecDraftStore((state) => state.clearDraft);
   const appliedDraft = useSpecDraftStore((state) => state.appliedDraft);
+  const setAppliedDraft = useSpecDraftStore((state) => state.setAppliedDraft);
+  const setDraftId = useSpecDraftStore((state) => state.setDraftId);
+  const setRequirement = useSpecDraftStore((state) => state.setRequirement);
 
   const editors = { backend: useJsonEditor(), frontend: useJsonEditor() };
   const backend = useSpecValidation("backend", specText);
@@ -75,7 +89,8 @@ export function NewGenerationView() {
   const frontendSummary = useMemo(() => summarizeFrontendSpec(frontend.parsed), [frontend.parsed]);
   const offerPair = useExamplePairOffer(setSpecText);
   // The design directions of the draft the editors were filled from (Story 12.6), static and dynamic only.
-  const appliedDraftQuery = useSpecDraft(mode !== "backend" && appliedDraft?.mode === mode ? appliedDraft.id : null);
+  const activeDraftId = urlDraftId ?? (mode !== "backend" && appliedDraft?.mode === mode ? appliedDraft.id : null);
+  const appliedDraftQuery = useSpecDraft(mode !== "backend" ? activeDraftId : null);
   const design = appliedDraftQuery.data?.design ?? null;
 
   const hasManagePages = useMemo(
@@ -144,6 +159,59 @@ export function NewGenerationView() {
     useSpecDraftStore.persist.rehydrate();
   }, []);
 
+  useEffect(() => {
+    if (!hydrated) return;
+    if (!urlDraftId) {
+      loadedDraftRef.current = null;
+      return;
+    }
+    if (!urlDraftQuery.data) return;
+    const draft = urlDraftQuery.data;
+    if (loadedDraftRef.current === draft.draftId) return;
+    loadedDraftRef.current = draft.draftId;
+
+    if (draft.mode && draft.mode !== mode) {
+      setMode(draft.mode as TGenerationMode);
+    }
+    if (draft.backendSpec) {
+      setSpecText(prettyJson(draft.backendSpec));
+    }
+    if (draft.frontendSpec) {
+      setFrontendSpecText(prettyJson(draft.frontendSpec));
+    }
+    if (draft.requirement?.text) {
+      setRequirement(draft.requirement.text, draft.requirement.fileName ?? null);
+    }
+    setDraftId(draft.draftId);
+    setAppliedDraft({ id: draft.draftId, mode: draft.mode as TGenerationMode });
+    const targetTab =
+      urlTab && MODE_TABS[draft.mode as TGenerationMode]?.includes(urlTab)
+        ? urlTab
+        : draft.mode === "backend"
+          ? "json"
+          : "frontend";
+    setActiveTab(targetTab);
+  }, [
+    hydrated,
+    urlDraftId,
+    urlDraftQuery.data,
+    urlTab,
+    mode,
+    setMode,
+    setSpecText,
+    setFrontendSpecText,
+    setRequirement,
+    setDraftId,
+    setAppliedDraft,
+    setActiveTab,
+  ]);
+
+  useEffect(() => {
+    if (urlDraftId && urlDraftQuery.isError) {
+      toast.error("Could not load the specified draft");
+    }
+  }, [urlDraftId, urlDraftQuery.isError]);
+
   const tabs = MODE_TABS[mode];
   const tab = tabs.includes(activeTab) ? activeTab : tabs[0];
 
@@ -153,6 +221,10 @@ export function NewGenerationView() {
   };
   const jumpToPointer = (kind: TSpecKind, pointer: string) =>
     jumpTo(kind, { code: "", path: pointer, message: "", hint: null, severity: "error" });
+
+  if (urlDraftId && (!hydrated || (urlDraftQuery.isLoading && !urlDraftQuery.data))) {
+    return <Skeleton className="h-[640px] w-full rounded-xl" />;
+  }
 
   return (
     <Stack gap="lg">
@@ -236,6 +308,10 @@ export function NewGenerationView() {
                   </p>
                   <JsonEditor path="contract.json" value={JSON.stringify(pair.contract, null, 2)} readOnly />
                 </Stack>
+              ) : pair.isChecking ? (
+                <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
+                  <Spinner className="size-4" /> Generating API contract…
+                </div>
               ) : (
                 <p className="text-sm text-muted-foreground">
                   The contract appears once the FrontendSpec and BackendSpec are both valid.
