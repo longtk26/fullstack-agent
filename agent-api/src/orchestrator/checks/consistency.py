@@ -869,4 +869,49 @@ def reconcile_spec_pair(
                                 if controls.get("sort") and "sort" not in op_params:
                                     controls["sort"] = []
 
+    # 3. Seed asset reconciliation
+    existing_asset_ids = {
+        a.get("id") for a in frontend.get("assets", []) if isinstance(a, dict) and isinstance(a.get("id"), str)
+    }
+    seed = backend.get("seed")
+
+    def _heal_seed_asset_references(obj: Any) -> None:
+        if isinstance(obj, dict):
+            for k, v in list(obj.items()):
+                if isinstance(v, str) and v.startswith("asset:"):
+                    aid = v[len("asset:") :]
+                    clean_id = re.sub(r"[^a-z0-9-]", "-", aid.lower()).strip("-")
+                    if not clean_id or not clean_id[0].isalpha():
+                        clean_id = f"asset-{clean_id}"
+                    if clean_id != aid:
+                        obj[k] = f"asset:{clean_id}"
+                    if clean_id not in existing_asset_ids:
+                        lower_id = clean_id.lower()
+                        kind = "logo" if "logo" in lower_id else "icon" if "icon" in lower_id else "image"
+                        frontend.setdefault("assets", []).append(
+                            {
+                                "id": clean_id,
+                                "kind": kind,
+                                "source": "placeholder",
+                                "alt": clean_id.replace("-", " ").title(),
+                            }
+                        )
+                        existing_asset_ids.add(clean_id)
+                        notes.append(
+                            {
+                                "spec": "frontend",
+                                "path": f"/assets/{clean_id}",
+                                "message": f"Added missing asset '{clean_id}' referenced by seed records.",
+                                "suggestion": None,
+                            }
+                        )
+                else:
+                    _heal_seed_asset_references(v)
+        elif isinstance(obj, list):
+            for item in obj:
+                _heal_seed_asset_references(item)
+
+    if seed:
+        _heal_seed_asset_references(seed)
+
     return frontend, notes

@@ -3,6 +3,7 @@
 Repairs common drafting mistakes deterministically before invoking an engine repair loop.
 """
 
+import re
 from typing import Any
 
 from .normalizer import page_id, route_params
@@ -241,5 +242,50 @@ def autofix_frontend_spec(spec: dict[str, Any]) -> tuple[dict[str, Any], list[di
                 fix_content(section["content"], f"/pages/{p_idx}/sections/{s_idx}/content")
 
     spec["journeys"] = []
+
+    # 4. Heal missing assets referenced in frontend content
+    existing_asset_ids = {
+        a.get("id") for a in spec.get("assets", []) if isinstance(a, dict) and isinstance(a.get("id"), str)
+    }
+
+    def _heal_frontend_assets(obj: Any) -> None:
+        if isinstance(obj, dict):
+            for k, v in list(obj.items()):
+                if k == "assets":
+                    continue
+                if isinstance(v, str) and v.startswith("asset:"):
+                    aid = v[len("asset:") :]
+                    clean_id = re.sub(r"[^a-z0-9-]", "-", aid.lower()).strip("-")
+                    if not clean_id or not clean_id[0].isalpha():
+                        clean_id = f"asset-{clean_id}"
+                    if clean_id != aid:
+                        obj[k] = f"asset:{clean_id}"
+                    if clean_id not in existing_asset_ids:
+                        lower_id = clean_id.lower()
+                        kind = "logo" if "logo" in lower_id else "icon" if "icon" in lower_id else "image"
+                        spec.setdefault("assets", []).append(
+                            {
+                                "id": clean_id,
+                                "kind": kind,
+                                "source": "placeholder",
+                                "alt": clean_id.replace("-", " ").title(),
+                            }
+                        )
+                        existing_asset_ids.add(clean_id)
+                        notes.append(
+                            {
+                                "spec": "frontend",
+                                "path": f"/assets/{clean_id}",
+                                "message": f"Added missing asset '{clean_id}' referenced in frontend content.",
+                                "suggestion": None,
+                            }
+                        )
+                else:
+                    _heal_frontend_assets(v)
+        elif isinstance(obj, list):
+            for item in obj:
+                _heal_frontend_assets(item)
+
+    _heal_frontend_assets(spec)
 
     return spec, notes

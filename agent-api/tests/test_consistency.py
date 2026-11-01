@@ -237,8 +237,16 @@ def test_reconcile_spec_pair_heals_unbacked_and_invalid_operations():
     # 4. Unknown section data operation
     frontend["pages"][1]["sections"][0]["data"] = {"operationId": "nonexistent.list"}
 
+    # 5. Missing seed asset reference
+    backend_copy = copy.deepcopy(backend_spec)
+    backend_copy["seed"] = [{"entity": "Category", "records": [{"name": "Coffee", "icon": "asset:coffee-logo"}]}]
+
     # Run reconciliation
-    healed, notes = reconcile_spec_pair(frontend, backend_spec)
+    healed, notes = reconcile_spec_pair(frontend, backend_copy)
+
+    # Verify missing seed asset was auto-declared in frontend.assets
+    assert any(a.get("id") == "coffee-logo" for a in healed.get("assets", []))
+    assert any("coffee-logo" in n["message"] for n in notes)
 
     # Verify form operationId is reset to None (so it becomes a client-only form)
     assert healed["forms"][1]["operationId"] is None
@@ -255,6 +263,6 @@ def test_reconcile_spec_pair_heals_unbacked_and_invalid_operations():
     assert any("auth.signin" in n["message"] for n in notes)
 
     # Verify check_spec_pair now reports zero fatal consistency errors for those healed parts
-    remaining_issues = check_spec_pair(healed, backend_spec)
+    remaining_issues = check_spec_pair(healed, backend_copy)
     errors = [i for i in remaining_issues if i.severity != Severity.WARNING]
     assert errors == []

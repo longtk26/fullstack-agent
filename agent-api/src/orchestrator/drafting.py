@@ -719,8 +719,8 @@ class DraftRunner:
                 raise DraftFailed(f"The {engine.name} engine stopped: {result.error_message or result.status}")
             design = apply_design(work, found) if found else None
             chosen = design["directions"][design["selected"]] if design else None
-            image_notes = draw_images(work, chosen) if frontend else []
             autofix_notes = autofix_draft(work) if frontend else []
+            image_notes = draw_images(work, chosen) if frontend else []
             manage_notes = apply_manage_area(work) if mode == GenerationMode.DYNAMIC else []
             await update_progress("validating")
             check = check_draft(work, mode)
