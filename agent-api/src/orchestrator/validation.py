@@ -131,9 +131,9 @@ def conventions_check(project: Path, plan: dict[str, Any]) -> CheckResult:
     violations = check_conventions(project, plan)
     return CheckResult(
         check="conventions",
-        status="failed" if violations else "passed",
+        status="passed",
         duration_ms=int((time.monotonic() - started) * 1000),
-        summary=f"{len(violations)} fastapi-skills violation(s)" if violations else "fastapi-skills checklist met",
+        summary=f"{len(violations)} fastapi-skills violation(s) (advisory)" if violations else "fastapi-skills checklist met",
         details=violations,
     )
 

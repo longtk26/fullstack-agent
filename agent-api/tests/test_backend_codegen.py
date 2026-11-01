@@ -142,3 +142,31 @@ def test_only_what_is_not_crud_goes_to_the_engine(client, user_headers, tmp_path
     owned = json.loads((tmp_path / generation_id / "project/.bga/owned.json").read_text())
     assert "src/modules/projects/presenter/router.py" in owned  # all CRUD: owned
     assert "src/modules/tasks/presenter/router.py" not in owned  # the engine completes it
+
+
+def test_field_name_matching_type_name_avoids_pydantic_clash():
+    spec = {
+        "specVersion": "1.0",
+        "project": {"name": "clash-test"},
+        "entities": [
+            {
+                "name": "Expense",
+                "table": "expenses",
+                "fields": [
+                    {"name": "id", "type": "uuid", "primary": True},
+                    {"name": "date", "type": "date"},
+                    {"name": "datetime", "type": "datetime"},
+                ],
+            }
+        ],
+        "operations": [],
+    }
+    plan = build_plan(spec)
+    files = database_files(plan)
+    model_code = files["src/modules/shared/infrastructure/models/expense_model.py"]
+    assert "date: dt.date" in model_code
+    assert "datetime: dt.datetime" in model_code
+    assert "import datetime as dt" in model_code
+    namespace = {}
+    exec(model_code, namespace)
+    assert "ExpenseModel" in namespace

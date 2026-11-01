@@ -101,7 +101,7 @@ class Imports:
 
     @staticmethod
     def _group(module: str) -> int:
-        root = module.split(".")[0]
+        root = module.split()[0].split(".")[0]
         if root in sys.stdlib_module_names:
             return 0
         return 2 if root in ("src", "tests") or module.startswith(".") else 1
@@ -136,9 +136,15 @@ def _type(column: dict[str, Any], imports: Imports, response: bool = False) -> s
         imports.add("decimal", "Decimal")
         return "Decimal"
     if kind == "date":
+        if column.get("attr") == "date":
+            imports.add("datetime as dt")
+            return "dt.date"
         imports.add("datetime", "date")
         return "date"
     if kind == "datetime":
+        if column.get("attr") == "datetime":
+            imports.add("datetime as dt")
+            return "dt.datetime"
         imports.add("datetime", "datetime")
         return "datetime"
     if kind == "json":
@@ -223,9 +229,14 @@ def _model_field(column: dict[str, Any], model: dict[str, Any], imports: Imports
             annotation += " | None"
         kwargs.append("primary_key=True")
     elif "factory" in default:
-        imports.add("datetime", "UTC")
-        imports.add("datetime", "datetime")
-        factory = "datetime.now(UTC).date()" if column["type"] == "date" else "datetime.now(UTC)"
+        if column.get("attr") == "datetime":
+            imports.add("datetime as dt")
+            imports.add("datetime", "UTC")
+            factory = "dt.datetime.now(UTC)"
+        else:
+            imports.add("datetime", "UTC")
+            imports.add("datetime", "datetime")
+            factory = "datetime.now(UTC).date()" if column["type"] == "date" else "datetime.now(UTC)"
         kwargs.append(f"default_factory=lambda: {factory}")
     elif "value" in default:
         kwargs.append(f"default={_value(column, default['value'])}")

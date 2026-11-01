@@ -42,6 +42,11 @@ class UserModel(SQLModel, table=True):
     is_active: bool = Field(default=True)
 ```
 
+> [!IMPORTANT]
+> **Avoid Field Name vs. Type Annotation Name Clashes**:
+> In Pydantic v2 / SQLModel, defining a field whose name is identical to its type symbol (e.g. `date: date` or `datetime: datetime` with `from datetime import date, datetime`) causes `PydanticUserError: Error when building FieldInfo from annotated attribute. Make sure you don't have any field name clashing with a type annotation.`
+> Always qualify such annotations: `import datetime as dt` and declare `date: dt.date` or `datetime: dt.datetime`.
+
 ---
 
 ## 🔄 Alembic Model Registration

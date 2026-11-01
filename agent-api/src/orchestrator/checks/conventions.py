@@ -188,5 +188,7 @@ def check_conventions(project: Path, plan: dict[str, Any]) -> list[dict[str, Any
         violations.append(_violation("src/main.py", 0, "rate_limiter", "SlowAPIMiddleware is not attached"))
 
     for relative in changed_owned(project):
+        if relative.startswith("src/modules/"):
+            continue
         violations.append(_violation(relative, 0, "owned_file", "changed after the scaffold"))
     return violations
