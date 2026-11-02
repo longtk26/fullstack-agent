@@ -92,16 +92,17 @@ can pick a look instead of getting the default look of my category.
 
 ## Acceptance criteria
 
-- [ ] Drafts from a requirement (static and dynamic) carry three filled direction cards; the theme, home order, hero
+- [x] Drafts from a requirement (static and dynamic) carry three filled direction cards; the theme, home order, hero
       layout, section forms and rhythm come from the selected card, the one with the best fit.
-- [ ] Every card passes contrast in light and dark; failures are fixed within the hue or fall back to the UI UX Pro
+- [x] Every card passes contrast in light and dark; failures are fixed within the hue or fall back to the UI UX Pro
       Max palette, with a note.
-- [ ] Every draft passes the difference test (after at most 2 repair rounds and the code fallback).
-- [ ] The same draft and seed give the same cards; a new seed gives new ones.
-- [ ] The fake engine draws varied cards from the concept library; the test-doubles doc lists it.
-- [ ] Python and UI apply a card identically (shared fixtures).
-- [ ] The 20.1 report meets the direction targets with the fake engine; numbers in the Status note.
-- [ ] Dynamic: the golden set has two dynamic requirements; their drafts pass the difference test, and every page of
+- [x] Every draft passes the difference test (after at most 2 repair rounds and the code fallback).
+- [x] The same draft and seed give the same cards; a new seed gives new ones.
+- [x] The fake engine draws varied cards from the concept library; the test-doubles doc lists it.
+- [x] Python and UI apply a card identically (shared fixtures).
+- [ ] The 20.1 report meets the direction targets with the fake engine; numbers in the Status note. All met except
+      the first-screen similarity max (0.965 against ≤ 0.95); see Status.
+- [x] Dynamic: the golden set has two dynamic requirements; their drafts pass the difference test, and every page of
       each direction (data pages on mock data) passes the design check; the dynamic example specs pass it in the six
       tone combinations.
 - [ ] Draft time with a real engine is measured only on the epic's final check (needs the user's yes).
@@ -113,3 +114,74 @@ lint`, `make design-diversity ARGS=--screenshots`, `make up` with the fake engin
 shows six directions with at least four hero layouts, and one click generates the selected one.
 
 ## Status
+
+**Done (2026-11-02), one target open**, on `feat/epic20-design-diversity`, with 20.9 (prompt `draft_frontend_spec@v8`).
+
+- **Cards** (`orchestrator/design_cards.py`): a lenient `Card` model (unknown values are fixed with a note, never
+  rejected), read in the engine's order so a card keeps its number for a repair. `fill_card`: bundled fonts
+  (`closest_font`; body sans or serif), known layout, forms and rhythm, layout and key visual made consistent (a
+  `type` key visual takes a type-led layout; a collage without two hero images becomes `stacked`), the palette with
+  derived surfaces, `apply_tone` tokens, a preset nearest the tone, then `fix_contrast` (readable text colour, then
+  the primary darker or lighter in 4% steps within its hue), else the UI UX Pro Max palette with a note.
+  `theme.direction` gained `name`, `concept`, `engine`, `tone`, `keyVisual`, `givesUp`, `seed` (additive schema).
+- **Fact pack** `.bga/design.md` (`fact_pack`): the category default to move away from (UI UX Pro Max's best match,
+  its anti-patterns), the hero layouts, forms, rhythms, fonts by category, key visuals, the tone scales, the stock
+  phrases and the variation seed; for apps a note that data pages keep their structure.
+- **Difference test** (`problems`): any two directions share at most one of hero layout, heading font, hue family,
+  key visual; **the three hero layouts differ** (tightened, see deviations); one home page off the category order;
+  first three home sections differ (20.9). Brand colours or fonts named in the requirement are not counted as shared;
+  a home page without a hero (an app's dashboard) compares font and hue only. A failing card is asked again with
+  `repair_direction@v1` (at most `DIRECTION_REPAIRS` = 2 rounds), then `code_fix` moves the later direction to a
+  free layout, a font of the same kind, a hue ≥ 60° away (contrast-checked) or another key visual, and reorders home
+  pages; every change is a note in the assumptions.
+- **Drafting** (`drafting.py`): `settle_directions` after the draft call, the spec repairs, then `finish_design`
+  applies the best fit (lowest `fit`, Q25) to the final spec and keeps the pool. Without cards the UI UX Pro Max
+  directions stand in (the engine's named product type is still honoured). A drawing-led key visual keeps the
+  hero's images drawn. `spec_drafts.design` = `{selected, directions, seed, pool, required}`; `POST /spec-drafts`
+  takes an optional `designSeed` (else a new one).
+- **Seeds and the fake:** `engines/fake_design.py` draws three cards from `design_data/concepts.json` (40 concepts)
+  with the seed, keyword-weighted (×4), each passing the difference test against the ones already drawn, with home
+  compositions from the copied example. Listed in `docs/development/test-doubles.md`.
+- **UI:** `lib/design-direction.ts` mirrors `apply_direction` (`composeHome`, forms, rhythm); the Design panel shows
+  each card's idea, key visual, tone words and what it gives up. `tests/test_design_cards.py` runs the TypeScript
+  file with Node's type stripping on six cases (cards, edits, nested sections, a stand-in, an app home) and compares
+  with Python: identical.
+- **Dynamic apps (step 10):** `examples/requirements/diversity/clinic-booking.md` and `shop-orders.md` (manifest
+  `dynamic`). `scripts/site_check.py` plans a dynamic spec against its BackendSpec's contract;
+  `scripts/design-check.mjs` serves a build without `out/` with `next start` on the mock API; default routes include
+  one record page per resource. DetailView's record title now uses the heading face and tokens. The checks' sandboxes
+  carry their own instance label, since a running stack's worker removed them as orphans mid-build.
+- **Hero sizes** (found by the dynamic shop in the loud combinations: a 39-character headline wrapped to three
+  lines): a `dramatic` ratio grows only the hero steps of short headlines and the `type` layout (`6xl`+), and the
+  capitals estimate went from 1.12 to 1.2 with the shrink floor at 0.55 (Unbounded in capitals: 0.559).
+- **Verification:** `make test` 741 passed; `make lint` clean; `pnpm exec tsc --noEmit` and eslint clean.
+  `make up` + the API with the fake engine: two spa drafts with seeds 41 / 42 gave different card sets, the same seed
+  the same, a dynamic draft three cards; the best fit applied and the pool kept. Design checks: the section-library
+  fixture in the six tone combinations (648 views), `shop-dynamic` (216) and `project-tracker-dynamic` (144) on the
+  mock API in the six combinations: 0 failures (`.data/shots/phaseC-*`).
+- **Report** (`make design-diversity ARGS="--seed 100 --screenshots"`, fake engine,
+  `.data/reports/design-diversity/20261102-101354/`):
+
+  | Measure | Baseline (20.1) | Now | Target |
+  |---|---|---|---|
+  | Drafts passing the difference test | 0 of 12 | 14 of 14 (12 static, 2 dynamic) | all |
+  | Same brief: distinct (hero, font, hue) | 3 of 15 | 10 of 15 | ≥ 10 |
+  | Paired domains with ≥ 2 differing fields | 4 of 4 | 4 of 4 | 4 of 4 |
+  | Drafts whose 3 directions all follow the category order | 0.58 | 0 | 0 |
+  | First-screen similarity, static (mean / max) | 0.964 / 0.997 | 0.616 / 0.965 | ≤ 0.90 / ≤ 0.95 |
+  | Dynamic apps: checklist failures, every page, mock API | — | 0 | 0 |
+  | Draft time (fake) | 0.08 s | 0.08 s | ≤ +20% |
+
+- **Open:** the similarity max: pharmacy's directions 2 and 3 (banner vs type layouts, both light) score 0.965 and
+  accountant's pairs ~0.94–0.95. Offline every image is a pale placeholder, so a photo-led and a drawing-led hero
+  look alike in greyscale; real images (the final check, 20.7's previews) should separate them. Revisit then rather
+  than push the fake further.
+- **Deviations:**
+  - Difference test tightened: three different hero layouts per draft (not only "one split"), after two `stacked`
+    heroes with different fonts and hues scored 0.987. The fake picker, the prompts and the code fix follow it.
+  - Shared fixtures are built in the test (cards from the fake library applied to the examples) instead of stored
+    JSON files; the UI side runs through Node (the UI has no test runner).
+  - `designSeed` on `POST /spec-drafts` (not in the story) so the report, tests and Epic 16's "another direction"
+    can repeat or vary directions.
+  - Draft time with a real engine waits for the final check.
+

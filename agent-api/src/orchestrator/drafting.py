@@ -19,6 +19,7 @@ import io
 import json
 import shutil
 import uuid
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -52,20 +53,37 @@ from src.modules.shared.domain.frontend_spec import (
     validate_frontend_spec_data,
 )
 from src.modules.shared.domain.frontend_spec.assets import MAX_GENERATED_ASSETS, SVG_KINDS, source_kind
+from src.modules.shared.domain.frontend_spec.copy_rules import phrase_list
 from src.modules.shared.domain.generation_modes import initial_lanes
 from src.modules.shared.domain.schema_digest import schema_digest
 
 from . import tracing
 from .checks.consistency import check_spec_pair
 from .contract import build_contract
+from .design_cards import (
+    MAX_SEED,
+    best_fit,
+    brand_fixed,
+    card_directions,
+    code_fix,
+    components,
+    design_record,
+    fact_pack,
+    failing_card,
+    home_pool,
+    new_seed,
+    problems,
+    read_cards,
+)
+from .design_cards import (
+    fields as direction_fields,
+)
 from .design_direction import (
     PHOTO_STYLES_BY_PRESET,
     apply_direction,
-    brief_markdown,
     design_notes,
     directions,
     pick,
-    with_brand,
 )
 from .store import JobStore
 
@@ -76,6 +94,8 @@ BACKEND_FILE = "backend-spec.json"
 FRONTEND_FILE = "frontend-spec.json"
 NOTES_FILE = "notes.json"
 MAX_REPAIR_ERRORS = 50
+# Story 20.4: rounds of asking the engine again for a direction card that fails the difference test.
+DIRECTION_REPAIRS = 2
 # Examples handed to the engine, relative to EXAMPLES_DIR (the repo's `examples/`).
 EXAMPLES = {
     "backend": "specs/shop.json",
@@ -143,7 +163,11 @@ def _copy_example(examples_dir: Path, name: str, target: Path) -> None:
 
 
 def write_inputs(
-    work: Path, draft: SpecDraftEntity, examples_dir: Path, design: list[dict[str, Any]] | None = None
+    work: Path,
+    draft: SpecDraftEntity,
+    examples_dir: Path,
+    design: list[dict[str, Any]] | None = None,
+    seed: int | None = None,
 ) -> dict[str, str]:
     """Writes the engine's inputs under `.bga/` and returns the prompt context (paths relative to `work`)."""
     inputs = work / INPUTS
@@ -155,6 +179,7 @@ def write_inputs(
             "mode": mode,
             "requirementFormat": draft.requirement_format,
             "requirementFileName": draft.requirement_file_name,
+            **({"designSeed": seed} if design else {}),
         },
     )
     context: dict[str, Any] = {"mode": str(mode), "source": str(draft.source), "notes_path": NOTES_FILE}
@@ -188,11 +213,12 @@ def write_inputs(
             "sections_path": f"{INPUTS}/sections.md",
             "output_frontend_path": FRONTEND_FILE,
             "design_path": None,
+            "stock_phrases": phrase_list(),
             "photos_enabled": photos_enabled(),
             "max_photos": config.frontend_max_photos,
         }
     if design:
-        (inputs / "design.md").write_text(brief_markdown(design))
+        (inputs / "design.md").write_text(fact_pack(design[0], seed or 0, str(mode)))
         context["design_path"] = f"{INPUTS}/design.md"
     if draft.source == SpecSource.FRONTEND:
         _write_json(inputs / "base-spec.json", draft.inputs.get("baseSpec"))
@@ -360,18 +386,104 @@ def draft_directions(draft: SpecDraftEntity) -> list[dict[str, Any]]:
     return directions(draft.requirement_text)
 
 
-def apply_design(work: Path, found: list[dict[str, Any]]) -> dict[str, Any]:
-    """Fills the drafted FrontendSpec from the brief the engine named in `notes.json` (`design.productType`, else
-    the first), with the requirement's brand colours and fonts on top; returns what the draft keeps (`design`)."""
+def draft_seed(draft: SpecDraftEntity) -> int:
+    """The draft's direction seed (Story 20.4): given with the draft (`inputs.designSeed`, e.g. by the diversity
+    report or "another direction"), else a new one; kept in `design.seed`."""
+    given = (draft.inputs or {}).get("designSeed")
+    return given if isinstance(given, int) and 0 < given < MAX_SEED else new_seed()
+
+
+def stock_warnings(check: DraftCheck) -> list[dict[str, Any]]:
+    """Story 20.9: the frontend's stock-phrase warnings, as repair items."""
+    report = check.reports.get("frontend")
+    if report is None:
+        return []
+    return [
+        {"file": FRONTEND_FILE, **issue.model_dump(mode="json", exclude={"severity"}, exclude_none=True)}
+        for issue in report.warnings
+        if issue.code == "FE_DESIGN_RULE" and "stock phrase" in issue.message
+    ]
+
+
+def _design_choice(work: Path) -> dict[str, Any]:
     notes, _ = _load(work / NOTES_FILE)
-    choice = notes.get("design") if isinstance(notes, dict) and isinstance(notes.get("design"), dict) else {}
-    brand = {"colors": choice.get("brandColors"), "fonts": choice.get("brandFonts")}
-    kept = [with_brand(item, brand) for item in found]
-    selected = pick(kept, choice.get("productType"))
+    return notes.get("design") if isinstance(notes, dict) and isinstance(notes.get("design"), dict) else {}
+
+
+def _drafted_spec(work: Path) -> dict[str, Any] | None:
     spec, issue = _load(work / FRONTEND_FILE)
-    if issue is None and isinstance(spec, dict) and isinstance(spec.get("pages"), list):
-        _write_json(work / FRONTEND_FILE, apply_direction(spec, kept[selected]))
-    return {"selected": selected, "directions": kept}
+    return spec if issue is None and isinstance(spec, dict) and isinstance(spec.get("pages"), list) else None
+
+
+RepairDirection = Callable[[int, list[str], list[dict[str, Any]]], Awaitable[None]]
+
+
+async def settle_directions(
+    work: Path, found: list[dict[str, Any]], seed: int, repair: RepairDirection | None = None
+) -> dict[str, Any]:
+    """The draft's three directions (Story 20.4): the engine's cards (`notes.json` `design.cards`) checked and filled,
+    with the requirement's brand colours and fonts on top; cards that fail the difference test are asked again
+    (`repair`, at most `DIRECTION_REPAIRS` rounds), then fixed by code. Without cards, the UI UX Pro Max directions
+    (12.6) the engine named by product type. Returns what the draft keeps (`design`); the spec is not changed here
+    (`finish_design` applies the selected direction once the spec is final)."""
+    choice = _design_choice(work)
+    brand = {"colors": choice.get("brandColors"), "fonts": choice.get("brandFonts")}
+    spec = _drafted_spec(work)
+    pool = home_pool(spec) if spec is not None else []
+    required = [i for i in choice.get("required") or [] if isinstance(i, str)]
+    default = found[0]["homeOrder"]
+    fixed = brand_fixed(brand)
+    cards, notes = read_cards(choice)
+    kept, more = card_directions(cards, found, pool, required, seed, brand)
+    notes += more
+    if not cards:
+        selected = pick(kept, choice.get("productType"))
+        return design_record(kept, selected, seed, pool, required) | {"notes": notes}
+    rounds = 0
+    while repair is not None and rounds < DIRECTION_REPAIRS and problems(kept, default, pool, fixed):
+        index = failing_card(kept, fixed, pool)
+        if index is None or index >= len(cards):
+            break
+        rounds += 1
+        await repair(index, problems(kept, default, pool, fixed), kept)
+        choice = _design_choice(work)
+        new_cards, _ = read_cards(choice)
+        if len(new_cards) == len(cards):
+            cards = new_cards
+            kept, _ = card_directions(cards, found, pool, required, seed, brand)
+    left = problems(kept, default, pool, fixed)
+    if left:
+        notes += code_fix(kept, default, pool, required, fixed)
+    if rounds:
+        notes.insert(0, f"Directions asked again {rounds} time(s) to differ from each other")
+    return design_record(kept, best_fit(kept), seed, pool, required) | {"notes": notes}
+
+
+def finish_design(work: Path, design: dict[str, Any]) -> None:
+    """Applies the selected direction to the final spec (after repairs): the theme, its home page composed from the
+    drafted home sections (kept on the draft as `pool`, so switching restores them), hero layout, forms, rhythm."""
+    spec = _drafted_spec(work)
+    if spec is None:
+        return
+    pool = home_pool(spec)
+    ids = [section["id"] for section in pool]
+    # A section a repair added that no direction has yet joins every home page at the end.
+    unplaced = [i for i in ids if not any(i in (d.get("home") or []) for d in design["directions"])]
+    for direction in design["directions"]:
+        home = [i for i in direction.get("home") or [] if i in ids]
+        direction["home"] = home + unplaced if home else ids
+        direction["homeOrder"] = components(direction["home"], pool)
+    design["pool"] = pool
+    chosen = design["directions"][design["selected"]]
+    _write_json(work / FRONTEND_FILE, apply_direction(spec, chosen, pool))
+
+
+def hero_images(spec: dict[str, Any]) -> set[str]:
+    """Asset ids the home page's hero shows."""
+    hero = next((s for s in home_pool(spec) if s.get("component") == "Hero"), None)
+    content = (hero or {}).get("content") or {}
+    refs = [content.get("image"), content.get("backgroundImage"), *(content.get("images") or [])]
+    return {ref.removeprefix("asset:") for ref in refs if isinstance(ref, str) and ref.startswith("asset:")}
 
 
 def draw_images(work: Path, chosen: dict[str, Any] | None) -> list[dict[str, Any]]:
@@ -393,6 +505,8 @@ def draw_images(work: Path, chosen: dict[str, Any] | None) -> list[dict[str, Any
         (chosen or {}).get("theme", {}).get("style", "minimal"), PHOTO_STYLES_BY_PRESET["minimal"]
     )
     style = f"{chosen['style']}, flat vector shapes" if chosen and "style" in chosen else None
+    # Story 20.4: a direction whose key visual is a drawing keeps the hero's images drawn, never photographed.
+    drawn_hero = hero_images(spec) if (chosen or {}).get("keyVisual") in ("illustration", "pattern") else set()
     converted_photos: list[str] = []
     converted_drawings: list[str] = []
     skipped: list[str] = []
@@ -402,7 +516,8 @@ def draw_images(work: Path, chosen: dict[str, Any] | None) -> list[dict[str, Any
         if not isinstance(asset.get("id"), str):
             continue
         kind = asset.get("kind") or "image"
-        if photos_on and kind in ("image", "logo", "illustration") and photos_count < max_photos:
+        photo_kind = kind in ("image", "logo", "illustration") and asset["id"] not in drawn_hero
+        if photos_on and photo_kind and photos_count < max_photos:
             asset["source"] = "photo"
             asset["prompt"] = asset.get("prompt") or asset.get("alt") or asset["id"].replace("-", " ")
             if photo_style and not asset.get("style"):
@@ -668,9 +783,10 @@ class DraftRunner:
         work.mkdir(parents=True)
         state.mkdir(parents=True)
         found = draft_directions(draft)
-        context = write_inputs(work, draft, self.examples_dir, found)
+        seed = draft_seed(draft) if found else None
+        context = write_inputs(work, draft, self.examples_dir, found, seed)
         frontend = mode != GenerationMode.BACKEND
-        purpose, version = ("draft_frontend_spec", "v7") if frontend else ("draft_spec", "v3")
+        purpose, version = ("draft_frontend_spec", "v8") if frontend else ("draft_spec", "v3")
         max_repairs = config.draft_repair_attempts_frontend if frontend else config.draft_repair_attempts_backend
         calls: list[dict[str, Any]] = []
         trace = tracing.GenerationTrace.open(
@@ -730,7 +846,28 @@ class DraftRunner:
             result = await call("draft", self.prompts.render(purpose, version, **context))
             if result.status != EngineStatus.OK:
                 raise DraftFailed(f"The {engine.name} engine stopped: {result.error_message or result.status}")
-            design = apply_design(work, found) if found else None
+            design = None
+            if found and seed is not None:
+                await update_progress("directions")
+
+                async def repair_direction(index: int, found_problems: list[str], kept: list[dict[str, Any]]) -> None:
+                    others = [
+                        {"card": k + 1, "name": d["name"], **direction_fields(d)}
+                        for k, d in enumerate(kept)
+                        if k != index
+                    ]
+                    prompt = self.prompts.render(
+                        "repair_direction",
+                        "v1",
+                        notes_path=NOTES_FILE,
+                        design_path=context["design_path"],
+                        card=index + 1,
+                        problems=found_problems,
+                        others=others,
+                    )
+                    await call("repair_direction", prompt)
+
+                design = await settle_directions(work, found, seed, repair_direction)
             chosen = design["directions"][design["selected"]] if design else None
             autofix_notes = autofix_draft(work) if frontend else []
             image_notes = draw_images(work, chosen) if frontend else []
@@ -738,10 +875,17 @@ class DraftRunner:
             await update_progress("validating")
             check = check_draft(work, mode)
             attempts = 0
-            while not check.ok and attempts < max_repairs:
-                attempts += 1
-                await update_progress(f"repairing ({attempts}/{max_repairs})", attempts_count=attempts)
-                errors = check.repair_errors()
+            stock_round = False
+            while attempts < max_repairs:
+                stock = stock_warnings(check) if frontend and check.ok and not stock_round else []
+                if check.ok and not stock:
+                    break
+                # Story 20.9: one round for stock phrases once the spec is valid; errors use the usual budget.
+                stock_round = stock_round or bool(stock)
+                attempts += 0 if stock else 1
+                label = "copy" if stock else f"{attempts}/{max_repairs}"
+                await update_progress(f"repairing ({label})", attempts_count=attempts)
+                errors = stock or check.repair_errors()
                 files = sorted({error["file"] for error in errors})
                 result = await call("repair", self.prompts.render("repair_spec", "v2", files=files, errors=errors))
                 if result.status != EngineStatus.OK:
@@ -753,6 +897,9 @@ class DraftRunner:
                     autofix_draft(work)
                 if mode == GenerationMode.DYNAMIC:
                     manage_notes = apply_manage_area(work)
+                check = check_draft(work, mode)
+            if design is not None:
+                finish_design(work, design)
                 check = check_draft(work, mode)
         except BaseException as exc:
             trace.close({"status": "failed"}, error=f"{type(exc).__name__}: {exc}"[:500])
@@ -845,7 +992,7 @@ class DraftRunner:
                     check = check_draft(work, mode)
         assumptions, unresolved = read_notes(work, mode)
         if design is not None:
-            assumptions += design_notes(design["directions"][design["selected"]])
+            assumptions += design_notes(design["directions"][design["selected"]], design.pop("notes", []))
         assumptions += image_notes
         assumptions += autofix_notes
         assumptions += manage_notes

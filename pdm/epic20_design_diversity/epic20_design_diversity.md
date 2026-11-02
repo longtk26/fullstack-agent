@@ -34,7 +34,7 @@ accepted; FR-24 (design direction) and FR-22 (FrontendSpec) are extended.
 |---|---|---|
 | D1 | **Directions are generated, not looked up.** The drafting engine writes three **direction cards** (oil-ui's method, reduced to what the renderer draws): a concept from the product (material in a setting, a scene, a character, a design tradition, another medium, or one broken convention) in one sentence, five tone values with evidence, hero layout, fonts, colour with where it comes from, key visual, section forms, icon style, motion feel, one signature moment, and what it gives up | BM25 product type → one CSV row |
 | D2 | **Code checks and fills, the model chooses.** Our code validates each card (contrast AA light / dark, bundled fonts, known icon set), turns the tone into theme tokens, and runs the **difference test**; only a failing card is asked again | Trusting the model's description (Design Theater: >25% of stated rationale is not built) |
-| D3 | **Difference test** between the three directions: any two share **at most one** of hero layout, heading font, hue family (primary hue within 30°, or both neutral), key visual kind; at most one `split` hero; at least one direction leaves the category's default home order | Alternatives that differ only in colour |
+| D3 | **Difference test** between the three directions: any two share **at most one** of hero layout, heading font, hue family (primary hue within 30°, or both neutral), key visual kind; at most one `split` hero; at least one direction leaves the category's default home order. *Tightened at Checkpoint C (2026-11-02): the three hero layouts all differ, since two directions with the same layout still looked 98.7% alike offline* | Alternatives that differ only in colour |
 | D4 | **The renderer stays the only builder.** Every new look is a typed spec value and a library variant: 8 hero layouts, section forms, tone tokens, colour roles, icon styles, motion presets. No image-first mockups, no per-site animation or layout code | draw-ui's image → code (our renderer cannot reproduce a drawn layout) |
 | D5 | **UI UX Pro Max becomes the floor.** Its matched row goes into the engine's fact pack as "the category default to move away from", with its anti-patterns; its contrast-safe palette is the fallback when a card's colours fail twice. The vendored data and ranker stay | It picking the look |
 | D6 | **Icons:** the drafter writes an icon *intent* (a few words); code resolves it to a real icon by ranking the set's tags and categories. Lucide (today) plus **Phosphor** (six weights) in the pinned base; one set per site; style from the direction (`none` / line / filled tile / duotone) | Model-invented icon names; Lucide 2 px on every site |
@@ -265,3 +265,13 @@ and 30 fonts; a FrontendSpec without the new fields plans exactly as before. Mea
 combinations, 390 / 768 / 1440 px, light and dark: 1,188 views, 0 checklist failures (`.data/shots/phaseB-*`). The
 diversity report is unchanged by Phase B on purpose: directions still come from 12.6's lookup until 20.4 uses the
 new range. Screenshots for review: `.data/shots/phaseB-combos/<combo>/layouts-*-1440-light.png` and `new-*`.
+
+**Checkpoint C (2026-11-02): directions are generated** (stories 20.4, 20.9; prompt `draft_frontend_spec@v8`).
+Drafts carry three direction cards checked and filled by code, passing the (tightened) difference test; each
+composes its own home page from the drafted sections; stock phrases are flagged and repaired once; dynamic apps get
+the same directions and pass the design check on every page on the mock API. Fake-engine report
+(`.data/reports/design-diversity/20261102-101354/`): difference test 14 of 14, same brief 10 of 15 distinct, pairs
+4 of 4, trope 0, first-screen similarity mean 0.616 (target met) and max 0.965 (**target ≤ 0.95 not yet met**:
+offline placeholders hide the key-visual difference; revisit at the final check). Section and copy measures need a
+real engine (final check). Details and deviations in 20.4's Status.
+

@@ -136,10 +136,14 @@ def test_wide_faces_and_capitals_shrink_the_hero_sizes():
 
     assert display_scale("Inter", {}) == 1.0 and display_scale("Playfair Display", {"tracking": "tight"}) == 1.0
     assert 0.85 < display_scale("Montserrat", {}) < 0.95
-    assert display_scale("Unbounded", {"headingCase": "upper"}) == 0.6, "never below the floor"
+    assert display_scale("Unbounded", {"headingCase": "upper"}) == 0.559
+    assert display_scale("Space Mono", {"headingCase": "upper", "tracking": "wide"}) >= 0.55, "never below the floor"
     assert display_scale("Syne", {"headingCase": "upper"}) < display_scale("Syne", {}) < 1
     assert hero_vars({}, 1.0)[2] == "  --hero-4xl: 2.25rem;", "Tailwind's step without tokens"
-    assert hero_vars({"ratio": "dramatic"}, 0.5)[2] == "  --hero-4xl: 1.312rem;"
+    dramatic = hero_vars({"ratio": "dramatic"}, 0.5)
+    assert dramatic[2] == "  --hero-4xl: 1.125rem;", "longer headlines keep their size (Story 20.4)"
+    assert dramatic[4] == "  --hero-6xl: 2.25rem;", "short ones grow with the ratio"
+    assert hero_vars({"ratio": "tight"}, 1.0)[2] == "  --hero-4xl: 2rem;", "a tight ratio shrinks every step"
 
 
 def test_the_display_scale_reaches_globals_css_only_when_it_shrinks():
@@ -148,4 +152,4 @@ def test_the_display_scale_reaches_globals_css_only_when_it_shrinks():
     spec = copy.deepcopy(LANDING)
     spec["theme"]["typography"] = {"headingFont": "Unbounded", "headingCase": "upper"}
     wide = build_theme(_validated(spec)["theme"])
-    assert wide["displayScale"] == 0.6 and "--hero-6xl: 2.25rem;" in globals_css(wide)
+    assert wide["displayScale"] == 0.559 and "--hero-6xl: 2.096rem;" in globals_css(wide)

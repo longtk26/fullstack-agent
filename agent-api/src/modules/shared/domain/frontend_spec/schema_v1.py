@@ -64,6 +64,19 @@ class Typography(SpecModel):
     ratio: Literal["tight", "default", "dramatic"] | None = None
 
 
+ToneLevel = Annotated[int, Field(ge=1, le=5)]
+
+
+class Tone(SpecModel):
+    """A direction's feel on five scales, 1–5 (Story 20.3, `orchestrator/design_tone.py`)."""
+
+    energy: ToneLevel = 3
+    finish: ToneLevel = 3
+    density: ToneLevel = 3
+    weight: ToneLevel = 3
+    seriousness: ToneLevel = 3
+
+
 class ThemeDirection(SpecModel):
     """Where a drafted theme came from (Story 12.6): the design data's product type, landing pattern, palette and
     font pairing. A record for the review and later revisions; the renderer ignores it."""
@@ -73,6 +86,15 @@ class ThemeDirection(SpecModel):
     palette: str | None = Field(default=None, max_length=200)
     font_pairing: str | None = Field(default=None, max_length=200)
     source: str | None = Field(default=None, max_length=120)
+    # Story 20.4: a direction card's idea (one sentence), what kind of idea it is, its tone (five scales 1–5), what
+    # carries the first screen, what the direction gives up, and the draft's seed.
+    name: str | None = Field(default=None, max_length=80)
+    concept: str | None = Field(default=None, max_length=300)
+    engine: Literal["material", "scene", "character", "tradition", "medium", "convention"] | None = None
+    tone: Tone | None = None
+    key_visual: Literal["photo", "illustration", "type", "product", "pattern"] | None = None
+    gives_up: str | None = Field(default=None, max_length=300)
+    seed: int | None = Field(default=None, ge=0)
 
 
 class Theme(SpecModel):

@@ -5,6 +5,8 @@ rules of `templates/nextjs_overlay/DESIGN_CHECKLIST.md`. Dev tool, not part of g
     make design-check-fixture                                  # every preset → .data/shots/design-check/<preset>/
     make design-check-fixture ARGS="--presets minimal editorial --out .data/shots/story20.2"
     make design-check-fixture ARGS="--combos --out .data/shots/story20.3"   # six tone, font and preset combinations
+    make design-check-fixture ARGS="--combos --spec ../examples/frontend-specs/shop-dynamic.json \
+        --backend ../examples/specs/shop.json"     # a dynamic app on its mock API (Story 20.4)
 """
 
 import argparse
@@ -79,6 +81,7 @@ def failures(view: str, measured: dict[str, Any]) -> list[str]:
 
 async def main(args: argparse.Namespace) -> None:
     fixture = json.loads(Path(args.spec).read_text())
+    backend = json.loads(Path(args.backend).read_text()) if args.backend else None
     out = Path(args.out)
     gate = asyncio.Semaphore(CONCURRENCY)
 
@@ -90,7 +93,7 @@ async def main(args: argparse.Namespace) -> None:
             return name, json.loads(saved.read_text()) if saved.is_file() else None
         async with gate:
             print(f"building {name}")
-            return name, await check_site(specs[name], out / name)
+            return name, await check_site(specs[name], out / name, backend=backend)
 
     summary: dict[str, Any] = {}
     for preset, report in await asyncio.gather(*(one(name) for name in specs)):
@@ -115,6 +118,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--presets", nargs="+", default=list(THEME_PRESETS), choices=list(THEME_PRESETS))
     parser.add_argument("--spec", default=str(FIXTURE), help="the FrontendSpec to check (default: the fixture)")
+    parser.add_argument("--backend", help="the BackendSpec of a dynamic --spec (its API contract and mock data)")
     parser.add_argument("--out", default=str(REPO / ".data" / "shots" / "design-check"))
     parser.add_argument("--combos", action="store_true", help="the six tone combinations instead of the presets")
     parser.add_argument("--recheck", action="store_true", help="re-read the saved reports in --out, build nothing")

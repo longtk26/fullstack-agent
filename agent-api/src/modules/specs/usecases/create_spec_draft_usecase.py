@@ -23,6 +23,7 @@ class DraftRequest(BaseModel):
     base_spec: dict[str, Any] | None = None
     site_json: dict[str, Any] | None = None
     engine: str | None = None
+    design_seed: int | None = None
 
 
 class CreateSpecDraftUsecase:
@@ -56,6 +57,8 @@ class CreateSpecDraftUsecase:
                 "requirement_format": requirement.format,
                 "requirement_file_name": requirement.file_name,
             }
+            if request.design_seed is not None:
+                fields["inputs"] = {"designSeed": request.design_seed}  # Story 20.4: repeatable directions
         elif request.source == SpecSource.FRONTEND:
             if request.mode != GenerationMode.BACKEND:
                 raise UnprocessableEntityException(

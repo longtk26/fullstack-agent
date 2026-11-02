@@ -52,7 +52,7 @@
             "heading": "Flavours of the Night Market",
             "body": "Experience authentic street food culture, from morning pho stalls to sizzling woks under glowing lanterns.",
             "image": "asset:hero-stall",
-            "cta": { "label": "Explore Dishes", "page": "dishes" }
+            "cta": { "label": "See the dishes", "page": "dishes" }
           }
         },
         {
@@ -75,7 +75,7 @@
           "content": {
             "heading": "Taste the Culture",
             "body": "Join our food walking tour through Saigon's most historic alleyways.",
-            "cta": { "label": "Learn More", "page": "culture" }
+            "cta": { "label": "Read about the wok craft", "page": "culture" }
           }
         }
       ]

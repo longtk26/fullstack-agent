@@ -1,6 +1,8 @@
 from datetime import datetime
 from typing import Any, Literal
 
+from pydantic import Field
+
 from src.libs.dtos import CamelModel
 from src.modules.shared.domain.backend_spec import ValidationReport
 from src.modules.shared.domain.entities import SpecDraftEntity
@@ -12,7 +14,8 @@ from .validation_report_dto import ValidationReportDto
 class CreateSpecDraftRequestDto(CamelModel):
     """`source=requirement`: `requirementText` (plain text or Markdown, typed or read from a .md / .txt file whose
     name goes in `requirementFileName`). `source=frontend` (2.5 "Refine with AI", mode backend): `baseSpec` +
-    `siteJson`."""
+    `siteJson`. `designSeed` (Story 20.4) repeats a draft's design directions; without it each draft gets a new
+    seed."""
 
     source: SpecSource = SpecSource.REQUIREMENT
     mode: GenerationMode = GenerationMode.BACKEND
@@ -22,6 +25,7 @@ class CreateSpecDraftRequestDto(CamelModel):
     base_spec: dict[str, Any] | None = None
     site_json: dict[str, Any] | None = None
     engine: str | None = None
+    design_seed: int | None = Field(default=None, ge=1, lt=1_000_000)
 
 
 class CreateSpecDraftResponseDto(CamelModel):

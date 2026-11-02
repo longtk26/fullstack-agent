@@ -220,11 +220,14 @@ def display_scale(heading_font: str, tokens: dict[str, Any]) -> float:
 # Story 20.3: the tone tokens. Without them headings stay semibold with tight tracking (today's look).
 TRACKING = {None: "-0.025em", "tight": "-0.035em", "normal": "0em", "wide": "0.06em"}
 # Rough widths of a display line against lower case Inter with tight tracking, for `display_scale`.
-UPPER_WIDTH = 1.12
+UPPER_WIDTH = 1.2
 TRACKING_WIDTH = {"tight": 0.99, "normal": 1.02, "wide": 1.08}
-MIN_DISPLAY_SCALE = 0.6
+MIN_DISPLAY_SCALE = 0.55
 # Tailwind's display steps, the hero's sizes before the ratio and the display scale.
 DISPLAY_STEPS = {"2xl": 1.5, "3xl": 1.875, "4xl": 2.25, "5xl": 3, "6xl": 3.75, "7xl": 4.5, "8xl": 6, "9xl": 8}
+# The hero steps a dramatic ratio may grow: those of short headlines (`headlineClass` ≤ 28 characters at lg) and
+# of the `type` layout (`displayClass`).
+GROWING_STEPS = ("6xl", "7xl", "8xl", "9xl")
 # The display steps of the type scale (Tailwind's defaults are 1.5 / 1.875 / 2.25 / 3 / 3.75 / 4.5 / 6 / 8 rem).
 RATIO_STEPS = {
     "tight": {"2xl": "1.375rem", "3xl": "1.625rem", "4xl": "2rem", "5xl": "2.5rem", "6xl": "3rem", "7xl": "3.5rem",
@@ -243,9 +246,15 @@ SURFACES = {
 
 def hero_vars(tokens: dict[str, Any], scale: float) -> list[str]:
     """`--hero-<step>`: the hero headline's sizes (`styles.ts`), the type scale's display steps after the ratio and
-    the display scale. Without tokens and with a face of normal width they equal Tailwind's steps."""
+    the display scale. Without tokens and with a face of normal width they equal Tailwind's steps. A dramatic ratio
+    grows only `GROWING_STEPS`: longer headlines (29–50 characters) use the smaller steps, which already fill two
+    lines (Story 20.4: a 39-character headline in a bold face wrapped to three)."""
     steps = {step: float(size.removesuffix("rem")) for step, size in RATIO_STEPS.get(tokens.get("ratio"), {}).items()}
-    return [f"  --hero-{step}: {round(steps.get(step, size) * scale, 3):g}rem;" for step, size in DISPLAY_STEPS.items()]
+    sizes = {
+        step: size if steps.get(step, size) > size and step not in GROWING_STEPS else steps.get(step, size)
+        for step, size in DISPLAY_STEPS.items()
+    }
+    return [f"  --hero-{step}: {round(size * scale, 3):g}rem;" for step, size in sizes.items()]
 
 
 def heading_vars(tokens: dict[str, Any]) -> list[str]:

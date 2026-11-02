@@ -65,11 +65,15 @@ def _hero(spec: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def key_visual(spec: dict[str, Any]) -> str:
-    """What carries the first screen: `photo`, `illustration`, `image` (a link or a plain upload), `type` (a hero
-    without an image) or `none` (no hero)."""
+    """What carries the first screen: the direction card's key visual when the theme records one (Story 20.4), else
+    from the hero: `photo`, `illustration`, `image` (a link or a plain upload), `type` (a hero without an image) or
+    `none` (no hero)."""
     hero = _hero(spec)
     if hero is None:
         return "none"
+    recorded = ((spec.get("theme") or {}).get("direction") or {}).get("keyVisual")
+    if isinstance(recorded, str) and recorded:
+        return recorded
     content = hero.get("content") or {}
     image = content.get("image") or content.get("backgroundImage")
     if not image:
@@ -100,8 +104,8 @@ def visual_fields(spec: dict[str, Any]) -> dict[str, str]:
     }
 
 
-def shared_fields(first: dict[str, str], second: dict[str, str]) -> list[str]:
-    return [field for field in VISUAL_FIELDS if first.get(field) == second.get(field)]
+def shared_fields(first: dict[str, str], second: dict[str, str], compare: tuple[str, ...] = VISUAL_FIELDS) -> list[str]:
+    return [field for field in compare if first.get(field) == second.get(field)]
 
 
 def pair_distance(first: dict[str, str], second: dict[str, str]) -> int:
@@ -116,12 +120,18 @@ def off_default(home: list[str], default: list[str]) -> bool:
     return home[:3] != expected[:3]
 
 
-def difference_problems(fields: list[dict[str, str]], homes: list[list[str]], default: list[str]) -> list[str]:
+def difference_problems(
+    fields: list[dict[str, str]],
+    homes: list[list[str]],
+    default: list[str],
+    compare: tuple[str, ...] = VISUAL_FIELDS,
+) -> list[str]:
     """The epic's difference test (D3) over a draft's directions: any two share at most one visual field, at most
-    one `split` hero, at least one home page off the category default. Empty when it passes."""
+    one `split` hero, at least one home page off the category default. Empty when it passes. `compare` leaves out
+    fields the requirement fixes (brand colours or fonts are the same in every direction)."""
     problems = []
     for (i, first), (j, second) in combinations(enumerate(fields), 2):
-        shared = shared_fields(first, second)
+        shared = shared_fields(first, second, compare)
         if len(shared) > 1:
             problems.append(f"directions {i + 1} and {j + 1} share {', '.join(shared)}")
     splits = sum(1 for item in fields if item.get("hero") == "split")

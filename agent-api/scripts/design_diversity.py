@@ -4,6 +4,10 @@ are, within a draft, across drafts of one brief and across similar businesses. D
     make design-diversity                          # fake engine, field measures only
     make design-diversity ARGS="--screenshots"     # + build each direction and compare first screens (Docker)
     make design-diversity ARGS="--engine claude-code"   # a real engine: costs money, only with the user's yes
+    make design-diversity ARGS="--seed 100"        # repeatable direction seeds (100, 101, … per draft)
+
+Static requirements are drafted in static mode, the manifest's `dynamic` ones in dynamic mode (Story 20.4); with
+`--screenshots` a dynamic direction's every page, data pages included, is built and checked on the mock API.
 
 Drafts run in-process through the worker's `DraftRunner` against the dev database (rows are deleted afterwards).
 AI photos are always off here (`IMAGE_PROVIDER=none`), so a run never calls the image API. Output:
@@ -28,12 +32,16 @@ from src.engines import EngineRegistry, PromptLibrary
 from src.engines.fake_engine import FakeEngine, demo_scenario
 from src.engines.registry import build_engine_registry
 from src.libs.database import db_session_manager
+from src.modules.shared.domain.frontend_spec.copy_rules import stock_copy
+from src.modules.shared.domain.frontend_spec.normalizer import iter_sections
 from src.modules.shared.infrastructure.models import SpecDraftModel, UserModel
 from src.orchestrator import design_diversity as dd
+from src.orchestrator.design_cards import compared_fields, composition_problems, layout_problems
 from src.orchestrator.design_direction import apply_direction, design_data, home_order, rank_products
 from src.orchestrator.drafting import DraftRunner
 from src.orchestrator.store import JobStore
 
+from .design_check_fixture import failures
 from .site_check import check_site
 
 REPO = Path(__file__).resolve().parents[2]
@@ -60,9 +68,12 @@ def _registry(engine: str, root: Path) -> EngineRegistry:
     return build_engine_registry()
 
 
-async def draft(runner: DraftRunner, owner: uuid.UUID, engine: str, requirement: str) -> dict[str, Any]:
-    """One static draft through the worker's runner; returns the stored draft as JSON."""
-    row = SpecDraftModel(owner_id=owner, mode="static", requirement_text=requirement, engine=engine)
+async def draft(
+    runner: DraftRunner, owner: uuid.UUID, engine: str, requirement: str, mode: str, seed: int | None
+) -> dict[str, Any]:
+    """One draft through the worker's runner; returns the stored draft as JSON."""
+    inputs = {"designSeed": seed} if seed else {}
+    row = SpecDraftModel(owner_id=owner, mode=mode, requirement_text=requirement, engine=engine, inputs=inputs)
     with Session(db_session_manager.engine) as session:
         session.add(row)
         session.commit()
@@ -77,7 +88,8 @@ def direction_specs(stored: dict[str, Any]) -> list[dict[str, Any]]:
     spec, design = stored.get("frontend_spec"), stored.get("design") or {}
     if not spec:
         return []
-    return [apply_direction(spec, direction) for direction in design.get("directions") or []] or [spec]
+    pool = design.get("pool")
+    return [apply_direction(spec, direction, pool) for direction in design.get("directions") or []] or [spec]
 
 
 def category_default(requirement: str) -> list[str]:
@@ -98,36 +110,64 @@ def _seconds(stored: dict[str, Any]) -> float | None:
 # -- screenshots -------------------------------------------------------------------------------------------------------
 
 
-async def screenshot(spec: dict[str, Any], target: Path) -> Path | None:
-    """The home page at 1440 px, light, reduced motion, built by the renderer; None when the build failed."""
+async def screenshot(
+    spec: dict[str, Any], target: Path, backend: dict[str, Any] | None = None
+) -> tuple[Path | None, list[str]]:
+    """The home page at 1440 px, light, reduced motion, built by the renderer (None when the build failed). A
+    dynamic app (with its `backend`) is checked on every page at every width and scheme on the mock API; the
+    checklist failures come back and its screenshots stay in `<target>-shots/`."""
     shots = target.parent / f"{target.name}-shots"
-    report = await check_site(spec, shots, routes=["/"], widths="1440", schemes="light")
+    if backend is None:
+        report = await check_site(spec, shots, routes=["/"], widths="1440", schemes="light")
+    else:
+        report = await check_site(spec, shots, backend=backend)
     if report is None:
-        return None
+        return None, []
     kept = target.parent / f"{target.name}.png"
-    shutil.move(shots / "home-1440-light.png", kept)
-    shutil.rmtree(shots, ignore_errors=True)
-    return kept
+    shutil.copy(shots / "home-1440-light.png", kept)
+    broken = [line for view, measured in report.items() for line in failures(view, measured)]
+    if backend is None:
+        shutil.rmtree(shots, ignore_errors=True)
+    return kept, broken
 
 
 # -- report ------------------------------------------------------------------------------------------------------------
 
 
-def measure_draft(stored: dict[str, Any], requirement: str) -> dict[str, Any]:
+def stock_phrases(spec: dict[str, Any]) -> list[str]:
+    """Story 20.9: the stock phrases left in a site's headings and buttons."""
+    return [
+        text
+        for page in spec.get("pages") or []
+        for section in iter_sections(page.get("sections") or [])
+        for _, text, _ in stock_copy(section.get("content"), "")
+    ]
+
+
+def measure_draft(stored: dict[str, Any], requirement: str, mode: str) -> dict[str, Any]:
     specs = direction_specs(stored)
     fields = [dd.visual_fields(spec) for spec in specs]
     homes = [dd.home_sections(spec) for spec in specs]
     default = category_default(requirement)
+    pool = (stored.get("design") or {}).get("pool") or []
     return {
         "draftId": stored.get("id"),
+        "mode": mode,
+        "seed": (stored.get("design") or {}).get("seed"),
         "status": stored.get("status"),
         "seconds": _seconds(stored),
         "modelCalls": (stored.get("usage") or {}).get("modelCalls"),
         "directions": [{**item, "home": home} for item, home in zip(fields, homes, strict=True)],
         "categoryDefault": default,
         "offDefault": [dd.off_default(home, default) for home in homes],
-        "differenceProblems": dd.difference_problems(fields, homes, default),
+        "differenceProblems": dd.difference_problems(
+            fields, homes, default, compared_fields(all("Hero" in home for home in homes))
+        )
+        + layout_problems([item["hero"] for item in fields if item["hero"] != "none"])
+        + composition_problems(homes, len(pool)),
+        "stockPhrases": stock_phrases(stored.get("frontend_spec") or {}),
         "spec": stored.get("frontend_spec"),
+        "backendSpec": stored.get("backend_spec"),
         "directionSpecs": specs,
     }
 
@@ -149,11 +189,17 @@ def summarise(results: dict[str, list[dict[str, Any]]], manifest: dict[str, Any]
         for b in names[i + 1 :]
     ]
     seconds = [item["seconds"] for item in drafts if item["seconds"] is not None]
+    dynamic = [item for item in drafts if item.get("mode") == "dynamic"]
     return {
         "drafts": len(drafts),
         "passDifferenceTest": round(sum(not item["differenceProblems"] for item in drafts) / len(drafts), 3)
         if drafts
         else None,
+        "dynamicDrafts": len(dynamic),
+        "dynamicPassDifferenceTest": round(sum(not item["differenceProblems"] for item in dynamic) / len(dynamic), 3)
+        if dynamic
+        else None,
+        "stockPhrases": sum(len(item["stockPhrases"]) for item in drafts),
         "sameBriefDistinctTriples": dd.distinct_triples(d for item in same for d in item["directions"]),
         "sameBriefDirections": sum(len(item["directions"]) for item in same),
         "pairs": pairs,
@@ -176,6 +222,9 @@ def markdown(report: dict[str, Any]) -> str:
         "| Measure | Value |",
         "|---|---|",
         f"| Drafts passing the difference test | {s['passDifferenceTest']} |",
+        f"| Dynamic drafts passing the difference test | {s['dynamicPassDifferenceTest']} "
+        f"({s['dynamicDrafts']} drafts) |",
+        f"| Stock phrases left in headings and buttons | {s['stockPhrases']} |",
         f"| Same brief: distinct (hero, heading font, hue) | {s['sameBriefDistinctTriples']} of "
         f"{s['sameBriefDirections']} directions |",
         f"| Paired domains with ≥ 2 differing fields | {s['pairsMeetingTarget']} of {len(s['pairs'])} |",
@@ -187,6 +236,8 @@ def markdown(report: dict[str, Any]) -> str:
     if "similarity" in report:
         sim = report["similarity"]
         lines.append(f"| First-screen similarity within a draft (mean / max) | {sim['mean']} / {sim['max']} |")
+        failing = sum(len(found) for found in sim.get("dynamicChecklistFailures", {}).values())
+        lines.append(f"| Dynamic apps: checklist failures on every page (mock API) | {failing} |")
     lines += ["", "## Directions", "", "| Requirement | Run | # | Hero | Heading font | Hue | Key visual | Home |"]
     lines.append("|---|---|---|---|---|---|---|---|")
     for name, runs in report["results"].items():
@@ -221,14 +272,18 @@ async def main(args: argparse.Namespace) -> None:
     results: dict[str, list[dict[str, Any]]] = {}
     created: list[str] = []
     try:
-        for name in manifest["requirements"]:
+        seed = args.seed
+        names = [(name, "static") for name in manifest["requirements"]]
+        names += [(name, "dynamic") for name in manifest.get("dynamic", [])]
+        for name, mode in names:
             requirement = (GOLDEN / f"{name}.md").read_text()
             runs = args.runs if name == manifest["sameBrief"] else 1
             for run in range(runs):
-                stored = await draft(runner, owner, args.engine, requirement)
+                stored = await draft(runner, owner, args.engine, requirement, mode, seed)
+                seed = seed + 1 if seed else None
                 created.append(str(stored["id"]))
-                results.setdefault(name, []).append(measure_draft(stored, requirement))
-                print(f"{name} #{run + 1}: {stored.get('status')}")
+                results.setdefault(name, []).append(measure_draft(stored, requirement, mode))
+                print(f"{name} #{run + 1} ({mode}): {stored.get('status')}")
     finally:
         with Session(db_session_manager.engine) as session:
             session.exec(delete(SpecDraftModel).where(SpecDraftModel.id.in_([uuid.UUID(i) for i in created])))
@@ -246,6 +301,7 @@ async def main(args: argparse.Namespace) -> None:
     for runs in results.values():
         for item in runs:
             item.pop("spec", None)
+            item.pop("backendSpec", None)
             item.pop("directionSpecs", None)
     (out / "report.json").write_text(json.dumps(report, indent=2) + "\n")
     (out / "report.md").write_text(markdown(report))
@@ -258,23 +314,25 @@ async def similarity(results: dict[str, list[dict[str, Any]]], shots: Path) -> d
     gate = asyncio.Semaphore(SHOT_CONCURRENCY)
     per_draft: dict[str, list[float]] = {}
 
-    async def shoot(name: str, index: int, spec: dict[str, Any]) -> tuple[str, int, Path | None]:
+    async def shoot(name: str, index: int, spec: dict[str, Any], backend: dict[str, Any] | None):
         async with gate:
             print(f"building {name} direction {index + 1}")
-            return name, index, await screenshot(spec, shots / f"{name}-{index + 1}-build")
+            path, broken = await screenshot(spec, shots / f"{name}-{index + 1}", backend)
+            return name, index, path, broken
 
     jobs = [
-        shoot(name, index, spec)
+        shoot(name, index, spec, runs[0]["backendSpec"] if runs[0].get("mode") == "dynamic" else None)
         for name, runs in results.items()
         if runs
         for index, spec in enumerate(runs[0]["directionSpecs"])
     ]
     images: dict[str, dict[int, Path]] = {}
-    for name, index, path in await asyncio.gather(*jobs):
+    checklist: dict[str, list[str]] = {}
+    for name, index, path, broken in await asyncio.gather(*jobs):
         if path is not None:
-            kept = shots / f"{name}-{index + 1}.png"
-            path.rename(kept)
-            images.setdefault(name, {})[index] = kept
+            images.setdefault(name, {})[index] = path
+        if broken or results[name][0].get("mode") == "dynamic":
+            checklist.setdefault(name, []).extend(f"direction {index + 1}: {line}" for line in broken)
     for name, found in images.items():
         thumbs = [dd.first_screen(found[i]) for i in sorted(found)]
         per_draft[name] = [dd.image_similarity(a, b) for i, a in enumerate(thumbs) for b in thumbs[i + 1 :]]
@@ -283,6 +341,7 @@ async def similarity(results: dict[str, list[dict[str, Any]]], shots: Path) -> d
         "perDraft": per_draft,
         "mean": round(statistics.mean(values), 4) if values else None,
         "max": max(values) if values else None,
+        "dynamicChecklistFailures": checklist,
     }
 
 
@@ -291,4 +350,5 @@ if __name__ == "__main__":
     parser.add_argument("--engine", default="fake", help="drafting engine (default: fake)")
     parser.add_argument("--runs", type=int, default=5, help="drafts of the same brief (default: 5)")
     parser.add_argument("--screenshots", action="store_true", help="build each direction and compare first screens")
+    parser.add_argument("--seed", type=int, help="the first draft's direction seed (then +1 per draft)")
     asyncio.run(main(parser.parse_args()))

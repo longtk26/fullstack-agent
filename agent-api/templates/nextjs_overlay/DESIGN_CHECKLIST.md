@@ -46,13 +46,23 @@ tone scales to them (the table is in its docstring).
 | Token | Drawn as |
 |---|---|
 | `typography.headingWeight`, `headingCase`, `tracking` | the `heading` utility (`globals.css`) on hero and section headings: `--heading-weight` (600), `--heading-tracking` (−0.025em; `wide` with capitals), `--heading-case`. Capitals only on display headings (h1, h2), never on statements or body text |
-| `typography.ratio` | the display steps of the type scale (`--text-2xl` … `--text-9xl` in `@theme`) and the hero sizes: `tight` smaller, `dramatic` larger |
+| `typography.ratio` | the display steps of the type scale (`--text-2xl` … `--text-9xl` in `@theme`) and the hero sizes: `tight` smaller, `dramatic` larger (on the hero only the steps of short headlines and the `type` layout, `6xl` and up: longer headlines already fill two lines) |
 | `surface` | cards: `outline` (shadcn's hairline ring), `flat` (no ring, no shadow), `raised` (soft shadow instead of the ring); unlayered rules in `globals.css`, the `filled` and `plain` card styles keep their own look |
 | `colorArea` | `site.json` per page: `minimal` (call-to-action panels muted, colour on buttons), `block` (one anchor section in the primary colour: the first call to action, else the last content section), `bold` (also the hero). Sections that name a background keep it |
 
 Fonts: eight faces with more character joined the set (Fraunces, Instrument Serif, Newsreader, Bricolage Grotesque,
 Syne, Archivo, Unbounded, Familjen Grotesk; OFL). Each bundled font has a rough `width` against Inter; wide faces
 (Unbounded, Syne, Montserrat, the monospace faces) shrink the hero sizes so headlines keep to two lines.
+
+## Directions and app pages (Story 20.4)
+
+A direction card sets the theme, tone tokens, hero layout, section forms and rhythm for every page, and composes the
+home page from the drafted sections; it adds no new drawing rules. In a dynamic app the data pages (DataTable, List,
+DetailView, Form, ActionBar, CardGrid on the API) keep their structure and take the direction through the same
+tokens: section headings and the record title use the `heading` utility and the heading face, record panels are
+cards (so `surface` applies), and colour, radius and density come from the theme. They are measured on the mock API
+(`make design-check-fixture --spec <dynamic spec> --backend <its BackendSpec>`); a page without a hero has no
+"CTA above the fold" measurement.
 
 ## Deviations
 

@@ -127,7 +127,7 @@ workflow to be built before real generation works.
 | 17 | 17.5, 17.1, 17.2, 17.4, 17.3, 17.6 done (auto-fix, shared node_modules; typed content and layout nodes; static sites ~44 s and dynamic frontends rendered without the engine; parallel custom components & component cache; backend CRUD from templates, dynamic shop 59 s with 0 engine calls); 17.7 done 2026-10-30 (22 bundled fonts, section variants, design checklist); 17.8 (custom component layout, found on the first cached shop run) open |
 | 2.4 | done 2026-10-30 (requirement drafting for backend, static and dynamic; with 12.4, 9.2 Requirement tab, 9.7b) |
 | 15 | 15.1–15.4 done 2026-10-30 (drawn SVGs, asset checks with placeholder fallback, uploads and links); 15.5 only if asked |
-| 20 | Checkpoints A and B done 2026-11-02 (diversity report and baseline; hero layouts, section forms, rhythm, tone tokens, 30 fonts, seven new sections); 20.4 next |
+| 20 | Checkpoints A, B and C done 2026-11-02 (diversity report and baseline; hero layouts, section forms, rhythm, tone tokens, 30 fonts, seven new sections; direction cards with the difference test, content-led home pages, stock-phrase checks, dynamic apps checked on the mock API); 20.5 + 20.6 next; real-engine numbers on the final check |
 | 10, 11, 16 | open (16 to be revised after Epic 20) |
 
 ### Next up (re-planned 2026-10-30)

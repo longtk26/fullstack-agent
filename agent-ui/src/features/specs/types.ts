@@ -103,7 +103,14 @@ export type TDraftUsage = {
   images?: { count: number; cached: number; costUsd: number };
 };
 
-/** A design direction for a drafted site (Story 12.6), from UI UX Pro Max's data. */
+export type THeroLayout = "split" | "centered" | "banner" | "stage" | "type" | "stacked" | "collage" | "vertical";
+export type TTone = Record<"energy" | "finish" | "density" | "weight" | "seriousness", number>;
+
+/**
+ * A design direction for a drafted site: a direction card the engine wrote, checked and filled by the agent
+ * (Story 20.4, `source: "card"`), or one from UI UX Pro Max's data (Story 12.6). Cards also carry the home page
+ * they compose from the draft's pool (Story 20.9), section forms and a page rhythm.
+ */
 export type TDesignDirection = {
   label: string;
   productType: string;
@@ -113,23 +120,46 @@ export type TDesignDirection = {
   source: string;
   style: string;
   photoStyle?: string;
-  heroVariant: "split" | "centered" | "banner";
+  heroVariant: THeroLayout;
   homeOrder: string[];
   avoid: string[];
   effects: string[];
+  name?: string;
+  concept?: string;
+  engine?: string | null;
+  givesUp?: string;
+  fit?: number;
+  tone?: TTone | null;
+  keyVisual?: string | null;
+  home?: string[];
+  sectionForms?: Record<string, string>;
+  rhythm?: "uniform" | "alternate" | "dividers";
+  notes?: string[];
   theme: {
     style: string;
     colorScheme: "light" | "dark" | "light-dark";
     colors: Record<string, string>;
-    typography: { headingFont: string; bodyFont: string; scale: string };
+    typography: { headingFont: string; bodyFont: string; scale: string } & Record<string, unknown>;
     radius: string;
     density: string;
-    direction: Record<string, string>;
-  };
+    direction: Record<string, unknown>;
+  } & Record<string, unknown>;
 };
 
-/** The directions offered with a draft; `selected` is the one the draft was filled from. */
-export type TDraftDesign = { selected: number; directions: TDesignDirection[] };
+/** A section of the drafted home page (the pool directions compose their home pages from, Story 20.9). */
+export type TPoolSection = { id: string; component?: string } & Record<string, unknown>;
+
+/**
+ * The directions offered with a draft; `selected` is the one the draft was filled from. `pool` holds the drafted
+ * home sections, so switching restores sections a direction left out; `seed` reproduces the cards.
+ */
+export type TDraftDesign = {
+  selected: number;
+  directions: TDesignDirection[];
+  seed?: number;
+  pool?: TPoolSection[];
+  required?: string[];
+};
 
 export type TSpecDraft = {
   draftId: string;

@@ -17,25 +17,43 @@ make design-check-fixture                                   # every theme preset
 make design-check-fixture ARGS="--combos"                   # six tone, font and preset combinations (Story 20.3)
 make design-check-fixture ARGS="--presets minimal --out $PWD/.data/shots/try"
 make design-check-fixture ARGS="--recheck --out $PWD/.data/shots/try"   # re-read saved reports, build nothing
+make design-check-fixture ARGS="--combos --spec ../examples/frontend-specs/shop-dynamic.json \
+    --backend ../examples/specs/shop.json"                   # a dynamic app on its mock API (Story 20.4)
 ```
+
+A dynamic spec needs its BackendSpec (`--backend`): it is planned against the API contract, built with
+`next build` and started with `next start` on the mock API (`MOCK_TEST_API=true`); every page without route
+parameters and one record page per resource (the route tests' example paths) are checked. Rules that need a hero
+(CTA above the fold) only apply where a page has one, so data pages are measured on the rest.
+
+The checks' sandboxes carry their own instance label (`DEV_INSTANCE` in `agent-api/scripts/site_check.py`), so a
+running stack's worker does not remove them as orphans mid-build.
 
 Each output folder holds the screenshots and `report.json`; `summary.json` lists the failures per preset. Run it
 after changing a section, a variant or the theme CSS.
 
 ## Diversity report: `make design-diversity`
 
-Drafts the golden requirements in `examples/requirements/diversity/` (static mode, through the worker's
-`DraftRunner`, rows deleted afterwards; AI photos off, LangSmith off) and measures how different the designs are
+Drafts the golden requirements in `examples/requirements/diversity/` (static mode, and the manifest's `dynamic` ones
+in dynamic mode; through the worker's `DraftRunner`, rows deleted afterwards; AI photos off, LangSmith off) and
+measures how different the designs are
 (`agent-api/src/orchestrator/design_diversity.py`): the four visual fields of each direction (hero layout, heading
 font, hue family, key visual), the difference test, distinct combinations across five drafts of one brief, the
 distance between similar businesses, the category's default home order, section frequency, home-composition
-similarity, repeated headings and CTA labels, and draft time.
+similarity, repeated headings and CTA labels, stock phrases left (Story 20.9), and draft time. Since Story 20.4 the
+directions are the engine's direction cards; the fake engine draws them from `agent-api/design_data/concepts.json`
+with the draft's seed.
 
 ```bash
 make design-diversity                                      # fake engine, field measures (~10 s)
 make design-diversity ARGS="--screenshots"                 # + build each direction, compare first screens (~5 min)
+make design-diversity ARGS="--seed 100"                    # repeatable: seeds 100, 101, … per draft
 make design-diversity ARGS="--engine claude-code"          # a real engine: costs money, only with the user's yes
 ```
+
+With `--screenshots`, a dynamic requirement's three directions are built on the mock API and checked on every page
+at every width and scheme; the checklist failures are in the report and the screenshots stay in
+`shots/<name>-<n>-shots/`.
 
 Output: `.data/reports/design-diversity/<timestamp>/report.md` and `report.json` (+ `shots/`). The epic's targets
 (`pdm/epic20_design_diversity/epic20_design_diversity.md`) are written against these measures. With the fake engine

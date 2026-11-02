@@ -4,9 +4,11 @@ import shutil
 import time
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel
 
+from .fake_design import fake_cards
 from .port import (
     EngineContext,
     EngineErrorReason,
@@ -181,6 +183,7 @@ def write_draft_fixture(workdir: Path) -> list[str]:
     inputs = workdir / ".bga"
     request = json.loads((inputs / "draft.json").read_text())
     mode = request["mode"]
+    text = ""
     if request["source"] == "frontend":
         shutil.copyfile(inputs / "base-spec.json", workdir / "backend-spec.json")
         written, picked = ["backend-spec.json"], "the imported site"
@@ -197,12 +200,18 @@ def write_draft_fixture(workdir: Path) -> list[str]:
             written.append(target)
         picked = ", ".join(files)
     spec = "backend" if mode == "backend" else "frontend"
-    notes = {
+    notes: dict[str, Any] = {
         "assumptions": [{"spec": spec, "path": "", "message": f"Fake engine: drafted from {picked}"}],
         "unresolved": []
         if mode == "static"
         else [{"spec": "backend", "path": "/operations", "message": "Who may change or delete records is not stated"}],
     }
+    if (inputs / "design.md").is_file() and (workdir / "frontend-spec.json").is_file():
+        # Story 20.4: three direction cards from the concept library, with the draft's seed.
+        frontend = json.loads((workdir / "frontend-spec.json").read_text())
+        home = next((p for p in frontend.get("pages") or [] if p.get("route") == "/"), {})
+        seed = request.get("designSeed") or 1
+        notes["design"] = {"cards": fake_cards(text, seed, home.get("sections") or [])}
     (workdir / "notes.json").write_text(json.dumps(notes, indent=2) + "\n")
     return [*written, "notes.json"]
 
@@ -311,6 +320,9 @@ def demo_scenario(delay_s: float = 0.3) -> dict[str, list[FakeStep]]:
         "draft_spec": [FakeStep(sleep_s=delay_s, draft_fixture=True, message="Drafted the spec.")],
         "draft_frontend_spec": [FakeStep(sleep_s=delay_s, draft_fixture=True, message="Drafted the specs.")],
         "repair_spec": [FakeStep(sleep_s=delay_s, message="Nothing to repair.")],
+        # Story 20.4: the fake's cards already differ; a repair call (only when a test scripts failing cards) keeps
+        # the card, so the code fallback runs.
+        "repair_direction": [FakeStep(sleep_s=delay_s, message="Kept the card.")],
         "*": [FakeStep(write={"FAKE_ENGINE.md": "Written by the fake engine.\n"})],
     }
 

@@ -97,6 +97,30 @@ def test_draft_prompts_cover_each_mode_and_keep_the_requirement_untrusted():
     assert "Never invent testimonials" in static
 
 
+def test_draft_prompt_v8_builds_from_content_with_three_direction_cards():
+    """Stories 20.4 and 20.9: sections only from real content (no sample content), a home pool, three cards."""
+    context = CONTEXT["draft_frontend_spec"] | {
+        "mode": "static",
+        "frontend_schema_digest_path": "d.md",
+        "photos_enabled": False,
+    }
+    text = (
+        PromptLibrary()
+        .render("draft_frontend_spec", "v8", **context, design_path=".bga/design.md", stock_phrases='"Learn more"')
+        .text
+    )
+    assert "A section only exists when its content does" in text and "generic sample content" not in text
+    assert "The home page is a pool" in text and '"cards": [<three direction cards>]' in text
+    assert "share at most one of hero layout" in text and "hero layouts all differ" in text and '"Learn more"' in text
+    plain = PromptLibrary().render("draft_frontend_spec", "v8", **context, design_path=None, stock_phrases="").text
+    assert "direction cards" not in plain and "theme.style" in plain
+    repair = PromptLibrary().render(
+        "repair_direction", "v1", notes_path="notes.json", design_path=".bga/design.md", card=2,
+        problems=["directions 1 and 2 share hero, keyVisual"], others=[{"card": 1, "hero": "split"}],
+    ).text  # fmt: skip
+    assert "Card 2 is too close" in repair and repair.count("</untrusted-data>") == 2
+
+
 def test_missing_context_fails_loudly():
     with pytest.raises(UndefinedError):
         PromptLibrary().render("repair_code", attempt=1)

@@ -366,7 +366,7 @@ export function NewGenerationView() {
                 <CardHeader>
                   <CardTitle>Design</CardTitle>
                   <CardDescription>
-                    Directions for this draft: colours, fonts and the home page&apos;s order, from design data.
+                    Three directions written for this draft: colours, fonts, the first screen and the home page&apos;s sections.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>

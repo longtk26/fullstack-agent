@@ -1,11 +1,14 @@
-"""Design direction for drafted sites (Story 12.6). No LLM.
+"""Design direction for drafted sites (Story 12.6), the floor under direction cards (Story 20.4). No LLM.
 
 A requirement is matched to product types in UI UX Pro Max's data (vendored in `design_data/ui-ux-pro-max`, MIT, at
 the commit in its SOURCE.json) by a small BM25 ranker. Each match becomes a direction: the product's palette
 (`colors.csv`), a font pairing from `typography.csv` inside the bundled font set (17.7), a theme preset, radius and
-density mapped from its style, and a home page section order and hero layout mapped from its landing pattern. The
-drafting engine sees the top briefs and names one; the theme is then filled from the data, never invented by the
-model. Directions whose derived tokens miss WCAG AA (light and dark) are skipped.
+density mapped from its style, and a home page section order and hero layout mapped from its landing pattern.
+Directions whose derived tokens miss WCAG AA (light and dark) are skipped.
+
+Since Story 20.4 the drafting engine writes its own direction cards (`design_cards.py`); the best match here is
+"the category default to move away from" in its fact pack, its palette replaces card colours that fail contrast,
+and its directions stand in when the engine wrote no cards. Applying a direction (`apply_direction`) serves both.
 """
 
 import copy
@@ -19,7 +22,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from src.modules.shared.domain.frontend_spec import FONTS, THEME_PRESETS, font_category
+from src.modules.shared.domain.frontend_spec import FONTS, THEME_PRESETS, font_category, iter_sections
 
 from .frontend_theme import build_theme, contrast, luminance, mix, on
 
@@ -32,6 +35,8 @@ RELATED_TERMS = 2
 SUFFIXES = ("ings", "ing", "ers", "er", "ies", "s", "y")
 HERO_VARIANTS = ("split", "centered", "banner")
 HOME_ROUTE = "/"
+# Sections whose form a direction card sets (Story 20.4).
+FORM_SECTIONS = ("Features", "Testimonials", "Stats")
 _STOP = frozenset(
     "a an and are as at be by for from has have i in is it its me my of on or our so that the their this to us we "
     "with you your will can want need site website page pages app web like also who what which".split()
@@ -451,9 +456,60 @@ def with_brand(chosen: dict[str, Any], brand: dict[str, Any] | None) -> dict[str
     return out
 
 
-def apply_direction(spec: dict[str, Any], chosen: dict[str, Any]) -> dict[str, Any]:
-    """A copy of the FrontendSpec with the direction's theme, home page order and hero layout (same rules as the
-    UI's `applyDirection`). The spec's light / dark choice and type scale are kept unless the palette is dark."""
+def compose_home(sections: list[dict[str, Any]], home: list[str], pool: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Story 20.9: the home page a direction composes, by section id, from the drafted pool. A section's current
+    version wins over the pool's (edits are kept); sections the pool never had (added by the user) stay after the
+    section they followed. Same rule as the UI's `composeHome`."""
+    known = {s["id"] for s in pool if isinstance(s, dict) and s.get("id")}
+    by_id = {s["id"]: s for s in pool if isinstance(s, dict) and s.get("id")}
+    by_id |= {s["id"]: s for s in sections if isinstance(s, dict) and s.get("id") in known}
+    extras: dict[str | None, list[dict[str, Any]]] = {}
+    last: str | None = None
+    for section in sections:
+        if isinstance(section, dict) and section.get("id") in known:
+            last = section["id"]
+        else:
+            extras.setdefault(last, []).append(section)
+    out = list(extras.pop(None, []))
+    for section_id in home:
+        if section_id in by_id:
+            out.append(copy.deepcopy(by_id[section_id]))
+            out += extras.pop(section_id, [])
+    for rest in extras.values():
+        out += rest
+    return out
+
+
+def _has_item_images(section: dict[str, Any]) -> bool:
+    items = (section.get("content") or {}).get("items")
+    return isinstance(items, list) and any(isinstance(item, dict) and item.get("image") for item in items)
+
+
+def apply_forms(spec: dict[str, Any], forms: dict[str, str]) -> None:
+    """Story 20.4: the direction's section forms on every page (an `alternating` Features without item images takes
+    `list`); a form the direction does not set goes back to the default."""
+    for page in spec.get("pages") or []:
+        for section in iter_sections(page.get("sections") or []):
+            name = section.get("component")
+            if name not in FORM_SECTIONS:
+                continue
+            form = forms.get(name)
+            if form == "alternating" and not _has_item_images(section):
+                form = "list"
+            content = section.get("content") if isinstance(section.get("content"), dict) else {}
+            if form:
+                section["content"] = {**content, "form": form}
+            elif "form" in content:
+                section["content"] = {k: v for k, v in content.items() if k != "form"}
+
+
+def apply_direction(
+    spec: dict[str, Any], chosen: dict[str, Any], pool: list[dict[str, Any]] | None = None
+) -> dict[str, Any]:
+    """A copy of the FrontendSpec with the direction's theme, home page and hero layout (same rules as the UI's
+    `applyDirection`). The spec's light / dark choice and type scale are kept unless the palette is dark. A
+    direction card (20.4) also sets the section forms and the page rhythm; with `home` (20.9) the home page is
+    composed from `pool` (the drafted home sections); older directions reorder the sections by `homeOrder`."""
     out = copy.deepcopy(spec)
     current = out.get("theme") if isinstance(out.get("theme"), dict) else {}
     theme = copy.deepcopy(chosen["theme"])
@@ -475,27 +531,44 @@ def apply_direction(spec: dict[str, Any], chosen: dict[str, Any]) -> dict[str, A
     for page in out.get("pages") or []:
         if page.get("route") != HOME_ROUTE:
             continue
-        page["sections"] = reorder_sections(page.get("sections") or [], chosen["homeOrder"])
+        sections = page.get("sections") or []
+        if chosen.get("home"):
+            page["sections"] = compose_home(sections, chosen["home"], pool or sections)
+        else:
+            page["sections"] = reorder_sections(sections, chosen["homeOrder"])
         for section in page["sections"]:
             if section.get("component") == "Hero":
                 section["content"] = {**(section.get("content") or {}), "variant": chosen["heroVariant"]}
                 break
+    if "sectionForms" in chosen:
+        apply_forms(out, chosen["sectionForms"] or {})
+    if "rhythm" in chosen:
+        for page in out.get("pages") or []:
+            if chosen["rhythm"] and chosen["rhythm"] != "uniform":
+                page["rhythm"] = chosen["rhythm"]
+            else:
+                page.pop("rhythm", None)
     return out
 
 
-def design_notes(chosen: dict[str, Any]) -> list[dict[str, Any]]:
-    """Why the draft looks the way it does, listed with the assumptions."""
-    notes = [
-        {
-            "spec": "frontend",
-            "path": "/theme",
-            "message": (
-                f"Design direction: {chosen['productType']} ({chosen['pattern']}); palette {chosen['palette']}; "
-                f"fonts {chosen['fontPairing']} ({chosen['theme']['typography']['headingFont']} / "
-                f"{chosen['theme']['typography']['bodyFont']}); from {chosen['source']}"
-            ),
-        }
-    ]
+def design_notes(chosen: dict[str, Any], fixes: list[str] | None = None) -> list[dict[str, Any]]:
+    """Why the draft looks the way it does, listed with the assumptions: a direction card's idea and what it gives
+    up (Story 20.4), or the design data's product type (12.6); then what code changed and the category's
+    anti-patterns."""
+    fonts = f"{chosen['theme']['typography']['headingFont']} / {chosen['theme']['typography']['bodyFont']}"
+    if chosen.get("source") == "card":
+        message = f"Design direction: {chosen['name']}"
+        message += f": {chosen['concept'].rstrip('.')}" if chosen.get("concept") else ""
+        message += f"; fonts {fonts}; colours from {chosen['palette']}; hero {chosen['heroVariant']}"
+        message += f". Gives up: {chosen['givesUp']}" if chosen.get("givesUp") else ""
+    else:
+        message = (
+            f"Design direction: {chosen['productType']} ({chosen['pattern']}); palette {chosen['palette']}; "
+            f"fonts {chosen['fontPairing']} ({fonts}); from {chosen['source']}"
+        )
+    notes = [{"spec": "frontend", "path": "/theme", "message": message}]
+    for fix in [*(chosen.get("notes") or []), *(fixes or [])]:
+        notes.append({"spec": "frontend", "path": "/theme", "message": f"Design: {fix}"})
     if chosen["avoid"]:
         notes.append({"spec": "frontend", "path": "/theme", "message": "Avoid: " + ", ".join(chosen["avoid"]).lower()})
     if chosen["effects"]:
@@ -507,37 +580,6 @@ def design_notes(chosen: dict[str, Any]) -> list[dict[str, Any]]:
             }
         )
     return notes
-
-
-def brief_markdown(found: list[dict[str, Any]]) -> str:
-    """`.bga/design.md` for the drafting engine: the ranked design briefs."""
-    lines = [
-        "# Design briefs",
-        "",
-        "Ranked for this requirement from UI UX Pro Max's data. Pick the brief that fits the requirement best (the",
-        "first unless another is clearly closer) and name its product type in the notes. The theme, the home page's",
-        "section order and the hero layout are filled from it after you finish.",
-        "",
-    ]
-    for position, item in enumerate(found, 1):
-        theme = item["theme"]
-        lines += [
-            f"## {position}. {item['productType']}",
-            "",
-            f"- Keywords: {item['keywords']}",
-            f"- Landing pattern: {item['pattern']} → home sections: {', '.join(item['homeOrder'])} "
-            f"(Hero `{item['heroVariant']}`)",
-            *(f"  - {row['pattern']}: {row['sectionOrder']} (CTA: {row['cta']})" for row in item["landing"]),
-            f"- Palette: {item['palette']} (primary {theme['colors']['primary']}, accent {theme['colors']['accent']}, "
-            f"background {theme['colors']['background']})",
-            f"- Fonts: {item['fontPairing']} "
-            f"({theme['typography']['headingFont']} / {theme['typography']['bodyFont']})",
-            f"- Style: {item['style']} → preset `{theme['style']}`",
-            f"- Considerations: {item['considerations']}",
-            f"- Avoid: {', '.join(item['avoid']) or '-'}",
-            "",
-        ]
-    return "\n".join(lines)
 
 
 def pick(found: list[dict[str, Any]], product_type: Any) -> int:

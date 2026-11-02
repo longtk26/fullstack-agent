@@ -72,14 +72,15 @@ for them, so that the site feels made for me and not like the same template ever
 
 ## Acceptance criteria
 
-- [ ] The drafting prompt builds sections from the requirement's content; no section without real content; missing
+- [x] The drafting prompt builds sections from the requirement's content; no section without real content; missing
       proof and questions become assumptions or unresolved items, not sample content.
-- [ ] Each direction has its own home composition from the pool, keeps the required sections, and switching
+- [x] Each direction has its own home composition from the pool, keeps the required sections, and switching
       directions restores left-out sections.
-- [ ] `PATTERN_SECTIONS` no longer orders pages.
-- [ ] Stock phrases are avoided by the prompt, flagged by the validator and repaired once.
+- [x] `PATTERN_SECTIONS` no longer orders pages.
+- [x] Stock phrases are avoided by the prompt, flagged by the validator and repaired once.
 - [ ] The report measures section frequency, home-composition similarity and repeated copy; the targets are in the
-      epic and checked on the final check (real engine, needs the user's yes).
+      epic and checked on the final check (real engine, needs the user's yes). Measures done; the real-engine check
+      is open.
 
 ## Verify
 
@@ -88,3 +89,39 @@ lint`, `make up` with the fake engine: switching directions on a draft changes t
 restores them when switching back.
 
 ## Status
+
+**Done (2026-11-02)**, on `feat/epic20-design-diversity`, together with 20.4 in `draft_frontend_spec@v8`; the
+real-engine numbers wait for the epic's final check.
+
+- **Prompt** (`prompts/draft_frontend_spec/v8.md`): "content first" (list what the requirement gives, one section
+  each from the whole catalogue, 20.8's sections named), "a section only exists when its content does"
+  (testimonials, logos, Stats, Pricing, Faq and CallToAction only from the requirement; what is missing becomes an
+  assumption or unresolved item), "the home page is a pool" with `design.required`, and v7's "generic sample
+  content" rule removed. Copy: CTAs with the requirement's action and object; the stock phrases listed.
+- **Home composition:** each card's `home` (section ids) is checked by `design_cards.compose` (known ids only, the
+  hero first, required sections kept at their place); the drafted home sections are kept as
+  `spec_drafts.design.pool`. `apply_direction` / `compose_home` (and the UI's `composeHome`) build the home page
+  from the pool by id: the current version of a section wins (edits survive a switch) and sections the user added
+  stay after the one they followed. The difference test adds "any two home pages differ in their first three
+  sections" when the pool has three or more; the code fix reorders or leaves out an optional section.
+- **Templates out:** `PATTERN_SECTIONS` only describes the category default (fact pack, report); directions from the
+  UI UX Pro Max floor keep the drafted order (`home` = the pool). `reorder_sections` stays only for drafts stored
+  before this story (directions without `home`).
+- **Stock phrases** (`frontend_spec/copy_rules.py`): "Explore …", "Discover …", "Unlock …", "Elevate …",
+  "Unleash …", "Experience the …", "Welcome to …", "Why choose us", "Our services", "Get started (today)",
+  "Learn / Read / Find out more", "Contact / Join us today" in headings, titles, eyebrows and button labels
+  (sections, CTAs, items). The validator warns `FE_DESIGN_RULE` with the path; drafting runs one `repair_spec`
+  round for them once the spec is valid (outside the error budget), then keeps the rest as warnings. The
+  street-food example's "Explore Dishes" and "Learn More" were rewritten ("See the dishes", "Read about the wok
+  craft").
+- **Measures** (`scripts/design_diversity.py`): section frequency, home-composition Jaccard and repeated copy (20.1)
+  plus stock phrases left per site. With the fake engine every site copies the same example, so these only mean
+  something on the final check.
+- **Tests:** `tests/test_design_cards.py` (compose, required sections, switching restores and keeps edits, the
+  composition rule), `tests/test_drafting.py::test_stock_phrases_get_one_repair_round` (one round fixes it; a
+  stubborn engine leaves a warning), `tests/test_prompts.py` (v8's rules).
+- **Deviations:**
+  - "A requirement without questions gets no Faq" is a prompt rule; the fake engine copies an example, so it is
+    asserted on the prompt and checked on the final check, not in a fixture draft.
+  - The prompt changes went into v8 with 20.4 (both stories in one go), as the story allowed.
+

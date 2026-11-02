@@ -10,6 +10,7 @@ from src.modules.shared.domain.backend_spec.issues import Severity, SpecIssue, V
 
 from .assets import ICON_NAME, MAX_GENERATED_ASSETS, MAX_PHOTOS, SVG_KINDS, UPLOAD_ID, lucide_icons, source_kind
 from .catalogue import BUILTIN_SECTIONS, SHADCN_PRIMITIVES, THEME_PRESETS
+from .copy_rules import stock_copy
 from .fonts import FONTS, closest_font
 from .issues import FrontendIssueCode
 from .normalizer import normalize_frontend_spec, page_id, route_params, walk_sections
@@ -550,6 +551,14 @@ class _SemanticChecker:
                 )
             for key, message, hint in _layout_fallbacks(name, props):
                 self._add(C.FE_DESIGN_RULE, f"{path}/content/{key}", message, warning=True, hint=hint)
+            for copy_path, text, phrase in stock_copy(section.content, f"{path}/content"):
+                self._add(
+                    C.FE_DESIGN_RULE,
+                    copy_path,
+                    f"'{text}' is a stock phrase ({phrase}) that many generated sites use",
+                    warning=True,
+                    hint="Say this business's own action or point, e.g. 'Book a table' or 'See this week's menu'",
+                )
             known = ", ".join(field.alias or key for key, field in SECTION_PROPS[name].model_fields.items())
             for unknown in _unknown_props(props, f"{path}/content"):
                 self._add(

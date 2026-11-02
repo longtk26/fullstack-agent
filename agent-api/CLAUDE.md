@@ -69,11 +69,16 @@ Agent-specific notes:
   SUCCEEDED / NEEDS_REVIEW / FAILED. Usage is kept on the draft (`usage`), not in `model_calls` (those belong to a
   generation); `/usage` reports it as `drafts`. A generation created with `draftId` stores `options.draftId`, and
   packaging writes `requirement.md` / `.txt`. Requirement checks: `modules/shared/domain/requirement.py`.
-- Design direction (Story 12.6): `orchestrator/design_direction.py` ranks UI UX Pro Max's vendored data
-  (`design_data/ui-ux-pro-max`, `make design-data`) for a requirement's lead and builds directions (palette, bundled
-  font pairing, preset, home order, hero variant; contrast-checked). Drafting writes `.bga/design.md`, applies the
-  engine's pick (`notes.json` `design`) and stores `spec_drafts.design`; the UI's `lib/design-direction.ts` mirrors
-  `apply_direction` / `reorder_sections` (keep both in step).
+- Design direction (Stories 12.6, 20.4, 20.9): the drafting engine writes three direction cards in `notes.json`
+  (`design.cards`: concept, tone, hero layout, fonts, colours, key visual, forms, rhythm, `home` section ids, fit);
+  `orchestrator/design_cards.py` checks and fills them (bundled fonts, AA contrast, `design_tone` tokens), runs the
+  difference test (`repair_direction` prompt, at most 2 rounds, then a code fix) and keeps the drafted home sections
+  as `spec_drafts.design.pool`; drafting applies the best fit after the spec repairs (`finish_design`).
+  `orchestrator/design_direction.py` (UI UX Pro Max's vendored data, `make design-data`) is the floor: the category
+  default in the fact pack `.bga/design.md`, the palette for cards that miss contrast, the directions when the engine
+  wrote no cards. `apply_direction` / `compose_home` are mirrored by the UI's `lib/design-direction.ts`
+  (`tests/test_design_cards.py` runs both on the same cases with Node). Stock phrases in headings and buttons
+  (`frontend_spec/copy_rules.py`) are `FE_DESIGN_RULE` warnings and get one repair round.
 - Design diversity (Epic 20): hero `variant` has 8 layouts, list sections a `form`, pages a `rhythm`, and seven
   content sections joined the library (Steps, Timeline, Team, PriceList, Location, Comparison, Statement), all in
   `section_props.py` with theme tokens only. Optional theme tokens (`surface`, `colorArea`, `typography.headingWeight

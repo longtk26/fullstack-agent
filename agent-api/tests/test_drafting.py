@@ -158,13 +158,18 @@ def test_static_draft_writes_only_a_frontend_spec(client, user_headers, tmp_path
     assert draft["status"] == "SUCCEEDED", draft["validation"]
     assert draft["frontend_spec"]["project"]["mode"] == "static" and draft["backend_spec"] is None
     assert draft["unresolved"] == [] and set(draft["validation"]) == {"frontend"}
-    assert draft["usage"]["calls"][0]["prompt"] == "draft_frontend_spec@v7"
-    # Story 12.6: three directions, the first applied (the fake engine names none), its notes after the engine's.
+    assert draft["usage"]["calls"][0]["prompt"] == "draft_frontend_spec@v8"
+    # Story 20.4: three direction cards from the fake's concept library, the best fit applied, its notes after the
+    # engine's; the drafted home sections are kept as the pool.
     design = draft["design"]
-    assert design["selected"] == 0 and len(design["directions"]) == 3
+    assert design["selected"] == 0 and len(design["directions"]) == 3 and isinstance(design["seed"], int)
+    assert [d["source"] for d in design["directions"]] == ["card"] * 3
+    assert [s["id"] for s in design["pool"]] == ["hero", "services", "quotes", "cta"]
     chosen = design["directions"][0]
-    assert draft["frontend_spec"]["theme"]["direction"]["productType"] == chosen["productType"]
+    assert draft["frontend_spec"]["theme"]["direction"]["name"] == chosen["name"]
     assert draft["frontend_spec"]["theme"]["colors"] == chosen["theme"]["colors"]
+    home = next(page for page in draft["frontend_spec"]["pages"] if page["route"] == "/")
+    assert [s["id"] for s in home["sections"]] == chosen["home"]
     assert draft["assumptions"][0]["message"].startswith("Fake engine")
     assert draft["assumptions"][1]["message"].startswith("Design direction: ")
     # Story 19.3: when photos are enabled, the example's placeholder (work-2) becomes a real photo upload.
@@ -239,6 +244,46 @@ def test_dynamic_draft_checks_the_pair(client, user_headers, tmp_path):
     assert set(draft["validation"]) == {"backend", "frontend", "pair"}
     assert draft["validation"]["pair"]["valid"] is True
     assert draft["frontend_spec"]["project"]["mode"] == "dynamic" and draft["backend_spec"]["entities"]
+    # Story 20.4 (epic D12): an app gets three direction cards too; its home page has no hero.
+    design = draft["design"]
+    assert [d["source"] for d in design["directions"]] == ["card"] * 3
+    assert [s["id"] for s in design["pool"]] == ["stats", "recent"]
+    assert draft["frontend_spec"]["theme"]["direction"]["seed"] == design["seed"]
+
+
+def test_the_same_seed_gives_the_same_directions(client, user_headers, tmp_path):
+    text = (REQUIREMENTS / "northwind-studio.md").read_text()
+    first, again, other = (
+        _run(tmp_path, _create(client, user_headers, "static", text, designSeed=seed))["design"]
+        for seed in (21, 21, 22)
+    )
+    assert [d["name"] for d in first["directions"]] == [d["name"] for d in again["directions"]]
+    assert [d["name"] for d in first["directions"]] != [d["name"] for d in other["directions"]]
+
+
+def test_stock_phrases_get_one_repair_round(client, user_headers, tmp_path):
+    spec = json.loads((EXAMPLES / "frontend-specs" / "static-landing.json").read_text())
+    spec["pages"][0]["sections"][3]["content"]["cta"]["label"] = "Learn more"
+    fixed = json.loads(json.dumps(spec))
+    fixed["pages"][0]["sections"][3]["content"]["cta"]["label"] = "Start your project"
+    scenario = _scenario() | {
+        "draft_frontend_spec": [FakeStep(write={"frontend-spec.json": json.dumps(spec), "notes.json": "{}"})],
+        "repair_spec": [FakeStep(write={"frontend-spec.json": json.dumps(fixed)})],
+    }
+    text = "A website for a two-person design studio: services, work, about and contact."
+    draft = _run(tmp_path, _create(client, user_headers, "static", text), FakeEngine(tmp_path, scenario))
+    assert [call["prompt"] for call in draft["usage"]["calls"]] == ["draft_frontend_spec@v8", "repair_spec@v2"]
+    assert draft["status"] == "SUCCEEDED" and draft["attempts"] == 0
+    cta = next(s for s in draft["frontend_spec"]["pages"][0]["sections"] if s["id"] == "cta")
+    assert cta["content"]["cta"]["label"] == "Start your project"
+
+    stubborn = _scenario() | {
+        "draft_frontend_spec": [FakeStep(write={"frontend-spec.json": json.dumps(spec), "notes.json": "{}"})],
+    }
+    draft = _run(tmp_path, _create(client, user_headers, "static", text), FakeEngine(tmp_path, stubborn))
+    assert len(draft["usage"]["calls"]) == 2, "one round only; the warning stays for the review"
+    warnings = draft["validation"]["frontend"]["warnings"]
+    assert any("stock phrase" in warning["message"] for warning in warnings)
 
 
 def test_invalid_draft_is_repaired(client, user_headers, tmp_path):

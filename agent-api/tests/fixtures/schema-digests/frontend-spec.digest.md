@@ -201,6 +201,22 @@ type ThemeDirection = {
   palette?: string | null;
   fontPairing?: string | null;
   source?: string | null;
+  name?: string | null;
+  concept?: string | null;
+  engine?: "material" | "scene" | "character" | "tradition" | "medium" | "convention" | null;
+  tone?: Tone | null;
+  keyVisual?: "photo" | "illustration" | "type" | "product" | "pattern" | null;
+  givesUp?: string | null;
+  seed?: number | null;
+};
+
+// A direction's feel on five scales, 1–5 (Story 20.3, `orchestrator/design_tone.py`).
+type Tone = {
+  energy?: number;
+  finish?: number;
+  density?: number;
+  weight?: number;
+  seriousness?: number;
 };
 
 type Typography = {

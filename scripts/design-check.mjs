@@ -1,5 +1,6 @@
-// Design checklist measurements for a built static site (Story 17.7, templates/nextjs_overlay/DESIGN_CHECKLIST.md).
-// Runs inside bga-runner-node from the project directory, after `pnpm build` (static export in out/):
+// Design checklist measurements for a built site (Story 17.7, templates/nextjs_overlay/DESIGN_CHECKLIST.md).
+// Runs inside bga-runner-node from the project directory, after `pnpm build`: a static export (out/) is served as
+// files; a dynamic app (no out/) runs with `next start` on its mock API (MOCK_TEST_API=true, Story 20.4).
 //
 //   node design-check.mjs <shots-dir> <page-route>...
 //
@@ -7,7 +8,7 @@
 // to <shots-dir>/report.json. Dev tool only; not part of the generation pipeline.
 // DESIGN_CHECK_WIDTHS / DESIGN_CHECK_SCHEMES (comma-separated) narrow the views, e.g. the diversity report (Story 20.1)
 // takes only 1440 / light. Pages load with reduced motion, so screenshots show every element in its final state.
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { chromium } from "@playwright/test";
 
@@ -18,8 +19,27 @@ const SCHEMES = list(process.env.DESIGN_CHECK_SCHEMES, ["light", "dark"]);
 const PORT = 3199;
 mkdirSync(shots, { recursive: true });
 
-const server = spawn("node", ["scripts/serve-static.mjs", "out", String(PORT)], { stdio: "inherit" });
-await new Promise((resolve) => setTimeout(resolve, 500));
+const exported = existsSync("out");
+const server = exported
+  ? spawn("node", ["scripts/serve-static.mjs", "out", String(PORT)], { stdio: "inherit" })
+  : spawn("pnpm", ["exec", "next", "start", "-p", String(PORT), "-H", "127.0.0.1"], {
+      stdio: "inherit",
+      env: { ...process.env, MOCK_TEST_API: "true", API_BASE_URL: "" },
+    });
+await waitForServer(exported ? "/" : "/api/runtime-config");
+
+async function waitForServer(path) {
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    try {
+      const response = await fetch(`http://127.0.0.1:${PORT}${path}`);
+      if (response.ok) return;
+    } catch {
+      // not listening yet
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  throw new Error(`the site did not start on port ${PORT}`);
+}
 
 function measure() {
   const visible = (el) => {
