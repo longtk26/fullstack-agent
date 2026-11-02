@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" agent="Fullstack-Agent" version="26.0.0">
+  <diagram id="technical-architecture" name="Technical Architecture">
+    <mxGraphModel dx="1200" dy="700" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1500" pageHeight="700" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        
+        <mxCell id="ui" value="&lt;b&gt;AGENT UI (:3100)&lt;/b&gt;&lt;br/&gt;Next.js 16 · React 19 · shadcn/ui" style="rounded=1;whiteSpace=wrap;html=1;convertToSvg=1;fillColor=#faf5ff;strokeColor=#9333ea;fontColor=#7e22ce;strokeWidth=2;arcSize=14;" vertex="1" parent="1">
+          <mxGeometry x="60" y="80" width="280" height="70" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="api" value="&lt;b&gt;AGENT API (:8100)&lt;/b&gt;&lt;br/&gt;FastAPI · Hexagonal · SSE Stream" style="rounded=1;whiteSpace=wrap;html=1;convertToSvg=1;fillColor=#f0f9ff;strokeColor=#0284c7;fontColor=#0369a1;strokeWidth=2;arcSize=14;" vertex="1" parent="1">
+          <mxGeometry x="60" y="240" width="280" height="70" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="redis" value="&lt;b&gt;REDIS 7&lt;/b&gt;&lt;br/&gt;Job Queues &amp;amp; Pub/Sub Channels" style="rounded=1;whiteSpace=wrap;html=1;convertToSvg=1;fillColor=#fff1f2;strokeColor=#e11d48;fontColor=#be123c;strokeWidth=2;arcSize=14;" vertex="1" parent="1">
+          <mxGeometry x="440" y="175" width="260" height="60" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="pg" value="&lt;b&gt;POSTGRESQL 18&lt;/b&gt;&lt;br/&gt;Checkpoints, Events &amp;amp; Artifacts" style="rounded=1;whiteSpace=wrap;html=1;convertToSvg=1;fillColor=#f0f9ff;strokeColor=#0284c7;fontColor=#0369a1;strokeWidth=2;arcSize=14;" vertex="1" parent="1">
+          <mxGeometry x="440" y="305" width="260" height="60" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="worker" value="&lt;b&gt;AGENT WORKER&lt;/b&gt;&lt;br/&gt;LangGraph Multi-Lane Engine" style="rounded=1;whiteSpace=wrap;html=1;convertToSvg=1;fillColor=#f0fdf4;strokeColor=#16a34a;fontColor=#15803d;strokeWidth=2;arcSize=14;" vertex="1" parent="1">
+          <mxGeometry x="800" y="170" width="280" height="70" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="codegen" value="&lt;b&gt;FAST CODEGEN (NO-LLM)&lt;/b&gt;&lt;br/&gt;Deterministic CRUD, Models &amp;amp; Types" style="rounded=1;whiteSpace=wrap;html=1;convertToSvg=1;fillColor=#f0fdf4;strokeColor=#16a34a;fontColor=#15803d;strokeWidth=2;arcSize=14;" vertex="1" parent="1">
+          <mxGeometry x="800" y="315" width="280" height="70" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="ai_engines" value="&lt;b&gt;PLUGGABLE AI ENGINES&lt;/b&gt;&lt;br/&gt;Claude Code (Sonnet) · Antigravity (Gemini)&lt;br/&gt;&lt;i&gt;Triggered for Gaps &amp;amp; Self-Repair&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;convertToSvg=1;fillColor=#fffbeb;strokeColor=#d97706;fontColor=#b45309;strokeWidth=2;arcSize=14;" vertex="1" parent="1">
+          <mxGeometry x="1160" y="165" width="280" height="80" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="docker" value="&lt;b&gt;TEST SANDBOXES&lt;/b&gt;&lt;br/&gt;bga-runner &amp;amp; Vitest Isolated Containers" style="rounded=1;whiteSpace=wrap;html=1;convertToSvg=1;fillColor=#f0f9ff;strokeColor=#0284c7;fontColor=#0369a1;strokeWidth=2;arcSize=14;" vertex="1" parent="1">
+          <mxGeometry x="800" y="465" width="280" height="70" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="prev" value="&lt;b&gt;PREVIEW RUNTIMES&lt;/b&gt;&lt;br/&gt;Containers on Ports :18000–18099" style="rounded=1;whiteSpace=wrap;html=1;convertToSvg=1;fillColor=#f0fdf4;strokeColor=#16a34a;fontColor=#15803d;strokeWidth=2;arcSize=14;" vertex="1" parent="1">
+          <mxGeometry x="440" y="465" width="260" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- Edges -->
+        <mxCell id="e_ui_api" value="REST Requests" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#9333ea;strokeWidth=2;fontColor=#7e22ce;exitX=0.3;exitY=1;entryX=0.3;entryY=0;" edge="1" parent="1" source="ui" target="api">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_api_ui_sse" value="SSE Stream (Server Push)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0284c7;strokeWidth=2;fontColor=#0369a1;exitX=0.7;exitY=0;entryX=0.7;entryY=1;" edge="1" parent="1" source="api" target="ui">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_api_redis" value="Enqueue" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#e11d48;strokeWidth=2;fontColor=#be123c;exitX=1;exitY=0.3;entryX=0;entryY=0.5;" edge="1" parent="1" source="api" target="redis">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_api_pg" value="Persist" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0284c7;strokeWidth=2;fontColor=#0369a1;exitX=1;exitY=0.7;entryX=0;entryY=0.5;" edge="1" parent="1" source="api" target="pg">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_redis_worker" value="Dequeue Jobs" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#e11d48;strokeWidth=2;fontColor=#be123c;exitX=1;exitY=0.5;entryX=0;entryY=0.3;" edge="1" parent="1" source="redis" target="worker">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_worker_pg" value="Save Checkpoints &amp;amp; State" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0284c7;strokeWidth=2;fontColor=#0369a1;exitX=0;exitY=0.8;entryX=1;entryY=0.5;" edge="1" parent="1" source="worker" target="pg">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_worker_codegen" value="Boilerplate (80–90%)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16a34a;strokeWidth=2;fontColor=#15803d;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="worker" target="codegen">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_worker_ai" value="Gaps &amp;amp; Repair" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#d97706;strokeWidth=2;fontColor=#b45309;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="worker" target="ai_engines">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_codegen_docker" value="Validate Code" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16a34a;strokeWidth=2;fontColor=#15803d;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="codegen" target="docker">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_ai_docker" value="Patch &amp;amp; Test" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#d97706;strokeWidth=2;fontColor=#b45309;exitX=0.5;exitY=1;entryX=1;entryY=0.5;" edge="1" parent="1" source="ai_engines" target="docker">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_docker_prev" value="Deploy Passed Apps" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16a34a;strokeWidth=2;fontColor=#15803d;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" edge="1" parent="1" source="docker" target="prev">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
