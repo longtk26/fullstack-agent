@@ -82,6 +82,7 @@ lane, tracing, results, and an OpenAPI explorer that sends test calls to the run
 | 17 | [Fast generation: section renderer, component cache, templated CRUD](epic17_fast_generation/epic17_fast_generation.md) | Phase 7 | 6 |
 | 18 | [Generation speed: fail fast, run in parallel, cache the slow builds](epic18_generation_speed/epic18_generation_speed.md) | Phase 7 | 9 |
 | 19 | [Real photos and API-driven dynamic apps](epic19_photos_and_live_apps/epic19_photos_and_live_apps.md) | Phase 7 | 10 |
+| 20 | [Design diversity: distinct directions, icons and motion](epic20_design_diversity/epic20_design_diversity.md) (draft, in review) | Phase 7 | 9 |
 
 ### Suggested delivery order
 
@@ -108,6 +109,9 @@ workflow to be built before real generation works.
 9. **Re-planned 2026-10-30 (requirement first, then E15 and E16):** 2.4 + 12.4 + 9.2 Requirement tab + 9.7b
    (plain text, `.md` or `.txt` for backend, static and dynamic) → 17.7 (fonts, variants, design checklist) → 12.6
    (design direction from UI UX Pro Max data) → E15 → E16 → 17.8 → E10 → E11.
+10. **Planned 2026-11-02 (draft, in review):** E20 (design diversity: distinct directions, icons, motion) before
+   E16; E16 is then revised to edit the new theme fields and to offer "try another direction" as a spec edit.
+   Research: [docs/research/design-diversity.md](../docs/research/design-diversity.md).
 
 ### Status (2026-10-30)
 
@@ -146,6 +150,15 @@ Work in this order; start each item in a fresh session ("implement stories 2.4 a
 | 6 | **17.8**, **Epic 10**, then **Epic 11** | Custom components that fit the page; auth, roles and business rules; hardening, benchmark, release | Epic 11 stays last |
 
 Open decisions along the way:
+- **Generation time leaves out the draft (noted 2026-11-02, not planned yet).** The user sees the time of a
+  generation as `started_at` → `finished_at` (generations table, header timer, trace wall time), and `started_at` is
+  set when the runner picks up the generation (`orchestrator/runner.py`), after the spec is drafted. With one click
+  (19.10) the user waits for the draft too, so the shown time is shorter than the real wait. Wanted: the total time
+  includes the draft spec time. Drafts already record `spec_drafts.started_at` / `finished_at` and `usage`, and a
+  one-click draft is linked by `spec_drafts.generation_id` (reviewed drafts by `options.draftId`). Show draft,
+  generation and total separately; the total is draft time + generation time, not counting time the draft waited for
+  review (`NEEDS_REVIEW` or the user's review before Generate). Same for the trace summary and the Usage page
+  (`avgWallMsPerCompleted`). Epic 20's diversity report needs the draft time as well.
 - 17.8 (custom components that fit the page) moved after Epic 16 (2026-10-30). Dynamic drafts that need custom
   components (e.g. a shop's product grid) will show its layout faults until then. It can move up if they show up
   in the first drafted dynamic sites.
