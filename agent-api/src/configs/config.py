@@ -1,7 +1,7 @@
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 EXAMPLE_JWT_SECRET = "change-me-to-a-long-random-string"
 
@@ -49,13 +49,13 @@ class Config(BaseSettings):
 
     claude_code_bin: str = "claude"
     claude_code_model: str = "claude-sonnet-5-5"
-    claude_code_purpose_models: dict[str, str] = {}
+    claude_code_purpose_models: Annotated[dict[str, str], NoDecode] = {}
     anthropic_api_key: str | None = None
     claude_credentials_file: str | None = None
 
     antigravity_bin: str = "agy"
     antigravity_model: str = "gemini-3.8-flash-medium"  # `agy models` lists the choices
-    antigravity_purpose_models: dict[str, str] = {"generate_assets": "gemini-3.8-flash-low"}
+    antigravity_purpose_models: Annotated[dict[str, str], NoDecode] = {"generate_assets": "gemini-3.8-flash-low"}
     # agy streams one agent response per tool call, so its "turns" are much smaller than Claude's.
     antigravity_max_turns: int = 150
     antigravity_timeout_seconds: int = 2400
@@ -66,7 +66,7 @@ class Config(BaseSettings):
 
     # USD per 1M tokens, merged over src/engines/pricing.py DEFAULT_PRICES, e.g.
     # {"gemini-4-argon": {"input": 1.25, "output": 10, "cache_read": 0.125}}. A model without a price has no cost.
-    model_prices: dict[str, dict[str, float]] = {}
+    model_prices: Annotated[dict[str, dict[str, float]], NoDecode] = {}
 
     workspace_root: str = "/tmp/bga/workspaces"
     workspace_max_mb: int = 500
@@ -187,6 +187,7 @@ class Config(BaseSettings):
     @field_validator("claude_code_purpose_models", "antigravity_purpose_models", "model_prices", mode="before")
     @classmethod
     def _parse_dict_or_default(cls, value, info):
+        # NoDecode hands the raw env string here: compose passes `X_PURPOSE_MODELS=` when .env leaves it empty.
         if value in (None, ""):
             return cls.model_fields[info.field_name].default
         if isinstance(value, str):
