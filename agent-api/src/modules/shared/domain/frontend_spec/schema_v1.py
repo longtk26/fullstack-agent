@@ -55,6 +55,13 @@ class Typography(SpecModel):
     heading_font: str | None = Field(default=None, pattern=FONT, json_schema_extra=BUNDLED_FONTS)
     body_font: str | None = Field(default=None, pattern=FONT, json_schema_extra=BUNDLED_FONTS)
     scale: Literal["compact", "default", "large"] = "default"
+    # Story 20.3, the type of a direction (absent: today's look, semibold headings with tight tracking). Weight of
+    # the hero and section headings; their case (upper: display headings only, widely tracked); their tracking; and
+    # how much bigger the display steps of the type scale are than the text.
+    heading_weight: Literal[400, 500, 600, 700] | None = None
+    heading_case: Literal["normal", "upper"] | None = None
+    tracking: Literal["tight", "normal", "wide"] | None = None
+    ratio: Literal["tight", "default", "dramatic"] | None = None
 
 
 class ThemeDirection(SpecModel):
@@ -75,6 +82,11 @@ class Theme(SpecModel):
     typography: Typography = Typography()
     radius: Literal["none", "sm", "md", "lg", "full"] | None = None
     density: Literal["compact", "comfortable"] | None = None
+    # Story 20.3 (absent: today's look). surface: cards and panels without border or shadow, with a hairline, or
+    # raised with a soft shadow. colorArea: how much of the page carries colour: buttons and eyebrows only, plus one
+    # anchor section in the primary colour, or also a coloured hero.
+    surface: Literal["flat", "outline", "raised"] | None = None
+    color_area: Literal["minimal", "block", "bold"] | None = None
     direction: ThemeDirection | None = None
 
 
@@ -150,6 +162,9 @@ class Page(SpecModel):
     title: str = Field(min_length=1, max_length=120)
     purpose: str | None = None
     seo: Seo | None = None
+    # Story 20.2: how sections follow each other. uniform: each section's own background; alternate: content sections
+    # without a background alternate the page colour and the muted tone; dividers: a hairline between sections.
+    rhythm: Literal["uniform", "alternate", "dividers"] = "uniform"
     sections: list[Section] = Field(min_length=1)
 
 

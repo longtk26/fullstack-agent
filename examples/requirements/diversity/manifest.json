@@ -1,0 +1,10 @@
+{
+  "requirements": ["spa", "gym", "clinic", "pharmacy", "bakery", "coffee-shop", "law-firm", "accountant"],
+  "sameBrief": "spa",
+  "pairs": [
+    ["clinic", "pharmacy"],
+    ["spa", "gym"],
+    ["bakery", "coffee-shop"],
+    ["law-firm", "accountant"]
+  ]
+}

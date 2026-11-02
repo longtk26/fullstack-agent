@@ -7,7 +7,7 @@
     "shadcnStyle": "base-nova",
     "shadcnVersion": "4.22.1"
   },
-  "lockSha256": "9da291d68fe3f3eba7e6a1ff6acf139ca615cd0a6af870283447e91056647954",
+  "lockSha256": "5852e054f40792c60ff99d2461e92032fef69ba3a33d59518618302d0b967085",
   "remove": {
     "public/file.svg": "2b67812c325c199a02536cdbeea0c593a72f707d323b72ee3e08dbab06753bd4",
     "public/globe.svg": "b614b9bf183925957661ac851498fe1d8029fd43a62fbfed86f9e2624a57e7cf",

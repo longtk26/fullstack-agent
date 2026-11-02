@@ -80,7 +80,11 @@ export type TSiteSection = {
   children?: TSiteSection[];
 };
 
-export type TSitePage = { title: string; sections: TSiteSection[] };
+/** Story 20.2: `alternate` backgrounds are written into the sections' content by the generator; `dividers` draws a
+ * hairline between sections (PageRenderer). */
+export type TRhythm = "uniform" | "alternate" | "dividers";
+
+export type TSitePage = { title: string; rhythm?: TRhythm; sections: TSiteSection[] };
 
 export type TSite = {
   pages: Record<string, TSitePage>;
@@ -406,8 +410,12 @@ type CardGridProps = TCardGridContent & {
   controls?: TSectionControls;
 };
 
-/** Records as cards: image fields first, the first other field as the title; linked to the record's page. */
-export function CardGrid({ title, description, cardStyle, items, columns = [], binding, states, actions = [], controls }: CardGridProps) {
+/**
+ * Records as cards: image fields first, the first other field as the title; linked to the record's page. With
+ * `featured` (Story 20.2) the first record spans two columns from 640 px.
+ */
+export function CardGrid(props: CardGridProps) {
+  const { title, description, cardStyle, featured = false, items, columns = [], binding, states, actions = [], controls } = props;
   const images = columns.filter((column) => column.format === "image");
   const [heading, ...rest] = columns.filter((column) => column.format !== "image");
   const hasActions = actions.length > 0;
@@ -439,7 +447,7 @@ export function CardGrid({ title, description, cardStyle, items, columns = [], b
                     </>
                   );
                   return (
-                    <div key={recordId} data-bga-record={recordId}>
+                    <div key={recordId} data-bga-record={recordId} className={cn(featured && index === 0 && "sm:col-span-2")}>
                       <Card
                         className={cn(
                           cardClass(cardStyle),

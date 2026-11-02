@@ -74,6 +74,14 @@ Agent-specific notes:
   font pairing, preset, home order, hero variant; contrast-checked). Drafting writes `.bga/design.md`, applies the
   engine's pick (`notes.json` `design`) and stores `spec_drafts.design`; the UI's `lib/design-direction.ts` mirrors
   `apply_direction` / `reorder_sections` (keep both in step).
+- Design diversity (Epic 20): hero `variant` has 8 layouts, list sections a `form`, pages a `rhythm`, and seven
+  content sections joined the library (Steps, Timeline, Team, PriceList, Location, Comparison, Statement), all in
+  `section_props.py` with theme tokens only. Optional theme tokens (`surface`, `colorArea`, `typography.headingWeight
+  / headingCase / tracking / ratio`) are drawn by `frontend_theme.py` (`heading` utility, `--hero-<step>` sizes
+  shrunk by `display_scale` for wide faces) and by `frontend_renderer.py` (`color_roles`, `alternate_backgrounds` in
+  `site.json`); `orchestrator/design_tone.py` maps a five-scale tone to them. Without the new fields a spec plans
+  exactly as before and renders the same sizes and weights (`globals.css` gains the variables at today's values). Dev tools: `make design-check-fixture`, `make design-diversity`
+  (`docs/development/design-checks.md`).
 - Site images (Epic 15): asset sources and render modes in `frontend_spec/assets.py`; the registry
   `src/assets/index.ts` (`asset_registry.py`) and the overlay's `components/assets/AssetImage.tsx`. `generate_assets`
   (`frontend_assets.py`) draws all `source: "generate"` assets in one engine call in a scratch dir (cache in

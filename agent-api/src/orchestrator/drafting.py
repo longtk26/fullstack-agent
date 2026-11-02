@@ -91,6 +91,15 @@ class DraftFailed(Exception):
 # -- inputs --------------------------------------------------------------------------------------------------------
 
 
+def _content_fields(model: type) -> str:
+    """A props model's content fields, with the choices of enum fields (Story 20.2: layouts and forms)."""
+    fields = []
+    for name, schema in model.model_json_schema(by_alias=True).get("properties", {}).items():
+        choices = schema.get("enum") or next((s["enum"] for s in schema.get("anyOf", []) if "enum" in s), None)
+        fields.append(f"{name} ({' | '.join(map(str, choices))})" if choices and len(choices) > 1 else name)
+    return ", ".join(fields)
+
+
 def section_catalogue() -> str:
     """The built-in sections the drafter should prefer (Story 17.1), with their typed content fields."""
     lines = [
@@ -105,7 +114,7 @@ def section_catalogue() -> str:
     for name, model in SECTION_PROPS.items():
         if name in LAYOUT_SECTIONS:
             continue
-        fields = ", ".join(model.model_json_schema(by_alias=True).get("properties", {}))
+        fields = _content_fields(model)
         lines.append(f"- **{name}**: {BUILTIN_SECTIONS[name]['description']}. Content: {fields or 'none'}.")
     lines += [
         "",
@@ -115,7 +124,7 @@ def section_catalogue() -> str:
         "",
     ]
     for name in sorted(LAYOUT_SECTIONS):
-        fields = ", ".join(SECTION_PROPS[name].model_json_schema(by_alias=True).get("properties", {}))
+        fields = _content_fields(SECTION_PROPS[name])
         lines.append(f"- **{name}**: {BUILTIN_SECTIONS[name]['description']}. Content: {fields or 'none'}.")
     return "\n".join(lines) + "\n"
 

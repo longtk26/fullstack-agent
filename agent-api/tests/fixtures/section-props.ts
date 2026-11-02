@@ -25,12 +25,28 @@ export type TCardGridContent = {
   actions?: TSectionAction[];
   controls?: TSectionControls;
   cardStyle?: "outline" | "filled" | "plain";
+  featured?: boolean;
 };
 
 export type TColumnsContent = {
   title?: string;
   columns?: 2 | 3 | 4;
   gap?: "sm" | "md" | "lg";
+};
+
+export type TComparisonContent = {
+  background?: "default" | "muted" | "primary" | "image";
+  backgroundImage?: string;
+  title?: string;
+  description?: string;
+  columns: string[];
+  rows: TComparisonRow[];
+  form?: "table" | "cards";
+};
+
+export type TComparisonRow = {
+  label: string;
+  values: (string | boolean)[];
 };
 
 export type TContactInfoContent = {
@@ -71,6 +87,7 @@ export type TFaqContent = {
 export type TFeatureItem = {
   title: string;
   body?: string;
+  image?: string;
 };
 
 export type TFeaturesContent = {
@@ -81,6 +98,7 @@ export type TFeaturesContent = {
   items?: TFeatureItem[];
   columns?: 2 | 3 | 4;
   cardStyle?: "outline" | "filled" | "plain";
+  form?: "cards" | "list" | "ledger" | "alternating";
 };
 
 export type TFormContent = {
@@ -111,13 +129,34 @@ export type TGridContent = {
 export type THeroContent = {
   background?: "default" | "muted" | "primary" | "image";
   backgroundImage?: string;
-  variant?: "split" | "centered" | "banner";
+  variant?: "split" | "centered" | "banner" | "stage" | "type" | "stacked" | "collage" | "vertical";
   heading: string;
   eyebrow?: string;
   body?: string;
   image?: string;
+  images?: string[];
   cta?: TCta;
   secondaryCta?: TCta;
+};
+
+export type TLocationContent = {
+  background?: "default" | "muted" | "primary" | "image";
+  backgroundImage?: string;
+  title?: string;
+  address: string;
+  hours?: TOpeningHours[];
+  phone?: string;
+  email?: string;
+  mapLink?: string;
+  image?: string;
+  form?: "split" | "card" | "band";
+};
+
+export type TOpeningHours = {
+  days: string;
+  opens?: string;
+  closes?: string;
+  note?: string;
 };
 
 export type TPlanItem = {
@@ -127,6 +166,27 @@ export type TPlanItem = {
   features?: string[];
   cta?: TCta;
   highlighted?: boolean;
+};
+
+export type TPriceGroup = {
+  title?: string;
+  items: TPriceItem[];
+};
+
+export type TPriceItem = {
+  name: string;
+  price?: string | number;
+  description?: string;
+  tags?: string[];
+};
+
+export type TPriceListContent = {
+  background?: "default" | "muted" | "primary" | "image";
+  backgroundImage?: string;
+  title?: string;
+  description?: string;
+  groups: TPriceGroup[];
+  form?: "menu" | "columns" | "cards";
 };
 
 export type TPricingContent = {
@@ -181,16 +241,56 @@ export type TStatItem = {
   data?: TStatData;
 };
 
+export type TStatementContent = {
+  background?: "default" | "muted" | "primary" | "image";
+  backgroundImage?: string;
+  text: string;
+  attribution?: string;
+  image?: string;
+  form?: "large" | "quote" | "band";
+};
+
 export type TStatsContent = {
   background?: "default" | "muted" | "primary" | "image";
   backgroundImage?: string;
   title?: string;
   items?: TStatItem[];
   cardStyle?: "outline" | "filled" | "plain";
+  form?: "cards" | "figures" | "inline";
+};
+
+export type TStepItem = {
+  title: string;
+  body?: string;
+};
+
+export type TStepsContent = {
+  background?: "default" | "muted" | "primary" | "image";
+  backgroundImage?: string;
+  title?: string;
+  description?: string;
+  items?: TStepItem[];
+  form?: "numbered" | "horizontal" | "connected";
 };
 
 export type TTabsContent = {
   labels?: string[];
+};
+
+export type TTeamMember = {
+  name: string;
+  role?: string;
+  bio?: string;
+  image?: string;
+};
+
+export type TTeamContent = {
+  background?: "default" | "muted" | "primary" | "image";
+  backgroundImage?: string;
+  title?: string;
+  description?: string;
+  items?: TTeamMember[];
+  form?: "grid" | "list" | "portraits";
 };
 
 export type TTestimonialItem = {
@@ -205,4 +305,21 @@ export type TTestimonialsContent = {
   title?: string;
   items?: TTestimonialItem[];
   cardStyle?: "outline" | "filled" | "plain";
+  form?: "cards" | "quote" | "strip";
+};
+
+export type TTimelineItem = {
+  date: string;
+  title: string;
+  body?: string;
+  image?: string;
+};
+
+export type TTimelineContent = {
+  background?: "default" | "muted" | "primary" | "image";
+  backgroundImage?: string;
+  title?: string;
+  description?: string;
+  items?: TTimelineItem[];
+  form?: "vertical" | "alternating";
 };

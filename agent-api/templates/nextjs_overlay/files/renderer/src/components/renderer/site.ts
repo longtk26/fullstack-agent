@@ -75,7 +75,11 @@ export type TSiteSection = {
   children?: TSiteSection[];
 };
 
-export type TSitePage = { title: string; sections: TSiteSection[] };
+/** Story 20.2: `alternate` backgrounds are written into the sections' content by the generator; `dividers` draws a
+ * hairline between sections (PageRenderer). */
+export type TRhythm = "uniform" | "alternate" | "dividers";
+
+export type TSitePage = { title: string; rhythm?: TRhythm; sections: TSiteSection[] };
 
 export type TSite = {
   pages: Record<string, TSitePage>;

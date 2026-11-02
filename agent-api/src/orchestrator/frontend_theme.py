@@ -9,6 +9,7 @@ import re
 from typing import Any
 
 from src.modules.shared.domain.frontend_spec import THEME_PRESETS, font_category, font_imports
+from src.modules.shared.domain.frontend_spec.fonts import font_width
 
 _HEX = re.compile(r"^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})([0-9a-fA-F]{2})?$")
 RADIUS = {"none": "0rem", "sm": "0.375rem", "md": "0.625rem", "lg": "0.875rem", "full": "1.25rem"}
@@ -184,7 +185,7 @@ def build_theme(theme: dict[str, Any]) -> dict[str, Any]:
     light = _palette(colors, fallback, dark=False)
     dark = _palette(colors, fallback, dark=True)
     typography = theme["typography"]
-    return {
+    built = {
         "colorScheme": scheme,
         "light": dark if scheme == "dark" else light,
         "dark": dark if scheme != "light" else None,
@@ -197,6 +198,64 @@ def build_theme(theme: dict[str, Any]) -> dict[str, Any]:
         },
         "scale": typography.get("scale", "default"),
     }
+    tokens = {key: typography.get(key) for key in ("headingWeight", "headingCase", "tracking", "ratio")}
+    tokens = {key: value for key, value in {**tokens, "surface": theme.get("surface")}.items() if value is not None}
+    if tokens:
+        built["tokens"] = tokens  # Story 20.3; absent without tokens, so the plans of older specs stay equal
+    scale = display_scale(typography["headingFont"], tokens)
+    if scale < 1:
+        built["displayScale"] = scale
+    return built
+
+
+def display_scale(heading_font: str, tokens: dict[str, Any]) -> float:
+    """Story 20.3: how much the hero's display sizes shrink so a headline still fits two lines when the heading
+    face is wide (`Font.width`) or set in capitals with wide tracking; never more than 1 (today's sizes)."""
+    upper = tokens.get("headingCase") == "upper"
+    tracking = tokens.get("tracking") or ("wide" if upper else None)
+    factor = font_width(heading_font) * (UPPER_WIDTH if upper else 1.0) * TRACKING_WIDTH.get(tracking, 1.0)
+    return round(min(1.0, max(MIN_DISPLAY_SCALE, 1 / factor)), 3)
+
+
+# Story 20.3: the tone tokens. Without them headings stay semibold with tight tracking (today's look).
+TRACKING = {None: "-0.025em", "tight": "-0.035em", "normal": "0em", "wide": "0.06em"}
+# Rough widths of a display line against lower case Inter with tight tracking, for `display_scale`.
+UPPER_WIDTH = 1.12
+TRACKING_WIDTH = {"tight": 0.99, "normal": 1.02, "wide": 1.08}
+MIN_DISPLAY_SCALE = 0.6
+# Tailwind's display steps, the hero's sizes before the ratio and the display scale.
+DISPLAY_STEPS = {"2xl": 1.5, "3xl": 1.875, "4xl": 2.25, "5xl": 3, "6xl": 3.75, "7xl": 4.5, "8xl": 6, "9xl": 8}
+# The display steps of the type scale (Tailwind's defaults are 1.5 / 1.875 / 2.25 / 3 / 3.75 / 4.5 / 6 / 8 rem).
+RATIO_STEPS = {
+    "tight": {"2xl": "1.375rem", "3xl": "1.625rem", "4xl": "2rem", "5xl": "2.5rem", "6xl": "3rem", "7xl": "3.5rem",
+              "8xl": "4.5rem", "9xl": "6rem"},
+    "dramatic": {"2xl": "1.75rem", "3xl": "2.125rem", "4xl": "2.625rem", "5xl": "3.5rem", "6xl": "4.5rem",
+                 "7xl": "5.25rem", "8xl": "6.5rem", "9xl": "8.5rem"},
+}  # fmt: skip
+# Cards and panels (shadcn's Card draws a hairline ring). Unlayered, so they win over the Card's utility classes;
+# the `filled` and `plain` card styles (ring-0) keep their own look.
+SURFACES = {
+    "flat": '[data-slot="card"] {\n  box-shadow: none;\n}\n',
+    "raised": '[data-slot="card"]:not(.ring-0) {\n  box-shadow: 0 1px 2px color-mix(in oklab, var(--foreground) 6%, '
+    "transparent),\n    0 12px 32px -16px color-mix(in oklab, var(--foreground) 22%, transparent);\n}\n",
+}
+
+
+def hero_vars(tokens: dict[str, Any], scale: float) -> list[str]:
+    """`--hero-<step>`: the hero headline's sizes (`styles.ts`), the type scale's display steps after the ratio and
+    the display scale. Without tokens and with a face of normal width they equal Tailwind's steps."""
+    steps = {step: float(size.removesuffix("rem")) for step, size in RATIO_STEPS.get(tokens.get("ratio"), {}).items()}
+    return [f"  --hero-{step}: {round(steps.get(step, size) * scale, 3):g}rem;" for step, size in DISPLAY_STEPS.items()]
+
+
+def heading_vars(tokens: dict[str, Any]) -> list[str]:
+    upper = tokens.get("headingCase") == "upper"
+    tracking = TRACKING[tokens.get("tracking") or ("wide" if upper else None)]
+    return [
+        f"  --heading-weight: {tokens.get('headingWeight') or 600};",
+        f"  --heading-tracking: {tracking};",
+        f"  --heading-case: {'uppercase' if upper else 'none'};",
+    ]
 
 
 def globals_css(theme: dict[str, Any]) -> str:
@@ -207,12 +266,16 @@ def globals_css(theme: dict[str, Any]) -> str:
         return f"{selector} {{\n" + "\n".join(lines) + "\n}\n"
 
     scale = {"compact": "15px", "default": "16px", "large": "17px"}[theme["scale"]]
+    tokens = theme.get("tokens") or {}
     root_extra = [
         f"  --radius: {theme['radius']};",
         f"  --font-body: {theme['fonts']['body']};",
         f"  --font-display: {theme['fonts']['heading']};",
         f"  --density-gap: {'0.75rem' if theme['density'] == 'compact' else '1.25rem'};",
+        *heading_vars(tokens),
+        *hero_vars(tokens, theme.get("displayScale", 1.0)),
     ]
+    steps = RATIO_STEPS.get(tokens.get("ratio") or "default", {})
     parts = [
         "/* Generated from the FrontendSpec theme by the Fullstack Generation Agent. Do not edit:\n"
         "   change the theme in the FrontendSpec and regenerate. Components use the tokens, never raw colours. */\n",
@@ -223,7 +286,12 @@ def globals_css(theme: dict[str, Any]) -> str:
         + "\n  --font-sans: var(--font-body);\n  --font-heading: var(--font-display);\n"
         "  --radius-sm: calc(var(--radius) * 0.6);\n  --radius-md: calc(var(--radius) * 0.8);\n"
         "  --radius-lg: var(--radius);\n  --radius-xl: calc(var(--radius) * 1.4);\n"
-        "  --radius-2xl: calc(var(--radius) * 1.8);\n  --spacing-section: var(--density-gap);\n}\n",
+        "  --radius-2xl: calc(var(--radius) * 1.8);\n  --spacing-section: var(--density-gap);\n"
+        + "".join(f"  --text-{step}: {size};\n" for step, size in steps.items())
+        + "}\n",
+        # Hero and section headings (Story 20.3): weight, tracking and case from the theme's tone tokens.
+        "@utility heading {\n  font-weight: var(--heading-weight);\n  letter-spacing: var(--heading-tracking);\n"
+        "  text-transform: var(--heading-case);\n}\n",
         block(":root", theme["light"], root_extra),
     ]
     if theme["dark"] is not None and theme["colorScheme"] == "light-dark":
@@ -237,6 +305,8 @@ def globals_css(theme: dict[str, Any]) -> str:
         "  body {\n    @apply bg-background text-foreground;\n  }\n"
         "  h1, h2, h3, h4 {\n    font-family: var(--font-display);\n  }\n}\n"
     )
+    if tokens.get("surface") in SURFACES:
+        parts.append(SURFACES[tokens["surface"]])
     return "\n".join(parts)
 
 

@@ -61,10 +61,10 @@ different.
 
 ## Acceptance criteria
 
-- [ ] 8 hero layouts and the section forms and rhythms above, typed, in the catalogue and the editor schema.
-- [ ] Existing specs and examples validate and render exactly as before (defaults unchanged).
-- [ ] The fixture covers every value; the sandbox build passes.
-- [ ] `design-check.mjs` on the fixture (5 presets × 390 / 768 / 1440 × light / dark): no rule fails; screenshots of
+- [x] 8 hero layouts and the section forms and rhythms above, typed, in the catalogue and the editor schema.
+- [x] Existing specs and examples validate and render exactly as before (defaults unchanged).
+- [x] The fixture covers every value; the sandbox build passes (install, typecheck, build, routes; see Status).
+- [x] `design-check.mjs` on the fixture (5 presets × 390 / 768 / 1440 × light / dark): no rule fails; screenshots of
       every hero layout and form in the Status note.
 
 ## Verify
@@ -73,3 +73,35 @@ different.
 `node scripts/design-check.mjs` on the fixture (as the checklist describes), `cd agent-ui && pnpm exec tsc --noEmit`.
 
 ## Status
+
+**Done (2026-11-02)**, on `feat/epic20-design-diversity`.
+
+- **Hero** (`section_props.py`, `Hero.tsx`): `variant` adds `stage`, `type`, `stacked`, `collage` (`images`, up to 4;
+  fewer than two → `split` + `FE_DESIGN_RULE` warning naming the fallback), `vertical`. The text block is shared;
+  the headline stays the first heading and the CTA comes before images in the DOM. `type` uses `displayClass`
+  (larger steps, still two lines); the vertical label takes the headline's size class. `collage` splits half and
+  half like `split` (a 5/12 text column wrapped a wide face to three lines).
+- **Forms:** Features `cards` / `list` / `ledger` / `alternating` (`FeatureItem.image`; none → `list` + warning);
+  Testimonials `cards` / `quote` / `strip` (a focusable, keyboard-scrollable region); Stats `cards` / `figures` /
+  `inline` (one `useStatValue` hook for content and API values); CardGrid `featured`.
+- **Rhythm:** `Page.rhythm` (`uniform` / `alternate` / `dividers`). `alternate` is resolved by the generator
+  (`alternate_backgrounds` in `frontend_renderer.py`: sections without a background take the page colour or muted,
+  opposite to the section before; CallToAction keeps its panel); `dividers` is a hairline drawn by `PageRenderer`.
+  The plan carries `rhythm` only when it is not `uniform`.
+- **Drafter:** `section_catalogue()` lists each content field's choices from the props models (e.g. `variant (split
+  | centered | … )`), so new layouts and forms reach the drafter without editing descriptions. The catalogue
+  descriptions are unchanged, so plans and context packs of existing specs stay equal.
+- **Fixture:** five pages (`/layouts-*`) cover every layout, form, `featured` and rhythm;
+  `test_the_section_library_fixture_covers_every_layout_form_and_rhythm` checks every `form` field of every section.
+- **Verification:** `make test` 714 passed; `make lint` clean; snapshots updated (`section-props.ts`, schema digest,
+  ProductGrid context pack for the CardGrid source); plans of the three golden specs unchanged.
+  `make design-check-fixture` (new, `scripts/design_check_fixture.py`): 5 presets × 18 pages × 390 / 768 / 1440 ×
+  light / dark = 540 views, 0 failures (`.data/shots/phaseB-presets/`). `BGA_SANDBOX_TESTS=1`: the section library
+  (with every layout, form and the 20.8 sections) installs, type-checks, builds and passes the route check; the six
+  sandbox tests still fail on `main`'s state, not on this story: they expect `lint` and `tests` to pass, which
+  `frontend_validation.py` now always skips (`95b547b`), and the live smoke finds no tests. Fixing those
+  assertions is left for a separate change.
+- **Deviations:**
+  - Figures stay at `text-2xl` (a first version at `text-5xl` made six sizes on a page with a hero; see the
+    checklist's deviations).
+  - The `type` hero is not cropped at the screen edge.

@@ -20,7 +20,7 @@ export function CallToAction({ heading, body, cta, background = "primary", backg
         >
           {background === "image" && backgroundImage && <Backdrop>{backdropImage(backgroundImage)}</Backdrop>}
           <div className="flex flex-col gap-2">
-            <h2 className="text-2xl font-semibold tracking-tight text-balance">{heading}</h2>
+            <h2 className="heading text-2xl text-balance">{heading}</h2>
             {body && <p className="max-w-prose text-muted-foreground">{body}</p>}
           </div>
           <CtaLink cta={cta} />

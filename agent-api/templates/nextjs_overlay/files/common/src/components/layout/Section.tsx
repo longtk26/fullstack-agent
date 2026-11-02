@@ -42,7 +42,7 @@ export function Section({ title, description, background, backdrop, className, c
       <Container className="flex flex-col gap-6">
         {(title || description) && (
           <div className="flex flex-col gap-2">
-            {title && <h2 className="text-2xl font-semibold tracking-tight text-balance">{title}</h2>}
+            {title && <h2 className="heading text-2xl text-balance">{title}</h2>}
             {description && <p className="max-w-prose text-muted-foreground">{description}</p>}
           </div>
         )}

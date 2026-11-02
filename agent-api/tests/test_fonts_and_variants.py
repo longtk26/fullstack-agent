@@ -15,7 +15,16 @@ from src.modules.shared.domain.frontend_spec import (
     iter_sections,
     validate_frontend_spec_data,
 )
-from src.modules.shared.domain.frontend_spec.section_props import Background, CardStyle, HeroVariant, Surface
+from src.modules.shared.domain.frontend_spec.schema_v1 import Page
+from src.modules.shared.domain.frontend_spec.section_props import (
+    Background,
+    CardStyle,
+    FeaturesForm,
+    HeroVariant,
+    StatsForm,
+    Surface,
+    TestimonialsForm,
+)
 from src.orchestrator.frontend_codegen import generated_files
 from src.orchestrator.frontend_planner import plan_frontend
 from src.orchestrator.frontend_scaffold import BASE_DIR, OVERLAY_DIR
@@ -24,6 +33,7 @@ from src.sandbox.docker_sandbox import store_volume
 
 FIXTURES = Path(__file__).parent / "fixtures"
 LIBRARY = json.loads((FIXTURES / "frontend-specs" / "section-library.json").read_text())
+EXAMPLES = Path(__file__).parents[2] / "examples"
 
 
 def _theme(**overrides) -> dict:
@@ -42,7 +52,7 @@ def _issues(spec: dict) -> list[tuple[str, str, str | None]]:
 
 def test_every_bundled_font_is_pinned_in_the_frontend_base():
     dependencies = json.loads((BASE_DIR / "package.json").read_text())["dependencies"]
-    assert 20 <= len(FONTS) <= 24
+    assert 28 <= len(FONTS) <= 32
     for font in FONTS.values():
         assert dependencies.get(font.package, "").startswith("5."), font.package
 
@@ -186,3 +196,116 @@ def test_the_section_library_fixture_covers_every_variant():
             assert any(c == name and k == "background" and v != default["background"].default for c, k, v in used), name
         if "card_style" in default:
             assert any(c == name and k == "cardStyle" and v != "outline" for c, k, v in used), name
+
+
+def test_the_section_library_fixture_covers_every_layout_form_and_rhythm():
+    """Stories 20.2 and 20.8: every hero layout, every form of every section, a featured card grid, every rhythm."""
+    sections = [section for page in LIBRARY["pages"] for section in iter_sections(page["sections"])]
+    with_forms = {
+        name: model.model_fields["form"] for name, model in SECTION_PROPS.items() if "form" in model.model_fields
+    }
+    assert {"Features", "Testimonials", "Stats", "Steps", "Team", "PriceList", "Location", "Statement"} <= set(
+        with_forms
+    )
+    forms = {
+        (s["component"], (s.get("content") or {}).get("form", with_forms[s["component"]].default))
+        for s in sections
+        if s["component"] in with_forms
+    }
+    for component, field in with_forms.items():
+        assert {(component, value) for value in typing.get_args(field.annotation)} <= forms, component
+    assert typing.get_args(FeaturesForm) and typing.get_args(TestimonialsForm) and typing.get_args(StatsForm)
+    heroes = {s["content"].get("variant", "split") for s in sections if s["component"] == "Hero"}
+    assert heroes == set(typing.get_args(HeroVariant))
+    assert any(s["component"] == "CardGrid" and s["content"].get("featured") for s in sections)
+    rhythms = {page.get("rhythm", "uniform") for page in LIBRARY["pages"]}
+    assert rhythms == set(typing.get_args(Page.model_fields["rhythm"].annotation))
+
+
+# -- layouts, forms and rhythm (Story 20.2) ----------------------------------------------------------------------------
+
+
+def test_layouts_that_lack_content_warn_and_name_their_fallback():
+    assert _issues(_hero(variant="collage")) == [
+        ("FE_DESIGN_RULE", "/pages/0/sections/0/content/variant", "Add images to 'images', or pick another variant")
+    ]
+    assert _issues(_hero(variant="collage", images=["asset:mug"])) == []
+    spec = copy.deepcopy(LIBRARY)
+    features = next(s for s in spec["pages"][3]["sections"] if s["component"] == "Features")
+    features["content"]["form"] = "alternating"
+    assert _issues(spec) == [
+        ("FE_DESIGN_RULE", "/pages/3/sections/1/content/form", "Give the items an 'image', or use the 'list' form")
+    ]
+
+
+def test_hero_images_must_be_assets_or_links():
+    assert _issues(_hero(variant="collage", images=["mug.png"]))[0][:2] == (
+        "FE_INVALID_PROPS",
+        "/pages/0/sections/0/content/images/0",
+    )
+
+
+def _site(spec: dict) -> dict:
+    from src.orchestrator.frontend_renderer import site_json
+
+    normalized = validate_frontend_spec_data(spec).normalized
+    return json.loads(site_json(plan_frontend(normalized), normalized))
+
+
+def test_alternate_rhythm_writes_backgrounds_opposite_to_the_section_before():
+    page = _site(LIBRARY)["pages"]["layouts-stage"]
+    assert page["rhythm"] == "alternate"
+    backgrounds = [(s["component"], (s.get("content") or {}).get("background")) for s in page["sections"]]
+    assert backgrounds == [
+        ("Hero", None),
+        ("Features", "muted"),
+        ("Testimonials", "default"),
+        ("Stats", "muted"),
+        ("Faq", "default"),
+        ("CallToAction", None),  # keeps its own primary panel
+    ]
+
+
+def test_dividers_and_the_default_rhythm():
+    pages = _site(LIBRARY)["pages"]
+    assert pages["layouts-type"]["rhythm"] == "dividers"
+    assert all("background" not in (s.get("content") or {}) for s in pages["layouts-type"]["sections"])
+    assert "rhythm" not in pages["home"], "uniform pages are written as before"
+
+
+def test_plans_of_existing_specs_do_not_change():
+    """Story 20.2 is additive: a spec without the new fields plans exactly as before (snapshot)."""
+    spec = json.loads((EXAMPLES / "frontend-specs" / "static-landing.json").read_text())
+    plan = plan_frontend(validate_frontend_spec_data(spec).normalized)
+    assert all("rhythm" not in route for route in plan["routes"])
+
+
+# -- new section types (Story 20.8) ----------------------------------------------------------------------------------
+
+
+def _section(component: str, **content) -> dict:
+    spec = copy.deepcopy(LIBRARY)
+    spec["pages"][0]["sections"] = [{"id": "s", "component": component, "content": content}]
+    return spec
+
+
+def test_new_sections_check_their_content():
+    columns = {"columns": ["A", "B"], "rows": [{"label": "Row", "values": [True, "x", "y"]}]}
+    assert _issues(_section("Comparison", **columns))[0][:2] == ("FE_INVALID_PROPS", "/pages/0/sections/0/content")
+    columns["rows"][0]["values"] = [True, "x"]
+    assert _issues(_section("Comparison", **columns)) == []
+    assert _issues(_section("Location", address="1 Main St", mapLink="http://maps"))[0][0] == "FE_INVALID_PROPS"
+    assert _issues(_section("Statement", text="x" * 281))[0][0] == "FE_INVALID_PROPS"
+    assert _issues(_section("PriceList", groups=[{"items": [{"name": "Tea"}]}])) == [], "prices are optional"
+
+
+def test_new_sections_are_rendered_and_copied_only_when_used():
+    from src.orchestrator.frontend_renderer import RENDERED, library_sections
+
+    new = {"Steps", "Timeline", "Team", "PriceList", "Location", "Comparison", "Statement"}
+    assert new <= RENDERED
+    landing = json.loads((EXAMPLES / "frontend-specs" / "static-landing.json").read_text())
+    plan = plan_frontend(validate_frontend_spec_data(landing).normalized)
+    assert not (library_sections(plan) & new) and plan["rendering"] == "renderer"
+    library = plan_frontend(validate_frontend_spec_data(LIBRARY).normalized)
+    assert new <= library_sections(library) and library["rendering"] == "renderer", library["rendererGaps"]

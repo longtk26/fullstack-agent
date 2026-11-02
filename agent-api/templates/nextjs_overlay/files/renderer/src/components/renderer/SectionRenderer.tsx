@@ -4,6 +4,8 @@ import { sections } from "./registry";
 type SectionRendererProps = {
   pageId: string;
   section: TSiteSection;
+  /** A hairline above the section (page rhythm `dividers`, Story 20.2). */
+  divider?: boolean;
 };
 
 function childTitle(section: TSiteSection): string {
@@ -17,7 +19,7 @@ function childTitle(section: TSiteSection): string {
  * collection (`items`) or their operation binding, columns and states; forms their definition; layout nodes their
  * children, rendered by this same component. The markers name the section for inspect mode (16.4).
  */
-export function SectionRenderer({ pageId, section }: SectionRendererProps) {
+export function SectionRenderer({ pageId, section, divider = false }: SectionRendererProps) {
   const Component = sections[section.component];
   if (!Component) return null;
   const props: Record<string, unknown> = { ...section.content };
@@ -35,7 +37,12 @@ export function SectionRenderer({ pageId, section }: SectionRendererProps) {
   ));
   if (section.children) props.childTitles = section.children.map(childTitle);
   return (
-    <div data-bga-section={`${pageId}/${section.id}`} data-bga-section-id={section.id} data-bga-component={section.component}>
+    <div
+      data-bga-section={`${pageId}/${section.id}`}
+      data-bga-section-id={section.id}
+      data-bga-component={section.component}
+      className={divider ? "border-t border-border" : undefined}
+    >
       <Component {...props}>{children}</Component>
     </div>
   );

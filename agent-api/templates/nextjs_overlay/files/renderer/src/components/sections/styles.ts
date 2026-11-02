@@ -12,9 +12,32 @@ export function cardClass(style: TCardStyle = "outline"): string {
   return CARD_STYLES[style];
 }
 
+// Hero sizes (Story 20.3) read `--hero-<step>` from globals.css: Tailwind's display steps after the theme's ratio and
+// display scale (a wide heading face or capitals shrink them), with Tailwind's line heights, so a theme without
+// tokens and with a face of normal width renders exactly the sizes `text-4xl` … `text-9xl` would.
+
 /** Hero headline size by length, so it fits two lines at 390, 768 and 1440 px (design checklist). */
 export function headlineClass(heading: string): string {
-  if (heading.length <= 28) return "text-4xl sm:text-5xl lg:text-6xl";
-  if (heading.length <= 42) return "text-3xl sm:text-4xl lg:text-5xl";
-  return "text-2xl sm:text-4xl";
+  if (heading.length <= 28) {
+    return "text-(length:--hero-4xl) leading-[1.111] sm:text-(length:--hero-5xl) sm:leading-none lg:text-(length:--hero-6xl)";
+  }
+  if (heading.length <= 42) {
+    return "text-(length:--hero-3xl) leading-[1.2] sm:text-(length:--hero-4xl) sm:leading-[1.111] lg:text-(length:--hero-5xl) lg:leading-none";
+  }
+  return "text-(length:--hero-2xl) leading-[1.333] sm:text-(length:--hero-4xl) sm:leading-[1.111]";
+}
+
+/** The `type` hero (Story 20.2): the headline is the image, set larger than `headlineClass` but still two lines at
+ * most at 390, 768 and 1440 px; long headlines fall back to the normal size. */
+export function displayClass(heading: string): string {
+  if (heading.length <= 16) {
+    return "text-(length:--hero-5xl) leading-none sm:text-(length:--hero-7xl) lg:text-(length:--hero-9xl)";
+  }
+  if (heading.length <= 28) {
+    return "text-(length:--hero-4xl) leading-[1.111] sm:text-(length:--hero-6xl) sm:leading-none lg:text-(length:--hero-8xl)";
+  }
+  if (heading.length <= 42) {
+    return "text-(length:--hero-3xl) leading-[1.2] sm:text-(length:--hero-5xl) sm:leading-none lg:text-(length:--hero-7xl)";
+  }
+  return headlineClass(heading);
 }

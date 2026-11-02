@@ -11,7 +11,13 @@ importers:
       '@base-ui/react':
         specifier: ^1.9.0
         version: 1.9.0(@date-fns/tz@1.5.0)(@types/react@19.3.0)(date-fns@4.4.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      '@fontsource/archivo':
+        specifier: 5.3.0
+        version: 5.3.0
       '@fontsource/atkinson-hyperlegible':
+        specifier: 5.3.0
+        version: 5.3.0
+      '@fontsource/bricolage-grotesque':
         specifier: 5.3.0
         version: 5.3.0
       '@fontsource/cormorant-garamond':
@@ -26,7 +32,16 @@ importers:
       '@fontsource/eb-garamond':
         specifier: 5.3.0
         version: 5.3.0
+      '@fontsource/familjen-grotesk':
+        specifier: 5.3.0
+        version: 5.3.0
+      '@fontsource/fraunces':
+        specifier: 5.3.0
+        version: 5.3.0
       '@fontsource/ibm-plex-sans':
+        specifier: 5.3.0
+        version: 5.3.0
+      '@fontsource/instrument-serif':
         specifier: 5.3.0
         version: 5.3.0
       '@fontsource/inter':
@@ -42,6 +57,9 @@ importers:
         specifier: 5.3.0
         version: 5.3.0
       '@fontsource/montserrat':
+        specifier: 5.3.0
+        version: 5.3.0
+      '@fontsource/newsreader':
         specifier: 5.3.0
         version: 5.3.0
       '@fontsource/nunito':
@@ -75,6 +93,12 @@ importers:
         specifier: 5.3.0
         version: 5.3.0
       '@fontsource/space-mono':
+        specifier: 5.3.0
+        version: 5.3.0
+      '@fontsource/syne':
+        specifier: 5.3.0
+        version: 5.3.0
+      '@fontsource/unbounded':
         specifier: 5.3.0
         version: 5.3.0
       '@hookform/resolvers':
@@ -506,8 +530,14 @@ packages:
   '@floating-ui/utils@0.2.12':
     resolution: {integrity: sha512-HpCo8tmWzLVad5s2d19EhAz5zqrrQ6s69qd6moPMQvkOuSwDT1YgRfWSVuc4ennqrgv3OHppiOGMQ7oC13yIww==}
 
+  '@fontsource/archivo@5.3.0':
+    resolution: {integrity: sha512-5DIMgPVJRi62OqdOVoogCFxP73EkNM/E0YVTSDIQlDEJfDbxqZduwM/YoNZwC9Sx1CDgpKinqf8ckRY1QNIecw==}
+
   '@fontsource/atkinson-hyperlegible@5.3.0':
     resolution: {integrity: sha512-Sp8Ve8+rQmENY2Lv02VH7sLpntzTTvnncnJMTbRE7DX6TLxGraN4ykZfzaUWIoCFmaomwkvNiqmlPkrKBuDoSA==}
+
+  '@fontsource/bricolage-grotesque@5.3.0':
+    resolution: {integrity: sha512-MdOVb/5in11IfN/IQJOExMuu6AroCIQbirl0yX7NUvKk+h0HYIKfGaVAXRS/gCPil4aFxWhjZnOw28tUwv7tFw==}
 
   '@fontsource/cormorant-garamond@5.3.0':
     resolution: {integrity: sha512-weuGsCirGVWBWqpt6YUp0yLThTe4G8YO45noq8wxeJCRvEpq5lFrxNMFSTxcyOyV5k5otzJ8guDzYegdYlcLMQ==}
@@ -521,8 +551,17 @@ packages:
   '@fontsource/eb-garamond@5.3.0':
     resolution: {integrity: sha512-VplwHpB8FLuzl+4G5LDci1b3Z4SghiuXH8XEgaxjnOb5aue5mEt1njmDKeO6iyLeGa73LffU7PC7hzncLRx0ZA==}
 
+  '@fontsource/familjen-grotesk@5.3.0':
+    resolution: {integrity: sha512-Kh6DXwAtw+kyvCSpiOI3wss/LvOJtJJRl9NTf9YpYpmcpsZ5BGQLTF9nVm9TUmnpLTe4z3iyAcvnLfsQgQR0lg==}
+
+  '@fontsource/fraunces@5.3.0':
+    resolution: {integrity: sha512-LEHTOBiZufQzAvnAe2rZ8ZknbDS28Q9kzwb0L+gZJEmjLGr8hhZ/5NuHXwDuHBWhVXYoiGGXmrb0H6Ko/RrHTg==}
+
   '@fontsource/ibm-plex-sans@5.3.0':
     resolution: {integrity: sha512-CbE4CbbEEZJX860XyUiRpsksXIQR8Rp2XDva2VO53NJox9tVNtusrysd2x5YkUEY3ErQ66W1IiiQL8/wihhw5w==}
+
+  '@fontsource/instrument-serif@5.3.0':
+    resolution: {integrity: sha512-mDiaIg0u67sYV59fie92Wz4sM8UiVlbL7fLxnFPCKkX15DMASEnQTREbaP5S5/3DCcsoAOcQ0sV9E4AeY4QqYQ==}
 
   '@fontsource/inter@5.3.0':
     resolution: {integrity: sha512-RofMylZmjlJEfELXeNHFWBRcSs75rGU/6bV2S2jfnvv/3rPXPGe0LgUJTklcHZ9lM4OZmAVFhcJPnACfb91A3g==}
@@ -538,6 +577,9 @@ packages:
 
   '@fontsource/montserrat@5.3.0':
     resolution: {integrity: sha512-iQPDtZOnmM5ih4JBGaMSXisRap0ixb9bAUw2hDtY7EjVfaqiiNlKtVuJl9XclxUwtwMMHNcWXfQR6zI9x05+Tg==}
+
+  '@fontsource/newsreader@5.3.0':
+    resolution: {integrity: sha512-AFR6ZKY89GNL+9qBI2P2+66NhD5bhOj/v6fsLnFYLM4E0JnMB1yKb+Ro8cA64i1hwAWoBfTq5CHJGWH1toLDkw==}
 
   '@fontsource/nunito@5.3.0':
     resolution: {integrity: sha512-vw9TaTQJ/zpEpKrsODuPmOvaVjXgdda6B+xXA4YqjrdeJ62MLgVoDerdRXFQHyBnSCt2yQ2nHKCHPP/Pv7Xq4Q==}
@@ -571,6 +613,12 @@ packages:
 
   '@fontsource/space-mono@5.3.0':
     resolution: {integrity: sha512-FrpBMOVWn3PRdRHlrZWC55X3kZG/2BTH7SM5ZyS/bky3iKya2BturI5lk+t0RoDQL2JyHzURsVq/EisCsxpI5A==}
+
+  '@fontsource/syne@5.3.0':
+    resolution: {integrity: sha512-kRWNVsrdYw+08I4EM1SYPe2JovdTzUI0kMVALVRsKmjRdkrVoun1qddSlDAglz5J9LbgUpJSkWmw6BYnmKdGuw==}
+
+  '@fontsource/unbounded@5.3.0':
+    resolution: {integrity: sha512-pPD6hsTnjoQRr6pCsqMHbHBfauB4LZygCNQEUJHu+CO2wzDFHqELEFSG7sTwo5Z5Gr4q3OK0fIILOXBJDv6lcw==}
 
   '@hono/node-server@2.1.5':
     resolution: {integrity: sha512-MgP/I06GdvsilDspMk/qmRzpk8LOUStP6jFAbSRi40W09DhoyUn+Mj7eyKICPqeYKybOjVFLVIAQzvu1bfIa7Q==}
@@ -4780,7 +4828,11 @@ snapshots:
 
   '@floating-ui/utils@0.2.12': {}
 
+  '@fontsource/archivo@5.3.0': {}
+
   '@fontsource/atkinson-hyperlegible@5.3.0': {}
+
+  '@fontsource/bricolage-grotesque@5.3.0': {}
 
   '@fontsource/cormorant-garamond@5.3.0': {}
 
@@ -4790,7 +4842,13 @@ snapshots:
 
   '@fontsource/eb-garamond@5.3.0': {}
 
+  '@fontsource/familjen-grotesk@5.3.0': {}
+
+  '@fontsource/fraunces@5.3.0': {}
+
   '@fontsource/ibm-plex-sans@5.3.0': {}
+
+  '@fontsource/instrument-serif@5.3.0': {}
 
   '@fontsource/inter@5.3.0': {}
 
@@ -4801,6 +4859,8 @@ snapshots:
   '@fontsource/merriweather@5.3.0': {}
 
   '@fontsource/montserrat@5.3.0': {}
+
+  '@fontsource/newsreader@5.3.0': {}
 
   '@fontsource/nunito@5.3.0': {}
 
@@ -4823,6 +4883,10 @@ snapshots:
   '@fontsource/space-grotesk@5.3.0': {}
 
   '@fontsource/space-mono@5.3.0': {}
+
+  '@fontsource/syne@5.3.0': {}
+
+  '@fontsource/unbounded@5.3.0': {}
 
   '@hono/node-server@2.1.5(hono@4.13.14)':
     dependencies:

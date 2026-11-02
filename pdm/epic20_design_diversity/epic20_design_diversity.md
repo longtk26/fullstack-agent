@@ -78,7 +78,7 @@ Measured targets (the diversity report, `scripts/design-diversity.*`, on the gol
 
 | Measure | How | Target |
 |---|---|---|
-| Directions within a draft | difference test fields + greyscale screenshot similarity of the three home pages at 1440 px | 100% of drafts pass the difference test; screenshot similarity below the threshold set from the baseline |
+| Directions within a draft | difference test fields + greyscale screenshot similarity of the three home pages at 1440 px | 100% of drafts pass the difference test; first-screen similarity mean ≤ 0.90 and max ≤ 0.95 (baseline 0.964 / 0.997, set at Checkpoint A) |
 | Same brief, 5 drafts | distinct (hero layout, heading font, hue family) triples across the 15 directions | ≥ 10 distinct (baseline expected ≤ 3) |
 | Paired domains (clinic / pharmacy, spa / gym, bakery / coffee shop, law firm / accountant) | the first directions of each pair | differ in ≥ 2 of the 4 visual fields |
 | Category trope | home order of the three directions | ≥ 1 of 3 off the category default |
@@ -233,3 +233,29 @@ can show), draft time and cost added, and screenshots of the three directions pe
 | Q23 | Add Phosphor to the pinned base (a second icon package), or only vary Lucide's stroke width and treatment? | Add Phosphor: its weights give the thin / filled / duotone looks Lucide cannot |
 | Q24 | Keep the `vertical` hero layout (rotated display label), or stop at seven? | Keep it, display label only, never body text |
 | Q25 | One click (19.10): apply the first direction, or the one the engine ranks best for the requirement? | The engine's best fit first; the other two as alternatives |
+
+## Status
+
+**Checkpoint A (2026-11-02): baseline recorded** (story 20.1; `make design-diversity ARGS="--screenshots"`, fake
+engine, today's code before Phase B; report `.data/reports/design-diversity/20261102-073534/`).
+
+| Measure | Baseline | Target |
+|---|---|---|
+| Drafts passing the difference test | 0 of 12 (every draft: directions share hue family and key visual; spa directions 1 and 2 share font too) | all |
+| Same brief (5 spa drafts): distinct (hero, heading font, hue) | 3 of 15 directions (the five drafts are identical) | ≥ 10 |
+| Paired domains with ≥ 2 differing fields | 4 of 4 (the categories pick different palettes and fonts) | 4 of 4 |
+| Drafts whose 3 directions all follow the category default order | 0.58 | 0 (every draft has ≥ 1 direction off it) |
+| First-screen similarity within a draft (greyscale, 1440 px) | mean 0.964, max 0.997 | mean ≤ 0.90, max ≤ 0.95 |
+| Section frequency / home-composition Jaccard / repeated copy | 1.0 for every section type; 1.0; 4 lines in all 8 sites | real engine only (fake drafts copy one example) |
+
+Reading: within a draft the three directions differ only in hero layout (and sometimes the font); the palette always
+comes from one product row, so the hue and key visual never change, and the first screens are 96% alike. Across
+drafts of one brief nothing changes at all.
+
+**Checkpoint B (2026-11-02): renderer range** (stories 20.2, 20.3, 20.8). The library can now draw 8 hero layouts,
+4 + 3 + 3 forms of Features, Testimonials and Stats, 3 page rhythms, 7 new content sections (18 forms), 6 tone tokens
+and 30 fonts; a FrontendSpec without the new fields plans exactly as before. Measured with the new
+`make design-check-fixture`: the section-library fixture (18 pages) in the 5 presets and in 6 tone, font and preset
+combinations, 390 / 768 / 1440 px, light and dark: 1,188 views, 0 checklist failures (`.data/shots/phaseB-*`). The
+diversity report is unchanged by Phase B on purpose: directions still come from 12.6's lookup until 20.4 uses the
+new range. Screenshots for review: `.data/shots/phaseB-combos/<combo>/layouts-*-1440-light.png` and `new-*`.

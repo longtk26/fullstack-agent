@@ -82,7 +82,7 @@ lane, tracing, results, and an OpenAPI explorer that sends test calls to the run
 | 17 | [Fast generation: section renderer, component cache, templated CRUD](epic17_fast_generation/epic17_fast_generation.md) | Phase 7 | 6 |
 | 18 | [Generation speed: fail fast, run in parallel, cache the slow builds](epic18_generation_speed/epic18_generation_speed.md) | Phase 7 | 9 |
 | 19 | [Real photos and API-driven dynamic apps](epic19_photos_and_live_apps/epic19_photos_and_live_apps.md) | Phase 7 | 10 |
-| 20 | [Design diversity: distinct directions, icons and motion](epic20_design_diversity/epic20_design_diversity.md) (draft, in review) | Phase 7 | 9 |
+| 20 | [Design diversity: distinct directions, icons and motion](epic20_design_diversity/epic20_design_diversity.md) (in progress) | Phase 7 | 9 |
 
 ### Suggested delivery order
 
@@ -109,7 +109,7 @@ workflow to be built before real generation works.
 9. **Re-planned 2026-10-30 (requirement first, then E15 and E16):** 2.4 + 12.4 + 9.2 Requirement tab + 9.7b
    (plain text, `.md` or `.txt` for backend, static and dynamic) → 17.7 (fonts, variants, design checklist) → 12.6
    (design direction from UI UX Pro Max data) → E15 → E16 → 17.8 → E10 → E11.
-10. **Planned 2026-11-02 (draft, in review):** E20 (design diversity: distinct directions, icons, motion) before
+10. **Planned 2026-11-02 (agreed):** E20 (design diversity: distinct directions, icons, motion) before
    E16; E16 is then revised to edit the new theme fields and to offer "try another direction" as a spec edit.
    Research: [docs/research/design-diversity.md](../docs/research/design-diversity.md).
 
@@ -127,7 +127,8 @@ workflow to be built before real generation works.
 | 17 | 17.5, 17.1, 17.2, 17.4, 17.3, 17.6 done (auto-fix, shared node_modules; typed content and layout nodes; static sites ~44 s and dynamic frontends rendered without the engine; parallel custom components & component cache; backend CRUD from templates, dynamic shop 59 s with 0 engine calls); 17.7 done 2026-10-30 (22 bundled fonts, section variants, design checklist); 17.8 (custom component layout, found on the first cached shop run) open |
 | 2.4 | done 2026-10-30 (requirement drafting for backend, static and dynamic; with 12.4, 9.2 Requirement tab, 9.7b) |
 | 15 | 15.1–15.4 done 2026-10-30 (drawn SVGs, asset checks with placeholder fallback, uploads and links); 15.5 only if asked |
-| 10, 11, 16 | open |
+| 20 | Checkpoints A and B done 2026-11-02 (diversity report and baseline; hero layouts, section forms, rhythm, tone tokens, 30 fonts, seven new sections); 20.4 next |
+| 10, 11, 16 | open (16 to be revised after Epic 20) |
 
 ### Next up (re-planned 2026-10-30)
 

@@ -258,6 +258,8 @@ class _Planner:
                     "sections": [self.section(page, section) for section in page["sections"]],
                 }
             )
+            if page.get("rhythm", "uniform") != "uniform":
+                routes[-1]["rhythm"] = page["rhythm"]  # Story 20.2; absent for the default, so old plans stay equal
         return routes
 
     # -- components ---------------------------------------------------------------------------------------------

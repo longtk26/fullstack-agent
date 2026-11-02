@@ -8,22 +8,28 @@ sections in `children`; nesting is at most `MAX_DEPTH` section levels (decision 
 
 Variants (Story 17.7) pick a look per section: a background for content sections, a layout for the hero and a card
 style for list sections. They only switch between theme tokens, so every look follows the preset and light/dark.
+Story 20.2 adds five hero layouts and section forms (`form`: how a list section lays out its items), so directions
+differ in structure, not only in colour.
 """
 
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import ConfigDict, Field, model_validator
 
 from src.modules.shared.domain.backend_spec.schema_v1 import SpecModel
 
 IMAGE = r"^(asset:[a-z][a-z0-9-]*|https://\S+)$"
+Image = Annotated[str, Field(pattern=IMAGE)]
 LINK = r"^(https?://|mailto:|tel:|/)"
 MAX_DEPTH = 3
 Columns = Literal[2, 3, 4]
 Gap = Literal["sm", "md", "lg"]
 Background = Literal["default", "muted", "primary", "image"]
 CardStyle = Literal["outline", "filled", "plain"]
-HeroVariant = Literal["split", "centered", "banner"]
+HeroVariant = Literal["split", "centered", "banner", "stage", "type", "stacked", "collage", "vertical"]
+FeaturesForm = Literal["cards", "list", "ledger", "alternating"]
+TestimonialsForm = Literal["cards", "quote", "strip"]
+StatsForm = Literal["cards", "figures", "inline"]
 
 
 class Props(SpecModel):
@@ -61,6 +67,7 @@ class Surface(Props):
 class FeatureItem(Props):
     title: str = Field(min_length=1, max_length=120)
     body: str | None = Field(default=None, max_length=600)
+    image: str | None = Field(default=None, pattern=IMAGE)  # shown by the `alternating` form
 
 
 class TestimonialItem(Props):
@@ -147,11 +154,15 @@ class GalleryItem(Props):
 
 
 class HeroProps(Surface):
-    variant: HeroVariant = "split"  # split: text beside the image; centered; banner: full width, image behind
+    # split: text beside the image; centered: one sentence in wide space; banner: full width, image behind; stage:
+    # the image is the first screen, the text on its lower edge; type: an oversized headline, no image; stacked: a
+    # full-width headline over a wide image; collage: headline and 3-4 images in a grid; vertical: a rotated label.
+    variant: HeroVariant = "split"
     heading: str = Field(min_length=1, max_length=160)
     eyebrow: str | None = Field(default=None, max_length=60)
     body: str | None = Field(default=None, max_length=600)
     image: str | None = Field(default=None, pattern=IMAGE)
+    images: list[Image] | None = Field(default=None, max_length=4)  # the `collage` layout (with `image` first)
     cta: Cta | None = None
     secondary_cta: Cta | None = None
 
@@ -162,6 +173,9 @@ class FeaturesProps(Surface):
     items: list[FeatureItem] | None = Field(default=None, max_length=24)
     columns: Columns | None = None
     card_style: CardStyle = "outline"
+    # cards: a grid of cards; list: numbered rows; ledger: hairline rows, title left, text right; alternating: rows of
+    # image and text on alternating sides (items need `image`, otherwise `list`).
+    form: FeaturesForm = "cards"
 
 
 class CallToActionProps(Surface):
@@ -175,6 +189,7 @@ class TestimonialsProps(Surface):
     title: str | None = None
     items: list[TestimonialItem] | None = Field(default=None, max_length=24)
     card_style: CardStyle = "outline"
+    form: TestimonialsForm = "cards"  # cards; quote: the first as one large quote, the rest below; strip: one row
 
 
 class FaqProps(Surface):
@@ -193,6 +208,7 @@ class StatsProps(Surface):
     title: str | None = None
     items: list[StatItem] | None = Field(default=None, max_length=12)
     card_style: CardStyle = "outline"
+    form: StatsForm = "cards"  # cards; figures: large numbers without boxes; inline: one line with dividers
 
 
 class GalleryProps(Surface):
@@ -220,6 +236,129 @@ class ContactInfoProps(Surface):
         return self
 
 
+# -- content sections of Story 20.8: what businesses really have (steps, history, people, prices, a place) ----------
+
+
+class StepItem(Props):
+    title: str = Field(min_length=1, max_length=120)
+    body: str | None = Field(default=None, max_length=600)
+
+
+class StepsProps(Surface):
+    """How booking, ordering or a service works, step by step."""
+
+    title: str | None = None
+    description: str | None = None
+    items: list[StepItem] | None = Field(default=None, max_length=8)
+    form: Literal["numbered", "horizontal", "connected"] = "numbered"
+
+
+class TimelineItem(Props):
+    date: str = Field(min_length=1, max_length=40)
+    title: str = Field(min_length=1, max_length=120)
+    body: str | None = Field(default=None, max_length=600)
+    image: str | None = Field(default=None, pattern=IMAGE)
+
+
+class TimelineProps(Surface):
+    """A story over time: history, milestones, an event programme."""
+
+    title: str | None = None
+    description: str | None = None
+    items: list[TimelineItem] | None = Field(default=None, max_length=24)
+    form: Literal["vertical", "alternating"] = "vertical"
+
+
+class TeamMember(Props):
+    name: str = Field(min_length=1, max_length=120)
+    role: str | None = Field(default=None, max_length=120)
+    bio: str | None = Field(default=None, max_length=400)
+    image: str | None = Field(default=None, pattern=IMAGE)
+
+
+class TeamProps(Surface):
+    """The people of a studio, clinic, firm or school."""
+
+    title: str | None = None
+    description: str | None = None
+    items: list[TeamMember] | None = Field(default=None, max_length=24)
+    form: Literal["grid", "list", "portraits"] = "grid"
+
+
+class PriceItem(Props):
+    name: str = Field(min_length=1, max_length=120)
+    price: str | int | float | None = None
+    description: str | None = Field(default=None, max_length=300)
+    tags: list[str] = Field(default=[], max_length=4)
+
+
+class PriceGroup(Props):
+    title: str | None = Field(default=None, max_length=120)
+    items: list[PriceItem] = Field(min_length=1, max_length=40)
+
+
+class PriceListProps(Surface):
+    """A menu or a price list, in groups (breads, pastries; cuts, colour)."""
+
+    title: str | None = None
+    description: str | None = None
+    groups: list[PriceGroup] = Field(min_length=1, max_length=12)
+    form: Literal["menu", "columns", "cards"] = "menu"
+
+
+class OpeningHours(Props):
+    days: str = Field(min_length=1, max_length=40)  # "Mon–Fri", "Sat, Sun", "Daily"
+    opens: str | None = Field(default=None, max_length=20)
+    closes: str | None = Field(default=None, max_length=20)
+    note: str | None = Field(default=None, max_length=60)  # "closed", "by appointment"
+
+
+class LocationProps(Surface):
+    """Where to find a place and when it is open; a link to a map, never an embedded one."""
+
+    title: str | None = None
+    address: str = Field(min_length=1, max_length=300)
+    hours: list[OpeningHours] = Field(default=[], max_length=10)
+    phone: str | None = Field(default=None, max_length=40)
+    email: str | None = Field(default=None, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+    map_link: str | None = Field(default=None, pattern=r"^https://")
+    image: str | None = Field(default=None, pattern=IMAGE)
+    form: Literal["split", "card", "band"] = "split"
+
+
+class ComparisonRow(Props):
+    label: str = Field(min_length=1, max_length=120)
+    values: list[str | bool] = Field(min_length=2, max_length=4)
+
+
+class ComparisonProps(Surface):
+    """Options side by side: plans, packages, before and after."""
+
+    title: str | None = None
+    description: str | None = None
+    columns: list[str] = Field(min_length=2, max_length=4)
+    rows: list[ComparisonRow] = Field(min_length=1, max_length=30)
+    form: Literal["table", "cards"] = "table"
+
+    @model_validator(mode="after")
+    def _one_value_per_column(self):
+        for index, row in enumerate(self.rows):
+            if len(row.values) != len(self.columns):
+                raise ValueError(
+                    f"row {index} ('{row.label}') has {len(row.values)} values for {len(self.columns)} columns"
+                )
+        return self
+
+
+class StatementProps(Surface):
+    """What the business stands for, or one real quote, set large."""
+
+    text: str = Field(min_length=1, max_length=280)
+    attribution: str | None = Field(default=None, max_length=120)
+    image: str | None = Field(default=None, pattern=IMAGE)
+    form: Literal["large", "quote", "band"] = "large"
+
+
 class DataSectionProps(Props):
     """CardGrid, DataTable, DetailView, List: the records come from `data`; content only titles the section."""
 
@@ -231,6 +370,7 @@ class DataSectionProps(Props):
 
 class CardGridProps(DataSectionProps):
     card_style: CardStyle = "outline"
+    featured: bool = False  # the first record spans two columns
 
 
 class ActionBarProps(Props):
@@ -280,6 +420,13 @@ SECTION_PROPS: dict[str, type[Props]] = {
     "Gallery": GalleryProps,
     "RichText": RichTextProps,
     "ContactInfo": ContactInfoProps,
+    "Steps": StepsProps,
+    "Timeline": TimelineProps,
+    "Team": TeamProps,
+    "PriceList": PriceListProps,
+    "Location": LocationProps,
+    "Comparison": ComparisonProps,
+    "Statement": StatementProps,
     "Form": FormProps,
     "CardGrid": CardGridProps,
     "DataTable": DataSectionProps,
@@ -298,5 +445,8 @@ SECTION_ITEMS: dict[str, type[Props]] = {
     "Pricing": PlanItem,
     "Stats": StatItem,
     "Gallery": GalleryItem,
+    "Steps": StepItem,
+    "Timeline": TimelineItem,
+    "Team": TeamMember,
 }
 LAYOUT_SECTIONS = frozenset({"Columns", "Stack", "Grid", "Tabs"})

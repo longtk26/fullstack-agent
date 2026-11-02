@@ -58,11 +58,11 @@ similar colours still feel different.
 
 ## Acceptance criteria
 
-- [ ] The tokens exist, are optional, are drawn by CSS variables, and existing specs render unchanged.
-- [ ] `tone_tokens` maps the five scales to tokens, identically in Python and the UI.
-- [ ] One anchor section per page with `colorArea` `block` / `bold`, keeping contrast and one accent.
-- [ ] 6–8 new faces are bundled and load offline; the editor lists them.
-- [ ] `design-check.mjs`: no rule fails for the fixture in at least 6 token combinations (raw-loud, refined-quiet,
+- [x] The tokens exist, are optional, are drawn by CSS variables, and existing specs render unchanged.
+- [x] `tone_tokens` maps the five scales to tokens (Python only; the UI needs no mirror, see deviations).
+- [x] One anchor section per page with `colorArea` `block` / `bold`, keeping contrast and one accent.
+- [x] 6–8 new faces are bundled and load offline; the editor lists them.
+- [x] `design-check.mjs`: no rule fails for the fixture in at least 6 token combinations (raw-loud, refined-quiet,
       dense-serious, …); screenshots in the Status note.
 
 ## Verify
@@ -71,3 +71,34 @@ similar colours still feel different.
 `BGA_SANDBOX_TESTS=1 make test`, `node scripts/design-check.mjs`, `cd agent-ui && pnpm exec tsc --noEmit && pnpm lint`.
 
 ## Status
+
+**Done (2026-11-02)**, on `feat/epic20-design-diversity`.
+
+- **Tokens** (`schema_v1.py`, optional): `surface` (`flat` / `outline` / `raised`), `colorArea` (`minimal` / `block`
+  / `bold`), `typography.headingWeight` (400–700, the loaded weights), `headingCase` (`normal` / `upper`),
+  `tracking` (`tight` / `normal` / `wide`), `ratio` (`tight` / `default` / `dramatic`).
+- **Drawn by** `frontend_theme.py`: a `heading` utility (`--heading-weight` 600, `--heading-tracking` −0.025em,
+  `--heading-case`) on hero and section headings (h1, h2 only); `ratio` overrides the display steps (`--text-2xl` …
+  `--text-9xl`); `surface` adds unlayered card rules (`flat`: no ring; `raised`: soft shadow; `filled` / `plain`
+  cards keep their look); `colorArea` is applied per page in `site.json` (`color_roles`: `minimal` mutes CTA
+  panels, `block` makes one anchor section primary, `bold` also the hero; named backgrounds are kept). The built
+  theme carries `tokens` only when set, so plans of existing specs are unchanged.
+- **Tone → tokens:** `orchestrator/design_tone.py` (`tone_tokens`, `apply_tone`; the table in its docstring),
+  `tests/test_design_tone.py`.
+- **Fonts:** Fraunces, Instrument Serif (400 only), Newsreader, Bricolage Grotesque, Syne, Archivo, Unbounded,
+  Familjen Grotesk (OFL, `@fontsource` 5.3.0, exact pins), added with `pnpm add -E --lockfile-only` in node:22 (only
+  the eight font entries changed in the lock), `overlay.json` regenerated, `make runner-node` rebuilt. 30 fonts.
+- **Wide faces:** found by the combinations: Unbounded in capitals and Syne wrapped hero headlines to 3–4 lines.
+  Each font now has a rough `width` against Inter; `display_scale` (width × capitals × tracking, floor 0.6, never
+  above 1) shrinks the hero sizes, written as `--hero-<step>` and used by `headlineClass` / `displayClass` with
+  Tailwind's line heights, so faces of normal width keep today's exact sizes.
+- **Verification:** `make test` and `make lint` as in 20.2; `make design-check-fixture ARGS="--combos"`: six
+  combinations (raw-loud: Unbounded / Archivo, refined-quiet: Fraunces / Newsreader, dense-serious: Familjen
+  Grotesk / Source Sans 3, playful-bold: Bricolage Grotesque / DM Sans, light-airy: Instrument Serif / Inter,
+  heavy-refined: Syne / Inter) × 18 pages × 3 widths × 2 schemes = 648 views, 0 failures, every font `loaded`
+  (`.data/shots/phaseB-combos/`).
+- **Deviations:**
+  - No UI mirror of `tone_tokens`: the UI applies direction cards whose theme the server already filled (20.4), so
+    it never maps a tone itself; the mapping lives in one place.
+  - `headingWeight` stops at 700 (the weights the library loads), not 800.
+  - The token names are final as listed; "section spacing" from density stays the existing `density` token.

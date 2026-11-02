@@ -4,19 +4,21 @@ The rules every section and variant in `files/renderer` (and the shared `files/c
 site built from the FrontendSpec without the engine looks designed in every theme preset, light and dark. They come
 from Taste Skill's page rules (MIT, see `docs/research/design-skills.md`), used as rules only.
 
-How it is checked: the unit tests (`tests/test_fonts_and_variants.py`) cover what the generator controls (fonts,
-dark-mode colours, variant typing, the headline length warning); `scripts/design-check.mjs` measures a built site
-at 390 / 768 / 1440 px, light and dark (the section-library fixture in every preset, screenshots under
-`.data/shots/story17.7/`). Re-run it when a section or variant changes.
+How it is checked: the unit tests (`tests/test_fonts_and_variants.py`, `tests/test_design_tone.py`) cover what the
+generator controls (fonts, dark-mode colours, variant typing, the headline length warning, tone tokens);
+`scripts/design-check.mjs` measures a built site at 390 / 768 / 1440 px, light and dark. `make design-check-fixture`
+builds the section-library fixture in every preset (`ARGS="--combos"`: in six tone, font and preset combinations,
+Story 20.3) and checks the measured rules below; screenshots under `.data/shots/`. Re-run it when a section or
+variant changes.
 
 | Rule | How the library keeps it | Measured (fixture, 5 presets × 6 pages × 3 widths × 2 schemes) |
 |---|---|---|
 | One accent per page | `primary` is the only accent colour (eyebrows, icons, highlighted plan, buttons). The `accent` token is only shadcn's hover tint | by review |
 | One radius system | Every corner is a `rounded-*` step derived from the theme's `--radius` (`globals.css`); no fixed pixel radii | by review |
 | Two font families at most | `--font-display` (headings) and `--font-body`; both from the theme, loaded from `@fontsource` | the theme's 1–2 families in every view, and the same families report `loaded` in `document.fonts` |
-| Five type sizes at most per page | `text-sm`, `text-base`, `text-lg`, `text-2xl` and one hero size (`headlineClass`); stats and prices use `text-2xl` | 4–5 per view (the hero is the only size that changes with the width: 24–60 px) |
+| Five type sizes at most per page | `text-sm`, `text-base`, `text-lg`, `text-2xl` and one hero size (`headlineClass` / `displayClass`); stats, figures, prices, statements and the vertical hero label use `text-2xl` or the hero's size | 4–5 per view (the hero is the only size that changes with the width: 24–60 px) |
 | Body line length 45–75 characters | Paragraphs are `max-w-prose` (65ch) | ≤ 75 everywhere (longest 41 in the fixture's copy); see deviations for the 45 minimum |
-| Hero headline two lines at most at 390 / 768 / 1440 px | `headlineClass` sizes the headline by length; the validator warns above 50 characters (`FE_DESIGN_RULE`) | 1–2 lines in every view; 42–52-character headlines in Poppins and Playfair Display also stay at 2 |
+| Hero headline two lines at most at 390 / 768 / 1440 px | `headlineClass` sizes the headline by length; wide faces and capitals shrink the hero sizes (`--hero-<step>`, `display_scale` from `Font.width`, case and tracking, Story 20.3); the validator warns above 50 characters (`FE_DESIGN_RULE`) | 1–2 lines in every view; 42–52-character headlines in Poppins and Playfair Display also stay at 2 |
 | Primary CTA above the fold | The hero's first link is its primary CTA | above the fold in every view |
 | Nav ≤ 80 px | Header `h-16` (64 px), one line; the menu collapses below `md` | 65 px |
 | Off-black / off-white in dark mode | `frontend_theme.py` clamps the dark palette to `#0a0a0a` / `#fafafa` | body `#0a0a0a`…`#14122f` (tinted per preset) with `#fafafa` / `#f8fafc` text; never `#000` / `#fff` |
@@ -30,6 +32,27 @@ at 390 / 768 / 1440 px, light and dark (the section-library fixture in every pre
 | `variant` | Hero | `split` (text beside the image from 1024 px), `centered`, `banner` (full width; the image behind the text, or the primary colour) |
 | `cardStyle` | Features, Testimonials, Pricing, Stats, CardGrid | `outline` (shadcn card), `filled` (muted surface, no outline), `plain` (no surface) |
 | `background` on CallToAction | the panel | `primary` by default, `default` = outlined panel |
+| `variant` (Story 20.2) | Hero | also `stage` (the image is the first screen, text on its lower edge), `type` (oversized headline, `displayClass`, no image), `stacked` (full-width headline, text and actions in a row, wide image), `collage` (text beside 2–4 images; fewer → `split`, validator warning), `vertical` (the eyebrow as a rotated label at the headline's size, horizontal on phones) |
+| `form` (Story 20.2) | Features, Testimonials, Stats | Features `cards` / `list` (numbered rows) / `ledger` (hairline rows) / `alternating` (image and text rows; without item images → `list`, validator warning); Testimonials `cards` / `quote` / `strip` (a keyboard-scrollable row); Stats `cards` / `figures` (no boxes, accent rule) / `inline` |
+| `featured` (Story 20.2) | CardGrid | the first record spans two columns from 640 px |
+| `rhythm` (Story 20.2) | a page | `uniform`; `alternate` (sections without a background alternate page colour and muted, written into `site.json`); `dividers` (a hairline between sections) |
+| `form` (Story 20.8) | Steps, Timeline, Team, PriceList, Location, Comparison, Statement | Steps `numbered` / `horizontal` / `connected`; Timeline `vertical` / `alternating`; Team `grid` / `list` / `portraits`; PriceList `menu` / `columns` / `cards`; Location `split` / `card` / `band`; Comparison `table` (scrolls sideways in a focusable region) / `cards`; Statement `large` / `quote` / `band` |
+
+## Tone tokens (Story 20.3)
+
+Optional theme fields; without them a site looks as before. `orchestrator/design_tone.py` maps a direction's five
+tone scales to them (the table is in its docstring).
+
+| Token | Drawn as |
+|---|---|
+| `typography.headingWeight`, `headingCase`, `tracking` | the `heading` utility (`globals.css`) on hero and section headings: `--heading-weight` (600), `--heading-tracking` (−0.025em; `wide` with capitals), `--heading-case`. Capitals only on display headings (h1, h2), never on statements or body text |
+| `typography.ratio` | the display steps of the type scale (`--text-2xl` … `--text-9xl` in `@theme`) and the hero sizes: `tight` smaller, `dramatic` larger |
+| `surface` | cards: `outline` (shadcn's hairline ring), `flat` (no ring, no shadow), `raised` (soft shadow instead of the ring); unlayered rules in `globals.css`, the `filled` and `plain` card styles keep their own look |
+| `colorArea` | `site.json` per page: `minimal` (call-to-action panels muted, colour on buttons), `block` (one anchor section in the primary colour: the first call to action, else the last content section), `bold` (also the hero). Sections that name a background keep it |
+
+Fonts: eight faces with more character joined the set (Fraunces, Instrument Serif, Newsreader, Bricolage Grotesque,
+Syne, Archivo, Unbounded, Familjen Grotesk; OFL). Each bundled font has a rough `width` against Inter; wide faces
+(Unbounded, Syne, Montserrat, the monospace faces) shrink the hero sizes so headlines keep to two lines.
 
 ## Deviations
 
@@ -38,6 +61,11 @@ at 390 / 768 / 1440 px, light and dark (the section-library fixture in every pre
 - **shadcn primitives keep their own motion and chips:** the pinned base's button (`transition-all`), accordion and
   sheet animations are not edited (they belong to the base, `make frontend-base`). The library's own badges use the
   `text-sm` step instead of the primitive's 12 px so a page stays at five sizes.
+- **Figures and statements stay at `text-2xl` (Story 20.2, 20.8):** a larger number or statement would add a sixth
+  size on pages with a hero; they differ from cards by structure (no boxes, an accent rule, the heading face and
+  weight), not by size. Measured: the first figures draft at `text-5xl` gave 6 sizes on the stage page at 1440 px.
+- **The `type` hero is not cropped at the edge:** cropping display type hurts reading on phones; it is set as large
+  as the two-line rule allows instead.
 - **Image backgrounds are faint until Epic 15:** placeholder assets are pale gradients, so `background: "image"` and
   the banner's backdrop barely show under the scrim. Real images (Epic 15) make them visible; the scrim keeps text
   readable either way.

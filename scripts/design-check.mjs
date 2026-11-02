@@ -5,12 +5,16 @@
 //
 // For every page at 390 / 768 / 1440 px, light and dark: a full-page screenshot and the measurements below, written
 // to <shots-dir>/report.json. Dev tool only; not part of the generation pipeline.
+// DESIGN_CHECK_WIDTHS / DESIGN_CHECK_SCHEMES (comma-separated) narrow the views, e.g. the diversity report (Story 20.1)
+// takes only 1440 / light. Pages load with reduced motion, so screenshots show every element in its final state.
 import { mkdirSync, writeFileSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { chromium } from "@playwright/test";
 
 const [shots = "shots", ...routes] = process.argv.slice(2);
-const WIDTHS = [390, 768, 1440];
+const list = (value, fallback) => (value ? value.split(",").map((item) => item.trim()) : fallback);
+const WIDTHS = list(process.env.DESIGN_CHECK_WIDTHS, ["390", "768", "1440"]).map(Number);
+const SCHEMES = list(process.env.DESIGN_CHECK_SCHEMES, ["light", "dark"]);
 const PORT = 3199;
 mkdirSync(shots, { recursive: true });
 
@@ -59,9 +63,13 @@ function measure() {
 const browser = await chromium.launch();
 const report = {};
 try {
-  for (const scheme of ["light", "dark"]) {
+  for (const scheme of SCHEMES) {
     for (const width of WIDTHS) {
-      const page = await browser.newPage({ viewport: { width, height: 900 }, colorScheme: scheme });
+      const page = await browser.newPage({
+        viewport: { width, height: 900 },
+        colorScheme: scheme,
+        reducedMotion: "reduce",
+      });
       for (const route of routes) {
         await page.goto(`http://127.0.0.1:${PORT}${route}`, { waitUntil: "networkidle" });
         await page.evaluate(() => document.fonts.ready);

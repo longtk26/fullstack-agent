@@ -15,8 +15,13 @@ export function PageRenderer({ pageId }: PageRendererProps) {
   if (!page) notFound();
   return (
     <>
-      {page.sections.map((section) => (
-        <SectionRenderer key={section.id} pageId={pageId} section={section} />
+      {page.sections.map((section, index) => (
+        <SectionRenderer
+          key={section.id}
+          pageId={pageId}
+          section={section}
+          divider={page.rhythm === "dividers" && index > 0}
+        />
       ))}
     </>
   );

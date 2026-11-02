@@ -54,11 +54,11 @@ more varied without making them worse.
 
 ## Acceptance criteria
 
-- [ ] The golden diversity set exists with its pairs.
-- [ ] `make design-diversity` produces `report.json` and `report.md` with every measure of the epic's table; with
+- [x] The golden diversity set exists with its pairs.
+- [x] `make design-diversity` produces `report.json` and `report.md` with every measure of the epic's table; with
       `--screenshots` it adds the greyscale similarity and keeps the screenshots.
-- [ ] The measures are unit tested.
-- [ ] Today's baseline is recorded in the epic's Status note, and the similarity threshold is written into the epic.
+- [x] The measures are unit tested.
+- [x] Today's baseline is recorded in the epic's Status note, and the similarity threshold is written into the epic.
 
 ## Verify
 
@@ -66,3 +66,29 @@ more varied without making them worse.
 (`make up` running, runner images built).
 
 ## Status
+
+**Done (2026-11-02)**, on `feat/epic20-design-diversity`.
+
+- **Golden set:** `examples/requirements/diversity/` (spa, gym, clinic, pharmacy, bakery, coffee shop, law firm,
+  accountant; no brand colours or fonts) with `manifest.json` (`sameBrief: spa`, four pairs) and a README.
+- **Measures:** `agent-api/src/orchestrator/design_diversity.py` (pure functions): `visual_fields` (hero layout,
+  heading font, hue family in 30° buckets or `neutral`, key visual: photo / illustration / image / type / none),
+  `difference_problems` (the epic's D3 rule), `off_default`, `distinct_triples`, `pair_distance`,
+  `section_frequency`, `jaccard`, `repeated_copy`, `first_screen` + `image_similarity` (greyscale 64 × 40 of the top
+  1440 × 900 px). Unit tests: `tests/test_design_diversity.py` (17).
+- **Report:** `agent-api/scripts/design_diversity.py`, `make design-diversity [ARGS=...]`. Drafts run in-process
+  through the worker's `DraftRunner` against the dev database (owner: the first user; rows deleted afterwards),
+  with AI photos and LangSmith off. `--screenshots` builds each direction of every requirement's first draft with
+  the renderer (`scripts/site_check.py`, shared with the fixture check of 20.2) and runs `design-check.mjs` at 1440
+  px light; 24 builds in ~4 min. `--engine <name>` uses the worker's engine registry (real engines only with the
+  user's yes). `design-check.mjs` gained `DESIGN_CHECK_WIDTHS` / `DESIGN_CHECK_SCHEMES` and loads pages with reduced
+  motion. How to run: `docs/development/design-checks.md`.
+- **Baseline:** in the epic's Status note.
+- **Deviations:**
+  - The script lives in `agent-api/scripts/` (run as `python -m scripts.design_diversity`, it imports the agent's
+    code), not in the repository's `scripts/`.
+  - Threshold: not "halfway between today's mean and 0.5" but mean ≤ 0.90 and max ≤ 0.95. Light pages share a
+    large light background, so two very different layouts still score about 0.85–0.9; a 0.73 target would demand
+    dark or colour-blocked pages. Revisit at Checkpoint C with real direction cards.
+  - The category default order is the best UI UX Pro Max match's landing pattern (`home_order`), and "off default"
+    compares the first three sections the page has.

@@ -137,6 +137,7 @@ type Page = {
   title: string;
   purpose?: string | null;
   seo?: Seo | null;
+  rhythm?: "uniform" | "alternate" | "dividers";
   sections: Section[];
 };
 
@@ -177,6 +178,8 @@ type Theme = {
   typography?: Typography;
   radius?: "none" | "sm" | "md" | "lg" | "full" | null;
   density?: "compact" | "comfortable" | null;
+  surface?: "flat" | "outline" | "raised" | null;
+  colorArea?: "minimal" | "block" | "bold" | null;
   direction?: ThemeDirection | null;
 };
 
@@ -204,6 +207,10 @@ type Typography = {
   headingFont?: string | null;
   bodyFont?: string | null;
   scale?: "compact" | "default" | "large";
+  headingWeight?: 400 | 500 | 600 | 700 | null;
+  headingCase?: "normal" | "upper" | null;
+  tracking?: "tight" | "normal" | "wide" | null;
+  ratio?: "tight" | "default" | "dramatic" | null;
 };
 
 type ActionOnSuccess = {
@@ -239,11 +246,12 @@ type Cta = {
 type HeroProps = {
   background?: "default" | "muted" | "primary" | "image";
   backgroundImage?: string | null;
-  variant?: "split" | "centered" | "banner";
+  variant?: "split" | "centered" | "banner" | "stage" | "type" | "stacked" | "collage" | "vertical";
   heading: string;
   eyebrow?: string | null;
   body?: string | null;
   image?: string | null;
+  images?: string[] | null;
   cta?: Cta | null;
   secondaryCta?: Cta | null;
 };
@@ -251,6 +259,7 @@ type HeroProps = {
 type FeatureItem = {
   title: string;
   body?: string | null;
+  image?: string | null;
 };
 
 type FeaturesProps = {
@@ -261,6 +270,7 @@ type FeaturesProps = {
   items?: FeatureItem[] | null;
   columns?: 2 | 3 | 4 | null;
   cardStyle?: "outline" | "filled" | "plain";
+  form?: "cards" | "list" | "ledger" | "alternating";
 };
 
 type CallToActionProps = {
@@ -283,6 +293,7 @@ type TestimonialsProps = {
   title?: string | null;
   items?: TestimonialItem[] | null;
   cardStyle?: "outline" | "filled" | "plain";
+  form?: "cards" | "quote" | "strip";
 };
 
 type FaqItem = {
@@ -332,6 +343,7 @@ type StatsProps = {
   title?: string | null;
   items?: StatItem[] | null;
   cardStyle?: "outline" | "filled" | "plain";
+  form?: "cards" | "figures" | "inline";
 };
 
 type GalleryItem = {
@@ -365,6 +377,124 @@ type ContactInfoProps = {
   mapUrl?: string | null;
 };
 
+type StepItem = {
+  title: string;
+  body?: string | null;
+};
+
+// How booking, ordering or a service works, step by step.
+type StepsProps = {
+  background?: "default" | "muted" | "primary" | "image";
+  backgroundImage?: string | null;
+  title?: string | null;
+  description?: string | null;
+  items?: StepItem[] | null;
+  form?: "numbered" | "horizontal" | "connected";
+};
+
+type TimelineItem = {
+  date: string;
+  title: string;
+  body?: string | null;
+  image?: string | null;
+};
+
+// A story over time: history, milestones, an event programme.
+type TimelineProps = {
+  background?: "default" | "muted" | "primary" | "image";
+  backgroundImage?: string | null;
+  title?: string | null;
+  description?: string | null;
+  items?: TimelineItem[] | null;
+  form?: "vertical" | "alternating";
+};
+
+type TeamMember = {
+  name: string;
+  role?: string | null;
+  bio?: string | null;
+  image?: string | null;
+};
+
+// The people of a studio, clinic, firm or school.
+type TeamProps = {
+  background?: "default" | "muted" | "primary" | "image";
+  backgroundImage?: string | null;
+  title?: string | null;
+  description?: string | null;
+  items?: TeamMember[] | null;
+  form?: "grid" | "list" | "portraits";
+};
+
+type PriceGroup = {
+  title?: string | null;
+  items: PriceItem[];
+};
+
+type PriceItem = {
+  name: string;
+  price?: string | number | null;
+  description?: string | null;
+  tags?: string[];
+};
+
+// A menu or a price list, in groups (breads, pastries; cuts, colour).
+type PriceListProps = {
+  background?: "default" | "muted" | "primary" | "image";
+  backgroundImage?: string | null;
+  title?: string | null;
+  description?: string | null;
+  groups: PriceGroup[];
+  form?: "menu" | "columns" | "cards";
+};
+
+type OpeningHours = {
+  days: string;
+  opens?: string | null;
+  closes?: string | null;
+  note?: string | null;
+};
+
+// Where to find a place and when it is open; a link to a map, never an embedded one.
+type LocationProps = {
+  background?: "default" | "muted" | "primary" | "image";
+  backgroundImage?: string | null;
+  title?: string | null;
+  address: string;
+  hours?: OpeningHours[];
+  phone?: string | null;
+  email?: string | null;
+  mapLink?: string | null;
+  image?: string | null;
+  form?: "split" | "card" | "band";
+};
+
+type ComparisonRow = {
+  label: string;
+  values: (string | boolean)[];
+};
+
+// Options side by side: plans, packages, before and after.
+type ComparisonProps = {
+  background?: "default" | "muted" | "primary" | "image";
+  backgroundImage?: string | null;
+  title?: string | null;
+  description?: string | null;
+  columns: string[];
+  rows: ComparisonRow[];
+  form?: "table" | "cards";
+};
+
+// What the business stands for, or one real quote, set large.
+type StatementProps = {
+  background?: "default" | "muted" | "primary" | "image";
+  backgroundImage?: string | null;
+  text: string;
+  attribution?: string | null;
+  image?: string | null;
+  form?: "large" | "quote" | "band";
+};
+
 type FormProps = {
   title?: string | null;
   description?: string | null;
@@ -383,6 +513,7 @@ type CardGridProps = {
   actions?: SectionAction[];
   controls?: SectionControls | null;
   cardStyle?: "outline" | "filled" | "plain";
+  featured?: boolean;
 };
 
 // CardGrid, DataTable, DetailView, List: the records come from `data`; content only titles the section.

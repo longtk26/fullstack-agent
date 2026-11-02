@@ -51,11 +51,11 @@ Testimonials, FAQ and a call to action.
 
 ## Acceptance criteria
 
-- [ ] `Steps`, `Timeline`, `Team`, `PriceList`, `Location`, `Comparison` and `Statement` exist with their forms,
+- [x] `Steps`, `Timeline`, `Team`, `PriceList`, `Location`, `Comparison` and `Statement` exist with their forms,
       typed, in the catalogue, the editor schema and the drafter's section list.
-- [ ] Existing specs render unchanged; a site copies only the sections it uses.
-- [ ] The fixture covers every new section and form; the sandbox build passes.
-- [ ] `design-check.mjs` on the fixture (5 presets × 390 / 768 / 1440 × light / dark): no rule fails; screenshots in
+- [x] Existing specs render unchanged; a site copies only the sections it uses.
+- [x] The fixture covers every new section and form; the sandbox build passes (see 20.2's Status).
+- [x] `design-check.mjs` on the fixture (5 presets × 390 / 768 / 1440 × light / dark): no rule fails; screenshots in
       the Status note.
 
 ## Verify
@@ -64,3 +64,21 @@ Testimonials, FAQ and a call to action.
 `node scripts/design-check.mjs` on the fixture, `cd agent-ui && pnpm exec tsc --noEmit`.
 
 ## Status
+
+**Done (2026-11-02)**, on `feat/epic20-design-diversity`.
+
+- **Sections** (`section_props.py`, catalogue, `RENDERED` in `frontend_renderer.py`, `sections/*.tsx`): `Steps`
+  (`numbered` / `horizontal` / `connected`, an ordered list), `Timeline` (`vertical` / `alternating`), `Team`
+  (`grid` / `list` / `portraits`; initials without a photo), `PriceList` (`menu` with dotted leaders / `columns` /
+  `cards`; prices as written, optional), `Location` (`split` / `card` / `band`; hours as a table, today marked in the
+  browser with `useSyncExternalStore`, the map as a link only), `Comparison` (`table`, a real table that scrolls
+  sideways in a focusable region / `cards`; `true` / `false` as a check and a dash with screen-reader text; one value
+  per column is validated), `Statement` (`large` / `quote` / `band`; heading face and weight, never capitals).
+  Steps, Timeline and Team items can come from a content collection (`SECTION_ITEMS`). Every text stays on the
+  checklist's size steps.
+- **Fixture:** seven pages (`/new-*`) with every form; the coverage test checks every `form` value.
+- **Verification:** as in 20.2: the fixture's 18 pages in 5 presets and 6 tone combinations, 0 failures; a site
+  copies only the sections it uses (`test_new_sections_are_rendered_and_copied_only_when_used`).
+- **Deviations:**
+  - Team takes `items` (like every list section, so a collection can feed it), not `members`.
+  - Icons on the new sections wait for 20.5.

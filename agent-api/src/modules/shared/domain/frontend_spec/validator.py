@@ -157,6 +157,31 @@ def _unknown_props(model: Props, path: str) -> Iterator[str]:
                     yield from _unknown_props(item, f"{path}/{alias}/{index}")
 
 
+def _layout_fallbacks(name: str, props: Any) -> list[tuple[str, str, str]]:
+    """Story 20.2: layouts that need content the section lacks render as a simpler layout; say which."""
+    found = []
+    if name == "Hero" and props.variant == "collage":
+        images = {image for image in [props.image, *(props.images or [])] if image}
+        if len(images) < 2:
+            found.append(
+                (
+                    "variant",
+                    "The collage hero needs at least two images ('image' plus 'images'); it shows as 'split'",
+                    "Add images to 'images', or pick another variant",
+                )
+            )
+    if name == "Features" and props.form == "alternating" and props.items is not None:
+        if not any(item.image for item in props.items):
+            found.append(
+                (
+                    "form",
+                    "The alternating form shows an image per item, but no item has one; it shows as 'list'",
+                    "Give the items an 'image', or use the 'list' form",
+                )
+            )
+    return found
+
+
 def _page_refs(value: Any, path: str) -> Iterator[tuple[str, str, dict[str, Any] | None]]:
     """`{"page": "<id>"}` links inside free-form section content (e.g. a hero's call to action, or a section action)."""
     if isinstance(value, dict):
@@ -523,6 +548,8 @@ class _SemanticChecker:
                     warning=True,
                     hint=f"Keep it to {HERO_HEADLINE_CHARS} characters or fewer and move the rest into 'body'",
                 )
+            for key, message, hint in _layout_fallbacks(name, props):
+                self._add(C.FE_DESIGN_RULE, f"{path}/content/{key}", message, warning=True, hint=hint)
             known = ", ".join(field.alias or key for key, field in SECTION_PROPS[name].model_fields.items())
             for unknown in _unknown_props(props, f"{path}/content"):
                 self._add(
