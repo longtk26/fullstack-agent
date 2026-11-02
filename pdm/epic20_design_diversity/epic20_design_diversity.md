@@ -43,6 +43,7 @@ accepted; FR-24 (design direction) and FR-22 (FrontendSpec) are extended.
 | D9 | **Repeatable.** A draft stores its direction seed; the same draft re-applies the same directions; "another direction" is a new seed. The fake engine samples a curated library of concept engines with that seed | Randomness that cannot be reproduced |
 | D10 | **One click (19.10) still works:** the first direction is applied automatically; the other two stay in the draft and the review | Asking the user before every draft |
 | D11 | **Content decides the sections.** A section exists only when the requirement gives content for it (no FAQ without questions, no testimonials or stats without real ones; missing ones become assumptions, not samples). The catalogue grows by seven content sections (Steps, Timeline, Team, PriceList, Location, Comparison, Statement); each direction composes its own home page from the drafted content; stock phrases ("Explore …", "Why choose us") are avoided and flagged | A landing-page template filled with sample content |
+| D12 | **Dynamic apps get the same care for their look** (agreed 2026-11-02). Dynamic drafts get the three directions too, and every page of the app passes the same quality floor in every direction: home and marketing pages as well as data pages (lists, tables, records, forms) running on mock data. The data pages' structure still follows the backend contract (CRUD today) and is not varied in this epic; their look comes from the theme and tone tokens. Backend improvements come after this epic | Measuring static sites only |
 
 ```
  requirement ─▶ fact pack (product facts, constraints, main object and action,
@@ -84,6 +85,7 @@ Measured targets (the diversity report, `scripts/design-diversity.*`, on the gol
 | Category trope | home order of the three directions | ≥ 1 of 3 off the category default |
 | Sections from content (real engine, final check) | section frequency across the golden set; home-composition Jaccard between different requirements; repeated headings and CTA labels | optional sections (Faq, Testimonials, Stats, Pricing, CallToAction) only with content from the requirement; no optional type in > 40% of drafts; mean Jaccard ≤ 0.5; 0 stock phrases after repair |
 | Quality floor | contrast AA light / dark, design checklist at 390 / 768 / 1440 × light / dark, fonts loaded, no element hidden after motion | no failures |
+| Dynamic apps (D12) | the dynamic requirements of the golden set: the difference test on their directions, and the design check on every page of each direction (data pages on mock data); the data-page fixtures in the six tone combinations | the same targets as static drafts for the directions; no checklist failures on any page |
 | Icons | icon intents resolved to a real icon; FE_UNKNOWN_ICON on drafts | 100% resolved; 0 warnings |
 | Cost | draft time and engine calls per draft (`spec_drafts.started_at` → `finished_at`, `usage`); generation time and engine calls | draft time ≤ +20% of today's baseline; generation unchanged (0 engine calls for catalogue sites); the report also gives **draft + generation** time, which the UI does not show yet (see the note in `pdm/README.md`) |
 
@@ -206,6 +208,9 @@ Rules (from the repository's `CLAUDE.md`; they apply to every story):
   hero layout, section forms, icons and motion, and keeps pages, copy and photos.
 - A static generation from each of the three directions completes with **0 engine calls**, passes the design check
   (both passes, 390 / 768 / 1440 × light / dark), and loads its fonts and icons offline.
+- A dynamic generation from each of the three directions of a dynamic golden requirement builds with the usual
+  engine calls (0 for catalogue sections and CRUD templates), and every page, data pages included, passes the
+  design check on mock data (390 / 768 / 1440 × light / dark).
 - Existing examples (`examples/frontend-specs/*.json`) validate and render unchanged.
 - Switching directions on a draft changes the home page's sections and order (not only their look) and restores
   them when switching back; a fixture draft whose requirement has no questions or testimonials has no Faq or
@@ -214,7 +219,8 @@ Rules (from the repository's `CLAUDE.md`; they apply to every story):
 ## Final check (after Checkpoint E, needs the user's yes)
 
 One real-engine draft each for three golden requirements (e.g. the spa, `northwind-studio.md`, and the
-clinic / pharmacy pair), run through the diversity report and generated as static sites. Record in this epic's
+clinic / pharmacy pair), run through the diversity report and generated as static sites, plus one dynamic golden
+requirement drafted and generated as a dynamic app (D12). Record in this epic's
 Status note: the report against the baseline (including the content-led measures of 20.9, which only a real engine
 can show), draft time and cost added, and screenshots of the three directions per requirement.
 

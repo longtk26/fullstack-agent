@@ -70,7 +70,21 @@ can pick a look instead of getting the default look of my category.
    difference). `design_notes` keeps the UI UX Pro Max anti-patterns.
 9. **Report.** Run 20.1's report; the directions-within-a-draft, same-brief, paired-domain and trope targets are met
    with the fake engine.
-10. Tests: card schema; fill and contrast adjust (a failing palette is fixed or floored); difference test cases and
+10. **Dynamic apps (epic D12).** Dynamic drafts must look as good as static ones; their data pages keep the
+    structure the backend contract gives them (CRUD), so this step checks their look, not their layout:
+    - golden set: add two dynamic requirements to `examples/requirements/diversity/` (e.g. a clinic booking app and
+      a small shop with orders), listed in `manifest.json` under `dynamic`; the report drafts them in dynamic mode
+      and applies the difference test to their directions like the static ones;
+    - `--screenshots` builds each direction of a dynamic draft on mock data (`MOCK_TEST_API`, no backend) and runs
+      the design check on every page without route parameters plus one record page per resource (`site_check.py`
+      gains what dynamic builds need, if anything);
+    - data sections (DataTable, List, DetailView, Form, ActionBar, CardGrid from the API) are checked against the
+      20.3 tokens (`surface`, `heading` on page titles, radius, density, `colorArea`) and fixed where they ignore
+      them; `make design-check-fixture --spec` runs `shop-dynamic.json` and `project-tracker-dynamic.json` on mock
+      data in the six tone combinations;
+    - rules that only fit marketing pages (e.g. "CTA above the fold") are skipped on data pages by route, not
+      loosened for everyone.
+11. Tests: card schema; fill and contrast adjust (a failing palette is fixed or floored); difference test cases and
     the repair path (fake repair call); seed stability (same seed → same cards); fake library sampling; v8 prompt
     snapshot; `apply_direction` on every example spec; UI mirror on the shared fixtures; `test_drafting.py` end to
     end with the fake engine (three distinct cards, best fit selected, notes); a one-click (19.10) draft uses the
@@ -87,6 +101,9 @@ can pick a look instead of getting the default look of my category.
 - [ ] The fake engine draws varied cards from the concept library; the test-doubles doc lists it.
 - [ ] Python and UI apply a card identically (shared fixtures).
 - [ ] The 20.1 report meets the direction targets with the fake engine; numbers in the Status note.
+- [ ] Dynamic: the golden set has two dynamic requirements; their drafts pass the difference test, and every page of
+      each direction (data pages on mock data) passes the design check; the dynamic example specs pass it in the six
+      tone combinations.
 - [ ] Draft time with a real engine is measured only on the epic's final check (needs the user's yes).
 
 ## Verify
