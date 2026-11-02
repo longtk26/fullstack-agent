@@ -18,6 +18,7 @@ logger = get_logger(__name__)
 
 MAX_PACK_BYTES = 25 * 1024
 DEFAULT_MAX_LINES = 80
+_UI_NAME = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")  # a shadcn primitive's file name
 
 
 def extract_exports(text: str, max_lines: int = DEFAULT_MAX_LINES) -> str:
@@ -206,6 +207,8 @@ def component_context(project: Path, component: dict[str, Any], sample_props: di
     ui_dir = project / "src" / "components" / "ui"
     if uses:
         for use_name in uses:
+            if not isinstance(use_name, str) or not _UI_NAME.fullmatch(use_name):
+                continue  # spec input: only shadcn file names (`alert-dialog`), never a path
             ui_file = ui_dir / f"{use_name}.tsx"
             if ui_file.is_file():
                 extracted = extract_exports(ui_file.read_text(encoding="utf-8", errors="replace"))

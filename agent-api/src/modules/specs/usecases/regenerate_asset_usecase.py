@@ -16,6 +16,7 @@ from src.images.service import generate_single_photo
 from src.libs.decorators.transactional_decorator import Transactional
 from src.libs.exceptions import (
     BadRequestException,
+    ConflictException,
     ErrorCode,
     NotFoundException,
     UnprocessableEntityException,
@@ -52,6 +53,11 @@ class RegenerateAssetUsecase:
         if draft is None:
             raise NotFoundException("Draft not found")
         ensure_owner(draft.owner_id, user.id, user.is_admin, "Draft")
+        if not draft.is_terminal:  # the worker still writes it and would overwrite the new photo
+            raise ConflictException(
+                f"The draft is {str(draft.status).lower()}; regenerate its photos once it has finished",
+                code=ErrorCode.CONFLICT,
+            )
 
         if not photos_enabled():
             raise BadRequestException("AI photos are disabled", code=ErrorCode.PHOTOS_DISABLED)
@@ -70,7 +76,7 @@ class RegenerateAssetUsecase:
 
         generator = get_image_generator()
         with tempfile.TemporaryDirectory() as temp_dir:
-            temp_path = Path(temp_dir) / f"{asset_id}.webp"
+            temp_path = Path(temp_dir) / "photo.webp"
             try:
                 async with asyncio.timeout(config.image_timeout_seconds):
                     success, image_call_record, reason = await generate_single_photo(
@@ -80,6 +86,7 @@ class RegenerateAssetUsecase:
                         draft_id=draft.id,
                         custom_prompt=prompt,
                         custom_style=style,
+                        use_cache=False,  # a regenerate is a new take, even with the same prompt
                     )
             except TimeoutError as exc:
                 raise BadRequestException(
@@ -100,7 +107,7 @@ class RegenerateAssetUsecase:
 
             webp_bytes = temp_path.read_bytes()
             sha256 = hashlib.sha256(webp_bytes).hexdigest()
-            existing = self.uploads.find_by_sha256(user.id, sha256)
+            existing = self.uploads.find_by_sha256(draft.owner_id, sha256)
             if existing is not None:
                 upload_id = existing.id
             else:
@@ -109,7 +116,7 @@ class RegenerateAssetUsecase:
 
                 upload = UploadEntity(
                     id=new_upload_id(),
-                    owner_id=user.id,
+                    owner_id=draft.owner_id,
                     filename=f"{asset_id}.webp",
                     mime="image/webp",
                     bytes=len(webp_bytes),

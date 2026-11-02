@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 from generation_helpers import EXAMPLES, normalized
+from sqlmodel import SQLModel
 
 from src.engines.fake_engine import FakeEngine, demo_scenario
 from src.modules.shared.domain.backend_spec import validate_spec_text
@@ -144,7 +145,9 @@ def test_only_what_is_not_crud_goes_to_the_engine(client, user_headers, tmp_path
     assert "src/modules/tasks/presenter/router.py" not in owned  # the engine completes it
 
 
-def test_field_name_matching_type_name_avoids_pydantic_clash():
+def test_date_annotations_are_always_module_qualified():
+    """A field named `date` / `datetime` shadows a bare annotation for every later field of the class, so the
+    generated code always writes `dt.date` / `dt.datetime` (here `due_date` comes after `date`)."""
     spec = {
         "specVersion": "1.0",
         "project": {"name": "clash-test"},
@@ -155,7 +158,9 @@ def test_field_name_matching_type_name_avoids_pydantic_clash():
                 "fields": [
                     {"name": "id", "type": "uuid", "primary": True},
                     {"name": "date", "type": "date"},
+                    {"name": "due_date", "type": "date", "nullable": True},
                     {"name": "datetime", "type": "datetime"},
+                    {"name": "paid_at", "type": "datetime", "nullable": True},
                 ],
             }
         ],
@@ -164,9 +169,21 @@ def test_field_name_matching_type_name_avoids_pydantic_clash():
     plan = build_plan(spec)
     files = database_files(plan)
     model_code = files["src/modules/shared/infrastructure/models/expense_model.py"]
-    assert "date: dt.date" in model_code
-    assert "datetime: dt.datetime" in model_code
-    assert "import datetime as dt" in model_code
-    namespace = {}
-    exec(model_code, namespace)
-    assert "ExpenseModel" in namespace
+    entity_code = files["src/modules/shared/domain/entities/expense_entity.py"]
+    for code in (model_code, entity_code):
+        assert "import datetime as dt" in code
+        assert "date: dt.date" in code and "due_date: dt.date | None" in code
+        assert "datetime: dt.datetime" in code and "paid_at: dt.datetime | None" in code
+        assert "from datetime import" not in code
+    exec(entity_code, {})
+    # The model registers its table on SQLModel's global metadata: drop it again, or the migration drift test
+    # (tests/test_migrations.py) finds an `expenses` table no migration creates.
+    namespace: dict = {}
+    try:
+        exec(model_code, namespace)
+        assert "ExpenseModel" in namespace
+    finally:
+        table = SQLModel.metadata.tables.get("expenses")
+        if table is not None:
+            SQLModel.metadata.remove(table)
+    assert "expenses" not in SQLModel.metadata.tables

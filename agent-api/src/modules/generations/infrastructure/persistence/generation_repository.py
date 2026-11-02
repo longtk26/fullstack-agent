@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Annotated, Any
 
 from fastapi import Depends
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, or_, update
 from sqlmodel import col, select
 
 from src.libs.database.session import SessionDep
@@ -35,6 +35,26 @@ class GenerationRepository(IGenerationRepository):
             setattr(model, key, value)
         self.session.flush()
         return self.__to_entity(model)
+
+    def update_if_status(
+        self, generation_id: str, expected: GenerationStatus | tuple[GenerationStatus, ...], **fields: Any
+    ) -> GenerationEntity | None:
+        statuses = (expected,) if isinstance(expected, GenerationStatus) else expected
+        updated = self.session.exec(
+            update(GenerationModel)
+            .where(col(GenerationModel.id) == generation_id, col(GenerationModel.status).in_(statuses))
+            .values(**fields)
+        )
+        model = self.session.get(GenerationModel, generation_id)
+        if model is not None:
+            self.session.refresh(model)  # the session may hold the row as it was before the UPDATE
+        if updated.rowcount != 1 or model is None:
+            return None
+        return self.__to_entity(model)
+
+    def find_with_status(self, status: GenerationStatus) -> list[GenerationEntity]:
+        query = select(GenerationModel).where(GenerationModel.status == status)
+        return [self.__to_entity(model) for model in self.session.exec(query)]
 
     def list_page(self, owner_id, status, before, limit) -> list[GenerationEntity]:
         query = select(GenerationModel)

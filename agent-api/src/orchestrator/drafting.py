@@ -554,8 +554,10 @@ class DraftRunner:
         if latest is None:
             return
         if latest.status == SpecDraftStatus.SUCCEEDED:
-            self.store.attach_draft_specs(draft.generation_id, latest)
-            self.store.update_generation(draft.generation_id, status=GenerationStatus.PENDING)
+            # Conditional: a cancel committed while drafting / attaching wins, and the generation is not started.
+            if self.store.start_draft_generation(draft.generation_id, latest) is None:
+                logger.info("generation left DRAFTING; not starting it", extra={"generation_id": draft.generation_id})
+                return
             if self.events is not None:
                 await self.events.publish(
                     draft.generation_id,
@@ -566,8 +568,10 @@ class DraftRunner:
             if self.queue is not None:
                 await self.queue.enqueue(draft.generation_id, latest.engine)
         elif latest.status == SpecDraftStatus.NEEDS_REVIEW:
-            self.store.update_generation(draft.generation_id, status=GenerationStatus.NEEDS_REVIEW)
-            if self.events is not None:
+            moved = self.store.update_generation_if_status(
+                draft.generation_id, GenerationStatus.DRAFTING, status=GenerationStatus.NEEDS_REVIEW
+            )
+            if moved is not None and self.events is not None:
                 await self.events.publish(
                     draft.generation_id,
                     "status.changed",
@@ -754,6 +758,16 @@ class DraftRunner:
             spec, issue = _load(work / FRONTEND_FILE)
             if issue is None and isinstance(spec, dict) and isinstance(spec.get("assets"), list):
                 photo_assets = [a for a in spec["assets"] if isinstance(a, dict) and a.get("source") == "photo"]
+                # Hard cap on paid calls per draft: photos past FRONTEND_MAX_PHOTOS stay `photo` (a placeholder).
+                over_cap = photo_assets[config.frontend_max_photos :]
+                photo_assets = photo_assets[: config.frontend_max_photos]
+                if over_cap:
+                    ids = ", ".join(str(a.get("id")) for a in over_cap)
+                    msg = (
+                        f"Not made (at most {config.frontend_max_photos} photos per draft): {ids}; "
+                        "they show as placeholders, upload an image for them"
+                    )
+                    photo_notes.append({"spec": "frontend", "path": "/assets", "message": msg, "suggestion": None})
                 if photo_assets:
                     await update_progress("photos")
                     semaphore = asyncio.Semaphore(config.image_concurrency)
@@ -807,7 +821,7 @@ class DraftRunner:
                         else:
                             msg = (
                                 f"Photo for '{asset['id']}' could not be generated "
-                                f"({reason or 'failed'}); generation will retry"
+                                f"({reason or 'failed'}); it shows as a placeholder, upload an image for it"
                             )
                             photo_notes.append(
                                 {

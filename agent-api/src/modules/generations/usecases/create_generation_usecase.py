@@ -244,7 +244,10 @@ class CreateGenerationUsecase:
             )
         )
         if draft is not None:
-            attach_draft_specs(
+            # Explicit `specId` / `frontendSpecId` win over the draft's specs (as without a draft).
+            given_backend = inputs.mode in NEEDS_BACKEND and inputs.spec_id is not None
+            given_frontend = inputs.mode in NEEDS_FRONTEND and inputs.frontend_spec_id is not None
+            return attach_draft_specs(
                 generation.id,
                 draft,
                 self.generation_repo,
@@ -254,8 +257,10 @@ class CreateGenerationUsecase:
                 backend_spec_data=inputs.backend_spec,
                 frontend_spec_data=inputs.frontend_spec,
                 is_admin=user.is_admin,
+                backend_entity=self._backend_spec(user, inputs, draft) if given_backend else None,
+                frontend_entity=self._frontend_spec(user, inputs, draft) if given_frontend else None,
+                draft_repo=self.draft_repo,
             )
-            return self.generation_repo.find_by_id(generation.id)  # type: ignore[return-value]
         backend = self._backend_spec(user, inputs, None) if inputs.mode in NEEDS_BACKEND else None
         frontend = self._frontend_spec(user, inputs, None) if inputs.mode in NEEDS_FRONTEND else None
         return self.generation_repo.update(

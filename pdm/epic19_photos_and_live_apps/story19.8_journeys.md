@@ -66,6 +66,11 @@ The vocabulary requirement produced a pure-CRUD BackendSpec: `Card` has `interva
 - [ ] Golden flashcards pair added; a fake generation of it COMPLETES.
 - [ ] The review shows journeys.
 
+**Status (2026-11-02):** not active. Since commit 95b547b the FrontendSpec autofix clears `journeys`
+(`spec["journeys"] = []`) and the journey tests are disabled (product decision: journey tests, frontend lint/tests
+and static validation are off in this PR), so no generation carries journeys. The schema and validator for
+`journeys` stay; no criterion above is met in the running product, and none is ticked.
+
 ## Verify
 
 `make lint`, `make test`, `BGA_SANDBOX_TESTS=1 make test`, `cd agent-ui && pnpm exec tsc --noEmit && pnpm lint`,

@@ -80,12 +80,12 @@ the cache and the records built here are **shared** with 19.3: build them as reu
 ## Acceptance criteria
 
 - [x] Probe findings recorded in `docs/engines/gemini-images.md`.
-- [x] Photos are generated in `generate_assets`, in parallel, at most `IMAGE_CONCURRENCY` at a time, as WebP
+- [ ] Photos are generated in `generate_assets`, in parallel, at most `IMAGE_CONCURRENCY` at a time, as WebP
       files the site serves.
 - [x] Cached photos are reused without a call; blocked or failed photos fall back with a warning.
 - [x] Every call is recorded (`image_calls`), traced, and counted in `/usage` with its cost.
 - [x] Without a key, generations work exactly as before (placeholders, a clear reason).
-- [x] A regenerable photo whose upload is gone is remade during generation.
+- [ ] A regenerable photo whose upload is gone is remade during generation.
 - [x] Generator, post-processing, cache and records are reusable by drafting (19.3).
 - [x] Fake generator listed in `docs/development/test-doubles.md`.
 
@@ -98,6 +98,11 @@ Implemented 2026-10-31:
 - Integrated `image_calls` recording into `ExecutionRecordRepository`, `JobStore`, and `/usage` rollup reporting.
 - Updated `generate_assets` in `frontend_assets.py` to generate photos concurrently with drawings, handle caching, remake missing regenerable upload assets, and report fallbacks.
 - Unit tests added in `tests/test_photo_generation.py`.
+
+2026-11-02 (PR review): Generation-time photo making (`generate_assets`) is not in the graph (removed in commit 1e224de), so photos are made at draft time only and drawings (`source: "generate"`) render as placeholders. The generation-time criteria above are unticked. Photos are opt-in: with no
+`GEMINI_IMAGE_API_KEY` they are off (no fallback to `GEMINI_API_KEY`). A bad or truncated image or an unreadable
+cache entry is a `failed` record, not a crash; cache files are written atomically; `FRONTEND_MAX_PHOTOS` caps paid
+calls in code; tests use `httpx.MockTransport` (no network).
 
 ## Verify
 

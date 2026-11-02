@@ -113,15 +113,25 @@ def _issue_dump(issue: SpecIssue, spec: str) -> dict[str, Any]:
     return {"spec": spec, **data}
 
 
+def _reconcile(frontend: dict[str, Any], backend: dict[str, Any]):
+    """The pair reconcile (drafted specs), then the reconciled FrontendSpec validated again: a reconcile that
+    breaks the spec is reported, not generated. Returns (validation result, notes)."""
+    from src.orchestrator.checks.consistency import reconcile_spec_pair
+
+    healed, notes = reconcile_spec_pair(frontend, backend)
+    return validate_frontend_spec_data(healed), notes
+
+
 async def validate_inputs(state: GenerationState, ctx: JobContext) -> NodeResult:
     """Static and dynamic modes (Stories 12.1, 12.5): the FrontendSpec, in dynamic mode also the BackendSpec and
     the frontend ↔ contract consistency check, all before any engine time is spent."""
     frontend = ctx.store.frontend_spec(uuid.UUID(state["frontend_spec_id"]))
-    raw_dict = json.loads(frontend.raw_json)
-    fixed_dict, _ = autofix_frontend_spec(raw_dict)
-    result = validate_frontend_spec_data(fixed_dict)
     spec_dir = ctx.workspace.spec_dir
-    (spec_dir / "frontend-spec.raw.json").write_text(json.dumps(fixed_dict, ensure_ascii=False, indent=2))
+    spec_dir.mkdir(parents=True, exist_ok=True)
+    (spec_dir / "frontend-spec.raw.json").write_text(frontend.raw_json)  # as submitted (the spec artifact)
+    fixed_dict, _ = autofix_frontend_spec(json.loads(frontend.raw_json))
+    _write_json(spec_dir / "frontend-spec.autofixed.json", fixed_dict)
+    result = validate_frontend_spec_data(fixed_dict)
     _write_json(spec_dir / "frontend-validation-report.json", result.report.model_dump(mode="json"))
     errors = [_issue_dump(issue, "frontend") for issue in result.report.errors]
     warnings = len(result.report.warnings)
@@ -145,9 +155,14 @@ async def validate_inputs(state: GenerationState, ctx: JobContext) -> NodeResult
             if frontend is not None and (
                 frontend.source == SpecSource.REQUIREMENT or state.get("draft_id") is not None
             ):
-                from src.orchestrator.checks.consistency import reconcile_spec_pair
-
-                result.normalized, _ = reconcile_spec_pair(result.normalized, backend.normalized)
+                result, notes = _reconcile(result.normalized, backend.normalized)
+                errors += [_issue_dump(issue, "frontend") for issue in result.report.errors]
+                warnings += len(notes)
+                if notes:
+                    _write_json(spec_dir / "reconcile-notes.json", notes)
+                    _write_json(spec_dir / "frontend-validation-report.json", result.report.model_dump(mode="json"))
+                    await ctx.emit("spec.reconciled", step="validate_inputs", notes=notes[:20], total=len(notes))
+        if result.normalized is not None and backend.normalized is not None:
             consistency = check_spec_pair(result.normalized, backend.normalized)
             _write_json(spec_dir / "consistency-report.json", [i.model_dump(mode="json") for i in consistency])
             errors += [_issue_dump(issue, "consistency") for issue in consistency if issue.severity != Severity.WARNING]

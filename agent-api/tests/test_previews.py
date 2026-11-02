@@ -359,3 +359,36 @@ def test_request_log_parsing_keeps_only_app_calls():
 
     assert [(i["method"], i["operationId"], i["status"]) for i in items] == [("GET", "project.list", 200)]
     assert parse_request_lines(text, after="2026-10-26T10:00:01+00:00") == []
+
+
+def test_cross_kind_commands_hold_both_locks_in_a_fixed_order():
+    service = PreviewService(FakePreviewRuntime(), STORE, None, None, frontend_runtime=FakePreviewRuntime())
+    held: dict[str, tuple[bool, bool]] = {}
+
+    async def record(generation_id, kind="backend", *args, **kwargs):
+        held[kind] = (service.locks["g:backend"].locked(), service.locks["g:frontend"].locked())
+
+    service.start = record  # type: ignore[method-assign]
+    service.stop = record  # type: ignore[method-assign]
+
+    async def go():
+        # A backend start reserves the frontend's port: both locks. Stopping the frontend: only its own.
+        await service.handle({"op": "start", "generationId": "g", "args": {"kind": "backend"}})
+        await service.handle({"op": "stop", "generationId": "g", "args": {"kind": "frontend"}})
+
+        # Locks asked for in either order are taken backend first, so two cross-kind operations never deadlock.
+        order: list[str] = []
+
+        async def both(name: str, kinds: tuple[str, ...]):
+            async with service.locked("g", *kinds):
+                order.append(name)
+                await asyncio.sleep(0.01)
+
+        await asyncio.wait_for(
+            asyncio.gather(both("a", ("frontend", "backend")), both("b", ("backend", "frontend"))), timeout=2
+        )
+        return order
+
+    order = asyncio.run(go())
+    assert held == {"backend": (True, True), "frontend": (False, True)}
+    assert sorted(order) == ["a", "b"]

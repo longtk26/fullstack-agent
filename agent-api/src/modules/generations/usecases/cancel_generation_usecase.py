@@ -44,16 +44,25 @@ class CancelGenerationUsecase:
                     self.draft_repo.update(uuid.UUID(draft_id), status=SpecDraftStatus.CANCELLED, error="Cancelled")
                 except Exception:
                     pass
-            cancelled = await self._mark(
+            # Conditional: a continue / chained start that won the race leaves it PENDING (handled below).
+            cancelled = await self._mark_if(
                 generation_id,
+                (GenerationStatus.DRAFTING, GenerationStatus.NEEDS_REVIEW),
                 status=GenerationStatus.CANCELLED,
                 finished_at=datetime.now(UTC),
                 lanes=close_lanes(generation.lanes, failed=False),
             )
-            await self.events.publish(
-                generation_id, "status.changed", status=GenerationStatus.CANCELLED, payload={"lanes": cancelled.lanes}
-            )
-            return cancelled
+            if cancelled is not None:
+                await self.events.publish(
+                    generation_id,
+                    "status.changed",
+                    status=GenerationStatus.CANCELLED,
+                    payload={"lanes": cancelled.lanes},
+                )
+                return cancelled
+            generation = self.getter.load(generation_id, user)
+            if generation.status in TERMINAL:
+                raise ConflictException(f"Generation is already {generation.status}", code=ErrorCode.ALREADY_FINISHED)
         if generation.status == GenerationStatus.PENDING and await self.queue.remove_queued(generation_id):
             cancelled = await self._mark(
                 generation_id,
@@ -70,6 +79,12 @@ class CancelGenerationUsecase:
         await self.queue.request_cancel(generation_id)
         await self.events.publish(generation_id, "cancel.requested", status=generation.status)
         return updated
+
+    @Transactional
+    async def _mark_if(
+        self, generation_id: str, expected: tuple[GenerationStatus, ...], **fields
+    ) -> GenerationEntity | None:
+        return self.generation_repo.update_if_status(generation_id, expected, **fields)
 
     @Transactional
     async def _mark(self, generation_id: str, **fields) -> GenerationEntity:

@@ -129,11 +129,14 @@ def syntax_check(project: Path) -> CheckResult:
 def conventions_check(project: Path, plan: dict[str, Any]) -> CheckResult:
     started = time.monotonic()
     violations = check_conventions(project, plan)
+    summary = "fastapi-skills checklist met"
+    if violations:
+        summary = f"{len(violations)} fastapi-skills violation(s) (advisory)"
     return CheckResult(
         check="conventions",
-        status="passed",
+        status="passed",  # advisory: reported, never fails the run
         duration_ms=int((time.monotonic() - started) * 1000),
-        summary=f"{len(violations)} fastapi-skills violation(s) (advisory)" if violations else "fastapi-skills checklist met",
+        summary=summary,
         details=violations,
     )
 

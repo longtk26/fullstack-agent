@@ -26,12 +26,16 @@ class GeminiImageGenerator(IImageGenerator):
         size: str = "1K",
         price_usd: float = 0.0336,
         timeout: float = 60.0,
+        transport: httpx.AsyncBaseTransport | None = None,
     ):
         self.api_key = api_key
         self.model = model
         self.size = size
         self.price_usd = price_usd
         self.timeout = timeout
+        # TESTING ONLY (docs/development/test-doubles.md): tests pass an httpx.MockTransport so no request leaves
+        # the process; None = the network.
+        self.transport = transport
 
     def _redact(self, text: str) -> str:
         if self.api_key and self.api_key in text:
@@ -59,7 +63,7 @@ class GeminiImageGenerator(IImageGenerator):
 
         for attempt in range(1, max_attempts + 1):
             try:
-                async with httpx.AsyncClient(timeout=self.timeout) as client:
+                async with httpx.AsyncClient(timeout=self.timeout, transport=self.transport) as client:
                     resp = await client.post(INTERACTIONS_URL, headers=headers, json=body)
 
                 if resp.status_code == 200:

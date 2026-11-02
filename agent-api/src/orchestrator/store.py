@@ -32,7 +32,7 @@ from src.modules.shared.domain.entities import (
     UploadEntity,
     ValidationRunEntity,
 )
-from src.modules.shared.domain.enums import PreviewStatus
+from src.modules.shared.domain.enums import GenerationStatus, PreviewStatus
 from src.modules.specs.infrastructure.persistence import (
     BackendSpecRepository,
     FrontendSpecRepository,
@@ -62,6 +62,15 @@ class JobStore:
 
     def update_generation(self, generation_id: str, **fields: Any) -> GenerationEntity:
         return self._with(lambda s: GenerationRepository(s).update(generation_id, **fields))
+
+    def update_generation_if_status(
+        self, generation_id: str, expected: GenerationStatus | tuple[GenerationStatus, ...], **fields: Any
+    ) -> GenerationEntity | None:
+        """Only while the generation is still in `expected` (a cancel may have won); None otherwise."""
+        return self._with(lambda s: GenerationRepository(s).update_if_status(generation_id, expected, **fields))
+
+    def generations_with_status(self, status: GenerationStatus) -> list[GenerationEntity]:
+        return self._with(lambda s: GenerationRepository(s).find_with_status(status))
 
     def stale_active(self, heartbeat_before: datetime) -> list[GenerationEntity]:
         return self._with(lambda s: GenerationRepository(s).find_stale_active(heartbeat_before))
@@ -193,8 +202,33 @@ class JobStore:
                 UploadRepository(s),
                 backend_spec_data=backend_spec_data,
                 frontend_spec_data=frontend_spec_data,
+                draft_repo=SpecDraftRepository(s),
             )
         )
+
+    def start_draft_generation(self, generation_id: str, draft: SpecDraftEntity) -> GenerationEntity | None:
+        """One transaction: DRAFTING → PENDING only if still DRAFTING (else None: cancelled meanwhile), then the
+        draft's specs are attached; an attach error rolls the status back."""
+        from src.modules.generations.domain.attach_specs import attach_draft_specs
+
+        def start(session: Session) -> GenerationEntity | None:
+            generations = GenerationRepository(session)
+            if (
+                generations.update_if_status(generation_id, GenerationStatus.DRAFTING, status=GenerationStatus.PENDING)
+                is None
+            ):
+                return None
+            return attach_draft_specs(
+                generation_id,
+                draft,
+                generations,
+                BackendSpecRepository(session),
+                FrontendSpecRepository(session),
+                UploadRepository(session),
+                draft_repo=SpecDraftRepository(session),
+            )
+
+        return self._with(start)
 
     # -- artifacts (Story 7.1) ----------------------------------------------------------------------------------
 

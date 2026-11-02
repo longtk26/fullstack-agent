@@ -6,7 +6,14 @@ from pydantic import BaseModel
 
 from src.libs.decorators.transactional_decorator import Transactional
 from src.libs.exceptions import ConflictException, ErrorCode, NotFoundException, UnprocessableEntityException
-from src.modules.generations.domain.attach_specs import NEEDS_BACKEND, NEEDS_FRONTEND, attach_draft_specs
+from src.modules.generations.domain.attach_specs import (
+    NEEDS_BACKEND,
+    NEEDS_FRONTEND,
+    add_assumptions,
+    attach_draft_specs,
+    input_issues,
+    prepare_frontend_spec,
+)
 from src.modules.generations.infrastructure.adapters import EventPublisherDep, JobQueueDep
 from src.modules.generations.ports.output import IGenerationRepoDep
 from src.modules.shared.domain.entities import GenerationEntity, SpecDraftEntity, UserEntity
@@ -62,14 +69,28 @@ class ContinueGenerationUsecase:
             raise UnprocessableEntityException("Generation draft not found", code=ErrorCode.VALIDATION_ERROR)
 
         mode = GenerationMode(generation.mode)
-        b_spec = inputs.backend_spec or draft.backend_spec
-        f_spec = inputs.frontend_spec or draft.frontend_spec
+        b_spec = inputs.backend_spec if inputs.backend_spec is not None else draft.backend_spec
+        f_spec = inputs.frontend_spec if inputs.frontend_spec is not None else draft.frontend_spec
+        b_spec = b_spec if mode in NEEDS_BACKEND else None
+        f_spec = f_spec if mode in NEEDS_FRONTEND else None
         if mode in NEEDS_BACKEND and b_spec is None:
             raise UnprocessableEntityException("BackendSpec is required", code=ErrorCode.MODE_INPUT_MISMATCH)
         if mode in NEEDS_FRONTEND and f_spec is None:
             raise UnprocessableEntityException("FrontendSpec is required", code=ErrorCode.MODE_INPUT_MISMATCH)
 
-        generation = await self._persist_continue(generation.id, draft, b_spec, f_spec, user.is_admin)
+        notes: list[dict[str, Any]] = []
+        if f_spec is not None:
+            f_spec, notes = prepare_frontend_spec(f_spec, b_spec)
+        # The first node would fail a still-invalid spec (terminal FAILED); it stays in review instead.
+        issues = input_issues(mode, b_spec, f_spec)
+        if issues:
+            raise UnprocessableEntityException(
+                f"The specs still have {len(issues)} error(s); the generation stays in review",
+                code=ErrorCode.SPEC_INVALID,
+                details=issues,
+            )
+
+        generation = await self._persist_continue(generation.id, draft, b_spec, f_spec, notes, user.is_admin)
 
         await self.queue.enqueue(generation.id, generation.engine)
         await self.events.publish(
@@ -87,22 +108,28 @@ class ContinueGenerationUsecase:
         draft: SpecDraftEntity,
         backend_spec: dict[str, Any] | None,
         frontend_spec: dict[str, Any] | None,
+        notes: list[dict[str, Any]],
         is_admin: bool,
     ) -> GenerationEntity:
+        # Conditional, first: a cancel committed since the status check wins (409), and holds off later ones.
+        generation = self.generation_repo.update_if_status(
+            generation_id, GenerationStatus.NEEDS_REVIEW, status=GenerationStatus.PENDING
+        )
+        if generation is None:
+            current = self.generation_repo.find_by_id(generation_id)
+            raise ConflictException(
+                f"Generation is in status '{current.status if current else None}', expected 'NEEDS_REVIEW'",
+                code=ErrorCode.CONFLICT,
+            )
         update_fields: dict[str, Any] = {"status": SpecDraftStatus.SUCCEEDED}
         if backend_spec is not None:
             update_fields["backend_spec"] = backend_spec
         if frontend_spec is not None:
-            from src.modules.shared.domain.frontend_spec.autofix import autofix_frontend_spec
-            from src.orchestrator.checks.consistency import reconcile_spec_pair
-
-            frontend_spec, _ = autofix_frontend_spec(frontend_spec)
-            if backend_spec is not None:
-                frontend_spec, _ = reconcile_spec_pair(frontend_spec, backend_spec)
             update_fields["frontend_spec"] = frontend_spec
         draft = self.draft_repo.update(draft.id, **update_fields)
+        draft = add_assumptions(self.draft_repo, draft, notes)
 
-        attach_draft_specs(
+        return attach_draft_specs(
             generation_id,
             draft,
             self.generation_repo,
@@ -112,8 +139,8 @@ class ContinueGenerationUsecase:
             backend_spec_data=backend_spec,
             frontend_spec_data=frontend_spec,
             is_admin=is_admin,
+            draft_repo=self.draft_repo,
         )
-        return self.generation_repo.update(generation_id, status=GenerationStatus.PENDING)
 
 
 ContinueGenerationUsecaseDep = Annotated[ContinueGenerationUsecase, Depends(ContinueGenerationUsecase)]

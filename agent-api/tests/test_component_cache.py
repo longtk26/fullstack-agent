@@ -19,6 +19,8 @@ from src.orchestrator.component_cache import (
     component_file,
     component_key,
     drop_files,
+    journeys_digest,
+    operations_digest,
     sample_props,
 )
 from src.orchestrator.frontend_validation import CheckResult, StaticFrontendValidationRunner, _outcome
@@ -133,6 +135,30 @@ def test_the_key_is_what_the_component_is_made_from_not_its_name():
     assert component_key({**component, "uses": ["card"]}, "lock", "1") != key
     assert component_key({**component, "propsSchema": {}}, "lock", "1") != key
     assert component_key(component, "new base", "1") != key and component_key(component, "lock", "2") != key
+
+
+def test_the_key_covers_the_operations_and_journeys_a_site_gives_the_component():
+    component = {"name": "TaskBoard", "description": "A board of tasks", "propsSchema": {"type": "object"}}
+    contract_ops = {
+        "createTask": {"method": "POST", "path": "/tasks"},
+        "completeTask": {"method": "POST", "path": "/tasks/{id}/complete"},
+    }
+    site_a = component_key(component, "lock", "1", operations=operations_digest(["createTask"], contract_ops))
+    site_b = component_key(component, "lock", "1", operations=operations_digest(["completeTask"], contract_ops))
+    assert site_a != site_b
+    assert site_a == component_key(
+        component, "lock", "1", operations=operations_digest(["createTask", "createTask"], contract_ops)
+    )
+    moved = {"createTask": {"method": "PUT", "path": "/tasks"}}
+    assert component_key(component, "lock", "1", operations=operations_digest(["createTask"], moved)) != site_a
+    assert component_key(component, "lock", "1", operations=operations_digest([])) == component_key(
+        component, "lock", "1"
+    )
+    journey = {"id": "add", "title": "Add a task", "goal": "A task is added", "steps": [{"do": "visit"}]}
+    with_journey = component_key(component, "lock", "1", journeys=journeys_digest([journey]))
+    assert with_journey != component_key(component, "lock", "1")
+    other_steps = {**journey, "steps": [{"do": "visit"}, {"do": "submit", "operationId": "createTask"}]}
+    assert component_key(component, "lock", "1", journeys=journeys_digest([other_steps])) != with_journey
 
 
 def test_component_cache_key_changes_with_prompt_version(monkeypatch):

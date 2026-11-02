@@ -471,10 +471,13 @@ def test_photo_asset_validation_and_cap():
     valid_photo = [{"id": "soup", "kind": "image", "source": "photo", "alt": "A bowl of pho"}]
     assert _issues(valid_photo) == []
 
-    # 2. Invalid photo on kind="logo"
-    invalid_photo = [{"id": "bad-logo", "kind": "logo", "source": "photo", "alt": "A logo"}]
-    issues = _issues(invalid_photo)
-    assert any(code == C.FE_UNSUPPORTED_ASSET_SOURCE for code, _ in issues)
+    # 2. Logos and illustrations can be photos too (drafts turn their placeholders into photos); patterns, icons,
+    # videos and files cannot
+    for kind in ("logo", "illustration"):
+        assert _issues([{"id": f"a-{kind}", "kind": kind, "source": "photo", "alt": f"A {kind}"}]) == []
+    for kind in ("pattern", "icon", "video", "file"):
+        issues = _issues([{"id": f"a-{kind}", "kind": kind, "source": "photo", "alt": f"A {kind}"}])
+        assert (C.FE_UNSUPPORTED_ASSET_SOURCE, "/assets/3/source") in issues, kind
 
     # 3. Upload with prompt (regenerable photo) counts towards photo cap
     # LANDING has 3 assets already. Let's add photos and upload-with-prompt to exceed 8 photos.

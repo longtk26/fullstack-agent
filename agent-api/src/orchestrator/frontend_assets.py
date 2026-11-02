@@ -144,6 +144,16 @@ async def _run_photos(
     photos_ready = 0
     photos_cached = 0
 
+    # Hard cap on paid calls per site: photos past FRONTEND_MAX_PHOTOS are not made and fall back to placeholders.
+    over_cap = wanted[config.frontend_max_photos :]
+    wanted = wanted[: config.frontend_max_photos]
+    for asset in over_cap:
+        reason = f"over the photo cap ({config.frontend_max_photos} per site)"
+        asset["fallback"] = reason
+        asset["generated"] = False
+        photo_fallbacks.append({"id": asset["id"], "reason": reason})
+        await ctx.emit("frontend.photo.fallback", step="generate_assets", id=asset["id"], reason=reason)
+
     async def _process_photo(asset: dict[str, Any]) -> None:
         nonlocal photos_ready, photos_cached
         target_path = project / asset["file"]

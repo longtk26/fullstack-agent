@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useState } from "react";
+import { Suspense, useCallback, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -11,19 +11,56 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { TColumn, TSectionControls } from "@/components/renderer/site";
+import { filterOptions } from "@/components/renderer/bindings";
+import type { TBinding, TColumn, TRecord, TSectionControls } from "@/components/renderer/site";
+import {
+  controlParams,
+  useSectionRecords,
+  type TSectionRecords,
+} from "@/components/renderer/use-section-records";
+
+type TSearchParams = ReturnType<typeof useSearchParams>;
 
 type SectionControlsProps = {
   controls?: TSectionControls;
   columns?: TColumn[];
   total?: number;
-  recordsCount?: number;
+  operationId?: string;
+  records?: TRecord[];
+  searchParams: TSearchParams;
 };
 
-export function SectionControls({ controls, columns = [], total }: SectionControlsProps) {
+/** A filter's values: the contract's enum when it has one, else the values seen in the loaded records. */
+function useFilterValues(filters: string[], operationId: string | undefined, records: TRecord[]) {
+  const known = (operationId && filterOptions[operationId]) || {};
+  const [seen, setSeen] = useState<Record<string, string[]>>({});
+  const loaded: Record<string, string[]> = {};
+  let grew = false;
+  for (const field of filters) {
+    if (known[field]?.length) continue;
+    const values = new Set(seen[field] ?? []);
+    for (const record of records) {
+      const value = record[field];
+      if (value !== undefined && value !== null && value !== "" && typeof value !== "object") {
+        if (!values.has(String(value))) grew = true;
+        values.add(String(value));
+      }
+    }
+    loaded[field] = [...values].sort();
+  }
+  if (grew) setSeen({ ...seen, ...loaded });
+  return (field: string) => (known[field]?.length ? known[field] : (loaded[field] ?? []));
+}
+
+function optionLabel(value: string) {
+  const words = value.replace(/[_-]+/g, " ").trim().toLowerCase();
+  return words ? words[0].toUpperCase() + words.slice(1) : value;
+}
+
+/** Search, filters, sort and pagination for a data section; they live in the URL's search params. */
+export function SectionControls({ controls, columns = [], total, operationId, records = [], searchParams }: SectionControlsProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
 
   const currentQ = searchParams?.get("q") ?? "";
   const [searchValue, setSearchValue] = useState(currentQ);
@@ -52,6 +89,9 @@ export function SectionControls({ controls, columns = [], total }: SectionContro
     [pathname, router, searchParams],
   );
 
+  const filters = controls?.filters ?? [];
+  const filterValues = useFilterValues(filters, operationId, records);
+
   if (!controls) return null;
 
   const pageSize = controls.pageSize ?? 10;
@@ -59,7 +99,6 @@ export function SectionControls({ controls, columns = [], total }: SectionContro
   const totalPages = total !== undefined ? Math.max(1, Math.ceil(total / pageSize)) : undefined;
 
   const hasSearch = Boolean(controls.search);
-  const filters = controls.filters ?? [];
   const sortOptions = controls.sort ?? [];
   const hasSort = sortOptions.length > 0;
   const hasFilters = filters.length > 0;
@@ -95,6 +134,8 @@ export function SectionControls({ controls, columns = [], total }: SectionContro
           const col = columnByKey[field];
           const label = col?.label ?? field;
           const currentVal = searchParams?.get(field) ?? "ALL";
+          const values = filterValues(field);
+          const options = currentVal !== "ALL" && !values.includes(currentVal) ? [...values, currentVal] : values;
           return (
             <Select
               key={field}
@@ -106,9 +147,11 @@ export function SectionControls({ controls, columns = [], total }: SectionContro
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="ALL">All {label}</SelectItem>
-                <SelectItem value="TODO">TODO</SelectItem>
-                <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
-                <SelectItem value="DONE">Done</SelectItem>
+                {options.map((option) => (
+                  <SelectItem key={option} value={option}>
+                    {optionLabel(option)}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           );
@@ -163,5 +206,49 @@ export function SectionControls({ controls, columns = [], total }: SectionContro
         </div>
       )}
     </div>
+  );
+}
+
+type ControlledRecordsProps = {
+  items?: TRecord[];
+  binding?: TBinding;
+  controls?: TSectionControls;
+  columns?: TColumn[];
+  /** The section's body: its records, and the controls bar to show above them (null without controls). */
+  children: (result: TSectionRecords, controlsBar: ReactNode) => ReactNode;
+};
+
+function Records({ items, binding, controls, children }: ControlledRecordsProps) {
+  const result = useSectionRecords(items, binding, controlParams(controls, null));
+  return <>{children(result, null)}</>;
+}
+
+function UrlRecords({ items, binding, controls, columns, children }: ControlledRecordsProps) {
+  const searchParams = useSearchParams();
+  const result = useSectionRecords(items, binding, controlParams(controls, searchParams));
+  const controlsBar = (
+    <SectionControls
+      controls={controls}
+      columns={columns}
+      total={result.total}
+      operationId={binding?.operationId}
+      records={result.records}
+      searchParams={searchParams}
+    />
+  );
+  return <>{children(result, controlsBar)}</>;
+}
+
+/**
+ * A data section's records with its controls. Only a section with `controls` reads the URL's search params, inside
+ * its own `<Suspense>` whose fallback renders the first page unfiltered, so the static export keeps every page's
+ * records in its HTML.
+ */
+export function ControlledRecords(props: ControlledRecordsProps) {
+  if (!props.controls) return <Records {...props} />;
+  return (
+    <Suspense fallback={<Records {...props} />}>
+      <UrlRecords {...props} />
+    </Suspense>
   );
 }

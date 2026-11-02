@@ -79,13 +79,21 @@ them or pay for them again.
 
 - [x] With a key, static and dynamic drafts end with their photos made and stored as uploads; the spec holds
       `upload:<id>` with the prompt.
-- [x] A photo that could not be made stays `source: "photo"` with a note, so generation retries it.
+- [ ] A photo that could not be made stays `source: "photo"` with a note, so generation retries it.
 - [x] Without a key, drafts behave as before (drawings and placeholders).
 - [x] Photo style follows the chosen design direction, identically in Python and the UI.
-- [x] The review shows the photos, regenerates one (with an edited prompt) or replaces it with an upload.
+- [ ] The review shows the photos, regenerates one (with an edited prompt) or replaces it with an upload.
 - [x] Draft photo uploads are not pruned while their draft exists.
 - [x] Draft usage includes the photo calls and their cost.
 - [x] `street-food-static.json` added and valid.
+
+## Status
+
+2026-11-02 (PR review): Generation-time photo making (`generate_assets`) is not in the graph (removed in commit 1e224de), so photos are made at draft time only and drawings (`source: "generate"`) render as placeholders. A photo that could not be made stays `source: "photo"` and shows as a
+placeholder (nothing retries it). The UI never calls `POST /spec-drafts/{id}/assets/{assetId}/regenerate`; the
+endpoint skips the cache read, needs a finished draft (409 otherwise) and keeps the upload under the draft owner.
+Placeholder logos and illustrations become photos too (the validator accepts `photo` for image, illustration and
+logo), and at most `FRONTEND_MAX_PHOTOS` photos are made per draft.
 
 ## Verify
 

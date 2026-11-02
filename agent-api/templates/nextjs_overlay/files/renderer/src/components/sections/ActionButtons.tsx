@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { cn } from "cn";
+import { cn } from "@/lib/utils";
 import { siteConfig } from "@/config/site";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {

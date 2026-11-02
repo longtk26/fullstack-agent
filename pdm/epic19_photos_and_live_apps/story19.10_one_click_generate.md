@@ -86,6 +86,28 @@ AI generation app is expected to. Reviewing the spec first stays possible, but i
 - [ ] **Draft and review first** still works as before.
 - [ ] Draft usage (engine and photos) is shown on the generation page.
 
+**Status (2026-11-02):** review fixes on PR #1 (criteria stay unticked until the epic's final check):
+- Races: status moves are conditional (`IGenerationRepository.update_if_status`, `UPDATE ... WHERE status IN ...`).
+  Continue moves NEEDS_REVIEW → PENDING first in its transaction and answers 409 `CONFLICT` if a cancel won; the
+  draft chain (`DraftRunner._chain_generation` → `JobStore.start_draft_generation`) moves DRAFTING → PENDING and
+  attaches the specs in one transaction and does not start a generation cancelled meanwhile; cancel and the draft
+  reaper only move DRAFTING / NEEDS_REVIEW generations.
+- Continue validates before it changes anything: the specs (after autofix and the pair reconcile) must pass what the
+  first node checks (BackendSpec, FrontendSpec, mode, pair consistency); otherwise 422 `SPEC_INVALID` with the
+  issues, and the generation stays in NEEDS_REVIEW instead of failing terminally. `{}` given as a spec is no longer
+  treated as missing.
+- Create with `draftId` honours explicit `specId` / `frontendSpecId`; a spec the mode needs and nobody provides is
+  a 422 `MODE_INPUT_MISMATCH` (before: a generation without spec ids and an INTERNAL_ERROR in the runner).
+- Reaper (`WorkerService.reap_drafting`): a generation still DRAFTING 30 s after its draft finished (worker died
+  before chaining) is chained (SUCCEEDED / NEEDS_REVIEW), failed with `DRAFT_FAILED` (FAILED or missing draft) or
+  cancelled (CANCELLED draft).
+- Auto-reconcile stays, made honest: every change is a note (draft assumptions on attach / continue;
+  `reconcile-notes.json`, a `spec.reconciled` event and warnings in `validate_inputs`), the reconciled FrontendSpec
+  is validated again, path parameters come from the record (row / card actions) or the page route only, and the
+  BackendSpec seed is never rewritten (an invalid seed asset id is a consistency warning; the site shows a
+  placeholder). `frontend-spec.raw.json` is the spec as submitted again; the autofixed one is
+  `frontend-spec.autofixed.json`.
+
 ## Verify
 
 `make lint`, `make test`, `cd agent-ui && pnpm exec tsc --noEmit && pnpm lint`, `make up` with the fake engine:

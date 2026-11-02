@@ -1,6 +1,7 @@
 import asyncio
 import socket
 import time
+import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -255,6 +256,7 @@ class WorkerService:
     async def reap(self) -> None:
         now = datetime.now(UTC)
         self.reap_drafts(now)
+        await self.reap_drafting(now)
         for generation in self.store.stale_active(now - timedelta(seconds=config.worker_lease_ttl_seconds)):
             if generation.id in self.tasks or await self.queue.has_lease(generation.id):
                 continue
@@ -308,13 +310,14 @@ class WorkerService:
             self.store.update_draft(
                 draft.id, status=SpecDraftStatus.FAILED, error=message, progress=None, finished_at=now
             )
-            if draft.generation_id:
-                self.store.update_generation(
-                    draft.generation_id,
-                    status=GenerationStatus.FAILED,
-                    error_summary=f"DRAFT_FAILED: {message}",
-                    finished_at=now,
-                )
+            # Conditional: a generation cancelled meanwhile stays CANCELLED.
+            if draft.generation_id and self.store.update_generation_if_status(
+                draft.generation_id,
+                GenerationStatus.DRAFTING,
+                status=GenerationStatus.FAILED,
+                error_summary=f"DRAFT_FAILED: {message}",
+                finished_at=now,
+            ):
                 asyncio.create_task(
                     self.events.publish(
                         draft.generation_id,
@@ -324,6 +327,64 @@ class WorkerService:
                     )
                 )
             logger.warning("failed stale draft", extra={"draft_id": str(draft.id), "reason": message})
+
+    async def reap_drafting(self, now: datetime) -> None:
+        """Generations still DRAFTING although their draft finished: the worker stopped between the end of the draft
+        and chaining the generation. A SUCCEEDED / NEEDS_REVIEW draft is chained now (by a worker that drafts),
+        a FAILED or missing one fails the generation, a CANCELLED one cancels it; all conditional on DRAFTING."""
+        finished_before = now - timedelta(seconds=PENDING_GRACE_S)
+        for generation in self.store.generations_with_status(GenerationStatus.DRAFTING):
+            draft_id = generation.options.get("draftId")
+            if draft_id and str(draft_id) in self.draft_tasks:
+                continue
+            try:
+                draft = self.store.draft(uuid.UUID(str(draft_id))) if draft_id else None
+            except ValueError:
+                draft = None
+            if draft is not None:
+                if draft.status in (SpecDraftStatus.PENDING, SpecDraftStatus.RUNNING):
+                    continue  # still drafting, or reap_drafts fails it
+                if draft.finished_at is not None and draft.finished_at > finished_before:
+                    continue  # its worker may be chaining it right now
+            if draft is not None and draft.status in (SpecDraftStatus.SUCCEEDED, SpecDraftStatus.NEEDS_REVIEW):
+                if self.drafts is None:
+                    continue
+                try:
+                    await self.drafts._chain_generation(draft)
+                    logger.warning("chained a generation left DRAFTING", extra={"generation_id": generation.id})
+                    continue
+                except Exception as exc:
+                    logger.exception(
+                        "could not chain a generation left DRAFTING", extra={"generation_id": generation.id}
+                    )
+                    message = f"{type(exc).__name__}: {exc}"
+            elif draft is not None and draft.status == SpecDraftStatus.CANCELLED:
+                if self.store.update_generation_if_status(
+                    generation.id,
+                    GenerationStatus.DRAFTING,
+                    status=GenerationStatus.CANCELLED,
+                    finished_at=now,
+                    lanes=close_lanes(generation.lanes, failed=False),
+                ):
+                    await self.events.publish(generation.id, "status.changed", status=GenerationStatus.CANCELLED)
+                continue
+            else:
+                message = (draft.error if draft is not None else None) or "The generation's draft was not found"
+            if self.store.update_generation_if_status(
+                generation.id,
+                GenerationStatus.DRAFTING,
+                status=GenerationStatus.FAILED,
+                error_summary=f"DRAFT_FAILED: {message}"[:2000],
+                finished_at=now,
+                lanes=close_lanes(generation.lanes, failed=True),
+            ):
+                await self.events.publish(
+                    generation.id,
+                    "status.changed",
+                    status=GenerationStatus.FAILED,
+                    payload={"code": "DRAFT_FAILED", "error": message},
+                )
+                logger.warning("failed a generation left DRAFTING", extra={"generation_id": generation.id})
 
     async def cleanup_sandboxes(self) -> int:
         """Removes sandboxes whose generation finished or vanished (e.g. a worker died mid-job)."""

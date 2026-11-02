@@ -31,6 +31,7 @@ from .checks.parsers import junit_failures, last_lines
 from .context import JobContext
 from .contract import contract_operations, resolve
 from .packaging import ArtifactWriter, build_contract_seed, build_seed, build_source_zip
+from .previews import KINDS
 from .state import GenerationState
 from .validation import CheckResult, ValidationOutcome, traced_check, write_report
 
@@ -99,7 +100,8 @@ async def package_lane_preview(state: GenerationState, ctx: JobContext, kind: st
         head_sha = ctx.workspaces._git(ctx.workspace, "rev-parse", "HEAD", repo="project").strip()
         head_file.write_text(head_sha)
     ctx.store.replace_artifacts(ctx.generation_id, writer.written)
-    async with ctx.previews.locks[f"{ctx.generation_id}:{kind}"]:
+    # A backend start also reserves the frontend row's port: it holds both locks (backend, then frontend).
+    async with ctx.previews.locked(ctx.generation_id, *(KINDS if kind == "backend" else (kind,))):
         existing = ctx.store.preview(ctx.generation_id, kind)
         if existing is None or existing.status not in (PreviewStatus.STARTING, PreviewStatus.RUNNING):
             await ctx.previews.start(ctx.generation_id, kind)
@@ -625,13 +627,13 @@ async def integrate(state: GenerationState, ctx: JobContext) -> NodeResult:
             )
             writer.write("frontend.zip", "frontend", build_source_zip(ctx.workspace.frontend), "application/zip")
             ctx.store.replace_artifacts(ctx.generation_id, writer.written)
-            fe_preview = ctx.store.preview(ctx.generation_id, "frontend")
-            if fe_preview is None or fe_preview.status not in (PreviewStatus.STARTING, PreviewStatus.RUNNING):
-                await ctx.previews.start(
-                    ctx.generation_id, "frontend", options_override={"mockApi": True, "apiBaseUrl": ""}
-                )
-            elif fe_preview.mock_api is not True:
-                async with ctx.previews.locks[f"{ctx.generation_id}:frontend"]:
+            async with ctx.previews.locked(ctx.generation_id, *KINDS):  # switch_frontend may restart the backend
+                fe_preview = ctx.store.preview(ctx.generation_id, "frontend")
+                if fe_preview is None or fe_preview.status not in (PreviewStatus.STARTING, PreviewStatus.RUNNING):
+                    await ctx.previews.start(
+                        ctx.generation_id, "frontend", options_override={"mockApi": True, "apiBaseUrl": ""}
+                    )
+                elif fe_preview.mock_api is not True:
                     await ctx.previews.switch_frontend(ctx.generation_id, mock_api=True, api_base_url="")
         await ctx.emit("integration.kept_mocks", step="integrate", reason=reason, mockApi=True)
         await ctx.set_lane("integration", LaneStatus.SKIPPED, reason=reason)
@@ -649,7 +651,7 @@ async def integrate(state: GenerationState, ctx: JobContext) -> NodeResult:
     )
     writer.write("frontend.zip", "frontend", build_source_zip(ctx.workspace.frontend), "application/zip")
     ctx.store.replace_artifacts(ctx.generation_id, writer.written)
-    async with ctx.previews.locks[f"{ctx.generation_id}:frontend"]:
+    async with ctx.previews.locked(ctx.generation_id, *KINDS):  # switch_frontend may restart the backend
         fe_preview = ctx.store.preview(ctx.generation_id, "frontend")
         if fe_preview is None or fe_preview.status not in (PreviewStatus.STARTING, PreviewStatus.RUNNING):
             await ctx.previews.start(

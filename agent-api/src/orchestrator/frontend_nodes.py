@@ -89,6 +89,7 @@ async def scaffold_frontend_node(state: GenerationState, ctx: JobContext) -> Nod
     if ctx.sandboxes is not None and config.frontend_shared_modules:
 
         async def _prewarm():
+            sb = None
             try:
                 sb = ctx.sandboxes.for_job(ctx.generation_id, ctx.workspace.frontend, kind="frontend", part="prewarm")
                 await sb.shared_dependencies()
@@ -99,6 +100,15 @@ async def scaffold_frontend_node(state: GenerationState, ctx: JobContext) -> Nod
                     "prewarm shared modules failed",
                     extra={"generation_id": ctx.generation_id, "error": str(e)},
                 )
+            finally:
+                if sb is not None:  # its own part: stopping it never touches the lane's sandbox
+                    try:
+                        await sb.stop()
+                    except Exception as e:
+                        logger.warning(
+                            "prewarm sandbox stop failed",
+                            extra={"generation_id": ctx.generation_id, "error": str(e)},
+                        )
 
         ctx.background_tasks.append(asyncio.create_task(_prewarm()))
     return {}, summary

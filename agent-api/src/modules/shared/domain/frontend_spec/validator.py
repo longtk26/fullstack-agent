@@ -24,6 +24,8 @@ _ROUTE_REF = re.compile(r"^\$route\.([A-Za-z][A-Za-z0-9]*)$")
 MIN_CONTRAST = 4.5  # WCAG AA for body text
 # Design checklist (Story 17.7): a hero headline fits two lines on a 390 px phone up to about this many characters.
 HERO_HEADLINE_CHARS = 50
+# What a photo can stand in for (19.1): drafts turn placeholder images, illustrations and logos into photos.
+PHOTO_KINDS = frozenset({"image", "illustration", "logo"})
 
 
 @dataclass
@@ -323,12 +325,13 @@ class _SemanticChecker:
                     )
             elif kind == "photo":
                 photos += 1
-                if asset.kind != "image":
+                if asset.kind not in PHOTO_KINDS:
                     self._add(
                         C.FE_UNSUPPORTED_ASSET_SOURCE,
                         f"{path}/source",
                         f"Asset '{asset.id}': a {asset.kind} cannot be a photo",
-                        hint="photos are for kind 'image'; use 'generate' for illustrations, logos and patterns",
+                        hint="photos are for kinds image, illustration and logo; icons come from lucide:<Name>, "
+                        "patterns are generated, videos and files are uploaded",
                     )
             elif kind == "lucide":
                 name = asset.source.removeprefix("lucide:")

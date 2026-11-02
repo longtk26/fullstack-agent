@@ -13,6 +13,7 @@ from src.configs import config
 from src.engines import EngineRegistry, PromptLibrary
 from src.engines.fake_engine import FakeEngine, FakeStep
 from src.libs.database import db_session_manager
+from src.modules.shared.domain.enums import SpecDraftStatus
 from src.modules.shared.domain.frontend_spec import validate_frontend_spec_data
 from src.modules.shared.domain.frontend_spec.issues import FrontendIssueCode
 from src.modules.shared.infrastructure.models import SpecDraftModel, UploadModel
@@ -136,6 +137,25 @@ def test_draw_images_rule_photos_enabled_and_disabled(tmp_path, monkeypatch):
     assert len(drawings_off) == 12
 
 
+def test_draw_images_turns_placeholder_logos_and_illustrations_into_valid_photos(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "image_provider", "fake")
+    spec = json.loads((EXAMPLES / "frontend-specs" / "static-landing.json").read_text())
+    spec["assets"] += [
+        {"id": "brand-logo", "kind": "logo", "source": "placeholder", "alt": "Northwind logo"},
+        {"id": "team-art", "kind": "illustration", "source": "placeholder", "alt": "The team at work"},
+    ]
+    (tmp_path / "frontend-spec.json").write_text(json.dumps(spec))
+
+    draw_images(tmp_path, None)
+
+    drafted = json.loads((tmp_path / "frontend-spec.json").read_text())
+    assets = {a["id"]: a for a in drafted["assets"]}
+    assert assets["brand-logo"]["source"] == "photo" and assets["brand-logo"]["prompt"] == "Northwind logo"
+    assert assets["team-art"]["source"] == "photo"
+    report = validate_frontend_spec_data(drafted).report
+    assert not [e for e in report.errors if e.code == FrontendIssueCode.FE_UNSUPPORTED_ASSET_SOURCE]
+
+
 def test_end_of_draft_photos_become_uploads_and_record_image_calls(client, user_headers, tmp_path, monkeypatch):
     monkeypatch.setattr(config, "image_provider", "fake")
     monkeypatch.setattr(config, "upload_root", str(tmp_path / "uploads"))
@@ -244,6 +264,70 @@ def test_end_of_draft_failed_or_blocked_photo_stays_photo(client, user_headers, 
 
     # An assumption note explains why
     assert any("Photo for 'blocked-photo' could not be generated" in a["message"] for a in draft["assumptions"])
+    assert not any("generation will retry" in a["message"] for a in draft["assumptions"])
+
+
+def _run_draft(client, user_headers, tmp_path, spec) -> dict:
+    notes = {"assumptions": [], "unresolved": []}
+    step_write = {"frontend-spec.json": json.dumps(spec), "notes.json": json.dumps(notes)}
+    engine = FakeEngine(tmp_path, {"draft_frontend_spec": [FakeStep(write=step_write)]})
+    runner = DraftRunner(
+        EngineRegistry([engine], default="fake"), PromptLibrary(), JobStore(), tmp_path, "w-test", EXAMPLES
+    )
+    resp = client.post(
+        "/api/v1/spec-drafts",
+        json={
+            "engine": "fake",
+            "mode": "static",
+            "requirementText": "A food blog documenting street food recipes from around the world.",
+        },
+        headers=user_headers,
+    )
+    assert resp.status_code == 202, resp.text
+    draft_id = resp.json()["draftId"]
+    asyncio.run(runner.run(draft_id))
+    return JobStore().draft(uuid.UUID(draft_id)).model_dump(mode="json")
+
+
+def test_a_placeholder_logo_becomes_a_photo_without_a_repair(client, user_headers, tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "image_provider", "fake")
+    monkeypatch.setattr(config, "upload_root", str(tmp_path / "uploads"))
+    monkeypatch.setattr(config, "artifact_root", str(tmp_path / "artifacts"))
+    spec = json.loads((EXAMPLES / "frontend-specs" / "static-landing.json").read_text())
+    spec["assets"] += [
+        {"id": "brand-logo", "kind": "logo", "source": "placeholder", "alt": "Northwind logo"},
+        {"id": "team-art", "kind": "illustration", "source": "placeholder", "alt": "The team at work"},
+    ]
+
+    draft = _run_draft(client, user_headers, tmp_path, spec)
+
+    assert draft["status"] == "SUCCEEDED"
+    assert [call["purpose"] for call in draft["usage"]["calls"]] == ["draft_frontend_spec"]  # no repair
+    assets = {a["id"]: a for a in draft["frontend_spec"]["assets"]}
+    for asset_id in ("brand-logo", "team-art"):
+        assert assets[asset_id]["source"].startswith("upload:")
+        assert assets[asset_id]["prompt"]
+
+
+def test_end_of_draft_photos_never_exceed_the_cap(client, user_headers, tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "image_provider", "fake")
+    monkeypatch.setattr(config, "frontend_max_photos", 2)
+    monkeypatch.setattr(config, "upload_root", str(tmp_path / "uploads"))
+    monkeypatch.setattr(config, "artifact_root", str(tmp_path / "artifacts"))
+    spec = json.loads((EXAMPLES / "frontend-specs" / "static-landing.json").read_text())
+    spec["assets"] += [
+        {"id": f"dish-{i}", "kind": "image", "source": "photo", "prompt": f"street dish {i}", "alt": f"Dish {i}"}
+        for i in range(3)
+    ]
+
+    draft = _run_draft(client, user_headers, tmp_path, spec)
+
+    assert draft["status"] == "SUCCEEDED"
+    assets = {a["id"]: a for a in draft["frontend_spec"]["assets"]}
+    assert assets["dish-0"]["source"].startswith("upload:") and assets["dish-1"]["source"].startswith("upload:")
+    assert assets["dish-2"]["source"] == "photo"
+    assert len(JobStore().draft_image_calls(uuid.UUID(draft["id"]))) == 2
+    assert any("at most 2 photos per draft" in a["message"] and "dish-2" in a["message"] for a in draft["assumptions"])
 
 
 def test_upload_retention_counts_draft_references(login):
@@ -339,6 +423,17 @@ def test_regenerate_asset_endpoint(client, user_headers, login, tmp_path, monkey
         session.add(draft_model)
         session.commit()
 
+    # 0. A draft the worker has not finished -> 409, nothing generated
+    pending = client.post(f"/api/v1/spec-drafts/{draft_id}/assets/dish-pho/regenerate", json={}, headers=user_headers)
+    assert pending.status_code == 409
+    assert pending.json()["error"]["code"] == "CONFLICT"
+    assert JobStore().draft_image_calls(uuid.UUID(draft_id)) == []
+    with Session(db_session_manager.engine) as session:
+        draft_model = session.get(SpecDraftModel, uuid.UUID(draft_id))
+        draft_model.status = SpecDraftStatus.SUCCEEDED
+        session.add(draft_model)
+        session.commit()
+
     # 1. Other user -> 404
     other_headers = {"Authorization": f"Bearer {login('other@test.local', 'otherpass')}"}
     bad_resp = client.post(f"/api/v1/spec-drafts/{draft_id}/assets/dish-pho/regenerate", json={}, headers=other_headers)
@@ -376,6 +471,19 @@ def test_regenerate_asset_endpoint(client, user_headers, login, tmp_path, monkey
     draft_after_ok = JobStore().draft(uuid.UUID(draft_id)).model_dump(mode="json")
     assert draft_after_ok["frontend_spec"]["assets"][0]["source"] == res_asset["source"]
     assert draft_after_ok["usage"]["images"]["count"] >= 1
+
+    # 5. Same prompt again, by an admin: a new paid call (no cache read), the upload stays the draft owner's
+    admin_headers = {"Authorization": f"Bearer {login('admin@test.local', 'adminpass')}"}
+    again = client.post(
+        f"/api/v1/spec-drafts/{draft_id}/assets/dish-pho/regenerate",
+        json={"prompt": "fragrant bowl of beef pho with herbs"},
+        headers=admin_headers,
+    )
+    assert again.status_code == 200, again.text
+    calls = [c for c in JobStore().draft_image_calls(uuid.UUID(draft_id)) if c.status != "blocked"]
+    assert [c.status for c in calls] == ["ok", "ok"]
+    upload = JobStore().upload(again.json()["source"].removeprefix("upload:"))
+    assert str(upload.owner_id) == draft_after_ok["owner_id"]
 
 
 def test_validator_and_consistency_checks_for_record_assets():

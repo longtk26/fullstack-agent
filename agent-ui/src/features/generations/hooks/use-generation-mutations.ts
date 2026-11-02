@@ -1,7 +1,8 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { cancelGeneration, createGeneration } from "../api/generations-api";
+import { specKeys } from "@/features/specs/query-keys";
+import { cancelGeneration, continueGeneration, createGeneration } from "../api/generations-api";
 import { generationKeys } from "../query-keys";
 import type { TCreateGenerationPayload, TGenerationDetail } from "../types";
 
@@ -25,5 +26,22 @@ export function useCancelGeneration(id: string) {
       queryClient.invalidateQueries({ queryKey: generationKeys.detail(id) });
       queryClient.invalidateQueries({ queryKey: generationKeys.lists() });
     },
+  });
+}
+
+type TContinuePayload = { backendSpec: Record<string, unknown> | null; frontendSpec: Record<string, unknown> | null };
+
+/** Continues a NEEDS_REVIEW generation with fixed specs; the detail, its events and the draft refetch. */
+export function useContinueGeneration(id: string, draftId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: TContinuePayload) => continueGeneration(id, payload),
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: generationKeys.detail(id) }),
+        queryClient.invalidateQueries({ queryKey: generationKeys.events(id) }),
+        queryClient.invalidateQueries({ queryKey: generationKeys.lists() }),
+        draftId ? queryClient.invalidateQueries({ queryKey: specKeys.draft(draftId) }) : undefined,
+      ]),
   });
 }

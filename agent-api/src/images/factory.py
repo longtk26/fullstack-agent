@@ -8,13 +8,15 @@ from .port import IImageGenerator
 
 
 def get_image_generator() -> IImageGenerator | None:
+    """None when photos are off: IMAGE_PROVIDER=none, or gemini without GEMINI_IMAGE_API_KEY (paid calls are
+    opt-in; GEMINI_API_KEY, the Antigravity key, is never used for photos)."""
     provider = getattr(config, "image_provider", "gemini")
     if provider == "none":
         return None
     if provider == "fake":
         return FakeImageGenerator()
     if provider == "gemini":
-        key = getattr(config, "gemini_image_api_key", None) or getattr(config, "gemini_api_key", None)
+        key = getattr(config, "gemini_image_api_key", None)
         if not key:
             return None
         return GeminiImageGenerator(

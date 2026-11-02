@@ -51,6 +51,10 @@ against the real backend, so that "completed" means the app does what I asked, n
 - [ ] Results per journey and step are stored and shown in the UI.
 - [ ] Sandbox and fake-run tests above pass, including the deliberate failure.
 
+**Status (2026-11-02):** not active. Journeys are cleared by the FrontendSpec autofix and the journey tests
+(`frontend:journeys`, `integration:journeys`) are disabled since commit 95b547b, together with frontend lint and
+unit tests (product decision). No criterion above holds; none is ticked.
+
 ## Verify
 
 `make lint`, `make test`, `BGA_SANDBOX_TESTS=1 make test`, `cd agent-ui && pnpm exec tsc --noEmit && pnpm lint`,

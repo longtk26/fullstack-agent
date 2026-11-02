@@ -4,6 +4,7 @@ import asyncio
 import io
 import uuid
 
+import httpx
 import pytest
 from PIL import Image
 
@@ -11,15 +12,18 @@ from src.configs import config
 from src.images import (
     FakeImageGenerator,
     GeminiImageGenerator,
+    GeneratedImage,
     ImageBlocked,
     ImageFailed,
     build_photo_prompt,
     generate_single_photo,
+    get_image_generator,
     photo_cache_key,
     photo_cache_path,
+    photos_enabled,
     post_process_photo,
 )
-from src.orchestrator.frontend_assets import generate_assets
+from src.orchestrator.frontend_assets import _run_photos, generate_assets
 
 
 def test_build_photo_prompt():
@@ -126,19 +130,102 @@ def test_generate_single_photo_blocked(tmp_path):
 
 
 def test_gemini_generator_redacts_api_key():
-    async def _run():
-        sentinel_key = "MY_SUPER_SECRET_KEY_12345"
-        gen = GeminiImageGenerator(api_key=sentinel_key, timeout=0.01)
+    sentinel_key = "MY_SUPER_SECRET_KEY_12345"
+    seen = []
 
-        # Force a timeout / connection error
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(400, text=f'{{"error": "API key {sentinel_key} rejected for this request"}}')
+
+    async def _run():
+        gen = GeminiImageGenerator(api_key=sentinel_key, transport=httpx.MockTransport(handler))
         with pytest.raises(ImageFailed) as exc_info:
             await gen.generate("Test prompt", "16:9")
+        return str(exc_info.value)
 
-        error_msg = str(exc_info.value)
-        assert sentinel_key not in error_msg
-        assert "[REDACTED]" in error_msg or "timed out" in error_msg or "failed" in error_msg
+    error_msg = asyncio.run(_run())
+    assert len(seen) == 1 and seen[0].url.host == "generativelanguage.googleapis.com"
+    assert sentinel_key not in error_msg
+    assert "[REDACTED]" in error_msg and "(400)" in error_msg
 
-    asyncio.run(_run())
+
+def test_gemini_photos_are_off_without_their_own_key(monkeypatch):
+    monkeypatch.setattr(config, "image_provider", "gemini")
+    monkeypatch.setattr(config, "gemini_api_key", "antigravity-key")
+    monkeypatch.setattr(config, "gemini_image_api_key", None)
+    assert get_image_generator() is None and not photos_enabled()
+
+    monkeypatch.setattr(config, "gemini_image_api_key", "image-key")
+    generator = get_image_generator()
+    assert isinstance(generator, GeminiImageGenerator) and generator.api_key == "image-key"
+
+
+class _BytesGenerator:
+    """Returns fixed bytes as a paid image (what a corrupt or truncated API answer looks like)."""
+
+    model = "bytes-image"
+
+    def __init__(self, data: bytes):
+        self.data = data
+        self.calls = 0
+
+    async def generate(self, prompt: str, aspect_ratio: str) -> GeneratedImage:
+        self.calls += 1
+        return GeneratedImage(data=self.data, mime="image/jpeg", model=self.model, duration_ms=5, cost_usd=0.03)
+
+
+def _jpeg(color: tuple[int, int, int] = (10, 20, 30)) -> bytes:
+    buf = io.BytesIO()
+    Image.new("RGB", (320, 180), color=color).save(buf, format="JPEG")
+    return buf.getvalue()
+
+
+@pytest.mark.parametrize("data", [b"not an image at all", _jpeg()[:200]], ids=["undecodable", "truncated"])
+def test_an_image_pillow_cannot_read_is_a_failed_record_not_a_crash(tmp_path, monkeypatch, data):
+    monkeypatch.setattr(config, "artifact_root", str(tmp_path))
+    asset = {"id": "bad", "aspectRatio": "16:9", "prompt": "broken bytes"}
+    target = tmp_path / "out/bad.webp"
+
+    ok, rec, fallback = asyncio.run(generate_single_photo(asset, target, generator=_BytesGenerator(data)))
+
+    assert ok is False and rec.status == "failed" and fallback.startswith("failed:")
+    assert rec.cost_usd == 0.03  # the API call was paid for
+    assert not target.exists()
+    assert not photo_cache_path(photo_cache_key("bytes-image", build_photo_prompt("broken bytes"), "16:9")).exists()
+
+
+def test_an_unreadable_cache_entry_is_a_miss_and_is_rewritten(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "artifact_root", str(tmp_path))
+    gen = _BytesGenerator(_jpeg())
+    asset = {"id": "pho", "aspectRatio": "16:9", "prompt": "steaming pho"}
+    cache_file = photo_cache_path(photo_cache_key(gen.model, build_photo_prompt("steaming pho"), "16:9"))
+    cache_file.parent.mkdir(parents=True)
+    cache_file.write_bytes(b"RIFF\x00\x00partial")
+
+    ok, rec, _ = asyncio.run(generate_single_photo(asset, tmp_path / "out/pho.webp", generator=gen))
+
+    assert ok is True and rec.status == "ok" and gen.calls == 1
+    assert cache_file.read_bytes()[8:12] == b"WEBP"
+    assert not list(cache_file.parent.glob("*.tmp"))  # written atomically, nothing left behind
+
+
+def test_regenerate_skips_the_cache_read_but_refreshes_it(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "artifact_root", str(tmp_path))
+    gen = _BytesGenerator(_jpeg())
+    asset = {"id": "pho", "aspectRatio": "16:9", "prompt": "steaming pho"}
+    target = tmp_path / "out/pho.webp"
+
+    asyncio.run(generate_single_photo(asset, target, generator=gen))
+    _, cached, _ = asyncio.run(generate_single_photo(asset, target, generator=gen))
+    assert cached.status == "cached" and gen.calls == 1
+
+    first = target.read_bytes()
+    gen.data = _jpeg((200, 100, 0))
+    ok, fresh, _ = asyncio.run(generate_single_photo(asset, target, generator=gen, use_cache=False))
+    assert ok is True and fresh.status == "ok" and gen.calls == 2
+    assert target.read_bytes() != first
+    cache_file = photo_cache_path(photo_cache_key(gen.model, build_photo_prompt("steaming pho"), "16:9"))
+    assert cache_file.read_bytes() == target.read_bytes()
 
 
 def test_generate_assets_with_photos_and_remade_uploads(tmp_path, monkeypatch):
@@ -237,3 +324,28 @@ def test_generate_assets_with_photos_and_remade_uploads(tmp_path, monkeypatch):
         assert len(FakeCtx.store.recorded_calls) == 2
 
     asyncio.run(_run())
+
+
+def test_run_photos_never_makes_more_than_the_cap(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "artifact_root", str(tmp_path))
+    monkeypatch.setattr(config, "image_provider", "fake")
+    monkeypatch.setattr(config, "frontend_max_photos", 2)
+    wanted = [
+        {"id": f"p{i}", "render": "photo", "file": f"public/assets/p{i}.webp", "prompt": f"dish {i}"} for i in range(4)
+    ]
+    emitted, recorded = [], []
+
+    class Ctx:
+        generation_id = "gen_cap"
+        store = type("Store", (), {"add_image_calls": staticmethod(recorded.extend)})
+
+        @staticmethod
+        async def emit(event, **kwargs):
+            emitted.append((event, kwargs))
+
+    fallbacks, ready, _ = asyncio.run(_run_photos(Ctx, tmp_path, wanted))
+
+    assert ready == 2 and len(recorded) == 2
+    assert [f["id"] for f in fallbacks] == ["p2", "p3"] and "photo cap" in fallbacks[0]["reason"]
+    assert not (tmp_path / "public/assets/p2.webp").exists()
+    assert wanted[3]["generated"] is False and "photo cap" in wanted[3]["fallback"]

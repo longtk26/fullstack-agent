@@ -21,6 +21,16 @@ class IGenerationRepository(ABC):
         pass
 
     @abstractmethod
+    def update_if_status(
+        self, generation_id: str, expected: GenerationStatus | tuple[GenerationStatus, ...], **fields: Any
+    ) -> GenerationEntity | None:
+        """`UPDATE ... WHERE status IN expected`: the updated generation, or None when its status changed."""
+
+    @abstractmethod
+    def find_with_status(self, status: GenerationStatus) -> list[GenerationEntity]:
+        pass
+
+    @abstractmethod
     def list_page(
         self,
         owner_id: uuid.UUID | None,

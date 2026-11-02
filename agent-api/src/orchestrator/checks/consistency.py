@@ -7,16 +7,20 @@ compatible types and cover what the contract requires. Each issue points at the 
 it can, at the BackendSpec (`backend_path`), so the UI can mark either editor.
 """
 
+import copy
 import re
 from collections.abc import Iterator
 from typing import Any
 
 from src.modules.shared.domain.backend_spec import Severity, SpecIssue
-from src.modules.shared.domain.frontend_spec import FrontendIssueCode
+from src.modules.shared.domain.frontend_spec import FrontendIssueCode, page_id, route_params
 from src.orchestrator.contract import build_contract, contract_operations, resolve
 
 C = FrontendIssueCode
 _VARIABLE = re.compile(r"^\$(route|query|record)\.[A-Za-z][A-Za-z0-9_]*$")
+_ASSET_ID = re.compile(r"^[a-z][a-z0-9]*(-[a-z0-9]+)*$")  # FrontendSpec SLUG
+# Sections that pass each shown record to their actions (`$record.<field>`)
+RECORD_SECTIONS = frozenset({"DataTable", "CardGrid", "List", "DetailView"})
 # FrontendSpec form field type → the JSON type and format it submits
 FORM_TYPES: dict[str, tuple[str, str | None]] = {
     "string": ("string", None),
@@ -73,6 +77,19 @@ def _value_fits(value: Any, schema: dict[str, Any]) -> str | None:
         if schema.get("maximum") is not None and value > schema["maximum"]:
             return f"{value} is above the maximum {schema['maximum']}"
     return None
+
+
+def _response_record(contract: dict[str, Any], operation: dict[str, Any]) -> dict[str, Any]:
+    """The record schema a binding displays: the list's item schema, or the response body."""
+    responses = operation.get("responses") or {}
+    success = next((r for s, r in sorted(responses.items()) if s.startswith("2")), {})
+    schema = resolve(contract, (success.get("content") or {}).get("application/json", {}).get("schema", {}))
+    if schema.get("type") == "array" and "items" in schema:
+        return resolve(contract, schema["items"])
+    items = (schema.get("properties") or {}).get("items")
+    if isinstance(items, dict) and items.get("type") == "array":
+        return resolve(contract, items.get("items", {}))
+    return schema
 
 
 class _Checker:
@@ -168,17 +185,7 @@ class _Checker:
                 )
 
     def response_record(self, operation_id: str) -> dict[str, Any]:
-        """The record schema a binding displays: the list's item schema, or the response body."""
-        operation = self.operations[operation_id]["operation"]
-        responses = operation.get("responses") or {}
-        success = next((r for s, r in sorted(responses.items()) if s.startswith("2")), {})
-        schema = resolve(self.contract, (success.get("content") or {}).get("application/json", {}).get("schema", {}))
-        if schema.get("type") == "array" and "items" in schema:
-            return resolve(self.contract, schema["items"])
-        items = (schema.get("properties") or {}).get("items")
-        if isinstance(items, dict) and items.get("type") == "array":
-            return resolve(self.contract, items.get("items", {}))
-        return schema
+        return _response_record(self.contract, self.operations[operation_id]["operation"])
 
     def bindings(self) -> None:
         for p_index, page in enumerate(self.frontend.get("pages", [])):
@@ -191,8 +198,9 @@ class _Checker:
                     if kind == "link":
                         target_page = action.get("page")
                         if target_page:
-                            known_pages = {p.get("id") for p in self.frontend.get("pages", []) if p.get("id")} | {
-                                p.get("route") for p in self.frontend.get("pages", [])
+                            pages = self.frontend.get("pages", [])
+                            known_pages = {p.get("id") or page_id(p.get("route") or "") for p in pages} | {
+                                p.get("route") for p in pages
                             }
                             if target_page not in known_pages:
                                 self.add(
@@ -507,6 +515,7 @@ class _Checker:
                                     "/assets",
                                     f"Seed record references unknown asset '{asset_id}'",
                                     backend_path=f"/seed/{s_index}/records/{r_index}/{field_name}",
+                                    warning=True,
                                 )
         elif isinstance(seed, dict):
             for entity_name, records in seed.items():
@@ -524,6 +533,7 @@ class _Checker:
                                     "/assets",
                                     f"Seed record references unknown asset '{asset_id}'",
                                     backend_path=f"/seed/{entity_name}/{r_index}/{field_name}",
+                                    warning=True,
                                 )
 
     def coverage(self) -> None:
@@ -607,6 +617,73 @@ def check_spec_pair(frontend: dict[str, Any], backend: dict[str, Any]) -> list[S
     return check_consistency(frontend, build_contract(backend), backend)
 
 
+def _note(path: str, message: str) -> dict[str, Any]:
+    return {"spec": "frontend", "path": path, "message": message, "suggestion": None}
+
+
+def _fill_path_params(
+    target: dict[str, Any],
+    operation_id: str,
+    operation: dict[str, Any],
+    path: str,
+    route: set[str],
+    record: set[str] | None,
+    notes: list[dict[str, Any]],
+) -> None:
+    """Fills the missing required path parameters of `target["params"]`. Inside a record context (`record` is the
+    record's fields) from the record: `$record.<p>`, or the record's `id` for the operation's last path parameter;
+    otherwise from the page route when it has the parameter. Anything else is left for the check, with a note."""
+    names = [
+        p["name"]
+        for p in operation.get("parameters") or []
+        if p.get("in") == "path" and p.get("required", True) and p.get("name")
+    ]
+    params = target.get("params") if isinstance(target.get("params"), dict) else {}
+    for index, name in enumerate(names):
+        if name in params:
+            continue
+        value = None
+        if record is not None:
+            if name in record:
+                value = f"$record.{name}"
+            elif (name == "id" or index == len(names) - 1) and ("id" in record or not record):
+                value = "$record.id"
+        if value is None and name in route:
+            value = f"$route.{name}"
+        if value is None:
+            notes.append(
+                _note(
+                    f"{path}/params",
+                    f"Could not fill the path parameter '{name}' of '{operation_id}': there is no record here and "
+                    f"the page route has no '[{name}]'; set it by hand.",
+                )
+            )
+            continue
+        params[name] = value
+        target["params"] = params
+        if value == "$record.id" and name != "id":
+            notes.append(
+                _note(
+                    f"{path}/params/{name}",
+                    f"Assumed the path parameter '{name}' of '{operation_id}' is the record's id.",
+                )
+            )
+
+
+def _form_routes(pages: list[Any]) -> dict[str, set[str]]:
+    """Form id → the route parameters every page showing the form has."""
+    routes: dict[str, set[str]] = {}
+    for page in pages:
+        if not isinstance(page, dict):
+            continue
+        params = set(route_params(page.get("route") or ""))
+        for section, _ in _sections(page.get("sections") or [], ""):
+            form_id = section.get("form") if isinstance(section, dict) else None
+            if isinstance(form_id, str):
+                routes[form_id] = routes[form_id] & params if form_id in routes else set(params)
+    return routes
+
+
 def reconcile_spec_pair(
     frontend: dict[str, Any], backend: dict[str, Any]
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
@@ -614,11 +691,15 @@ def reconcile_spec_pair(
     - Clears dangling/unknown or invalid operationIds on forms so they become client-only forms
     - Prunes form fields not in request schema, or adds hidden defaults for missing required fields
     - Clears unknown load.operationId on forms
-    - Converts mutation actions with unknown operations to link actions
+    - Converts mutation actions with unknown operations to link actions; points links to unknown pages at the
+      first page
+    - Fills missing path parameters from the record (row/card actions) or the page route, when either has them
     - Adds confirmation prompt to DELETE actions if missing
     - Clears unknown operationIds from section data bindings or stats items
     - Prunes unsupported section controls (search/filter/sort)
-    Returns (healed_frontend, notes).
+    - Declares placeholder assets for seed records that reference undeclared (valid) asset ids
+    Works on a copy and never changes the BackendSpec (it is already stored and seeds the backend). Every change
+    is reported in the notes. Returns (healed_frontend, notes).
     """
     if not isinstance(frontend, dict) or not isinstance(backend, dict):
         return frontend, []
@@ -628,8 +709,11 @@ def reconcile_spec_pair(
     except Exception:
         return frontend, []
 
+    frontend = copy.deepcopy(frontend)
     ops = contract_operations(contract)
     notes: list[dict[str, Any]] = []
+    pages = frontend.get("pages") if isinstance(frontend.get("pages"), list) else []
+    form_routes = _form_routes(pages)
 
     # 1. Forms
     forms = frontend.get("forms")
@@ -638,42 +722,29 @@ def reconcile_spec_pair(
             if not isinstance(form, dict):
                 continue
             f_id = form.get("id") or f"form-{f_idx}"
+            route = form_routes.get(form.get("id"), set())
             op_id = form.get("operationId")
             if op_id:
                 if op_id not in ops:
                     form["operationId"] = None
                     notes.append(
-                        {
-                            "spec": "frontend",
-                            "path": f"/forms/{f_idx}/operationId",
-                            "message": (
-                                f"Operation '{op_id}' is not in the API contract; "
-                                f"cleared form '{f_id}' to client-only submission."
-                            ),
-                            "suggestion": None,
-                        }
+                        _note(
+                            f"/forms/{f_idx}/operationId",
+                            f"Operation '{op_id}' is not in the API contract; "
+                            f"cleared form '{f_id}' to client-only submission.",
+                        )
                     )
                 elif ops[op_id]["method"] == "GET":
                     form["operationId"] = None
                     notes.append(
-                        {
-                            "spec": "frontend",
-                            "path": f"/forms/{f_idx}/operationId",
-                            "message": f"Operation '{op_id}' is GET; cleared form '{f_id}' to client-only submission.",
-                            "suggestion": None,
-                        }
+                        _note(
+                            f"/forms/{f_idx}/operationId",
+                            f"Operation '{op_id}' is GET; cleared form '{f_id}' to client-only submission.",
+                        )
                     )
                 else:
                     found_op = ops[op_id]
-                    op_params = found_op["operation"].get("parameters") or []
-                    for p in op_params:
-                        if p.get("in") == "path" and p.get("required", True):
-                            p_name = p.get("name")
-                            if p_name:
-                                if not isinstance(form.get("params"), dict):
-                                    form["params"] = {}
-                                if p_name not in form["params"]:
-                                    form["params"][p_name] = f"$route.{p_name}"
+                    _fill_path_params(form, op_id, found_op["operation"], f"/forms/{f_idx}", route, None, notes)
 
                     body_content = (
                         (found_op["operation"].get("requestBody") or {}).get("content", {}).get("application/json", {})
@@ -691,12 +762,11 @@ def reconcile_spec_pair(
                                     valid_fields.append(fld)
                                 else:
                                     notes.append(
-                                        {
-                                            "spec": "frontend",
-                                            "path": f"/forms/{f_idx}/fields/{fld_idx}",
-                                            "message": f"Field '{fname}' not in request for '{op_id}'; removed.",
-                                            "suggestion": None,
-                                        }
+                                        _note(
+                                            f"/forms/{f_idx}/fields/{fld_idx}",
+                                            f"Field '{fname}' of form '{f_id}' is not in the request of '{op_id}'; "
+                                            "removed (the user can no longer enter it).",
+                                        )
                                     )
                         form["fields"] = valid_fields
 
@@ -721,12 +791,11 @@ def reconcile_spec_pair(
                             }
                         )
                         notes.append(
-                            {
-                                "spec": "frontend",
-                                "path": f"/forms/{f_idx}/fields",
-                                "message": f"Added required hidden field '{req_name}' to form '{f_id}'.",
-                                "suggestion": None,
-                            }
+                            _note(
+                                f"/forms/{f_idx}/fields",
+                                f"Added the required field '{req_name}' of '{op_id}' to form '{f_id}' as a hidden "
+                                f"field that always submits {val!r}; make it visible or set its value.",
+                            )
                         )
 
             load = form.get("load")
@@ -735,183 +804,176 @@ def reconcile_spec_pair(
                 if load_op and (load_op not in ops or ops[load_op]["method"] != "GET"):
                     del form["load"]
                     notes.append(
-                        {
-                            "spec": "frontend",
-                            "path": f"/forms/{f_idx}/load",
-                            "message": f"Invalid load operationId '{load_op}' removed from form '{f_id}'.",
-                            "suggestion": None,
-                        }
+                        _note(
+                            f"/forms/{f_idx}/load",
+                            f"Invalid load operationId '{load_op}' removed from form '{f_id}'.",
+                        )
                     )
                 elif load_op and load_op in ops:
-                    load_params = ops[load_op]["operation"].get("parameters") or []
-                    for p in load_params:
-                        if p.get("in") == "path" and p.get("required", True):
-                            p_name = p.get("name")
-                            if p_name:
-                                if not isinstance(load.get("params"), dict):
-                                    load["params"] = {}
-                                if p_name not in load["params"]:
-                                    load["params"][p_name] = f"$route.{p_name}"
+                    _fill_path_params(
+                        load, load_op, ops[load_op]["operation"], f"/forms/{f_idx}/load", route, None, notes
+                    )
 
     # 2. Pages and sections
-    pages = frontend.get("pages")
-    known_pages: set[str] = set()
-    first_page: str = "/"
-    if isinstance(pages, list):
-        known_pages = {p.get("id") for p in pages if isinstance(p, dict) and p.get("id")} | {
-            p.get("route") for p in pages if isinstance(p, dict) and p.get("route")
-        }
-        for p in pages:
-            if isinstance(p, dict) and (p.get("id") or p.get("route")):
-                first_page = p.get("id") or p.get("route")
-                break
-        for p_idx, page in enumerate(pages):
-            if not isinstance(page, dict):
+    # Links name pages by id (the route's id when a page has none); a link given as a route is pointed at its id.
+    page_ids = {p["route"]: p.get("id") or page_id(p["route"]) for p in pages if isinstance(p, dict) and p.get("route")}
+    known_pages: set[str] = set(page_ids.values())
+    first_page: str = next(iter(page_ids.values()), "home")
+
+    def _page_target(target: Any) -> Any:
+        return page_ids.get(target, target) if isinstance(target, str) else target
+
+    for p_idx, page in enumerate(pages):
+        if not isinstance(page, dict):
+            continue
+        route = set(route_params(page.get("route") or ""))
+        for sec, sec_path in _sections(page.get("sections") or [], f"/pages/{p_idx}/sections"):
+            if not isinstance(sec, dict):
                 continue
-            for sec, sec_path in _sections(page.get("sections") or [], f"/pages/{p_idx}/sections"):
-                if not isinstance(sec, dict):
-                    continue
-                content = sec.get("content")
-                if isinstance(content, dict):
-                    # Actions
-                    actions = content.get("actions")
-                    if isinstance(actions, list):
-                        for a_idx, action in enumerate(actions):
-                            if not isinstance(action, dict):
-                                continue
-                            if action.get("kind") == "link":
-                                target_page = action.get("page")
-                                if target_page and target_page not in known_pages:
-                                    action["page"] = first_page
-                            elif action.get("kind") == "mutation":
-                                act_op = action.get("operationId")
-                                if not act_op or act_op not in ops or ops[act_op]["method"] == "GET":
-                                    action["kind"] = "link"
-                                    action["page"] = action.get("page") or first_page
-                                    action.pop("operationId", None)
-                                    action.pop("body", None)
-                                    action.pop("params", None)
-                                    notes.append(
-                                        {
-                                            "spec": "frontend",
-                                            "path": f"{sec_path}/content/actions/{a_idx}",
-                                            "message": (
-                                                f"Mutation action with invalid operation '{act_op}' converted to link."
-                                            ),
-                                            "suggestion": None,
-                                        }
+            data = sec.get("data")
+            # Row/card actions of a section showing records can read `$record` (the renderer passes the record).
+            record: set[str] | None = None
+            if sec.get("component") in RECORD_SECTIONS and isinstance(data, dict):
+                data_op = data.get("operationId")
+                if data_op in ops and ops[data_op]["method"] == "GET":
+                    record = set(_response_record(contract, ops[data_op]["operation"]).get("properties") or {})
+                elif data.get("collection"):
+                    record = set()
+            content = sec.get("content")
+            if isinstance(content, dict):
+                # Actions
+                actions = content.get("actions")
+                if isinstance(actions, list):
+                    for a_idx, action in enumerate(actions):
+                        if not isinstance(action, dict):
+                            continue
+                        action_path = f"{sec_path}/content/actions/{a_idx}"
+                        a_id = action.get("id") or a_idx
+                        if action.get("kind") == "link":
+                            if "page" in action:
+                                action["page"] = _page_target(action["page"])
+                            target_page = action.get("page")
+                            if target_page and target_page not in known_pages:
+                                action["page"] = first_page
+                                notes.append(
+                                    _note(
+                                        f"{action_path}/page",
+                                        f"Link action '{a_id}' pointed at unknown page '{target_page}'; "
+                                        f"it now links to '{first_page}'.",
                                     )
-                                else:
-                                    if ops[act_op]["method"] == "DELETE" and not action.get("confirm"):
-                                        action["confirm"] = "Are you sure you want to proceed?"
-                                    act_params = ops[act_op]["operation"].get("parameters") or []
-                                    for p in act_params:
-                                        if p.get("in") == "path" and p.get("required", True):
-                                            p_name = p.get("name")
-                                            if p_name:
-                                                if not isinstance(action.get("params"), dict):
-                                                    action["params"] = {}
-                                                if p_name not in action["params"]:
-                                                    action["params"][p_name] = f"$route.{p_name}"
-                    # Stats
-                    if sec.get("component") == "Stats" and isinstance(content.get("items"), list):
-                        for i_idx, item in enumerate(content["items"]):
-                            if isinstance(item, dict) and isinstance(item.get("data"), dict):
-                                stat_op = item["data"].get("operationId")
-                                if stat_op and (stat_op not in ops or ops[stat_op]["method"] != "GET"):
-                                    del item["data"]
-                                    notes.append(
-                                        {
-                                            "spec": "frontend",
-                                            "path": f"{sec_path}/content/items/{i_idx}/data",
-                                            "message": f"Stats item invalid operation '{stat_op}' removed.",
-                                            "suggestion": None,
-                                        }
+                                )
+                        elif action.get("kind") == "mutation":
+                            act_op = action.get("operationId")
+                            if not act_op or act_op not in ops or ops[act_op]["method"] == "GET":
+                                target_page = _page_target(action.get("page"))
+                                if not target_page or target_page not in known_pages:
+                                    target_page = first_page
+                                action["kind"] = "link"
+                                action["page"] = target_page
+                                action.pop("operationId", None)
+                                action.pop("body", None)
+                                action.pop("params", None)
+                                reason = (
+                                    "has no operation"
+                                    if not act_op
+                                    else f"calls '{act_op}', which is GET"
+                                    if act_op in ops
+                                    else f"calls '{act_op}', which is not in the API contract"
+                                )
+                                notes.append(
+                                    _note(
+                                        action_path,
+                                        f"Mutation action '{a_id}' {reason}; converted to a link to "
+                                        f"'{target_page}' (it no longer changes data).",
                                     )
+                                )
+                            else:
+                                if ops[act_op]["method"] == "DELETE" and not action.get("confirm"):
+                                    action["confirm"] = "Are you sure you want to proceed?"
+                                _fill_path_params(
+                                    action, act_op, ops[act_op]["operation"], action_path, route, record, notes
+                                )
+                # Stats
+                if sec.get("component") == "Stats" and isinstance(content.get("items"), list):
+                    for i_idx, item in enumerate(content["items"]):
+                        if isinstance(item, dict) and isinstance(item.get("data"), dict):
+                            stat_op = item["data"].get("operationId")
+                            if stat_op and (stat_op not in ops or ops[stat_op]["method"] != "GET"):
+                                del item["data"]
+                                notes.append(
+                                    _note(
+                                        f"{sec_path}/content/items/{i_idx}/data",
+                                        f"Stats item invalid operation '{stat_op}' removed.",
+                                    )
+                                )
 
-                # Section data binding
-                data = sec.get("data")
-                if isinstance(data, dict):
-                    sec_op = data.get("operationId")
-                    if sec_op:
-                        if sec_op not in ops or ops[sec_op]["method"] != "GET":
-                            del sec["data"]
-                            notes.append(
-                                {
-                                    "spec": "frontend",
-                                    "path": f"{sec_path}/data",
-                                    "message": f"Section data binding with invalid operation '{sec_op}' removed.",
-                                    "suggestion": None,
-                                }
+            # Section data binding
+            if isinstance(data, dict):
+                sec_op = data.get("operationId")
+                if sec_op:
+                    if sec_op not in ops or ops[sec_op]["method"] != "GET":
+                        del sec["data"]
+                        notes.append(
+                            _note(
+                                f"{sec_path}/data",
+                                f"Section data binding with invalid operation '{sec_op}' removed.",
                             )
-                        else:
-                            sec_path_params = ops[sec_op]["operation"].get("parameters") or []
-                            for p in sec_path_params:
-                                if p.get("in") == "path" and p.get("required", True):
-                                    p_name = p.get("name")
-                                    if p_name:
-                                        if not isinstance(data.get("params"), dict):
-                                            data["params"] = {}
-                                        if p_name not in data["params"]:
-                                            data["params"][p_name] = f"$route.{p_name}"
+                        )
+                    else:
+                        _fill_path_params(
+                            data, sec_op, ops[sec_op]["operation"], f"{sec_path}/data", route, None, notes
+                        )
 
-                            if isinstance(content, dict) and isinstance(content.get("controls"), dict):
-                                controls = content["controls"]
-                                op_params = {
-                                    p["name"]: p
-                                    for p in ops[sec_op]["operation"].get("parameters") or []
-                                    if p.get("in") == "query"
-                                }
-                                if controls.get("search") and "q" not in op_params and "search" not in op_params:
-                                    controls["search"] = False
-                                if isinstance(controls.get("filters"), list):
-                                    controls["filters"] = [f for f in controls["filters"] if f in op_params]
-                                if controls.get("sort") and "sort" not in op_params:
-                                    controls["sort"] = []
+                        if isinstance(content, dict) and isinstance(content.get("controls"), dict):
+                            controls = content["controls"]
+                            op_params = {
+                                p["name"]: p
+                                for p in ops[sec_op]["operation"].get("parameters") or []
+                                if p.get("in") == "query"
+                            }
+                            if controls.get("search") and "q" not in op_params and "search" not in op_params:
+                                controls["search"] = False
+                            if isinstance(controls.get("filters"), list):
+                                controls["filters"] = [f for f in controls["filters"] if f in op_params]
+                            if controls.get("sort") and "sort" not in op_params:
+                                controls["sort"] = []
 
-    # 3. Seed asset reconciliation
+    # 3. Seed asset references: declare the missing (valid) asset ids as placeholders. The BackendSpec is left
+    # alone: an id that is not a valid asset id stays a consistency warning (the site shows a placeholder).
     existing_asset_ids = {
         a.get("id") for a in frontend.get("assets", []) if isinstance(a, dict) and isinstance(a.get("id"), str)
     }
     seed = backend.get("seed")
 
-    def _heal_seed_asset_references(obj: Any) -> None:
+    def _declare_seed_assets(obj: Any) -> None:
         if isinstance(obj, dict):
-            for k, v in list(obj.items()):
+            for v in obj.values():
                 if isinstance(v, str) and v.startswith("asset:"):
                     aid = v[len("asset:") :]
-                    clean_id = re.sub(r"[^a-z0-9-]", "-", aid.lower()).strip("-")
-                    if not clean_id or not clean_id[0].isalpha():
-                        clean_id = f"asset-{clean_id}"
-                    if clean_id != aid:
-                        obj[k] = f"asset:{clean_id}"
-                    if clean_id not in existing_asset_ids:
-                        lower_id = clean_id.lower()
-                        kind = "logo" if "logo" in lower_id else "icon" if "icon" in lower_id else "image"
-                        frontend.setdefault("assets", []).append(
-                            {
-                                "id": clean_id,
-                                "kind": kind,
-                                "source": "placeholder",
-                                "alt": clean_id.replace("-", " ").title(),
-                            }
-                        )
-                        existing_asset_ids.add(clean_id)
+                    if aid in existing_asset_ids:
+                        continue
+                    existing_asset_ids.add(aid)
+                    if not _ASSET_ID.match(aid):
                         notes.append(
-                            {
-                                "spec": "frontend",
-                                "path": f"/assets/{clean_id}",
-                                "message": f"Added missing asset '{clean_id}' referenced by seed records.",
-                                "suggestion": None,
-                            }
+                            _note(
+                                "/assets",
+                                f"Seed records reference '{v}', which is not a valid asset id; fix the BackendSpec "
+                                "seed (the site shows a placeholder for it).",
+                            )
                         )
+                        continue
+                    kind = "logo" if "logo" in aid else "icon" if "icon" in aid else "image"
+                    frontend.setdefault("assets", []).append(
+                        {"id": aid, "kind": kind, "source": "placeholder", "alt": aid.replace("-", " ").title()}
+                    )
+                    notes.append(_note(f"/assets/{aid}", f"Added missing asset '{aid}' referenced by seed records."))
                 else:
-                    _heal_seed_asset_references(v)
+                    _declare_seed_assets(v)
         elif isinstance(obj, list):
             for item in obj:
-                _heal_seed_asset_references(item)
+                _declare_seed_assets(item)
 
     if seed:
-        _heal_seed_asset_references(seed)
+        _declare_seed_assets(seed)
 
     return frontend, notes

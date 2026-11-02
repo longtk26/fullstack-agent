@@ -135,18 +135,14 @@ def _type(column: dict[str, Any], imports: Imports, response: bool = False) -> s
             return "float"
         imports.add("decimal", "Decimal")
         return "Decimal"
+    # Always module-qualified: a field named `date` / `datetime` in the same class would shadow a bare annotation
+    # for every later field (`due_date: date | None` after `date: date` fails at import).
     if kind == "date":
-        if column.get("attr") == "date":
-            imports.add("datetime as dt")
-            return "dt.date"
-        imports.add("datetime", "date")
-        return "date"
+        imports.add("datetime as dt")
+        return "dt.date"
     if kind == "datetime":
-        if column.get("attr") == "datetime":
-            imports.add("datetime as dt")
-            return "dt.datetime"
-        imports.add("datetime", "datetime")
-        return "datetime"
+        imports.add("datetime as dt")
+        return "dt.datetime"
     if kind == "json":
         imports.add("typing", "Any")
         return "dict[str, Any]"
@@ -229,14 +225,8 @@ def _model_field(column: dict[str, Any], model: dict[str, Any], imports: Imports
             annotation += " | None"
         kwargs.append("primary_key=True")
     elif "factory" in default:
-        if column.get("attr") == "datetime":
-            imports.add("datetime as dt")
-            imports.add("datetime", "UTC")
-            factory = "dt.datetime.now(UTC)"
-        else:
-            imports.add("datetime", "UTC")
-            imports.add("datetime", "datetime")
-            factory = "datetime.now(UTC).date()" if column["type"] == "date" else "datetime.now(UTC)"
+        imports.add("datetime as dt")
+        factory = "dt.datetime.now(dt.UTC).date()" if column["type"] == "date" else "dt.datetime.now(dt.UTC)"
         kwargs.append(f"default_factory=lambda: {factory}")
     elif "value" in default:
         kwargs.append(f"default={_value(column, default['value'])}")

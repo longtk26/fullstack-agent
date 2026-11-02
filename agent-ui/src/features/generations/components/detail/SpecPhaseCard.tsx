@@ -22,8 +22,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Stack } from "@/components/layout/Stack";
 import { useSpecDraft } from "@/features/specs/hooks/use-spec-queries";
-import { continueGeneration } from "../../api/generations-api";
-import { useCancelGeneration } from "../../hooks/use-generation-mutations";
+import { useCancelGeneration, useContinueGeneration } from "../../hooks/use-generation-mutations";
 import type { TGenerationDetail, TGenerationEvent } from "../../types";
 
 type SpecPhaseCardProps = {
@@ -36,6 +35,7 @@ export function SpecPhaseCard({ detail, events }: SpecPhaseCardProps) {
   const draftQuery = useSpecDraft(draftId);
   const draft = draftQuery.data;
   const cancel = useCancelGeneration(detail.generationId);
+  const continueRun = useContinueGeneration(detail.generationId, draftId);
 
   // Derive latest progress from events or draft query
   const lastDraftProgressEvent = useMemo(
@@ -57,33 +57,27 @@ export function SpecPhaseCard({ detail, events }: SpecPhaseCardProps) {
   const currentFrontendJson = editedFrontendJson ?? defaultFrontendJson;
 
   const [activeReviewTab, setActiveReviewTab] = useState<"backend" | "frontend">("frontend");
-  const [isContinuing, setIsContinuing] = useState(false);
   const [continueError, setContinueError] = useState<string | null>(null);
+  // The editors start from the draft: until it has loaded they are empty and would send null specs.
+  const draftReady = !draftId || draftQuery.isSuccess;
+  const canContinue =
+    draftReady && !continueRun.isPending && Boolean(currentBackendJson.trim() || currentFrontendJson.trim());
 
-  const handleFixAndContinue = async () => {
-    setIsContinuing(true);
+  const handleFixAndContinue = () => {
     setContinueError(null);
+    let backendSpec: Record<string, unknown> | null = null;
+    let frontendSpec: Record<string, unknown> | null = null;
     try {
-      let bSpec: Record<string, unknown> | null = null;
-      let fSpec: Record<string, unknown> | null = null;
-      if (currentBackendJson.trim()) {
-        bSpec = JSON.parse(currentBackendJson);
-      }
-      if (currentFrontendJson.trim()) {
-        fSpec = JSON.parse(currentFrontendJson);
-      }
-      await continueGeneration(detail.generationId, {
-        backendSpec: bSpec,
-        frontendSpec: fSpec,
-      });
-      // Invalidate detail to show PENDING/RUNNING
-      window.location.reload();
+      if (currentBackendJson.trim()) backendSpec = JSON.parse(currentBackendJson);
+      if (currentFrontendJson.trim()) frontendSpec = JSON.parse(currentFrontendJson);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setContinueError(msg);
-    } finally {
-      setIsContinuing(false);
+      setContinueError(err instanceof Error ? err.message : String(err));
+      return;
     }
+    continueRun.mutate(
+      { backendSpec, frontendSpec },
+      { onError: (err) => setContinueError(err instanceof Error ? err.message : String(err)) },
+    );
   };
 
   // If this generation had no draft associated, don't show the spec phase card
@@ -232,8 +226,8 @@ export function SpecPhaseCard({ detail, events }: SpecPhaseCardProps) {
             <Ban className="size-3.5" />
             Cancel
           </Button>
-          <Button size="sm" onClick={handleFixAndContinue} disabled={isContinuing}>
-            {isContinuing ? <Spinner /> : <ArrowRight className="size-3.5" />}
+          <Button size="sm" onClick={handleFixAndContinue} disabled={!canContinue}>
+            {continueRun.isPending || draftQuery.isLoading ? <Spinner /> : <ArrowRight className="size-3.5" />}
             Fix and continue
           </Button>
         </CardFooter>

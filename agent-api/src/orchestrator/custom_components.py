@@ -33,6 +33,8 @@ from .component_cache import (
     cached_file,
     component_file,
     component_key,
+    journeys_digest,
+    operations_digest,
     overlay_metadata,
     sample_props,
     store_file,
@@ -91,10 +93,17 @@ class CustomComponents:
         and returns one entry per cache key."""
         custom = self.plan["customComponents"]
         by_key: dict[str, list[str]] = {}
+        contract_ops = contract_operations(self.contract) if self.contract else {}
         for name in sorted(custom if names is None else names):
-            by_key.setdefault(component_key(self.declared[name], self.lock_sha256, self.overlay_version), []).append(
-                name
+            journeys, operations = self._journeys_and_operations(name)
+            key = component_key(
+                self.declared[name],
+                self.lock_sha256,
+                self.overlay_version,
+                operations=operations_digest(operations, contract_ops),
+                journeys=journeys_digest(journeys),
             )
+            by_key.setdefault(key, []).append(name)
         tasks = [asyncio.create_task(self._one(key, names, max_repairs)) for key, names in by_key.items()]
         try:
             results = await asyncio.gather(*tasks)

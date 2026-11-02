@@ -227,8 +227,12 @@ def test_reconcile_spec_pair_heals_unbacked_and_invalid_operations():
     frontend["pages"][0]["sections"][0]["content"] = {
         "actions": [
             {"id": "action1", "label": "Unknown Action", "kind": "mutation", "operationId": "dangling.op"},
-            {"id": "deleteItem", "label": "Delete", "kind": "mutation", "operationId": "cartItem.delete"},
         ]
+    }
+    # A row action of the cart items table: its path parameter comes from the row (`$record`)
+    frontend["pages"][3]["sections"][0]["component"] = "DataTable"
+    frontend["pages"][3]["sections"][0]["content"] = {
+        "actions": [{"id": "deleteItem", "label": "Delete", "kind": "mutation", "operationId": "cartItem.delete"}]
     }
 
     # 3. Invalid form load
@@ -253,8 +257,10 @@ def test_reconcile_spec_pair_heals_unbacked_and_invalid_operations():
     # Verify dangling mutation was converted to link
     assert healed["pages"][0]["sections"][0]["content"]["actions"][0]["kind"] == "link"
     assert healed["pages"][0]["sections"][0]["content"]["actions"][0].get("operationId") is None
-    # Verify missing confirm on DELETE action was automatically added
-    assert healed["pages"][0]["sections"][0]["content"]["actions"][1].get("confirm") is not None
+    # Verify missing confirm on DELETE action was automatically added, and the id taken from the row
+    delete_action = healed["pages"][3]["sections"][0]["content"]["actions"][0]
+    assert delete_action.get("confirm") is not None
+    assert delete_action["params"] == {"id": "$record.id"}
     # Verify invalid load was removed
     assert "load" not in healed["forms"][0]
     # Verify invalid section data binding was removed
@@ -266,3 +272,90 @@ def test_reconcile_spec_pair_heals_unbacked_and_invalid_operations():
     remaining_issues = check_spec_pair(healed, backend_copy)
     errors = [i for i in remaining_issues if i.severity != Severity.WARNING]
     assert errors == []
+
+
+def _reconcile_shop(change) -> tuple[dict, list[dict], dict]:
+    backend_spec = normalized(EXAMPLES / "specs" / "shop.json")
+    frontend = _mutate(change)
+    before = copy.deepcopy(frontend)
+    healed, notes = reconcile_spec_pair(frontend, backend_spec)
+    assert frontend == before, "reconcile works on a copy"
+    return healed, notes, backend_spec
+
+
+def test_reconcile_fills_path_params_from_the_record_or_the_route_only():
+    delete = {"id": "remove", "label": "Remove", "kind": "mutation", "operationId": "cartItem.delete", "confirm": "?"}
+
+    def change(spec):
+        # Record context: a DataTable of cart items
+        spec["pages"][3]["sections"][0]["component"] = "DataTable"
+        spec["pages"][3]["sections"][0]["content"] = {"actions": [copy.deepcopy(delete)]}
+        # Route context: an action bar on /products/[id]
+        spec["pages"][2]["sections"].append(
+            {"id": "bar", "component": "ActionBar", "content": {"actions": [copy.deepcopy(delete)]}}
+        )
+        # Neither: an action bar on /contact
+        spec["pages"][4]["sections"].append(
+            {"id": "bar", "component": "ActionBar", "content": {"actions": [copy.deepcopy(delete)]}}
+        )
+
+    healed, notes, backend_spec = _reconcile_shop(change)
+    assert healed["pages"][3]["sections"][0]["content"]["actions"][0]["params"] == {"id": "$record.id"}
+    assert healed["pages"][2]["sections"][-1]["content"]["actions"][0]["params"] == {"id": "$route.id"}
+    unfilled = healed["pages"][4]["sections"][-1]["content"]["actions"][0]
+    assert "id" not in (unfilled.get("params") or {})
+    assert any(
+        n["path"] == "/pages/4/sections/2/content/actions/0/params" and "Could not fill" in n["message"] for n in notes
+    )
+    # Left for the check to report, never guessed as `$route.id` on a page without `[id]`
+    assert any(
+        i.code == "CONTRACT_PARAM_MISMATCH" and i.path.startswith("/pages/4/sections/2")
+        for i in check_spec_pair(healed, backend_spec)
+    )
+
+
+def test_reconcile_notes_every_rewrite():
+    def change(spec):
+        spec["pages"][0]["sections"][0]["content"] = {
+            "actions": [
+                {"id": "gone", "label": "Gone", "kind": "link", "page": "no-such-page"},
+                {"id": "buy", "label": "Buy", "kind": "mutation", "operationId": "order.create"},
+            ]
+        }
+        spec["forms"][0]["fields"] = [
+            {"name": "quantity", "type": "integer"},
+            {"name": "giftWrap", "type": "boolean"},
+        ]
+
+    healed, notes, _ = _reconcile_shop(change)
+    by_path = {n["path"]: n["message"] for n in notes}
+    link, converted = healed["pages"][0]["sections"][0]["content"]["actions"]
+    assert (
+        link["page"] == "home"
+        and "unknown page 'no-such-page'" in by_path["/pages/0/sections/0/content/actions/0/page"]
+    )
+    assert converted["kind"] == "link"
+    assert "converted to a link to 'home'" in by_path["/pages/0/sections/0/content/actions/1"]
+    # Form 'addToCart' (cartItem.create): giftWrap removed, the required productId added hidden; both noted
+    assert [f["name"] for f in healed["forms"][0]["fields"]] == ["quantity", "productId"]
+    assert "'giftWrap'" in by_path["/forms/0/fields/1"]
+    assert "'productId'" in by_path["/forms/0/fields"] and "hidden" in by_path["/forms/0/fields"]
+
+
+def test_reconcile_never_rewrites_the_backend_seed():
+    backend_spec = normalized(EXAMPLES / "specs" / "shop.json")
+    backend_spec["seed"] = [
+        {
+            "entity": "Category",
+            "records": [{"name": "Tea", "icon": "asset:tea-icon"}, {"name": "X", "icon": "asset:Bad_ID"}],
+        }
+    ]
+    seed_before = copy.deepcopy(backend_spec["seed"])
+    healed, notes = reconcile_spec_pair(copy.deepcopy(SHOP_FRONTEND), backend_spec)
+    assert backend_spec["seed"] == seed_before
+    assert any(a["id"] == "tea-icon" and a["source"] == "placeholder" for a in healed["assets"])
+    assert not any(a["id"].lower() == "bad-id" for a in healed["assets"])
+    assert any("asset:Bad_ID" in n["message"] for n in notes)
+    # The remaining mismatch is a warning (the site shows a placeholder), not a SPEC_INVALID error
+    seed_issues = [i for i in check_spec_pair(healed, backend_spec) if "Bad_ID" in i.message]
+    assert seed_issues and all(i.severity == Severity.WARNING for i in seed_issues)

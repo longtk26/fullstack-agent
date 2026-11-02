@@ -71,6 +71,20 @@ def test_context_pack_size_warning_when_large(tmp_path, monkeypatch):
     assert any("component context pack exceeds" in w for w in warnings)
 
 
+def test_context_pack_reads_only_primitives_named_like_shadcn_files(tmp_path):
+    """`uses` comes from the spec: a name that is not a shadcn file name (a path) is skipped, never read."""
+    ui = tmp_path / "project" / "src" / "components" / "ui"
+    ui.mkdir(parents=True)
+    (ui / "alert-dialog.tsx").write_text("export function AlertDialog() {}\n")
+    (tmp_path / "project" / "secret.tsx").write_text("export const SECRET = 1;\n")
+    component = {"name": "Comp", "uses": ["alert-dialog", "../../../secret", "Card", "/etc/passwd"]}
+
+    pack = component_context(tmp_path / "project", component, {})
+
+    assert "export function AlertDialog" in pack
+    assert "SECRET" not in pack and "secret" not in pack and "passwd" not in pack and "Card" not in pack
+
+
 def test_context_pack_snapshot_golden_dynamic_component(tmp_path):
     """Snapshot test for the context pack of the golden dynamic shop's ProductGrid."""
     spec, contract, plan = inputs("shop-dynamic")

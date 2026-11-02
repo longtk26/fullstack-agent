@@ -3,12 +3,19 @@
 A generation has up to two previews, one per kind: `backend` (the API with its database) and `frontend` (the
 static export or the Next.js server). Commands arrive over Redis (PreviewCommandBus) from the API, or from the
 runner when a generation completes; `args.kind` picks the preview (default `backend`). Each generation's
-commands run one at a time; the previews rows and `preview.status` events report the outcome.
+commands run one at a time per kind; the previews rows and `preview.status` events report the outcome.
+
+Locks are per generation and kind (`asyncio.Lock`, not re-entrant), held by the caller around `start` and friends,
+which never take them. An operation that touches both kinds (a backend start reserves the frontend row's port,
+`switch_frontend` may restart the backend) holds both, taken through `locked()` in the fixed order of `KINDS`
+(backend, then frontend) so two such operations cannot deadlock.
 """
 
 import asyncio
 import json
 from collections import defaultdict
+from collections.abc import AsyncIterator
+from contextlib import AsyncExitStack, asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -29,6 +36,10 @@ ACTIVE = (PreviewStatus.STARTING, PreviewStatus.RUNNING)
 MUTATING = {"start", "restart", "stop", "delete", "reset-db", "recheck", "use-mocks"}
 KINDS = ("backend", "frontend")
 SOURCES = {"backend": "backend.zip", "frontend": "frontend.zip"}
+# Commands that touch both previews of a generation: a backend start reserves the frontend's port; recheck and
+# use-mocks go through `switch_frontend`, which may restart the backend.
+CROSS_KIND = {("start", "backend"), ("restart", "backend"), ("reset-db", "backend"), ("recheck", "frontend"),
+              ("use-mocks", "frontend")}  # fmt: skip
 
 
 def _now() -> datetime:
@@ -90,7 +101,7 @@ class PreviewService:
             if kind not in self.runtimes:
                 result: Any = {"error": f"no {kind} previews on this worker"}
             elif op in MUTATING:
-                async with self.locks[f"{generation_id}:{kind}"]:
+                async with self.locked(generation_id, *(KINDS if (op, kind) in CROSS_KIND else (kind,))):
                     result = await getattr(self, op.replace("-", "_"))(generation_id, kind)
             elif op == "logs":
                 result = {"lines": await self.runtimes[kind].logs(generation_id, int(args.get("tail", 200)))}
@@ -106,6 +117,14 @@ class PreviewService:
             result = {"error": str(exc)[:500]}
         if command.get("reply"):
             await self.bus.reply(command["reply"], result)
+
+    @asynccontextmanager
+    async def locked(self, generation_id: str, *kinds: str) -> AsyncIterator[None]:
+        """Holds the locks of `kinds` for one generation, always taken in `KINDS` order (backend, then frontend)."""
+        async with AsyncExitStack() as stack:
+            for kind in sorted(set(kinds), key=lambda k: KINDS.index(k) if k in KINDS else len(KINDS)):
+                await stack.enter_async_context(self.locks[f"{generation_id}:{kind}"])
+            yield
 
     # -- commands -----------------------------------------------------------------------------------------------
 
@@ -219,6 +238,8 @@ class PreviewService:
     async def switch_frontend(
         self, generation_id: str, *, mock_api: bool, api_base_url: str = ""
     ) -> PreviewEntity | None:
+        """Restarts the frontend on mocks or on the live API (and the backend for its CORS). The caller holds both
+        locks (`locked(generation_id, *KINDS)`)."""
         if "frontend" not in self.runtimes:
             return None
         await self.start(

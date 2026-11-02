@@ -60,7 +60,12 @@ of a dynamic app, to come with photos, and records created later to show the ima
 - [x] Unknown asset references in records are reported.
 - [x] `AssetImage` renders registry assets, `https://` URLs and site paths; anything else is a placeholder.
 - [x] Image fields in forms take a URL.
-- [x] `street-food-static.json` shows record photos in a fake run.
+- [ ] `street-food-static.json` shows record photos in a fake run.
+
+## Status
+
+2026-11-02 (PR review): Generation-time photo making (`generate_assets`) is not in the graph (removed in commit 1e224de), so photos are made at draft time only and drawings (`source: "generate"`) render as placeholders. Record photos are made only when drafting; a generation started straight from
+`street-food-static.json` (its assets are `source: "photo"`) shows placeholders, so that criterion is unticked.
 
 ## Verify
 

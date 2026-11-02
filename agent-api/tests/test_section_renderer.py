@@ -143,9 +143,8 @@ def test_generated_files_hold_the_pages_as_data():
     page = files["src/app/catalogue/page.tsx"]
     assert 'export const metadata: Metadata = {"title": "Catalogue"};' in page
     assert '<PageRenderer pageId="catalogue" />' in page
-    # The smoke test expects text a visitor sees on load: not the Faq inside the second tab.
-    smoke = files["tests/e2e/smoke.spec.ts"]
-    assert '"text": "Lovely."' in smoke and "Is it fast?" not in smoke
+    # Frontend tests are no longer generated (validation skips them): no smoke spec among the files.
+    assert "tests/e2e/smoke.spec.ts" not in files
 
 
 def test_the_library_covers_every_rendered_section():

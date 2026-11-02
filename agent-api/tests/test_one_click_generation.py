@@ -482,3 +482,165 @@ def test_worker_reaper_fails_timed_out_draft_and_generation(client, user_headers
     gen_row = generation(gen_id)
     assert gen_row.status == GenerationStatus.FAILED
     assert "DRAFT_FAILED" in (gen_row.error_summary or "")
+
+
+# -- review fixes: validation on continue, races, explicit ids, notes, reaper --------------------------------------
+
+
+def _in_review(client, user_headers, mode: str = "backend", **draft_fields) -> tuple[str, str]:
+    """A requirement generation moved to NEEDS_REVIEW (draft NEEDS_REVIEW with `draft_fields`)."""
+    res = client.post(
+        "/api/v1/generations",
+        json={"mode": mode, "requirement": {"text": "A shop that sells coffee beans and brewing gear."}},
+        headers=user_headers,
+    )
+    gen_id = res.json()["generationId"]
+    draft_id = generation(gen_id).options["draftId"]
+    with Session(db_session_manager.engine) as session:
+        session.get(GenerationModel, gen_id).status = GenerationStatus.NEEDS_REVIEW
+        draft_m = session.get(SpecDraftModel, uuid.UUID(draft_id))
+        draft_m.status = SpecDraftStatus.NEEDS_REVIEW
+        for key, value in draft_fields.items():
+            setattr(draft_m, key, value)
+        session.commit()
+    return gen_id, draft_id
+
+
+def test_continue_with_a_still_invalid_spec_is_422_and_stays_in_review(client, user_headers):
+    gen_id, _ = _in_review(client, user_headers)
+    res = client.post(
+        f"/api/v1/generations/{gen_id}/continue",
+        json={"backendSpec": {"specVersion": "0.1.0", "project": {"name": "Test"}}},
+        headers=user_headers,
+    )
+    assert res.status_code == 422
+    error = res.json()["error"]
+    assert error["code"] == "SPEC_INVALID"
+    assert error["details"] and all(issue["spec"] == "backend" for issue in error["details"])
+    assert generation(gen_id).status == GenerationStatus.NEEDS_REVIEW
+    assert gen_id not in _queued_jobs()
+
+
+def test_continue_loses_to_a_cancel_committed_meanwhile(client, user_headers, monkeypatch):
+    from src.modules.generations.usecases import continue_generation_usecase as module
+
+    gen_id, _ = _in_review(client, user_headers)
+
+    def cancel_then_check(*args):
+        with Session(db_session_manager.engine) as session:
+            session.get(GenerationModel, gen_id).status = GenerationStatus.CANCELLED
+            session.commit()
+        return []
+
+    monkeypatch.setattr(module, "input_issues", cancel_then_check)
+    shop_spec = json.loads((EXAMPLES / "specs" / "shop.json").read_text())
+    res = client.post(f"/api/v1/generations/{gen_id}/continue", json={"backendSpec": shop_spec}, headers=user_headers)
+    assert res.status_code == 409
+    assert res.json()["error"]["code"] == "CONFLICT"
+    gen_row = generation(gen_id)
+    assert gen_row.status == GenerationStatus.CANCELLED
+    assert gen_row.spec_id is None
+    assert gen_id not in _queued_jobs()
+
+
+def test_continue_keeps_reconcile_notes_on_the_draft(client, user_headers):
+    backend = json.loads((EXAMPLES / "specs" / "shop.json").read_text())
+    frontend = json.loads((EXAMPLES / "frontend-specs" / "shop-dynamic.json").read_text())
+    frontend["pages"][0]["sections"][0]["content"]["actions"] = [
+        {"id": "gone", "label": "Gone", "kind": "link", "page": "no-such-page"}
+    ]
+    gen_id, draft_id = _in_review(client, user_headers, mode="dynamic")
+    res = client.post(
+        f"/api/v1/generations/{gen_id}/continue",
+        json={"backendSpec": backend, "frontendSpec": frontend},
+        headers=user_headers,
+    )
+    assert res.status_code == 202, res.json()
+    draft_row = JobStore().draft(uuid.UUID(draft_id))
+    assert any("no-such-page" in note["message"] for note in draft_row.assumptions)
+    stored = JobStore().frontend_spec(generation(gen_id).frontend_spec_id)
+    assert json.loads(stored.raw_json)["pages"][0]["sections"][0]["content"]["actions"][0]["page"] == "home"
+
+
+def test_create_with_draft_id_honours_an_explicit_spec_id(client, user_headers):
+    shop_spec = (EXAMPLES / "specs" / "shop.json").read_text()
+    spec_id = client.post(
+        "/api/v1/specs", content=shop_spec, headers={**user_headers, "content-type": "application/json"}
+    ).json()["specId"]
+    _, draft_id = _in_review(client, user_headers)  # its draft has no BackendSpec
+    res = client.post(
+        "/api/v1/generations",
+        json={"mode": "backend", "draftId": draft_id, "specId": spec_id, "options": {"engine": "fake"}},
+        headers=user_headers,
+    )
+    assert res.status_code == 202, res.json()
+    gen_row = generation(res.json()["generationId"])
+    assert str(gen_row.spec_id) == spec_id
+    assert gen_row.options["draftId"] == draft_id
+
+
+def _orphaned_drafting(client, user_headers, draft_status: SpecDraftStatus, **draft_fields) -> str:
+    """A DRAFTING generation whose draft finished long ago (its worker died before chaining it)."""
+    res = client.post(
+        "/api/v1/generations",
+        json={"mode": "backend", "requirement": {"text": "A shop that sells coffee beans and brewing gear."}},
+        headers=user_headers,
+    )
+    gen_id = res.json()["generationId"]
+    with Session(db_session_manager.engine) as session:
+        draft_m = session.get(SpecDraftModel, uuid.UUID(generation(gen_id).options["draftId"]))
+        draft_m.status = draft_status
+        draft_m.finished_at = datetime.now(UTC) - timedelta(minutes=5)
+        for key, value in draft_fields.items():
+            setattr(draft_m, key, value)
+        session.commit()
+    return gen_id
+
+
+def test_reaper_chains_or_fails_generations_left_drafting(client, user_headers, tmp_path):
+    shop_spec = json.loads((EXAMPLES / "specs" / "shop.json").read_text())
+    succeeded = _orphaned_drafting(client, user_headers, SpecDraftStatus.SUCCEEDED, backend_spec=shop_spec)
+    failed = _orphaned_drafting(client, user_headers, SpecDraftStatus.FAILED, error="engine crashed")
+    cancelled = _orphaned_drafting(client, user_headers, SpecDraftStatus.CANCELLED)
+    fresh = _orphaned_drafting(client, user_headers, SpecDraftStatus.SUCCEEDED, backend_spec=shop_spec)
+    with Session(db_session_manager.engine) as session:
+        session.get(SpecDraftModel, uuid.UUID(generation(fresh).options["draftId"])).finished_at = datetime.now(UTC)
+        session.commit()
+
+    async def scenario():
+        redis = redis_client()
+        try:
+            await _draft_service(tmp_path, redis, FakeEngine(tmp_path)).reap_drafting(datetime.now(UTC))
+        finally:
+            await redis.aclose()
+
+    asyncio.run(scenario())
+    chained = generation(succeeded)
+    assert chained.status == GenerationStatus.PENDING and chained.spec_id is not None
+    assert succeeded in _queued_jobs()
+    assert generation(failed).status == GenerationStatus.FAILED
+    assert "engine crashed" in generation(failed).error_summary
+    assert generation(cancelled).status == GenerationStatus.CANCELLED
+    assert generation(fresh).status == GenerationStatus.DRAFTING, "its worker may still be chaining it"
+
+
+def test_chaining_does_not_start_a_generation_cancelled_meanwhile(client, user_headers, tmp_path):
+    shop_spec = json.loads((EXAMPLES / "specs" / "shop.json").read_text())
+    gen_id = _orphaned_drafting(client, user_headers, SpecDraftStatus.SUCCEEDED, backend_spec=shop_spec)
+    with Session(db_session_manager.engine) as session:
+        session.get(GenerationModel, gen_id).status = GenerationStatus.CANCELLED
+        session.commit()
+    draft = JobStore().draft(uuid.UUID(generation(gen_id).options["draftId"]))
+
+    async def scenario():
+        redis = redis_client()
+        try:
+            await _draft_service(tmp_path, redis, FakeEngine(tmp_path)).drafts._chain_generation(draft)
+        finally:
+            await redis.aclose()
+
+    asyncio.run(scenario())
+    gen_row = generation(gen_id)
+    assert gen_row.status == GenerationStatus.CANCELLED
+    assert gen_row.spec_id is None
+    assert gen_id not in _queued_jobs()
