@@ -82,7 +82,8 @@ lane, tracing, results, and an OpenAPI explorer that sends test calls to the run
 | 17 | [Fast generation: section renderer, component cache, templated CRUD](epic17_fast_generation/epic17_fast_generation.md) | Phase 7 | 6 |
 | 18 | [Generation speed: fail fast, run in parallel, cache the slow builds](epic18_generation_speed/epic18_generation_speed.md) | Phase 7 | 11 |
 | 19 | [Real photos and API-driven dynamic apps](epic19_photos_and_live_apps/epic19_photos_and_live_apps.md) | Phase 7 | 10 |
-| 20 | [Design diversity: distinct directions, icons and motion](epic20_design_diversity/epic20_design_diversity.md) (in progress) | Phase 7 | 10 |
+| 20 | [Design diversity: distinct directions, icons and motion](epic20_design_diversity/epic20_design_diversity.md) (in progress) | Phase 7 | 11 |
+| 21 | [Designed pages: element trees for static and dynamic sites](epic21_designed_pages/epic21_designed_pages.md) (approved, next after 18.10) | Phase 7 | 7 (outline) |
 
 ### Suggested delivery order
 
@@ -112,10 +113,13 @@ workflow to be built before real generation works.
 10. **Planned 2026-11-02 (agreed):** E20 (design diversity: distinct directions, icons, motion) before
    E16; E16 is then revised to edit the new theme fields and to offer "try another direction" as a spec edit.
    Research: [docs/research/design-diversity.md](../docs/research/design-diversity.md).
-11. **Agreed 2026-11-03:** after Epic 20's Checkpoint D fixes, spec-drafting speed
-   ([18.10](epic18_generation_speed/story18.10_api_drafts.md): drafts and repairs through the Gemini API, no agent
-   loop) → [18.11](epic18_generation_speed/story18.11_lean_validation.md) (lean validation) → 20.10 (Japanese fonts
-   and typesetting) → 20.7 and the final check.
+11. **Agreed 2026-11-03 (re-planned the same day):** after Epic 20's Checkpoint D fixes,
+   [18.10](epic18_generation_speed/story18.10_api_drafts.md) (drafts and repairs through the Gemini API, no agent loop)
+   → [Epic 21](epic21_designed_pages/epic21_designed_pages.md) (pages as element trees for static and dynamic sites,
+   aggregates without the engine; starts with 21.1, the measurement) → [18.11](epic18_generation_speed/story18.11_lean_validation.md)
+   (lean validation) → 20.10 (Japanese fonts and typesetting) → 20.7 and Epic 20's final check.
+   [20.11](epic20_design_diversity/story20.11_app_pages.md) is mostly superseded by Epic 21: its route-order fix (done
+   with 18.10) and app theme limits stay.
 
 ### Status (2026-10-30)
 

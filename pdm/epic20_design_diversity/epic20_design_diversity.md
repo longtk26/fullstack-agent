@@ -103,6 +103,7 @@ Measured targets (the diversity report, `scripts/design-diversity.*`, on the gol
 | 20.8 | [New section types](story20.8_new_section_types.md) | B | 17.7 |
 | 20.9 | [Content-led pages: sections from the requirement, not from a template](story20.9_content_led_pages.md) | C | 20.4, 20.8 |
 | 20.10 | [Japanese fonts and typesetting](story20.10_japanese_fonts.md) | F | 20.3, 20.4 |
+| 20.11 | [App pages look like apps (dynamic mode)](story20.11_app_pages.md) | F | 20.2–20.5, 20.8, 19.6 |
 
 Scope of each (details, steps and acceptance criteria in the story files):
 
@@ -185,7 +186,8 @@ Work in this order and **stop at each checkpoint** for review:
    direction targets met with the fake engine; content-led rules shown on fixture drafts).
 4. **Phase D:** 20.5 → 20.6. **Checkpoint D.**
 5. **Phase E:** 20.7. **Checkpoint E**, then the final check.
-6. **Phase F (added 2026-11-03):** 20.10, after the spec-drafting speed work. **Checkpoint F.**
+6. **Phase F (added 2026-11-03):** 20.11 (app pages, proposed for review), then 20.10, after the spec-drafting
+   speed work (18.10). **Checkpoint F.**
 
 Rules (from the repository's `CLAUDE.md`; they apply to every story):
 
