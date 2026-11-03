@@ -3,7 +3,8 @@
 Real engines write their own cards from the requirement. The fake draws three from a curated library
 (`design_data/concepts.json`) with the draft's seed: concepts whose keywords the requirement mentions weigh more, and
 a card is only taken when it differs from the ones already drawn (the difference test), so fake drafts show varied,
-reproducible directions. Each card composes the home page from the copied example's sections (Story 20.9).
+reproducible directions. Each card composes the home page from the copied example's sections (Story 20.9). Items that
+can show an icon get an intent from their title (Story 20.5); icons and motion come from each card's tone.
 """
 
 import json
@@ -89,3 +90,31 @@ def fake_cards(requirement: str, seed: int, home_sections: list[dict[str, Any]],
             card["home"] = compositions[position]
         cards.append(card)
     return cards
+
+
+ICON_SECTIONS = {"Features": "title", "Stats": "label", "Pricing": "name"}
+
+
+def with_icon_intents(spec: dict[str, Any]) -> dict[str, Any]:
+    """Story 20.5: the copied example with an icon intent on every Features, Stats and Pricing item (its title,
+    label or name), in the section content and in the collections those sections show, as a drafter would."""
+
+    def mark(items: Any, key: str) -> None:
+        for item in items if isinstance(items, list) else []:
+            if isinstance(item, dict) and isinstance(item.get(key), str) and "icon" not in item:
+                item["icon"] = f"intent:{item[key][:60]}"
+
+    collections = {c.get("collection"): c.get("records") for c in spec.get("content") or [] if isinstance(c, dict)}
+
+    def visit(sections: Any) -> None:
+        for section in sections if isinstance(sections, list) else []:
+            key = ICON_SECTIONS.get(section.get("component")) if isinstance(section, dict) else None
+            if key:
+                mark((section.get("content") or {}).get("items"), key)
+                mark(collections.get((section.get("data") or {}).get("collection")), key)
+            if isinstance(section, dict):
+                visit(section.get("children"))
+
+    for page in spec.get("pages") or []:
+        visit(page.get("sections"))
+    return spec

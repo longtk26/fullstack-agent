@@ -8,7 +8,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from .fake_design import fake_cards
+from .fake_design import fake_cards, with_icon_intents
 from .port import (
     EngineContext,
     EngineErrorReason,
@@ -208,7 +208,8 @@ def write_draft_fixture(workdir: Path) -> list[str]:
     }
     if (inputs / "design.md").is_file() and (workdir / "frontend-spec.json").is_file():
         # Story 20.4: three direction cards from the concept library, with the draft's seed.
-        frontend = json.loads((workdir / "frontend-spec.json").read_text())
+        frontend = with_icon_intents(json.loads((workdir / "frontend-spec.json").read_text()))
+        (workdir / "frontend-spec.json").write_text(json.dumps(frontend, indent=2) + "\n")
         home = next((p for p in frontend.get("pages") or [] if p.get("route") == "/"), {})
         seed = request.get("designSeed") or 1
         notes["design"] = {"cards": fake_cards(text, seed, home.get("sections") or [])}

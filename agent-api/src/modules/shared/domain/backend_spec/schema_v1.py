@@ -85,6 +85,8 @@ class PayloadSchema(SpecModel):
     entity: str | None = None
     fields: list[str] | None = None
     properties: list[FieldDef] | None = None
+    # A response that is a list of these records (a custom operation's `[{...}, ...]`); omitted: one record.
+    type: Literal["object", "array"] | None = None
 
 
 class Operation(SpecModel):

@@ -11,6 +11,8 @@ from typing import Any
 from src.modules.shared.domain.frontend_spec import THEME_PRESETS, font_category, font_imports
 from src.modules.shared.domain.frontend_spec.fonts import font_width
 
+from .frontend_motion import motion_css, motion_vars
+
 _HEX = re.compile(r"^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})([0-9a-fA-F]{2})?$")
 RADIUS = {"none": "0rem", "sm": "0.375rem", "md": "0.625rem", "lg": "0.875rem", "full": "1.25rem"}
 FONT_FALLBACK = 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif'
@@ -205,6 +207,9 @@ def build_theme(theme: dict[str, Any]) -> dict[str, Any]:
     scale = display_scale(typography["headingFont"], tokens)
     if scale < 1:
         built["displayScale"] = scale
+    motion = theme.get("motion") or {}
+    if motion.get("feel", "none") != "none":
+        built["motion"] = {"feel": motion["feel"], "signature": motion.get("signature") or "none"}  # Story 20.6
     return built
 
 
@@ -283,6 +288,7 @@ def globals_css(theme: dict[str, Any]) -> str:
         f"  --density-gap: {'0.75rem' if theme['density'] == 'compact' else '1.25rem'};",
         *heading_vars(tokens),
         *hero_vars(tokens, theme.get("displayScale", 1.0)),
+        *(motion_vars(theme["motion"]) if theme.get("motion") else []),
     ]
     steps = RATIO_STEPS.get(tokens.get("ratio") or "default", {})
     parts = [
@@ -316,6 +322,8 @@ def globals_css(theme: dict[str, Any]) -> str:
     )
     if tokens.get("surface") in SURFACES:
         parts.append(SURFACES[tokens["surface"]])
+    if theme.get("motion"):
+        parts.append(motion_css(theme["motion"]))
     return "\n".join(parts)
 
 

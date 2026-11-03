@@ -103,6 +103,7 @@ type PayloadSchema = {
   entity?: string | null;
   fields?: string[] | null;
   properties?: FieldDef[] | null;
+  type?: "object" | "array" | null;
 };
 
 type Policy = {

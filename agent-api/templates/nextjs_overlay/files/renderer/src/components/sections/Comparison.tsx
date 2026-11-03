@@ -1,8 +1,8 @@
-import { Check, Minus } from "lucide-react";
 import { Section } from "@/components/layout/Section";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { backdropImage } from "./AssetImage";
+import { Icon } from "./Icon";
 import type { TComparisonContent } from "./types";
 
 type ComparisonProps = TComparisonContent;
@@ -12,7 +12,7 @@ function Value({ value }: { value: TValue }) {
   if (value === true) {
     return (
       <>
-        <Check className="size-5 text-primary" aria-hidden />
+        <Icon glyph="check" className="size-5 text-primary" />
         <span className="sr-only">Yes</span>
       </>
     );
@@ -20,7 +20,7 @@ function Value({ value }: { value: TValue }) {
   if (value === false) {
     return (
       <>
-        <Minus className="size-5 text-muted-foreground" aria-hidden />
+        <Icon glyph="minus" className="size-5 text-muted-foreground" />
         <span className="sr-only">No</span>
       </>
     );

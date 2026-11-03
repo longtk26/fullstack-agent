@@ -85,3 +85,16 @@ def test_normalization_fills_defaults():
     title = next(f for f in normalized["entities"][1]["fields"] if f["name"] == "title")
     due = next(f for f in normalized["entities"][1]["fields"] if f["name"] == "dueDate")
     assert title["nullable"] is False and due["nullable"] is True
+
+
+def test_a_custom_operation_without_entity_takes_it_from_its_name_or_path():
+    spec = _load(EXAMPLES / "two-entity.json")
+    spec["operations"] += [
+        {"operationId": "task.overdue", "type": "custom", "method": "GET", "path": "/overdue"},
+        {"operationId": "board.overview", "type": "custom", "method": "GET", "path": "/projects/overview"},
+    ]
+    result = validate_spec_data(spec)
+    assert result.report.valid, result.report.errors
+    entities = {op["operationId"]: op.get("entity") for op in result.normalized["operations"]}
+    assert entities["task.overdue"] == "Task", "from the operationId"
+    assert entities["board.overview"] == "Project", "from the path's table"

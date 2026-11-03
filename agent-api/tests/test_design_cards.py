@@ -70,6 +70,14 @@ def test_cards_are_read_leniently_in_the_engines_order():
     assert read_cards({"productType": "SaaS"}) == ([], [])
 
 
+def test_a_card_keeps_its_good_fields_when_one_cannot_be_read():
+    motion = {"name": "A", "motion": {"feel": "flow", "signature": "headlineRise"}, "concept": "x" * 400}
+    cards, notes = read_cards({"cards": [motion, {"name": "B", "home": "hero", "rhythm": "alternate"}]})
+    assert (cards[0].motion, cards[0].signature, len(cards[0].concept)) == ("flow", "headlineRise", 300)
+    assert cards[1].name == "B" and cards[1].home is None and cards[1].rhythm == "alternate"
+    assert notes == ["Card 2: home could not be read; the default is used"]
+
+
 def test_a_card_is_filled_into_a_theme_with_tone_tokens_and_its_record():
     direction = filled()
     theme = direction["theme"]

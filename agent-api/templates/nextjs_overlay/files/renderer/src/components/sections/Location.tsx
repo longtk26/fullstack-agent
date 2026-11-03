@@ -1,11 +1,11 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { Clock, Mail, MapPin, Phone } from "lucide-react";
 import { Section } from "@/components/layout/Section";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { AssetImage, backdropImage } from "./AssetImage";
+import { Icon } from "./Icon";
 import type { TLocationContent } from "./types";
 
 type LocationProps = TLocationContent;
@@ -72,7 +72,7 @@ function Details(props: LocationProps) {
   return (
     <div className="flex flex-col gap-6">
       <p className="flex gap-3 text-lg">
-        <MapPin className="mt-1 size-5 shrink-0 text-primary" aria-hidden />
+        <Icon glyph="mapPin" decorative className="mt-1 size-5 text-primary" />
         <span>
           {address}
           {mapLink && (
@@ -84,7 +84,7 @@ function Details(props: LocationProps) {
       </p>
       {hours.length > 0 && (
         <div className="flex gap-3">
-          <Clock className="mt-2.5 size-5 shrink-0 text-primary" aria-hidden />
+          <Icon glyph="clock" decorative className="mt-2.5 size-5 text-primary" />
           <HoursTable hours={hours} />
         </div>
       )}
@@ -92,12 +92,12 @@ function Details(props: LocationProps) {
         <div className="flex flex-col gap-2">
           {phone && (
             <a href={`tel:${phone.replaceAll(" ", "")}`} className="flex items-center gap-3 hover:text-primary">
-              <Phone className="size-5 text-primary" aria-hidden /> {phone}
+              <Icon glyph="phone" decorative className="size-5 text-primary" /> {phone}
             </a>
           )}
           {email && (
             <a href={`mailto:${email}`} className="flex items-center gap-3 hover:text-primary">
-              <Mail className="size-5 text-primary" aria-hidden /> {email}
+              <Icon glyph="mail" decorative className="size-5 text-primary" /> {email}
             </a>
           )}
         </div>

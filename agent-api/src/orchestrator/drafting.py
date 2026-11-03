@@ -255,6 +255,10 @@ class DraftCheck:
                 item = {"file": filename, **issue.model_dump(mode="json", exclude={"severity"}, exclude_none=True)}
                 if doc is not None:
                     item["excerpt"] = build_excerpt(doc, issue.path)
+                if key == "pair" and issue.backend_path and self.backend_spec is not None:
+                    # Either side may be the one to change (a custom operation's undeclared response is a backend fix).
+                    item["backendFile"] = BACKEND_FILE
+                    item["backendExcerpt"] = build_excerpt(self.backend_spec, issue.backend_path)
                 errors.append(item)
         return errors[:MAX_REPAIR_ERRORS]
 
@@ -786,7 +790,7 @@ class DraftRunner:
         seed = draft_seed(draft) if found else None
         context = write_inputs(work, draft, self.examples_dir, found, seed)
         frontend = mode != GenerationMode.BACKEND
-        purpose, version = ("draft_frontend_spec", "v8") if frontend else ("draft_spec", "v3")
+        purpose, version = ("draft_frontend_spec", "v9") if frontend else ("draft_spec", "v3")
         max_repairs = config.draft_repair_attempts_frontend if frontend else config.draft_repair_attempts_backend
         calls: list[dict[str, Any]] = []
         trace = tracing.GenerationTrace.open(
@@ -886,7 +890,9 @@ class DraftRunner:
                 label = "copy" if stock else f"{attempts}/{max_repairs}"
                 await update_progress(f"repairing ({label})", attempts_count=attempts)
                 errors = stock or check.repair_errors()
-                files = sorted({error["file"] for error in errors})
+                files = sorted(
+                    {error["file"] for error in errors} | {e["backendFile"] for e in errors if "backendFile" in e}
+                )
                 result = await call("repair", self.prompts.render("repair_spec", "v2", files=files, errors=errors))
                 if result.status != EngineStatus.OK:
                     check = check_draft(work, mode)

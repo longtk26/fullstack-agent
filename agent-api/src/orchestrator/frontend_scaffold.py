@@ -25,7 +25,10 @@ BASE_DIR = TEMPLATES / "nextjs_base"
 OVERLAY_DIR = TEMPLATES / "nextjs_overlay"
 SCAFFOLD_INFO = ".bga/scaffold.json"
 OWNED_INFO = ".bga/owned.json"
-SKIP = {"node_modules", ".next", ".git", "out", "test-results", "playwright-report", "base.lock", "lucide-icons.txt"}
+SKIP = {
+    "node_modules", ".next", ".git", "out", "test-results", "playwright-report",
+    "base.lock", "lucide-icons.txt", "icon-index.json",
+}  # fmt: skip
 UI_DIR = "src/components/ui"
 SHELL_PLACEHOLDER = """import type { ReactNode } from "react";
 

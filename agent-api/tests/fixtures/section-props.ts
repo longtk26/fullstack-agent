@@ -88,6 +88,7 @@ export type TFeatureItem = {
   title: string;
   body?: string;
   image?: string;
+  icon?: string;
 };
 
 export type TFeaturesContent = {
@@ -166,6 +167,7 @@ export type TPlanItem = {
   features?: string[];
   cta?: TCta;
   highlighted?: boolean;
+  icon?: string;
 };
 
 export type TPriceGroup = {
@@ -239,6 +241,7 @@ export type TStatItem = {
   label: string;
   value?: string | number;
   data?: TStatData;
+  icon?: string;
 };
 
 export type TStatementContent = {

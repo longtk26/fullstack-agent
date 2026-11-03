@@ -16,6 +16,7 @@ from src.libs.database import db_session_manager
 from src.libs.queue import JobQueue
 from src.libs.redaction import Redactor
 from src.modules.generations.infrastructure.adapters import EventPublisher
+from src.modules.shared.domain.backend_spec import SpecIssue, ValidationReport
 from src.modules.shared.domain.requirement import RequirementError, check_requirement
 from src.modules.shared.infrastructure.models import ImageCallModel, SpecDraftModel, UploadModel
 from src.orchestrator.drafting import DraftRunner, check_draft, draw_images, read_notes, section_catalogue
@@ -158,7 +159,7 @@ def test_static_draft_writes_only_a_frontend_spec(client, user_headers, tmp_path
     assert draft["status"] == "SUCCEEDED", draft["validation"]
     assert draft["frontend_spec"]["project"]["mode"] == "static" and draft["backend_spec"] is None
     assert draft["unresolved"] == [] and set(draft["validation"]) == {"frontend"}
-    assert draft["usage"]["calls"][0]["prompt"] == "draft_frontend_spec@v8"
+    assert draft["usage"]["calls"][0]["prompt"] == "draft_frontend_spec@v9"
     # Story 20.4: three direction cards from the fake's concept library, the best fit applied, its notes after the
     # engine's; the drafted home sections are kept as the pool.
     design = draft["design"]
@@ -272,7 +273,7 @@ def test_stock_phrases_get_one_repair_round(client, user_headers, tmp_path):
     }
     text = "A website for a two-person design studio: services, work, about and contact."
     draft = _run(tmp_path, _create(client, user_headers, "static", text), FakeEngine(tmp_path, scenario))
-    assert [call["prompt"] for call in draft["usage"]["calls"]] == ["draft_frontend_spec@v8", "repair_spec@v2"]
+    assert [call["prompt"] for call in draft["usage"]["calls"]] == ["draft_frontend_spec@v9", "repair_spec@v2"]
     assert draft["status"] == "SUCCEEDED" and draft["attempts"] == 0
     cta = next(s for s in draft["frontend_spec"]["pages"][0]["sections"] if s["id"] == "cta")
     assert cta["content"]["cta"]["label"] == "Start your project"
@@ -362,6 +363,12 @@ def test_check_and_notes_tolerate_engine_output(tmp_path):
     check = check_draft(tmp_path, "static")
     assert check.reports["frontend"].errors[0].code == "JSON_MALFORMED" and not check.ok
     assert check.repair_errors()[0]["file"] == "frontend-spec.json"
+    check.backend_spec = {"operations": [{"operationId": "stats"}]}
+    check.reports["pair"] = ValidationReport.from_issues(
+        [SpecIssue(code="CONTRACT_FIELD_MISSING", path="/pages/0", message="m", backend_path="/operations/0")], "1.0"
+    )
+    pair = check.repair_errors()[-1]
+    assert pair["backendFile"] == "backend-spec.json" and "stats" in pair["backendExcerpt"], "either side may change"
     (tmp_path / "notes.json").write_text(
         json.dumps({"assumptions": ["plain", {"x": 1}], "unresolved": [{"message": ""}]})
     )

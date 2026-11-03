@@ -5,6 +5,7 @@ rules of `templates/nextjs_overlay/DESIGN_CHECKLIST.md`. Dev tool, not part of g
     make design-check-fixture                                  # every preset → .data/shots/design-check/<preset>/
     make design-check-fixture ARGS="--presets minimal editorial --out .data/shots/story20.2"
     make design-check-fixture ARGS="--combos --out .data/shots/story20.3"   # six tone, font and preset combinations
+    make design-check-fixture ARGS="--combos --motion"     # + motion on, JavaScript off (Story 20.6)
     make design-check-fixture ARGS="--combos --spec ../examples/frontend-specs/shop-dynamic.json \
         --backend ../examples/specs/shop.json"     # a dynamic app on its mock API (Story 20.4)
 """
@@ -17,7 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from src.modules.shared.domain.frontend_spec import THEME_PRESETS
-from src.orchestrator.design_tone import SCALES, apply_tone
+from src.orchestrator.design_tone import SCALES, apply_tone, icon_style, motion_feel
 
 from .site_check import REPO, check_site
 
@@ -29,7 +30,9 @@ MAX_NAV_HEIGHT = 80
 MAX_TYPE_SIZES = 5
 MAX_FAMILIES = 2
 MAX_CHARS_PER_LINE = 75
+MAX_CTA_MS = 1000  # Story 20.6: motion never delays the primary call to action
 # Story 20.3: tone (energy, finish, density, weight, seriousness), heading / body font and preset per combination.
+SIGNATURES = ("countUp", "headlineRise", "imageUnmask", "indicator", "headlineRise", "countUp")
 COMBOS = {
     "raw-loud": ((5, 1, 3, 5, 4), ("Unbounded", "Archivo"), "minimal"),
     "refined-quiet": ((1, 5, 2, 2, 3), ("Fraunces", "Newsreader"), "editorial"),
@@ -52,7 +55,12 @@ def variants(fixture: dict[str, Any], presets: list[str], combos: bool) -> dict[
     for name, (levels, (heading, body), preset) in COMBOS.items():
         spec = copy.deepcopy(fixture)
         theme = {**spec.get("theme", {}), "style": preset, "typography": {"headingFont": heading, "bodyFont": body}}
-        spec["theme"] = apply_tone(theme, dict(zip(SCALES, levels, strict=True)))
+        tone = dict(zip(SCALES, levels, strict=True))
+        spec["theme"] = apply_tone(theme, tone)
+        # Stories 20.5, 20.6: the tone's icons and motion; each combination shows another signature.
+        spec["theme"]["icons"] = icon_style(tone)
+        feel = motion_feel(tone)
+        spec["theme"]["motion"] = {"feel": feel, "signature": SIGNATURES[len(out) % len(SIGNATURES)]}
         out[name] = spec
     return out
 
@@ -60,6 +68,14 @@ def variants(fixture: dict[str, Any], presets: list[str], combos: bool) -> dict[
 def failures(view: str, measured: dict[str, Any]) -> list[str]:
     """The checklist rules a page view breaks, as readable lines."""
     found = []
+    if "motionOn" in measured:  # Story 20.6: the motion and no-JavaScript passes
+        if measured.get("hidden"):
+            found.append(f"{view}: left hidden after scrolling {measured['hidden']}")
+        if measured.get("noJsHidden"):
+            found.append(f"{view}: hidden without JavaScript {measured['noJsHidden']}")
+        if (measured.get("ctaDelayMs") or 0) > MAX_CTA_MS:
+            found.append(f"{view}: call to action visible {measured['ctaDelayMs']} ms after the page appeared")
+        return found
     if (measured.get("h1Lines") or 0) > MAX_HEADLINE_LINES:
         found.append(f"{view}: headline on {measured['h1Lines']} lines")
     if (measured.get("navHeight") or 0) > MAX_NAV_HEIGHT:
@@ -93,7 +109,7 @@ async def main(args: argparse.Namespace) -> None:
             return name, json.loads(saved.read_text()) if saved.is_file() else None
         async with gate:
             print(f"building {name}")
-            return name, await check_site(specs[name], out / name, backend=backend)
+            return name, await check_site(specs[name], out / name, backend=backend, motion=args.motion)
 
     summary: dict[str, Any] = {}
     for preset, report in await asyncio.gather(*(one(name) for name in specs)):
@@ -122,4 +138,5 @@ if __name__ == "__main__":
     parser.add_argument("--out", default=str(REPO / ".data" / "shots" / "design-check"))
     parser.add_argument("--combos", action="store_true", help="the six tone combinations instead of the presets")
     parser.add_argument("--recheck", action="store_true", help="re-read the saved reports in --out, build nothing")
+    parser.add_argument("--motion", action="store_true", help="also run the motion and no-JavaScript passes")
     asyncio.run(main(parser.parse_args()))

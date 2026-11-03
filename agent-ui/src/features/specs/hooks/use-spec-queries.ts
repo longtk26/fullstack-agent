@@ -13,7 +13,7 @@ import { specKeys } from "../query-keys";
 import type { TCreateSpecDraftPayload, TSpecDraftStatus, TSpecKind } from "../types";
 
 const DRAFT_POLL_MS = 1500;
-export const FINISHED_DRAFT: TSpecDraftStatus[] = ["SUCCEEDED", "NEEDS_REVIEW", "FAILED"];
+export const FINISHED_DRAFT: TSpecDraftStatus[] = ["SUCCEEDED", "NEEDS_REVIEW", "FAILED", "CANCELLED"];
 
 export function useSpecSchema(kind: TSpecKind) {
   return useQuery({ queryKey: specKeys.schema(kind), queryFn: () => fetchSpecSchema(kind), staleTime: Infinity });

@@ -10,7 +10,7 @@ from pydantic import ValidationError
 
 from .issues import Severity, SpecIssue, SpecIssueCode, ValidationReport
 from .naming import table_name, to_snake
-from .normalizer import default_foreign_key, normalize_spec
+from .normalizer import default_foreign_key, normalize_spec, owning_entity
 from .registry import SPEC_MODELS
 from .schema_v1 import BackendSpecV1, Entity, FieldDef, Operation
 
@@ -280,6 +280,14 @@ class _SemanticChecker:
             entity = self._entity_ref(op.entity, f"{path}/entity")
             if op.type == "crud":
                 self._check_crud(op, entity, path)
+            elif op.entity is None and owning_entity(op, self.spec.entities) is None:
+                self._add(
+                    C.SCHEMA_VIOLATION,
+                    f"{path}/entity",
+                    f"Custom operation '{op.operation_id}' needs 'entity': the backend builds every operation in one "
+                    "entity's module, so without one it is left out of the backend and the API contract",
+                    hint=f"Set it to the entity the operation mostly reads or changes. {self._known_entities()}",
+                )
             for key in ("filters", "sort", "search"):
                 self._field_refs(entity, getattr(op, key), f"{path}/{key}")
             for key in ("request", "response"):

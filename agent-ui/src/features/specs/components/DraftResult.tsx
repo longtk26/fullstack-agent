@@ -44,14 +44,15 @@ function ReportBadge({ name, report }: { name: keyof typeof REPORT_LABELS; repor
 }
 
 export function DraftResult({ draft, needsAcknowledgement, acknowledged, onAcknowledge, onOpen, onDiscard }: DraftResultProps) {
-  if (draft.status === "FAILED") {
+  if (draft.status === "FAILED" || draft.status === "CANCELLED") {
+    const cancelled = draft.status === "CANCELLED";
     return (
-      <Alert variant="destructive">
+      <Alert variant={cancelled ? "default" : "destructive"}>
         <CircleX />
-        <AlertTitle>The draft failed</AlertTitle>
+        <AlertTitle>{cancelled ? "The draft was cancelled" : "The draft failed"}</AlertTitle>
         <AlertDescription>
           <Stack gap="xs">
-            <span>{draft.error ?? "Unknown error"}</span>
+            <span>{cancelled ? "Draft the requirement again to continue." : (draft.error ?? "Unknown error")}</span>
             <div>
               <Button size="sm" variant="outline" onClick={onDiscard}>
                 Dismiss

@@ -102,6 +102,7 @@ Measured targets (the diversity report, `scripts/design-diversity.*`, on the gol
 | 20.7 | [Design panel: rendered previews, squint view, concept-driven photos](story20.7_design_panel_previews.md) | E | 20.4, 19.3 |
 | 20.8 | [New section types](story20.8_new_section_types.md) | B | 17.7 |
 | 20.9 | [Content-led pages: sections from the requirement, not from a template](story20.9_content_led_pages.md) | C | 20.4, 20.8 |
+| 20.10 | [Japanese fonts and typesetting](story20.10_japanese_fonts.md) | F | 20.3, 20.4 |
 
 Scope of each (details, steps and acceptance criteria in the story files):
 
@@ -168,6 +169,11 @@ drafted sections (`home`), keeping the required ones; left-out sections stay in 
 restores them. `PATTERN_SECTIONS` no longer orders pages. Stock phrases are avoided, flagged (`FE_DESIGN_RULE`) and
 repaired once. The report adds section frequency, home-composition similarity and repeated copy.
 
+**20.10 Japanese fonts and typesetting** (added 2026-11-03). Bundled Japanese faces (e.g. Noto Sans / Serif JP, Zen
+Kaku Gothic New, Shippori Mincho) stacked after the Latin face with a CJK fallback; Japanese spacing (looser line
+height, no uppercase or wide tracking, capped heading weight); direction cards for a Japanese requirement each
+carry a Japanese face; `project.locale` drafted from the requirement's language.
+
 ## How to implement (read first)
 
 Work in this order and **stop at each checkpoint** for review:
@@ -179,6 +185,7 @@ Work in this order and **stop at each checkpoint** for review:
    direction targets met with the fake engine; content-led rules shown on fixture drafts).
 4. **Phase D:** 20.5 → 20.6. **Checkpoint D.**
 5. **Phase E:** 20.7. **Checkpoint E**, then the final check.
+6. **Phase F (added 2026-11-03):** 20.10, after the spec-drafting speed work. **Checkpoint F.**
 
 Rules (from the repository's `CLAUDE.md`; they apply to every story):
 
@@ -275,3 +282,29 @@ the same directions and pass the design check on every page on the mock API. Fak
 offline placeholders hide the key-visual difference; revisit at the final check). Section and copy measures need a
 real engine (final check). Details and deviations in 20.4's Status.
 
+**Checkpoint D (2026-11-03): icons and motion** (stories 20.5, 20.6; prompt `draft_frontend_spec@v9`). Items carry
+icon intents or references, resolved to the site's set when it is generated (Lucide or Phosphor, six weights, plain
+or tile, or none), and only the used icons are bundled; each direction's tone gives its icon style and motion feel
+and the home page's content its signature moment. Motion runs only when JavaScript runs and reduced motion is off;
+pages rendered in the browser (dynamic apps behind their mock gate) turn it on before the first paint.
+Measured: `make design-check-fixture ARGS="--combos --motion"` (section library, six combinations × 126 views) and
+the dynamic shop on the mock API (six combinations × 42 views): 0 failures; motion on wherever the tone gives a feel;
+the call to action fully visible within 451 ms of the page appearing (558 ms from load, fixture) and 448 ms (shop);
+nothing left hidden after scrolling or without JavaScript (`.data/shots/phaseD-*`). Diversity report
+(`.data/reports/design-diversity/20261103-030242/`): icons that resolve to nothing 0 across 14 fake drafts; the
+direction targets as at Checkpoint C. Details and deviations in 20.5's and 20.6's Status.
+
+
+**Fixes from the first real runs (2026-11-03, Antigravity).** Cards whose `motion` came as an object no longer drop
+(20.4's Status). Outside this epic's stories, found on the same runs:
+- Custom operations without `entity` take it from the operationId or path, or fail validation with a hint; before,
+  the planner dropped them from the backend and the contract silently. Pair errors on a custom operation's
+  undeclared request / response point at the BackendSpec, and spec repair may edit both files.
+- A custom operation's response may be a list (`"response": {"type": "array", "properties": [...]}`): an `action:
+  "list"` operation in the contract, a list sample for the mock. A list section bound to an operation returning one
+  record is `CONTRACT_SHAPE_MISMATCH` at draft time; before, one such CardGrid sent a 13-page gym site to the
+  engine path (92 minutes and counting, without Epic 20's renderer).
+- Backend templates keep Python keywords out of names (`class_` for an entity `Class`, fields like `from`); the gym's
+  `Class` entity cost three repair rounds (16 minutes).
+- UI: the trace tab no longer crashes on a drafted generation; a cancelled draft no longer spins; the review card
+  links to the draft instead of an inline JSON editor.

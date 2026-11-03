@@ -10,7 +10,7 @@ keeps the spec's camelCase names through Pydantic aliases.
 import json
 from typing import Any
 
-from src.modules.shared.domain.backend_spec.naming import pluralize, to_pascal, to_snake
+from src.modules.shared.domain.backend_spec.naming import pluralize, py_name, to_pascal, to_snake
 
 PLAN_VERSION = "1"
 ENTITIES_PKG = "src/modules/shared/domain/entities"
@@ -54,7 +54,7 @@ def _enum_class(entity: str, field: str) -> str:
 
 def _column(entity: dict[str, Any], field: dict[str, Any]) -> dict[str, Any]:
     python_type, column_type = TYPE_MAP[field["type"]]
-    attr = to_snake(field["name"])
+    attr = py_name(to_snake(field["name"]))
     column: dict[str, Any] = {
         "field": field["name"],
         "attr": attr,
@@ -104,7 +104,7 @@ def _relationships(spec: dict[str, Any]) -> tuple[dict[str, list], list[dict], l
     for rel in spec.get("relationships", []):
         parent, child = by_name[rel["from"]], by_name[rel["to"]]
         parent_pk = next(f for f in parent["fields"] if f.get("primary"))
-        parent_attr = to_snake(rel["from"])
+        parent_attr = py_name(to_snake(rel["from"]))
         child_collection = pluralize(to_snake(rel["to"]))
         if rel["type"] in ("one-to-many", "one-to-one"):
             fk_field = rel["foreignKey"]
@@ -125,7 +125,7 @@ def _relationships(spec: dict[str, Any]) -> tuple[dict[str, list], list[dict], l
                     "type": rel["type"],
                     "parent": {
                         "model": f"{rel['from']}Model",
-                        "attr": child_collection if many else to_snake(rel["to"]),
+                        "attr": child_collection if many else py_name(to_snake(rel["to"])),
                         "annotation": f'list["{rel["to"]}Model"]' if many else f'Optional["{rel["to"]}Model"]',
                         "backPopulates": parent_attr,
                     },
@@ -133,7 +133,7 @@ def _relationships(spec: dict[str, Any]) -> tuple[dict[str, list], list[dict], l
                         "model": f"{rel['to']}Model",
                         "attr": parent_attr,
                         "annotation": f'"{rel["from"]}Model"',
-                        "backPopulates": child_collection if many else to_snake(rel["to"]),
+                        "backPopulates": child_collection if many else py_name(to_snake(rel["to"])),
                     },
                 }
             )

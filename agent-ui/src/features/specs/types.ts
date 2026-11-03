@@ -82,7 +82,7 @@ export type TSpecTab = "requirement" | "import" | "json" | "frontend" | "contrac
 
 export type TDraftMode = "backend" | "static" | "dynamic";
 
-export type TSpecDraftStatus = "PENDING" | "RUNNING" | "SUCCEEDED" | "NEEDS_REVIEW" | "FAILED";
+export type TSpecDraftStatus = "PENDING" | "RUNNING" | "SUCCEEDED" | "NEEDS_REVIEW" | "FAILED" | "CANCELLED";
 
 export type TDraftNote = TImportNote & { spec: TSpecKind | null };
 

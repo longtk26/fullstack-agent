@@ -59,10 +59,11 @@ async def check_site(
     widths: str | None = None,
     schemes: str | None = None,
     backend: dict[str, Any] | None = None,
+    motion: bool = False,
 ) -> dict[str, Any] | None:
     """Builds `spec` (dynamic: against `backend`'s contract) and runs the design check on `routes` (default:
     `default_routes`). The screenshots and `report.json` land in `shots`; returns the report, or None when the spec
-    or the build failed (the reason is printed)."""
+    or the build failed (the reason is printed). `motion` adds the motion and no-JavaScript passes (Story 20.6)."""
     from src.modules.shared.domain.frontend_spec import validate_frontend_spec_data
     from src.orchestrator.frontend_planner import plan_frontend
     from src.orchestrator.frontend_scaffold import scaffold_frontend
@@ -94,9 +95,8 @@ async def check_site(
             print(f"  {shots.name}: build {outcome.summary}\n{outcome.digest[-3000:]}")
             return None
         shutil.copy(DESIGN_CHECK, project / "design-check.mjs")
-        env = {
-            key: value for key, value in (("DESIGN_CHECK_WIDTHS", widths), ("DESIGN_CHECK_SCHEMES", schemes)) if value
-        }
+        options = (("DESIGN_CHECK_WIDTHS", widths), ("DESIGN_CHECK_SCHEMES", schemes), ("DESIGN_CHECK_MOTION", "1"))
+        env = {key: value for key, value in options if value and (key != "DESIGN_CHECK_MOTION" or motion)}
         run = await sandbox.exec(f"node design-check.mjs shots {' '.join(routes)}", timeout_s=900, env=env)
         report = project / "shots" / "report.json"
         if not run.ok or not report.is_file():

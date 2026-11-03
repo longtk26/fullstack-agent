@@ -22,7 +22,7 @@ import re
 import sys
 from typing import Any
 
-from src.modules.shared.domain.backend_spec.naming import to_snake
+from src.modules.shared.domain.backend_spec.naming import py_name, to_snake
 
 from .contract import _request_columns, _required
 
@@ -31,6 +31,9 @@ MODELS_PKG = "src/modules/shared/infrastructure/models"
 CRUD_ACTIONS = ("create", "get", "list", "update", "delete")
 RESERVED = {"usecase", "q", "sort", "limit", "offset", "body", "id"}
 FOREIGN_KEY_VIOLATION = "23503"
+# Repositories define a `list` method: in their class body a later `list[...]` annotation (one the engine adds for a
+# custom query) would name that method, so annotations there stay unevaluated.
+FUTURE = "from __future__ import annotations\n\n"
 
 # -- what the templates cover ------------------------------------------------------------------------------------------
 
@@ -212,7 +215,7 @@ def entity_file(model: dict[str, Any]) -> str:
     return imports.render() + "\n\n" + "\n\n".join(body)
 
 
-def _model_field(column: dict[str, Any], model: dict[str, Any], imports: Imports) -> str:
+def _model_field(column: dict[str, Any], model: dict[str, Any], imports: Imports, indexed: bool = False) -> str:
     annotation = _type(column, imports)
     default = _default(column)
     kwargs: list[str] = []
@@ -240,7 +243,7 @@ def _model_field(column: dict[str, Any], model: dict[str, Any], imports: Imports
         kwargs.append(f"max_length={column['maxLength']}")
     if column["unique"] and not column["primaryKey"]:
         kwargs.append("unique=True")
-    if (column["index"] or foreign) and not column["primaryKey"] and not column["unique"]:
+    if (column["index"] or foreign or indexed) and not column["primaryKey"] and not column["unique"]:
         kwargs.append("index=True")
     sa_type = {
         "text": "Text",
@@ -271,9 +274,30 @@ def _model_field(column: dict[str, Any], model: dict[str, Any], imports: Imports
     return f"    {column['attr']}: {annotation} = Field(\n{inner}    )"
 
 
+def _table_args(model: dict[str, Any], imports: Imports) -> tuple[set[str], str]:
+    """The entity's own indexes and unique constraints: a one-column index is the field's `index=True` (named
+    `ix_<table>_<column>`, as planned); the others go in `__table_args__`."""
+    single = {i["columns"][0] for i in model.get("indexes", []) if len(i["columns"]) == 1 and not i["unique"]}
+    args = []
+    for index in model.get("indexes", []):
+        if len(index["columns"]) == 1 and not index["unique"]:
+            continue
+        imports.add("sqlalchemy", "Index")
+        columns = ", ".join(f'"{column}"' for column in index["columns"])
+        args.append(f'Index("{index["name"]}", {columns}' + (", unique=True)" if index["unique"] else ")"))
+    for group in model.get("uniqueConstraints", []):
+        imports.add("sqlalchemy", "UniqueConstraint")
+        columns = ", ".join(f'"{column}"' for column in group)
+        args.append(f'UniqueConstraint({columns}, name="uq_{model["table"]}_{"_".join(group)}")')
+    if not args:
+        return single, ""
+    return single, "    __table_args__ = (\n" + "".join(f"        {arg},\n" for arg in args) + "    )\n"
+
+
 def model_file(model: dict[str, Any], plan: dict[str, Any]) -> str:
     imports = Imports().add("sqlmodel", "Field", "SQLModel")
-    fields = [_model_field(column, model, imports) for column in model["columns"]]
+    single, table_args = _table_args(model, imports)
+    fields = [_model_field(column, model, imports, column["attr"] in single) for column in model["columns"]]
     if _enums(model):
         imports.add("src.modules.shared.domain.entities", *_enums(model))
     relations = []
@@ -302,7 +326,9 @@ def model_file(model: dict[str, Any], plan: dict[str, Any]) -> str:
         + "\n"
         + checking
         + ("" if checking else "\n")
-        + f'class {model["class"]}(SQLModel, table=True):\n    __tablename__ = "{model["table"]}"\n\n{body}\n'
+        + f'class {model["class"]}(SQLModel, table=True):\n    __tablename__ = "{model["table"]}"\n'
+        + table_args
+        + f"\n{body}\n"
     )
 
 
@@ -363,6 +389,7 @@ class _Module:
         self.name = module["name"]
         self.entity = module["entity"]
         self.snake = _snake(self.entity)
+        self.var = py_name(self.snake)  # the entity as a variable (`class_` for `Class`)
         self.entity_class = module["entityClass"]
         self.repo_var = f"{self.snake}_repo"
         self.pk = _pk(self.model)
@@ -395,7 +422,7 @@ class _Module:
         methods = []
         for method in self.module["port"]["methods"]:
             if method == "create":
-                methods.append(f"    def create(self, {self.snake}: {entity}) -> {entity}:\n        pass")
+                methods.append(f"    def create(self, {self.var}: {entity}) -> {entity}:\n        pass")
             elif method == "find_by_id":
                 methods.append(f"    def find_by_id(self, {self.snake}_id: {pk}) -> {entity} | None:\n        pass")
             elif method == "list":
@@ -409,11 +436,11 @@ class _Module:
                     '        """One page and the total count; `filters` are equality matches on entity attributes."""'
                 )
             elif method == "update":
-                methods.append(f"    def update(self, {self.snake}: {entity}) -> {entity}:\n        pass")
+                methods.append(f"    def update(self, {self.var}: {entity}) -> {entity}:\n        pass")
             elif method == "delete":
                 methods.append(f"    def delete(self, {self.snake}_id: {pk}) -> None:\n        pass")
         body = "\n\n".join(f"    @abstractmethod\n{method}" for method in methods)
-        return imports.render() + f"\n\nclass {self.module['port']['interface']}(ABC):\n{body}\n"
+        return FUTURE + imports.render() + f"\n\nclass {self.module['port']['interface']}(ABC):\n{body}\n"
 
     def repository(self) -> str:
         port = self.module["port"]
@@ -433,8 +460,8 @@ class _Module:
         writes = {"create", "update", "delete"} & set(port["methods"])
         if "create" in port["methods"]:
             methods.append(
-                f"    def create(self, {self.snake}: {entity}) -> {entity}:\n"
-                f"        model = self.__to_model({self.snake})\n"
+                f"    def create(self, {self.var}: {entity}) -> {entity}:\n"
+                f"        model = self.__to_model({self.var})\n"
                 "        self.session.add(model)\n"
                 "        self.__flush()\n"
                 "        return self.__to_entity(model)"
@@ -482,9 +509,9 @@ class _Module:
             )
         if "update" in port["methods"]:
             methods.append(
-                f"    def update(self, {self.snake}: {entity}) -> {entity}:\n"
-                f"        model = self.session.get({model}, {self.snake}.{self.pk['attr']})\n"
-                f'        for key, value in {self.snake}.model_dump(exclude={{"{self.pk["attr"]}"}}).items():\n'
+                f"    def update(self, {self.var}: {entity}) -> {entity}:\n"
+                f"        model = self.session.get({model}, {self.var}.{self.pk['attr']})\n"
+                f'        for key, value in {self.var}.model_dump(exclude={{"{self.pk["attr"]}"}}).items():\n'
                 "            setattr(model, key, value)\n"
                 "        self.__flush()\n"
                 "        return self.__to_entity(model)"
@@ -543,7 +570,7 @@ class _Module:
             else ""
         )
         return (
-            imports.render() + constant + f"\n\nclass {port['implementation']}({port['interface']}):\n"
+            FUTURE + imports.render() + constant + f"\n\nclass {port['implementation']}({port['interface']}):\n"
             "    def __init__(self, session: SessionDep):\n"
             "        self.session = session\n\n"
             + "\n\n".join(methods)
@@ -725,24 +752,24 @@ class _Module:
         files = {}
         dtos = f"{self.pkg}.presenter.dtos"
         repo = f"self.{self.repo_var}"
-        log_id = f'extra={{"{self.snake}_id": str({self.snake}.{self.pk["attr"]})}}'
+        log_id = f'extra={{"{self.snake}_id": str({self.var}.{self.pk["attr"]})}}'
         for action, op in self.ops.items():
             imports = Imports()
             pk = self._pk_imports(imports) if action in ("get", "update", "delete") else ""
             if action == "create":
                 imports.add(dtos, op["requestDto"], self.response_dto)
                 body = (
-                    f"        {self.snake} = {repo}.create(dto.to_entity())\n"
+                    f"        {self.var} = {repo}.create(dto.to_entity())\n"
                     f'        logger.info("{_label(self.model)} created", {log_id})\n'
-                    f"        return {self.response_dto}.from_entity({self.snake})"
+                    f"        return {self.response_dto}.from_entity({self.var})"
                 )
                 text = self._usecase(op, imports, f", dto: {op['requestDto']}", body, self.response_dto)
             elif action == "get":
                 imports.add(dtos, self.response_dto).add("src.libs.exceptions", "NotFoundException")
                 body = (
-                    f"        {self.snake} = {repo}.find_by_id({self.snake}_id)\n"
-                    + self._not_found(self.snake)
-                    + f"        return {self.response_dto}.from_entity({self.snake})"
+                    f"        {self.var} = {repo}.find_by_id({self.snake}_id)\n"
+                    + self._not_found(self.var)
+                    + f"        return {self.response_dto}.from_entity({self.var})"
                 )
                 text = self._usecase(op, imports, f", {self.snake}_id: {pk}", body, self.response_dto)
             elif action == "update":
@@ -750,9 +777,9 @@ class _Module:
                 body = (
                     f"        current = {repo}.find_by_id({self.snake}_id)\n"
                     + self._not_found("current")
-                    + f"        {self.snake} = {repo}.update(dto.to_entity(current))\n"
+                    + f"        {self.var} = {repo}.update(dto.to_entity(current))\n"
                     f'        logger.info("{_label(self.model)} updated", {log_id})\n'
-                    f"        return {self.response_dto}.from_entity({self.snake})"
+                    f"        return {self.response_dto}.from_entity({self.var})"
                 )
                 signature = f", {self.snake}_id: {pk}, dto: {op['requestDto']}"
                 text = self._usecase(op, imports, signature, body, self.response_dto)

@@ -18,8 +18,12 @@ from pydantic import ConfigDict, Field, model_validator
 
 from src.modules.shared.domain.backend_spec.schema_v1 import SpecModel
 
+from .icons import ICON_REF
+
 IMAGE = r"^(asset:[a-z][a-z0-9-]*|https://\S+)$"
 Image = Annotated[str, Field(pattern=IMAGE)]
+# Story 20.5: `lucide:<Name>`, `phosphor:<Name>` or `intent:<words>`, resolved to the site's icon set when planned.
+IconRef = Annotated[str, Field(pattern=ICON_REF)]
 LINK = r"^(https?://|mailto:|tel:|/)"
 MAX_DEPTH = 3
 Columns = Literal[2, 3, 4]
@@ -68,6 +72,7 @@ class FeatureItem(Props):
     title: str = Field(min_length=1, max_length=120)
     body: str | None = Field(default=None, max_length=600)
     image: str | None = Field(default=None, pattern=IMAGE)  # shown by the `alternating` form
+    icon: IconRef | None = None
 
 
 class TestimonialItem(Props):
@@ -88,6 +93,7 @@ class PlanItem(Props):
     features: list[str] = []
     cta: Cta | None = None
     highlighted: bool = False
+    icon: IconRef | None = None
 
 
 ActionKind = Literal["link", "mutation"]
@@ -136,6 +142,7 @@ class StatItem(Props):
     label: str = Field(min_length=1, max_length=60)
     value: str | int | float = ""
     data: StatData | None = None
+    icon: IconRef | None = None
 
     @model_validator(mode="after")
     def _check_value_or_data(self):

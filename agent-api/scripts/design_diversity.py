@@ -166,6 +166,10 @@ def measure_draft(stored: dict[str, Any], requirement: str, mode: str) -> dict[s
         + layout_problems([item["hero"] for item in fields if item["hero"] != "none"])
         + composition_problems(homes, len(pool)),
         "stockPhrases": stock_phrases(stored.get("frontend_spec") or {}),
+        "iconWarnings": sum(
+            warning.get("code") == "FE_UNKNOWN_ICON"
+            for warning in ((stored.get("validation") or {}).get("frontend") or {}).get("warnings") or []
+        ),
         "spec": stored.get("frontend_spec"),
         "backendSpec": stored.get("backend_spec"),
         "directionSpecs": specs,
@@ -200,6 +204,7 @@ def summarise(results: dict[str, list[dict[str, Any]]], manifest: dict[str, Any]
         if dynamic
         else None,
         "stockPhrases": sum(len(item["stockPhrases"]) for item in drafts),
+        "iconWarnings": sum(item.get("iconWarnings", 0) for item in drafts),
         "sameBriefDistinctTriples": dd.distinct_triples(d for item in same for d in item["directions"]),
         "sameBriefDirections": sum(len(item["directions"]) for item in same),
         "pairs": pairs,
@@ -225,6 +230,7 @@ def markdown(report: dict[str, Any]) -> str:
         f"| Dynamic drafts passing the difference test | {s['dynamicPassDifferenceTest']} "
         f"({s['dynamicDrafts']} drafts) |",
         f"| Stock phrases left in headings and buttons | {s['stockPhrases']} |",
+        f"| Icons that resolve to nothing (FE_UNKNOWN_ICON) | {s['iconWarnings']} |",
         f"| Same brief: distinct (hero, heading font, hue) | {s['sameBriefDistinctTriples']} of "
         f"{s['sameBriefDirections']} directions |",
         f"| Paired domains with ≥ 2 differing fields | {s['pairsMeetingTarget']} of {len(s['pairs'])} |",

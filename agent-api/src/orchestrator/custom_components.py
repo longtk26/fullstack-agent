@@ -46,6 +46,7 @@ from .frontend_renderer import REGISTRY_FILE, custom_declarations, registry_ts, 
 from .frontend_scaffold import update_owned
 
 logger = get_logger(__name__)
+ICON_PACKAGE = re.compile(r"""from\s+["'](lucide-react|@phosphor-icons/react)""")
 
 SPEC_FILE = ".bga/component.json"
 CONTEXT_PACK_FILE = ".bga/context.md"
@@ -382,6 +383,10 @@ class CustomComponents:
             return [f"{relative} was not written"], installed
         text = path.read_text(errors="replace")
         failures = [] if DEFAULT_EXPORT.search(text) else [f"{relative}: no `export default function`"]
+        if ICON_PACKAGE.search(text):  # Story 20.5: the site's set and weight decide, through `Icon`
+            failures.append(
+                f"{relative}: imports an icon package; use Icon from @/components/sections/Icon (icon or glyph)"
+            )
         failures += [
             f"{item['file']}:{item['line'] or 1} {item['rule']}: {item['message']}"
             + (f" ({item['hint']})" if item.get("hint") else "")

@@ -80,9 +80,9 @@ lane, tracing, results, and an OpenAPI explorer that sends test calls to the run
 | 15 | [Site images & illustrations](epic15_site_assets/epic15_site_assets.md) | Phase 7 | 5 |
 | 16 | [Site revisions & feedback](epic16_site_revisions/epic16_site_revisions.md) | Phase 7 | 5 |
 | 17 | [Fast generation: section renderer, component cache, templated CRUD](epic17_fast_generation/epic17_fast_generation.md) | Phase 7 | 6 |
-| 18 | [Generation speed: fail fast, run in parallel, cache the slow builds](epic18_generation_speed/epic18_generation_speed.md) | Phase 7 | 9 |
+| 18 | [Generation speed: fail fast, run in parallel, cache the slow builds](epic18_generation_speed/epic18_generation_speed.md) | Phase 7 | 10 |
 | 19 | [Real photos and API-driven dynamic apps](epic19_photos_and_live_apps/epic19_photos_and_live_apps.md) | Phase 7 | 10 |
-| 20 | [Design diversity: distinct directions, icons and motion](epic20_design_diversity/epic20_design_diversity.md) (in progress) | Phase 7 | 9 |
+| 20 | [Design diversity: distinct directions, icons and motion](epic20_design_diversity/epic20_design_diversity.md) (in progress) | Phase 7 | 10 |
 
 ### Suggested delivery order
 
@@ -112,6 +112,9 @@ workflow to be built before real generation works.
 10. **Planned 2026-11-02 (agreed):** E20 (design diversity: distinct directions, icons, motion) before
    E16; E16 is then revised to edit the new theme fields and to offer "try another direction" as a spec edit.
    Research: [docs/research/design-diversity.md](../docs/research/design-diversity.md).
+11. **Agreed 2026-11-03:** after Epic 20's Checkpoint D fixes, spec-drafting speed
+   ([18.10](epic18_generation_speed/story18.10_api_drafts.md): drafts and repairs through the Gemini API, no agent
+   loop) → 20.10 (Japanese fonts and typesetting) → 20.7 and the final check.
 
 ### Status (2026-10-30)
 
@@ -127,7 +130,7 @@ workflow to be built before real generation works.
 | 17 | 17.5, 17.1, 17.2, 17.4, 17.3, 17.6 done (auto-fix, shared node_modules; typed content and layout nodes; static sites ~44 s and dynamic frontends rendered without the engine; parallel custom components & component cache; backend CRUD from templates, dynamic shop 59 s with 0 engine calls); 17.7 done 2026-10-30 (22 bundled fonts, section variants, design checklist); 17.8 (custom component layout, found on the first cached shop run) open |
 | 2.4 | done 2026-10-30 (requirement drafting for backend, static and dynamic; with 12.4, 9.2 Requirement tab, 9.7b) |
 | 15 | 15.1–15.4 done 2026-10-30 (drawn SVGs, asset checks with placeholder fallback, uploads and links); 15.5 only if asked |
-| 20 | Checkpoints A, B and C done 2026-11-02 (diversity report and baseline; hero layouts, section forms, rhythm, tone tokens, 30 fonts, seven new sections; direction cards with the difference test, content-led home pages, stock-phrase checks, dynamic apps checked on the mock API); 20.5 + 20.6 next; real-engine numbers on the final check |
+| 20 | Checkpoints A, B and C done 2026-11-02 (diversity report and baseline; hero layouts, section forms, rhythm, tone tokens, 30 fonts, seven new sections; direction cards with the difference test, content-led home pages, stock-phrase checks, dynamic apps checked on the mock API); Checkpoint D done 2026-11-03 (icons in the site's set, motion presets with a signature moment); 20.10 Japanese fonts added 2026-11-03 (after spec-drafting speed); 20.7 next; real-engine numbers on the final check |
 | 10, 11, 16 | open (16 to be revised after Epic 20) |
 
 ### Next up (re-planned 2026-10-30)

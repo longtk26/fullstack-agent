@@ -26,16 +26,7 @@ export function TraceTab({ detail, events }: TraceTabProps) {
   const { trace, now } = useTrace(detail.generationId, detail.status, events);
   const view = useTraceView(trace.data, now);
   const draftQuery = useSpecDraft(detail.options?.draftId ?? null);
-  const draftUsage = draftQuery.data?.usage as
-    | {
-        calls?: number;
-        input_tokens?: number;
-        output_tokens?: number;
-        costUsd?: number;
-        cost_usd?: number;
-        images?: { count?: number; cached?: number; costUsd?: number };
-      }
-    | undefined;
+  const draftUsage = draftQuery.data?.usage;
 
   if (trace.isError) {
     return (
@@ -61,13 +52,13 @@ export function TraceTab({ detail, events }: TraceTabProps) {
           <CardContent className="py-2">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <div>
-                <span className="text-xs text-muted-foreground block">Drafting engine calls</span>
-                <span className="text-sm font-semibold tabular-nums">{draftUsage.calls ?? 0}</span>
+                <span className="text-xs text-muted-foreground block">Drafting model calls</span>
+                <span className="text-sm font-semibold tabular-nums">{draftUsage.modelCalls ?? 0}</span>
               </div>
               <div>
                 <span className="text-xs text-muted-foreground block">Tokens in / out</span>
                 <span className="text-sm font-semibold tabular-nums">
-                  {formatTokens(draftUsage.input_tokens ?? 0)} / {formatTokens(draftUsage.output_tokens ?? 0)}
+                  {formatTokens(draftUsage.inputTokens ?? 0)} / {formatTokens(draftUsage.outputTokens ?? 0)}
                 </span>
               </div>
               {draftUsage.images && (
@@ -82,7 +73,7 @@ export function TraceTab({ detail, events }: TraceTabProps) {
               <div>
                 <span className="text-xs text-muted-foreground block">Drafting cost</span>
                 <span className="text-sm font-semibold tabular-nums">
-                  ${Number(draftUsage.costUsd ?? draftUsage.cost_usd ?? 0).toFixed(4)}
+                  ${(draftUsage.costUsd ?? 0).toFixed(4)}
                 </span>
               </div>
             </div>

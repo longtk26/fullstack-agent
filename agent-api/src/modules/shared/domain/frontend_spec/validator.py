@@ -12,6 +12,7 @@ from .assets import ICON_NAME, MAX_GENERATED_ASSETS, MAX_PHOTOS, SVG_KINDS, UPLO
 from .catalogue import BUILTIN_SECTIONS, SHADCN_PRIMITIVES, THEME_PRESETS
 from .copy_rules import stock_copy
 from .fonts import FONTS, closest_font
+from .icons import closest_icon, resolve_icon
 from .issues import FrontendIssueCode
 from .normalizer import normalize_frontend_spec, page_id, route_params, walk_sections
 from .registry import FRONTEND_SPEC_MODELS
@@ -183,6 +184,19 @@ def _layout_fallbacks(name: str, props: Any) -> list[tuple[str, str, str]]:
     return found
 
 
+def _icon_refs(value: Any, path: str) -> Iterator[tuple[str, str]]:
+    """Story 20.5: (reference, JSON path) of every item `icon` in section content or a record."""
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if key == "icon" and isinstance(item, str):
+                yield item, f"{path}/icon"
+            elif isinstance(item, (dict, list)):
+                yield from _icon_refs(item, f"{path}/{key}")
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            yield from _icon_refs(item, f"{path}/{index}")
+
+
 def _page_refs(value: Any, path: str) -> Iterator[tuple[str, str, dict[str, Any] | None]]:
     """`{"page": "<id>"}` links inside free-form section content (e.g. a hero's call to action, or a section action)."""
     if isinstance(value, dict):
@@ -291,6 +305,14 @@ class _SemanticChecker:
                     warning=True,
                     hint=f"Closest bundled font: {suggestion}",
                 )
+        if theme.icons is not None and theme.icons.set == "lucide" and theme.icons.weight in ("fill", "duotone"):
+            self._add(
+                C.FE_DESIGN_RULE,
+                "/theme/icons/weight",
+                f"Lucide icons have no '{theme.icons.weight}' weight; they are drawn bold",
+                warning=True,
+                hint="Use the phosphor set for filled or duotone icons",
+            )
         preset = THEME_PRESETS[theme.style]["colors"]
         for key, value in theme.colors.model_dump().items():
             if value is not None and not valid_color(value):
@@ -551,6 +573,7 @@ class _SemanticChecker:
                 )
             for key, message, hint in _layout_fallbacks(name, props):
                 self._add(C.FE_DESIGN_RULE, f"{path}/content/{key}", message, warning=True, hint=hint)
+            self._check_icons(section.content, f"{path}/content")
             for copy_path, text, phrase in stock_copy(section.content, f"{path}/content"):
                 self._add(
                     C.FE_DESIGN_RULE,
@@ -629,9 +652,26 @@ class _SemanticChecker:
                     hint=self._known_pages(),
                 )
 
+    def _check_icons(self, value: Any, path: str) -> None:
+        """Story 20.5: every item icon resolves to an icon of the site's set (intents through the icon index)."""
+        icons = self.spec.theme.icons
+        icon_set = icons.set if icons is not None else "lucide"
+        if icon_set == "none":
+            return
+        for ref, ref_path in _icon_refs(value, path):
+            if resolve_icon(ref, icon_set) is not None:
+                continue
+            name = ref.partition(":")[2]
+            closest = closest_icon(name, icon_set) if not ref.startswith("intent:") else None
+            hint = f"Closest icon: {icon_set}:{closest}" if closest else "Describe a concrete object, e.g. intent:truck"
+            self._add(
+                C.FE_UNKNOWN_ICON, ref_path, f"'{ref}' matches no {icon_set} icon, so the item shows none", True, hint
+            )
+
     def _check_content(self) -> None:
         for c_index, collection in enumerate(self.spec.content):
             for r_index, record in enumerate(collection.records):
+                self._check_icons(record, f"/content/{c_index}/records/{r_index}")
                 for asset, path in _asset_refs(record, f"/content/{c_index}/records/{r_index}"):
                     if asset not in self.assets:
                         self._add(C.FE_UNKNOWN_ASSET, path, f"Unknown asset '{asset}'")

@@ -97,6 +97,21 @@ def test_draft_prompts_cover_each_mode_and_keep_the_requirement_untrusted():
     assert "Never invent testimonials" in static
 
 
+def test_draft_prompt_v9_asks_for_icon_intents_and_optional_motion():
+    """Stories 20.5, 20.6: icon intents on items; cards may name icons, motion and a signature."""
+    context = CONTEXT["draft_frontend_spec"] | {"mode": "static", "frontend_schema_digest_path": "d.md"}
+    text = (
+        PromptLibrary()
+        .render(
+            "draft_frontend_spec", "v9", **context, photos_enabled=False, design_path=".bga/design.md", stock_phrases=""
+        )
+        .text
+    )
+    assert '"icon": "intent:<a concrete object, 1–3 words>"' in text and "never on headings" in text
+    assert "`signature` (a string beside it" in text and '"motion": "flow", "signature": "headlineRise"' in text
+    assert '"icons"?, "motion"?, "signature"?' in text
+
+
 def test_draft_prompt_v8_builds_from_content_with_three_direction_cards():
     """Stories 20.4 and 20.9: sections only from real content (no sample content), a home pool, three cards."""
     context = CONTEXT["draft_frontend_spec"] | {

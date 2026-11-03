@@ -20,10 +20,11 @@ A filled direction keeps the shape of 12.6's directions (the review and the UI a
 import colorsys
 import copy
 import random
+import re
 from itertools import combinations
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 from pydantic.alias_generators import to_camel
 
 from src.modules.shared.domain.frontend_spec import FONTS, SECTION_PROPS, closest_font, font_category
@@ -31,7 +32,8 @@ from src.modules.shared.domain.frontend_spec.copy_rules import phrase_list
 
 from .design_direction import FORM_SECTIONS, HOME_ROUTE, PHOTO_STYLES_BY_PRESET, contrast_failures, with_brand
 from .design_diversity import VISUAL_FIELDS, difference_problems, hue_family, off_default, shared_fields
-from .design_tone import SCALES, apply_tone, normalize_tone
+from .design_tone import SCALES, apply_tone, icon_style, motion_feel, normalize_tone
+from .frontend_motion import FEELS, SIGNATURES
 from .frontend_theme import _hex, _rgb, contrast, luminance, mix, on
 
 DIRECTIONS = 3
@@ -39,6 +41,9 @@ MAX_SEED = 1_000_000
 ENGINES = ("material", "scene", "character", "tradition", "medium", "convention")
 KEY_VISUALS = ("photo", "illustration", "type", "product", "pattern")
 RHYTHMS = ("uniform", "alternate", "dividers")
+ICON_SETS = ("lucide", "phosphor", "none")
+ICON_WEIGHTS = ("thin", "light", "regular", "bold", "fill", "duotone")
+ICON_TREATMENTS = ("plain", "tile")
 # Layouts that show no image, for a key visual of `type`; the others carry an image.
 TYPE_LAYOUTS = ("type", "centered", "vertical")
 FIRST = 3  # home pages differ in their first three sections (20.9)
@@ -93,6 +98,29 @@ class Card(_Lenient):
     gives_up: str = Field(default="", max_length=300)
     fit: int = 2
     home: list[str] | None = None
+    # Stories 20.5, 20.6: optional; without them the tone decides (`design_tone.icon_style`, `motion_feel`) and the
+    # home page's content the signature moment.
+    icons: dict[str, str] = {}
+    motion: str = ""
+    signature: str = ""
+
+    @field_validator("name", "concept", "gives_up", mode="before")
+    @classmethod
+    def _clip(cls, value: Any, info: Any) -> Any:
+        """Long text is cut at its limit, not rejected."""
+        limit = 80 if info.field_name == "name" else 300
+        return value[:limit].rstrip() if isinstance(value, str) else value
+
+    @model_validator(mode="before")
+    @classmethod
+    def _motion_object(cls, data: Any) -> Any:
+        """`motion` may come in the theme's shape, `{"feel", "signature"}`."""
+        if isinstance(data, dict) and isinstance(data.get("motion"), dict):
+            motion = data["motion"]
+            data = {**data, "motion": motion.get("feel", "")}
+            if not data.get("signature") and motion.get("signature"):
+                data["signature"] = motion["signature"]
+        return data
 
 
 def read_cards(design: Any) -> tuple[list[Card], list[str]]:
@@ -103,10 +131,21 @@ def read_cards(design: Any) -> tuple[list[Card], list[str]]:
         return [], []
     cards, notes = [], []
     for position, item in enumerate(raw, 1):
+        if not isinstance(item, dict):
+            notes.append(f"Card {position} is not an object; left out")
+            continue
         try:
             cards.append(Card.model_validate(item))
-        except ValueError as exc:
-            notes.append(f"Card {position} could not be read ({str(exc).splitlines()[0]}); left out")
+        except ValidationError as exc:
+            # One unreadable field costs that field (its default), not the whole card.
+            bad = {str(error["loc"][0]) for error in exc.errors() if error["loc"]}
+            kept = {key: value for key, value in item.items() if key not in bad}
+            try:
+                cards.append(Card.model_validate(kept))
+            except ValidationError as again:
+                notes.append(f"Card {position} could not be read ({str(again).splitlines()[0]}); left out")
+                continue
+            notes.append(f"Card {position}: {', '.join(sorted(bad))} could not be read; the default is used")
     return cards[:DIRECTIONS], notes
 
 
@@ -216,6 +255,49 @@ def fix_contrast(theme: dict[str, Any]) -> bool:
     return False
 
 
+def card_icons(card: Card, tone: dict[str, int], notes: list[str]) -> dict[str, str]:
+    """The card's icon style, completed from the tone; Lucide cannot fill, so fill / duotone take Phosphor."""
+    style = icon_style(tone) | {
+        key: value
+        for key, value in card.icons.items()
+        if value in {"set": ICON_SETS, "weight": ICON_WEIGHTS, "treatment": ICON_TREATMENTS}.get(key, ())
+    }
+    if style["set"] == "lucide" and style["weight"] in ("fill", "duotone"):
+        style["set"] = "phosphor"
+        notes.append(f"icons: {style['weight']} needs the phosphor set")
+    return style
+
+
+def _has_figures(pool: list[dict[str, Any]]) -> bool:
+    for section in pool:
+        items = (section.get("content") or {}).get("items") if section.get("component") == "Stats" else None
+        if any(isinstance(i, dict) and re.search(r"\d", str(i.get("value", ""))) for i in items or []):
+            return True
+    return False
+
+
+def signature(wanted: str, layout: str, pool: list[dict[str, Any]]) -> str:
+    """The one stronger moment (Story 20.6): the card's choice when the home page can show it, else from the content:
+    count-up for figures, a rising headline for type-led layouts, an unmasking image for image-led ones, else the
+    navigation indicator."""
+    hero = next((s for s in pool if s.get("component") == "Hero"), None)
+    content = (hero or {}).get("content") or {}
+    image = bool(content.get("image") or content.get("images")) and layout not in TYPE_LAYOUTS
+    possible = {
+        "countUp": _has_figures(pool),
+        "headlineRise": hero is not None,
+        "imageUnmask": image,
+        "indicator": True,
+    }
+    if wanted in SIGNATURES and possible[wanted]:
+        return wanted
+    if possible["countUp"]:
+        return "countUp"
+    if hero is not None and layout in TYPE_LAYOUTS:
+        return "headlineRise"
+    return "imageUnmask" if image else "indicator"
+
+
 def fill_card(
     card: Card, floor: dict[str, Any], pool: list[dict[str, Any]], required: list[str], seed: int
 ) -> tuple[dict[str, Any], list[str]]:
@@ -263,6 +345,9 @@ def fill_card(
         "density": "comfortable",
     }
     theme = apply_tone(theme, tone)
+    theme["icons"] = card_icons(card, tone, notes)
+    feel = card.motion if card.motion in FEELS or card.motion == "none" else motion_feel(tone)
+    theme["motion"] = {"feel": feel, "signature": signature(card.signature, layout, pool) if feel != "none" else "none"}
     if not fix_contrast(theme):
         theme["colors"] = dict(floor_colors)
         theme["colorScheme"] = "dark" if (luminance(floor_colors["background"]) or 1) < 0.2 else "light"
@@ -592,6 +677,13 @@ def fact_pack(floor: dict[str, Any] | None, seed: int, mode: str) -> str:
         "",
         "Tone (`tone`, 1–5 each): " + ", ".join(SCALES) + ". It sets colour area, type scale, radius, surfaces,"
         " density and heading weight and case; you do not set those yourself.",
+        "",
+        "Icons (`icons`, optional): sets lucide | phosphor | none; weights thin | light | regular | bold | fill |"
+        " duotone (fill and duotone: phosphor); treatment plain | tile. Motion (`motion`, optional): "
+        + " | ".join(["none", *FEELS])
+        + "; one signature moment (`signature`): "
+        + " | ".join(SIGNATURES)
+        + ". Left out, both follow the tone.",
         "",
         f"Stock phrases never to use in headings or buttons: {phrase_list()}.",
     ]

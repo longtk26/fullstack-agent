@@ -65,14 +65,14 @@ motion ever hiding content or slowing me down.
 
 ## Acceptance criteria
 
-- [ ] `theme.motion` exists; `none` (the default) keeps sites exactly as today.
-- [ ] With a feel: button feedback, the Tabs / Faq continuity, a staged hero entrance and reveals by content work in
+- [x] `theme.motion` exists; `none` (the default) keeps sites exactly as today.
+- [x] With a feel: button feedback, the Tabs / Faq continuity, a staged hero entrance and reveals by content work in
       every section of the library, once per load.
-- [ ] One signature moment per site, from the direction card.
-- [ ] Content is complete with JS disabled and with reduced motion; motion never delays the primary CTA (< 1 s to
+- [x] One signature moment per site, from the direction card.
+- [x] Content is complete with JS disabled and with reduced motion; motion never delays the primary CTA (< 1 s to
       visible).
-- [ ] `design-check.mjs` runs both passes; no element is left hidden; checklist updated.
-- [ ] No animation library added; no GSAP.
+- [x] `design-check.mjs` runs both passes; no element is left hidden; checklist updated.
+- [x] No animation library added; no GSAP.
 
 ## Verify
 
@@ -81,3 +81,41 @@ motion ever hiding content or slowing me down.
 one in `float` feel different in the preview; with the OS setting "reduce motion" both are still.
 
 ## Status
+
+**Done (2026-11-03)**, on `feat/epic20-design-diversity`, with 20.5.
+
+- **Spec:** `theme.motion` = `{feel, signature}` (`schema_v1.MotionStyle`, optional; absent or `none`: the site is
+  exactly as before: no `motion` in the built theme or `site.json`, no motion CSS).
+- **Presets** (`orchestrator/frontend_motion.py`, table in its docstring): springs sampled into CSS `linear()` in
+  Python (24 points, ending at 1), two easings per feel (surfaces ≤ 2% overshoot, marks ≤ 15%, by raising the
+  damping ratio), `cut` as `steps()`; durations 120–800 ms, travel, stagger, count duration; the hero entrance uses
+  `--motion-enter` so all four parts are in place within 600 ms. Written into `globals.css` with the rules.
+- **Safety:** `PageRenderer` writes an inline script that sets `html[data-motion="on"]` only when JavaScript runs and
+  reduced motion is off, and sets it to `off` if the page has not come alive within 3 s (`MotionRoot` sets
+  `data-motion-ready`). Every rule is scoped to `on`. A page rendered in the browser (a dynamic app behind its mock
+  gate: React does not run a script it inserts) never ran the script; `MotionRoot` then turns motion on in a layout
+  effect, before the first paint (found by the dynamic shop check: motion stayed off on the mock API).
+- **Baseline motions:** button press to 0.97; the Tabs indicator grows with the feel (the base's accordion already
+  animates Faq heights); hero entrance headline → text → actions → image (`data-motion-part`, `data-bga-asset`).
+- **Reveals:** `renderer/MotionRoot.tsx` (one IntersectionObserver; 15% or 240 px visible; once) sets
+  `data-revealed` on each section; the CSS moves headings, cards, list items, figures, quotes, images (from 1.08)
+  and tables, followers one stagger apart (at most five); Stats count up (`useCountUp`, rAF, server HTML shows the
+  final value).
+- **Signature:** `countUp`, `headlineRise`, `imageUnmask`, `indicator`; one per site, chosen in `design_cards.signature`
+  from the card's wish when the home page can show it (figures, a hero, a hero image), else from the content.
+- **Direction:** `design_tone.motion_feel(tone)`; a card may name `motion` and `signature`.
+- **Design check:** `DESIGN_CHECK_MOTION=1` (`make design-check-fixture ARGS="--motion"`): per page at 1440 px, motion
+  on (the CTA's time to fully visible from load, and from the first section's appearance, `ctaDelayMs`, which must
+  stay under 1 s; after scrolling, anything transparent or displaced) and JavaScript off (anything hidden). A first
+  fixture run found `light-airy`'s `float` entrance at 970 ms, hence the 600 ms entrance cap. Final numbers in the
+  epic's Checkpoint D.
+- **No library:** CSS and one small client component; no GSAP, no animation package.
+- **Deviations:**
+  - The Tabs indicator grows in place instead of sliding (a slide needs the base's primitive changed); Faq keeps the
+    base accordion's own animation.
+  - "Headlines rise by line" is one rising mask over the whole headline (CSS cannot address rendered lines); the
+    `headlineRise` signature makes it stronger.
+  - Custom components get no motion of their own: the section wrapper reveals them (prompt v5 says so); no `Reveal`
+    component is handed to them.
+  - The spring tables are code constants with tests rather than a build-time script.
+

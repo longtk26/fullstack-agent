@@ -1,3 +1,4 @@
+import keyword
 import re
 
 _IRREGULAR_PLURALS = {"person": "people", "child": "children", "man": "men", "woman": "women"}
@@ -8,6 +9,11 @@ def to_snake(name: str) -> str:
     value = re.sub(r"(?<=[a-z0-9])([A-Z])", r"_\1", name)
     value = re.sub(r"(?<=[A-Z])([A-Z][a-z])", r"_\1", value)
     return re.sub(r"[^A-Za-z0-9]+", "_", value).strip("_").lower()
+
+
+def py_name(name: str) -> str:
+    """A snake-case name usable as a Python identifier: a keyword gets a trailing underscore (`class` → `class_`)."""
+    return f"{name}_" if keyword.iskeyword(name) else name
 
 
 def to_kebab(name: str) -> str:

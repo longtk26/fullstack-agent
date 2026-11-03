@@ -8,6 +8,10 @@
 // to <shots-dir>/report.json. Dev tool only; not part of the generation pipeline.
 // DESIGN_CHECK_WIDTHS / DESIGN_CHECK_SCHEMES (comma-separated) narrow the views, e.g. the diversity report (Story 20.1)
 // takes only 1440 / light. Pages load with reduced motion, so screenshots show every element in its final state.
+// DESIGN_CHECK_MOTION=1 adds two passes per page at 1440 px (Story 20.6): with motion on, the time until the hero's
+// call to action is fully visible (from load, and from the first section's appearance: `ctaDelayMs`, the motion's
+// share) and, after scrolling to the end, anything still transparent or displaced; with
+// JavaScript off, anything not fully visible. Results: `<page>-motion` entries in report.json.
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { chromium } from "@playwright/test";
@@ -80,6 +84,61 @@ function measure() {
   };
 }
 
+/** Text and images in the page's main area that are not fully visible (opacity below 1 up the tree) or still moved. */
+function notShown() {
+  const shown = (el) => {
+    let opacity = 1;
+    for (let node = el; node && node !== document.body; node = node.parentElement) {
+      const style = getComputedStyle(node);
+      if (style.display === "none" || style.visibility === "hidden") return true; // hidden on purpose (responsive)
+      opacity *= parseFloat(style.opacity);
+      if (style.translate !== "none" && style.translate !== "0px" && node.closest("[data-bga-section]")) return false;
+    }
+    return opacity >= 0.99;
+  };
+  const content = [...document.querySelectorAll("main *")].filter(
+    (el) => el.tagName === "IMG" || [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim()),
+  );
+  return content
+    .filter((el) => !shown(el))
+    .slice(0, 10)
+    .map((el) => `${el.tagName.toLowerCase()} in ${el.closest("[data-bga-component]")?.dataset.bgaComponent ?? "page"}`);
+}
+
+async function motionPass(browser, route) {
+  const url = `http://127.0.0.1:${PORT}${route}`;
+  const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, reducedMotion: "no-preference" });
+  await page.goto(url, { waitUntil: "domcontentloaded" });
+  // A dynamic app renders behind its mock gate: wait for the first section, then time the call to action from there
+  // (the mock API's start-up is not the motion's cost).
+  await page.waitForSelector("[data-bga-section]", { timeout: 30_000 });
+  const sectionMs = await page.evaluate(() => performance.now());
+  await page.waitForFunction(() => {
+    const cta = document.querySelector('[data-bga-component="Hero"] a');
+    let opacity = 1;
+    for (let node = cta; node; node = node.parentElement) opacity *= parseFloat(getComputedStyle(node).opacity);
+    return opacity >= 0.99;
+  });
+  const ctaVisibleMs = Math.round(await page.evaluate(() => performance.now()));
+  const ctaDelayMs = Math.round(ctaVisibleMs - sectionMs);
+  await page.waitForLoadState("networkidle");
+  const motionOn = await page.evaluate(() => document.documentElement.dataset.motion === "on");
+  const height = await page.evaluate(() => document.body.scrollHeight);
+  for (let y = 0; y <= height; y += 450) {
+    await page.evaluate((top) => window.scrollTo(0, top), y);
+    await page.waitForTimeout(120);
+  }
+  await page.waitForTimeout(1500);
+  const hidden = await page.evaluate(notShown);
+  await page.close();
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, javaScriptEnabled: false });
+  const still = await context.newPage();
+  await still.goto(url, { waitUntil: "load" });
+  const noJsHidden = await still.evaluate(notShown);
+  await context.close();
+  return { motionOn, ctaVisibleMs, ctaDelayMs, hidden, noJsHidden };
+}
+
 const browser = await chromium.launch();
 const report = {};
 try {
@@ -98,6 +157,11 @@ try {
         report[name] = await page.evaluate(measure);
       }
       await page.close();
+    }
+  }
+  if (process.env.DESIGN_CHECK_MOTION === "1") {
+    for (const route of routes) {
+      report[`${route === "/" ? "home" : route.slice(1).replaceAll("/", "-")}-motion`] = await motionPass(browser, route);
     }
   }
 } finally {

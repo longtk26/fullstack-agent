@@ -1,7 +1,8 @@
 #!/bin/sh
 # Recreates the pinned Next.js base every generated frontend starts from (Story 13.2, decision Q11):
 # `create-next-app` exactly as the nextjs-skills skill prescribes, shadcn/ui (base-nova) with every primitive of
-# the FrontendSpec catalogue, the libraries the skill mandates, and the bundled fonts (Story 17.7). Runs inside node:22 so the result does not
+# the FrontendSpec catalogue, the libraries the skill mandates, the bundled fonts (Story 17.7) and the second icon set
+# (Phosphor, Story 20.5). Runs inside node:22 so the result does not
 # depend on the host; the lock file pins every version. Output: agent-api/templates/nextjs_base/ (no node_modules).
 #
 #   make frontend-base        # review the diff, then update agent-api/templates/nextjs_overlay/overlay.json
@@ -10,6 +11,7 @@ NEXT_VERSION=16.4.2
 SHADCN_VERSION=4.22.1
 PNPM_VERSION=10.18.3
 MSW_VERSION=2.12.4
+PHOSPHOR_VERSION=2.1.10
 OUT=/out
 PRIMITIVES="$1"
 FONTS="$2"
@@ -25,7 +27,8 @@ pnpm install
 pnpm dlx "shadcn@$SHADCN_VERSION" init -b base -p nova -y --no-monorepo --force
 # shellcheck disable=SC2086
 pnpm dlx "shadcn@$SHADCN_VERSION" add -y --overwrite $PRIMITIVES
-pnpm add -E @tanstack/react-query zustand react-hook-form zod @hookform/resolvers next-themes
+pnpm add -E @tanstack/react-query zustand react-hook-form zod @hookform/resolvers next-themes \
+  "@phosphor-icons/react@$PHOSPHOR_VERSION"
 # shellcheck disable=SC2086
 pnpm add -E $FONTS
 pnpm add -E -D @types/node@22 "msw@$MSW_VERSION" vitest @vitejs/plugin-react jsdom @testing-library/react \
@@ -37,6 +40,8 @@ const names = Object.keys(m).filter((k) => /^[A-Z]/.test(k) && !k.endsWith("Icon
   k !== "Icon" && typeof m[k] === "object").sort();
 process.stdout.write(`# lucide-react ${v}: icon names for FrontendSpec lucide:<Name> assets (Story 15.1)\n` + names.join("\n") + "\n");' \
   > lucide-icons.txt
+# Every icon of both sets with its name words, tags and categories, for the icon resolver (Story 20.5).
+node /icon-index.mjs .
 cat > base.lock <<LOCK
 nextVersion=$NEXT_VERSION
 shadcnVersion=$SHADCN_VERSION

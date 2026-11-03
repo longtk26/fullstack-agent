@@ -97,6 +97,24 @@ class ThemeDirection(SpecModel):
     seed: int | None = Field(default=None, ge=0)
 
 
+class IconStyle(SpecModel):
+    """Story 20.5: the site's content icons: one set, a weight (Lucide draws thin to bold as stroke widths; fill and
+    duotone need Phosphor) and a treatment (`tile`: a small rounded square in the muted tone). `none`: no content
+    icons (lists show numbers)."""
+
+    set: Literal["lucide", "phosphor", "none"] = "lucide"
+    weight: Literal["thin", "light", "regular", "bold", "fill", "duotone"] = "regular"
+    treatment: Literal["plain", "tile"] = "plain"
+
+
+class MotionStyle(SpecModel):
+    """Story 20.6: how the site moves. `feel` picks the timing and spring of buttons, the hero's entrance and the
+    reveals of sections (`none`: still, as before); `signature` turns on one stronger moment on one section."""
+
+    feel: Literal["none", "click", "slide", "flow", "drop", "bounce", "float", "cut"] = "none"
+    signature: Literal["none", "countUp", "headlineRise", "imageUnmask", "indicator"] = "none"
+
+
 class Theme(SpecModel):
     style: ThemeStyle = "minimal"
     color_scheme: Literal["light", "dark", "light-dark"] = "light"
@@ -109,6 +127,8 @@ class Theme(SpecModel):
     # anchor section in the primary colour, or also a coloured hero.
     surface: Literal["flat", "outline", "raised"] | None = None
     color_area: Literal["minimal", "block", "bold"] | None = None
+    icons: IconStyle | None = None  # Story 20.5; absent: Lucide, regular, plain
+    motion: MotionStyle | None = None  # Story 20.6; absent: still
     direction: ThemeDirection | None = None
 
 

@@ -14,14 +14,13 @@ and its directions stand in when the engine wrote no cards. Applying a direction
 import copy
 import csv
 import json
-import math
 import re
-from collections import Counter
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from src.libs.search import Bm25, stem
 from src.modules.shared.domain.frontend_spec import FONTS, THEME_PRESETS, font_category, iter_sections
 
 from .frontend_theme import build_theme, contrast, luminance, mix, on
@@ -31,8 +30,6 @@ DIRECTIONS = 3
 # Another product type is an alternative only when it scores at least half of the best match on two or more terms.
 RELATED = 0.5
 RELATED_TERMS = 2
-# A light suffix stripper (not a full stemmer): photographer / photography, branding / brand, studios / studio.
-SUFFIXES = ("ings", "ing", "ers", "er", "ies", "s", "y")
 HERO_VARIANTS = ("split", "centered", "banner")
 HOME_ROUTE = "/"
 # Sections whose form a direction card sets (Story 20.4).
@@ -157,13 +154,6 @@ def design_data(data_dir: Path = DATA_DIR) -> DesignData:
 # -- ranking ---------------------------------------------------------------------------------------------------------
 
 
-def stem(word: str) -> str:
-    for suffix in SUFFIXES:
-        if word.endswith(suffix) and len(word) - len(suffix) >= 4:
-            return word[: -len(suffix)]
-    return word
-
-
 def tokens(text: str) -> list[str]:
     return [stem(word) for word in re.findall(r"[a-z0-9]+", text.lower()) if word not in _STOP]
 
@@ -182,30 +172,6 @@ def requirement_lead(requirement: str) -> str:
 
 def requirement_query(requirement: str) -> list[str]:
     return tokens(requirement_lead(requirement))
-
-
-class Bm25:
-    def __init__(self, documents: list[list[str]], k1: float = 1.5, b: float = 0.75):
-        self.documents = [Counter(doc) for doc in documents]
-        self.lengths = [len(doc) for doc in documents]
-        self.average = sum(self.lengths) / max(len(documents), 1)
-        frequency = Counter(term for doc in self.documents for term in doc)
-        count = len(documents)
-        self.idf = {term: math.log(1 + (count - n + 0.5) / (n + 0.5)) for term, n in frequency.items()}
-        self.k1, self.b = k1, b
-
-    def scores(self, query: list[str]) -> list[float]:
-        terms = set(query)
-        out = []
-        for doc, length in zip(self.documents, self.lengths, strict=True):
-            score = 0.0
-            for term in terms & doc.keys():
-                tf = doc[term]
-                score += (
-                    self.idf[term] * tf * (self.k1 + 1) / (tf + self.k1 * (1 - self.b + self.b * length / self.average))
-                )
-            out.append(score)
-        return out
 
 
 @lru_cache

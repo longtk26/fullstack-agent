@@ -185,3 +185,9 @@ shows six directions with at least four hero layouts, and one click generates th
     can repeat or vary directions.
   - Draft time with a real engine waits for the final check.
 
+
+**Fix (2026-11-03), found on the first real-engine drafts.** Antigravity wrote each card's `motion` as the theme's
+object (`{"feel", "signature"}`) and every card failed to read, so both drafts fell back to the UI UX Pro Max
+directions (no tone, icons or motion). Cards now accept that shape, cut over-long `name` / `concept` / `givesUp` at
+their limits, and a field that still cannot be read falls back to its default with a note naming it, instead of
+dropping the card. Prompt v9 shows the string form (`"motion": "flow", "signature": "headlineRise"`).

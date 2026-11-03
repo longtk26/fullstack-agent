@@ -105,6 +105,13 @@ function handler(op: TMockOperation): HttpHandler {
     const url = new URL(request.url);
     const id = params.id ?? params[op.primaryKey];
     const find = () => records(op.entity).find((item) => String(item[op.primaryKey]) === String(id));
+    const sample = op.sample;
+    if (op.action === "list" && op.mock === "sample" && Array.isArray(sample)) {
+      // A custom list with its own record shape: the entity's records (when it has any) over the sample's fields.
+      const rows = records(op.entity);
+      const first = (sample[0] ?? {}) as Record<string, unknown>;
+      return HttpResponse.json(rows.length ? rows.map((row) => ({ ...first, ...row })) : sample);
+    }
     if (op.action === "list" || op.mock === "records") return list(op, url);
     if (op.action === "get" || op.mock === "record") return find() ? HttpResponse.json(find()) : notFound(op.entity);
     if (op.action === "create" || op.mock === "create") {

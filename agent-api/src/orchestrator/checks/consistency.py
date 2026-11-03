@@ -21,6 +21,7 @@ _VARIABLE = re.compile(r"^\$(route|query|record)\.[A-Za-z][A-Za-z0-9_]*$")
 _ASSET_ID = re.compile(r"^[a-z][a-z0-9]*(-[a-z0-9]+)*$")  # FrontendSpec SLUG
 # Sections that pass each shown record to their actions (`$record.<field>`)
 RECORD_SECTIONS = frozenset({"DataTable", "CardGrid", "List", "DetailView"})
+LIST_SECTIONS = RECORD_SECTIONS - {"DetailView"}
 # FrontendSpec form field type → the JSON type and format it submits
 FORM_TYPES: dict[str, tuple[str, str | None]] = {
     "string": ("string", None),
@@ -127,13 +128,29 @@ class _Checker:
             )
         )
 
+    def undeclared(self, operation_id: str, side: str) -> str | None:
+        """A hint for a custom operation whose `request` / `response` the BackendSpec does not declare: its fields
+        exist only in the description, so the contract has none."""
+        index = self.op_index.get(operation_id)
+        spec_op = self.backend["operations"][index] if index is not None else {}
+        payload = spec_op.get(side) or {}
+        if spec_op.get("type") != "custom" or payload.get("properties") or payload.get("entity"):
+            return None
+        return (
+            f'\'{operation_id}\' is a custom operation that declares no {side}: add "{side}": {{"properties": '
+            f'[{{"name", "type"}}, ...]}} (or {{"entity": "<Entity>"}}) to {self.op_pointer(operation_id)} '
+            "in the BackendSpec"
+        )
+
     def op_pointer(self, operation_id: str) -> str:
         index = self.op_index.get(operation_id)
         return f"/operations/{index}" if index is not None else "/operations"
 
     def field_pointer(self, operation_id: str, field: str | None = None) -> str | None:
         entity = (self.operations[operation_id]["operation"].get("x-bga") or {}).get("entity")
-        if entity not in self.entity_index:
+        index = self.op_index.get(operation_id)
+        custom = index is not None and self.backend["operations"][index].get("type") == "custom"
+        if entity not in self.entity_index or custom:  # a custom operation declares its own request and response
             return self.op_pointer(operation_id)
         if field is not None and (entity, field) in self.field_index:
             return f"/entities/{self.entity_index[entity]}/fields/{self.field_index[(entity, field)]}"
@@ -250,6 +267,7 @@ class _Checker:
                                         f"{action_path}/body/{k}",
                                         f"The request of '{op_id}' has no field '{k}'",
                                         backend_path=self.op_pointer(op_id),
+                                        hint=self.undeclared(op_id, "request"),
                                     )
                                 else:
                                     prob = _value_fits(v, resolve(self.contract, props[k]))
@@ -290,6 +308,7 @@ class _Checker:
                                                 f"{section_path}/content/items/{i_index}/data/value",
                                                 f"The response of '{stat_op}' has no field '{val}'",
                                                 backend_path=self.op_pointer(stat_op),
+                                                hint=self.undeclared(stat_op, "response"),
                                             )
 
                 # 3. Section data binding
@@ -310,6 +329,21 @@ class _Checker:
                     )
                     continue
                 self.parameters(operation_id, data.get("params") or {}, f"{path}/params")
+                if (
+                    section.get("component") in LIST_SECTIONS
+                    and (found["operation"].get("x-bga") or {}).get("action") != "list"
+                ):
+                    # The renderer draws these from a list; one record would send the whole site to the engine.
+                    self.add(
+                        C.CONTRACT_SHAPE_MISMATCH,
+                        f"{path}/operationId",
+                        f"{section['component']} shows a list; '{operation_id}' returns one record",
+                        backend_path=self.op_pointer(operation_id),
+                        hint=(
+                            "Bind a list operation, or declare the custom operation's response as a list: "
+                            '"response": {"type": "array", "properties": [...]} (or "entity")'
+                        ),
+                    )
                 record = self.response_record(operation_id)
                 properties = record.get("properties") or {}
                 for f_index, field in enumerate(data.get("fields") or []):
@@ -319,7 +353,7 @@ class _Checker:
                             f"{path}/fields/{f_index}",
                             f"The response of '{operation_id}' has no field '{field}'",
                             backend_path=self.field_pointer(operation_id),
-                            hint=f"Fields: {', '.join(properties)}",
+                            hint=self.undeclared(operation_id, "response") or f"Fields: {', '.join(properties)}",
                         )
 
                 # 4. List controls (search, filters, sort)
@@ -397,7 +431,8 @@ class _Checker:
                                         f"{path}/fields/{i}/name",
                                         f"The response of '{load_op_id}' has no field '{fname}'",
                                         backend_path=self.field_pointer(load_op_id),
-                                        hint=f"Fields: {', '.join(load_props)}",
+                                        hint=self.undeclared(load_op_id, "response")
+                                        or f"Fields: {', '.join(load_props)}",
                                     )
 
             operation_id = form.get("operationId")
@@ -429,7 +464,8 @@ class _Checker:
                         f"{field_path}/name",
                         f"The request of '{operation_id}' has no field '{name}'",
                         backend_path=self.field_pointer(operation_id),
-                        hint=f"Fields: {', '.join(properties) or '(no body)'}",
+                        hint=self.undeclared(operation_id, "request")
+                        or f"Fields: {', '.join(properties) or '(no body)'}",
                     )
                     continue
                 self.form_field(

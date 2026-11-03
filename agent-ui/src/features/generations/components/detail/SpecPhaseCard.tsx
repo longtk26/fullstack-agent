@@ -1,10 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
-  ArrowRight,
   Ban,
   CheckCircle2,
   FileCode2,
@@ -17,12 +16,9 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Spinner } from "@/components/ui/spinner";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
 import { Stack } from "@/components/layout/Stack";
 import { useSpecDraft } from "@/features/specs/hooks/use-spec-queries";
-import { useCancelGeneration, useContinueGeneration } from "../../hooks/use-generation-mutations";
+import { useCancelGeneration } from "../../hooks/use-generation-mutations";
 import type { TGenerationDetail, TGenerationEvent } from "../../types";
 
 type SpecPhaseCardProps = {
@@ -35,7 +31,6 @@ export function SpecPhaseCard({ detail, events }: SpecPhaseCardProps) {
   const draftQuery = useSpecDraft(draftId);
   const draft = draftQuery.data;
   const cancel = useCancelGeneration(detail.generationId);
-  const continueRun = useContinueGeneration(detail.generationId, draftId);
 
   // Derive latest progress from events or draft query
   const lastDraftProgressEvent = useMemo(
@@ -46,39 +41,6 @@ export function SpecPhaseCard({ detail, events }: SpecPhaseCardProps) {
     (lastDraftProgressEvent?.payload?.progress as string | undefined) ??
     draft?.progress ??
     (detail.status === "DRAFTING" ? "Drafting requirements…" : "Spec ready");
-
-  // State for review editor in NEEDS_REVIEW
-  const defaultBackendJson = draft?.backendSpec ? JSON.stringify(draft.backendSpec, null, 2) : "";
-  const defaultFrontendJson = draft?.frontendSpec ? JSON.stringify(draft.frontendSpec, null, 2) : "";
-
-  const [editedBackendJson, setEditedBackendJson] = useState<string | null>(null);
-  const [editedFrontendJson, setEditedFrontendJson] = useState<string | null>(null);
-  const currentBackendJson = editedBackendJson ?? defaultBackendJson;
-  const currentFrontendJson = editedFrontendJson ?? defaultFrontendJson;
-
-  const [activeReviewTab, setActiveReviewTab] = useState<"backend" | "frontend">("frontend");
-  const [continueError, setContinueError] = useState<string | null>(null);
-  // The editors start from the draft: until it has loaded they are empty and would send null specs.
-  const draftReady = !draftId || draftQuery.isSuccess;
-  const canContinue =
-    draftReady && !continueRun.isPending && Boolean(currentBackendJson.trim() || currentFrontendJson.trim());
-
-  const handleFixAndContinue = () => {
-    setContinueError(null);
-    let backendSpec: Record<string, unknown> | null = null;
-    let frontendSpec: Record<string, unknown> | null = null;
-    try {
-      if (currentBackendJson.trim()) backendSpec = JSON.parse(currentBackendJson);
-      if (currentFrontendJson.trim()) frontendSpec = JSON.parse(currentFrontendJson);
-    } catch (err: unknown) {
-      setContinueError(err instanceof Error ? err.message : String(err));
-      return;
-    }
-    continueRun.mutate(
-      { backendSpec, frontendSpec },
-      { onError: (err) => setContinueError(err instanceof Error ? err.message : String(err)) },
-    );
-  };
 
   // If this generation had no draft associated, don't show the spec phase card
   if (!draftId && detail.status !== "DRAFTING" && detail.status !== "NEEDS_REVIEW") {
@@ -142,19 +104,11 @@ export function SpecPhaseCard({ detail, events }: SpecPhaseCardProps) {
               <Badge variant="secondary" className="bg-warning/20 text-warning-foreground dark:text-warning">
                 Needs review
               </Badge>
-              {draftId && (
-                <Link
-                  href={`/generations/new?mode=${detail.mode}&draftId=${draftId}`}
-                  className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
-                >
-                  <FileCode2 className="size-3.5" />
-                  View full draft
-                </Link>
-              )}
             </div>
           </div>
           <CardDescription>
-            The spec draft could not resolve every requirement automatically. Review and fix the spec below to continue.
+            The spec draft still has validation issues after its automatic repairs. Open the draft to fix them, or
+            cancel and draft the requirement again.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4 py-2">
@@ -176,44 +130,6 @@ export function SpecPhaseCard({ detail, events }: SpecPhaseCardProps) {
             </Alert>
           )}
 
-          {continueError && (
-            <Alert variant="destructive">
-              <AlertDescription>{continueError}</AlertDescription>
-            </Alert>
-          )}
-
-          <Tabs
-            value={activeReviewTab}
-            onValueChange={(v) => setActiveReviewTab(v as "backend" | "frontend")}
-            className="w-full"
-          >
-            <TabsList>
-              {detail.mode !== "backend" && <TabsTrigger value="frontend">FrontendSpec JSON</TabsTrigger>}
-              {detail.mode !== "static" && <TabsTrigger value="backend">BackendSpec JSON</TabsTrigger>}
-            </TabsList>
-
-            {detail.mode !== "backend" && (
-              <TabsContent value="frontend" className="pt-2">
-                <Textarea
-                  rows={14}
-                  value={currentFrontendJson}
-                  onChange={(e) => setEditedFrontendJson(e.target.value)}
-                  className="font-mono text-xs"
-                />
-              </TabsContent>
-            )}
-
-            {detail.mode !== "static" && (
-              <TabsContent value="backend" className="pt-2">
-                <Textarea
-                  rows={14}
-                  value={currentBackendJson}
-                  onChange={(e) => setEditedBackendJson(e.target.value)}
-                  className="font-mono text-xs"
-                />
-              </TabsContent>
-            )}
-          </Tabs>
         </CardContent>
         <CardFooter className="flex justify-between gap-2 py-3">
           <Button
@@ -226,10 +142,16 @@ export function SpecPhaseCard({ detail, events }: SpecPhaseCardProps) {
             <Ban className="size-3.5" />
             Cancel
           </Button>
-          <Button size="sm" onClick={handleFixAndContinue} disabled={!canContinue}>
-            {continueRun.isPending || draftQuery.isLoading ? <Spinner /> : <ArrowRight className="size-3.5" />}
-            Fix and continue
-          </Button>
+          {draftId && (
+            <Button
+              size="sm"
+              render={<Link href={`/generations/new?mode=${detail.mode}&draftId=${draftId}`} />}
+              nativeButton={false}
+            >
+              <FileCode2 className="size-3.5" />
+              Open the draft
+            </Button>
+          )}
         </CardFooter>
       </Card>
     );

@@ -359,3 +359,48 @@ def test_reconcile_never_rewrites_the_backend_seed():
     # The remaining mismatch is a warning (the site shows a placeholder), not a SPEC_INVALID error
     seed_issues = [i for i in check_spec_pair(healed, backend_spec) if "Bad_ID" in i.message]
     assert seed_issues and all(i.severity == Severity.WARNING for i in seed_issues)
+
+
+def test_a_custom_operation_without_a_declared_response_is_a_backend_fix(tmp_path):
+    backend = json.loads((EXAMPLES / "specs" / "two-entity.json").read_text())
+    backend["operations"].append(
+        {"operationId": "project.summary", "type": "custom", "method": "GET", "path": "/projects/summary"}
+    )
+    (tmp_path / "backend.json").write_text(json.dumps(backend))
+    frontend = json.loads((EXAMPLES / "frontend-specs" / "project-tracker-dynamic.json").read_text())
+    frontend["pages"][0]["sections"][0]["content"]["items"][0]["data"] = {
+        "operationId": "project.summary",
+        "value": "openTasks",
+    }
+    found = [
+        i
+        for i in check_spec_pair(frontend, normalized(tmp_path / "backend.json"))
+        if i.code == "CONTRACT_FIELD_MISSING"
+    ]
+    assert len(found) == 1 and found[0].backend_path == f"/operations/{len(backend['operations']) - 1}"
+    assert '"response": {"properties"' in found[0].hint, "the hint says where to declare the field"
+
+
+def test_a_list_section_needs_an_operation_that_returns_a_list(tmp_path):
+    backend = json.loads((EXAMPLES / "specs" / "two-entity.json").read_text())
+    backend["operations"].append(
+        {
+            "operationId": "project.overview",
+            "type": "custom",
+            "method": "GET",
+            "path": "/projects/overview",
+            "response": {"properties": [{"name": "name", "type": "string"}]},
+        }
+    )
+    frontend = json.loads((EXAMPLES / "frontend-specs" / "project-tracker-dynamic.json").read_text())
+    section = next(s for p in frontend["pages"] for s in p["sections"] if s["component"] == "CardGrid")
+    section["data"] = {"operationId": "project.overview", "fields": ["name"]}
+
+    def shape_issues():
+        (tmp_path / "backend.json").write_text(json.dumps(backend))
+        found = check_spec_pair(frontend, normalized(tmp_path / "backend.json"))
+        return [i for i in found if i.code == "CONTRACT_SHAPE_MISMATCH"]
+
+    assert len(shape_issues()) == 1 and '"type": "array"' in shape_issues()[0].hint
+    backend["operations"][-1]["response"]["type"] = "array"
+    assert shape_issues() == [], "declared as a list: the renderer can draw it"

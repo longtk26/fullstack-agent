@@ -23,6 +23,24 @@ function toneWords(tone: TDesignDirection["tone"]): string {
   }).join(", ");
 }
 
+/** Story 20.5 / 20.6: the direction's icon style and motion feel, e.g. "icons phosphor duotone tile · motion drop". */
+function MotionAndIcons({ theme }: { theme: TDesignDirection["theme"] }) {
+  const icons = theme.icons as { set?: string; weight?: string; treatment?: string } | undefined;
+  const motion = theme.motion as { feel?: string; signature?: string } | undefined;
+  const iconText =
+    icons?.set === "none" ? "no icons" : icons ? `icons ${icons.set} ${icons.weight}${icons.treatment === "tile" ? " tile" : ""}` : "";
+  const motionText =
+    motion?.feel && motion.feel !== "none"
+      ? `motion ${motion.feel}${motion.signature && motion.signature !== "none" ? ` + ${motion.signature}` : ""}`
+      : "still";
+  return (
+    <>
+      <br />
+      {[iconText, motionText].filter(Boolean).join(" · ")}
+    </>
+  );
+}
+
 function DirectionCard({
   direction,
   picked,
@@ -71,6 +89,7 @@ function DirectionCard({
         {feel ? ` · ${feel}` : ` · ${theme.style} · radius ${theme.radius}`}
         <br />
         Home: {direction.homeOrder.join(" → ")}
+        {card && <MotionAndIcons theme={theme} />}
       </p>
       {card && direction.givesUp && (
         <p className="text-xs text-muted-foreground">Gives up: {direction.givesUp.toLowerCase()}</p>

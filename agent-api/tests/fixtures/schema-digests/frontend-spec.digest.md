@@ -88,6 +88,13 @@ type Header = {
   navigation?: NavLink[];
 };
 
+// Story 20.5: the site's content icons: one set, a weight (Lucide draws thin to bold as stroke widths; fill and duotone need Phosphor) and a treatment (`tile`: a small rounded square in the muted tone).
+type IconStyle = {
+  set?: "lucide" | "phosphor" | "none";
+  weight?: "thin" | "light" | "regular" | "bold" | "fill" | "duotone";
+  treatment?: "plain" | "tile";
+};
+
 type Journey = {
   id: string;
   title: string;
@@ -118,6 +125,12 @@ type Layout = {
   shell?: "header-footer" | "sidebar" | "blank";
   header?: Header;
   footer?: Footer;
+};
+
+// Story 20.6: how the site moves.
+type MotionStyle = {
+  feel?: "none" | "click" | "slide" | "flow" | "drop" | "bounce" | "float" | "cut";
+  signature?: "none" | "countUp" | "headlineRise" | "imageUnmask" | "indicator";
 };
 
 type NavLink = {
@@ -180,6 +193,8 @@ type Theme = {
   density?: "compact" | "comfortable" | null;
   surface?: "flat" | "outline" | "raised" | null;
   colorArea?: "minimal" | "block" | "bold" | null;
+  icons?: IconStyle | null;
+  motion?: MotionStyle | null;
   direction?: ThemeDirection | null;
 };
 
@@ -276,6 +291,7 @@ type FeatureItem = {
   title: string;
   body?: string | null;
   image?: string | null;
+  icon?: string | null;
 };
 
 type FeaturesProps = {
@@ -331,6 +347,7 @@ type PlanItem = {
   features?: string[];
   cta?: Cta | null;
   highlighted?: boolean;
+  icon?: string | null;
 };
 
 type PricingProps = {
@@ -351,6 +368,7 @@ type StatItem = {
   label: string;
   value?: string | number;
   data?: StatData | null;
+  icon?: string | null;
 };
 
 type StatsProps = {

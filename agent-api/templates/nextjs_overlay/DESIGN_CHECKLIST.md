@@ -64,6 +64,37 @@ cards (so `surface` applies), and colour, radius and density come from the theme
 (`make design-check-fixture --spec <dynamic spec> --backend <its BackendSpec>`); a page without a hero has no
 "CTA above the fold" measurement.
 
+## Icons (Story 20.5)
+
+- **One set per site**, from `theme.icons` (`lucide` / `phosphor` / `none`), with a weight (Lucide draws thin to bold
+  as stroke widths 1 / 1.5 / 2 / 2.5; fill and duotone are Phosphor's) and a treatment (`plain`, or `tile`: a 40 px
+  rounded square in the muted tone). Items carry a reference or an intent; the generator resolves it to the site's set
+  (`frontend_spec/icons.py`) and `src/components/renderer/icons.ts` imports only the icons the site uses.
+- **Where:** Features (above a card's title, in place of the list numeral, before a ledger title), Stats (heading a
+  card, by a figure's label, before an inline value), Pricing (by a plan's name). Never on headings. The library's own
+  marks (checks, minus, contact details, opening hours) are drawn in the site's set through `Icon glyph`.
+- **Size and meaning:** 1.25 × the text they sit with, `aria-hidden` (the text carries the meaning), the primary
+  colour. With `none`, content icons and decorative marks are left out and lists keep their numbers; checks stay.
+
+## Motion (Story 20.6)
+
+- **Only when it is safe:** the page's inline script sets `html[data-motion="on"]` when JavaScript runs and the
+  visitor has not asked for reduced motion, and removes it if the page has not come alive within 3 s. Every rule is
+  scoped to it, so without JavaScript or with reduced motion every element is in its final state.
+- **Presets, not per-site code:** `theme.motion.feel` picks a spring preset (`orchestrator/frontend_motion.py`):
+  durations 120–800 ms, easings as CSS `linear()` (surfaces overshoot ≤ 2%, marks ≤ 15%), `cut` as steps.
+- **Three baseline motions:** buttons press to 0.97; the Tabs indicator grows with the feel (Faq keeps the base
+  accordion's height animation); the hero enters headline → text → actions → image, one stagger apart, ≤ 600 ms.
+- **Reveals by content:** below the hero each section reveals once when 15% (or 240 px) of it is visible:
+  headings, cards, list items, figures, quotes, images and tables rise or slide in with the feel, followers one
+  stagger apart (at most five), images settle from 1.08 scale; stats count up.
+- **One signature moment:** `countUp` (longer count), `headlineRise` (the hero headline rises from a mask),
+  `imageUnmask` (the hero image unmasks from the side), `indicator` (navigation links underline on hover and for the
+  current page).
+- **Properties:** `opacity`, `translate`, `scale`; `clip-path` for the two signature masks only.
+- **Measured:** `make design-check-fixture ARGS="--motion"`: with motion on, the call to action is fully visible in
+  under 1 s and nothing is left transparent or displaced after scrolling; with JavaScript off nothing is hidden.
+
 ## Deviations
 
 - **45-character minimum:** a full-width paragraph on a 390 px phone holds about 40 characters at 16 px. The
@@ -76,6 +107,10 @@ cards (so `surface` applies), and colour, radius and density come from the theme
   weight), not by size. Measured: the first figures draft at `text-5xl` gave 6 sizes on the stage page at 1440 px.
 - **The `type` hero is not cropped at the edge:** cropping display type hurts reading on phones; it is set as large
   as the two-line rule allows instead.
+- **Tabs indicator grows rather than slides (Story 20.6):** the base's tabs draw their indicator per trigger; a
+  sliding one would mean editing the primitive. Faq keeps the base accordion's own height animation.
+- **UI chrome stays Lucide (Story 20.5):** the menu button, theme toggle and error alert are controls from the base,
+  like the shadcn primitives; only content icons and the library's marks follow the site's set.
 - **Image backgrounds are faint until Epic 15:** placeholder assets are pale gradients, so `background: "image"` and
   the banner's backdrop barely show under the scrim. Real images (Epic 15) make them visible; the scrim keeps text
   readable either way.

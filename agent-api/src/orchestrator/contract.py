@@ -370,7 +370,8 @@ class _Builder:
         if spec_resp.get("properties"):
             slug = self.spec["project"].get("slug") or "project"
             columns = _properties_columns(spec_resp["properties"])
-            return {c["apiName"]: _synthesize(c, entity or "Result", 0, slug) for c in columns}
+            rows = [{c["apiName"]: _synthesize(c, entity or "Result", i, slug) for c in columns} for i in range(3)]
+            return rows if spec_resp.get("type") == "array" else rows[0]
         return {"ok": True}
 
     def operation(self, module: dict[str, Any], op: dict[str, Any]) -> dict[str, Any]:
@@ -475,6 +476,8 @@ class _Builder:
             elif (spec_op.get("response") or {}).get("properties"):
                 columns = _properties_columns(spec_op["response"]["properties"])
                 schema = _object({c["apiName"]: field_schema(c) for c in columns}, [c["apiName"] for c in columns])
+                if spec_op["response"].get("type") == "array":
+                    schema = {"type": "array", "items": schema}
                 responses[status] = {"description": "Result", "content": {"application/json": {"schema": schema}}}
             else:
                 responses[status] = {"description": "Result", "content": {"application/json": {"schema": {}}}}

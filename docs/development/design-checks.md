@@ -17,9 +17,15 @@ make design-check-fixture                                   # every theme preset
 make design-check-fixture ARGS="--combos"                   # six tone, font and preset combinations (Story 20.3)
 make design-check-fixture ARGS="--presets minimal --out $PWD/.data/shots/try"
 make design-check-fixture ARGS="--recheck --out $PWD/.data/shots/try"   # re-read saved reports, build nothing
+make design-check-fixture ARGS="--combos --motion"          # + motion on and JavaScript off (Story 20.6)
 make design-check-fixture ARGS="--combos --spec ../examples/frontend-specs/shop-dynamic.json \
     --backend ../examples/specs/shop.json"                   # a dynamic app on its mock API (Story 20.4)
 ```
+
+`--combos` gives each combination the icons and motion its tone maps to (Stories 20.5, 20.6) and another signature
+moment. `--motion` adds two passes per page at 1440 px: motion on (time until the hero's call to action is fully
+visible, at most 1 s; after scrolling to the end nothing may stay transparent or displaced) and JavaScript off
+(nothing hidden).
 
 A dynamic spec needs its BackendSpec (`--backend`): it is planned against the API contract, built with
 `next build` and started with `next start` on the mock API (`MOCK_TEST_API=true`); every page without route

@@ -22,11 +22,21 @@ function HeroText(props: TextProps) {
   const { eyebrow, heading, headline, body, cta, secondaryCta, centered = false, wide = false } = props;
   return (
     <div className={cn("flex flex-col gap-5", centered && "items-center text-center", wide ? "w-full" : "max-w-2xl")}>
-      {eyebrow && <p className={cn("text-sm font-medium text-primary", props.eyebrowClassName)}>{eyebrow}</p>}
-      <h1 className={cn("heading text-balance", headline ?? headlineClass(heading))}>{heading}</h1>
-      {body && <p className="max-w-prose text-lg text-muted-foreground">{body}</p>}
+      {eyebrow && (
+        <p data-motion-part="heading" className={cn("text-sm font-medium text-primary", props.eyebrowClassName)}>
+          {eyebrow}
+        </p>
+      )}
+      <h1 data-motion-part="heading" className={cn("heading text-balance", headline ?? headlineClass(heading))}>
+        {heading}
+      </h1>
+      {body && (
+        <p data-motion-part="text" className="max-w-prose text-lg text-muted-foreground">
+          {body}
+        </p>
+      )}
       {(cta || secondaryCta) && (
-        <div className={cn("flex flex-wrap gap-3", centered && "justify-center")}>
+        <div data-motion-part="action" className={cn("flex flex-wrap gap-3", centered && "justify-center")}>
           {cta && <CtaLink cta={cta} />}
           {secondaryCta && <CtaLink cta={secondaryCta} variant="outline" />}
         </div>
@@ -111,16 +121,16 @@ export function Hero(props: HeroProps) {
       <Band className={surfaceClass(surface)}>
         {backdrop}
         <Container className="flex flex-col gap-10">
-          <h1 className={cn("heading text-balance", headlineClass(props.heading))}>
+          <h1 data-motion-part="heading" className={cn("heading text-balance", headlineClass(props.heading))}>
             {props.heading}
           </h1>
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-            <div className="flex flex-col gap-3">
+            <div data-motion-part="text" className="flex flex-col gap-3">
               {props.eyebrow && <p className="text-sm font-medium text-primary">{props.eyebrow}</p>}
               {props.body && <p className="max-w-prose text-lg text-muted-foreground">{props.body}</p>}
             </div>
             {(props.cta || props.secondaryCta) && (
-              <div className="flex flex-wrap gap-3">
+              <div data-motion-part="action" className="flex flex-wrap gap-3">
                 {props.cta && <CtaLink cta={props.cta} />}
                 {props.secondaryCta && <CtaLink cta={props.secondaryCta} variant="outline" />}
               </div>
@@ -166,6 +176,7 @@ export function Hero(props: HeroProps) {
           <div className="flex gap-6 sm:gap-10">
             {props.eyebrow && (
               <p
+                data-motion-part="heading"
                 className={cn(
                   "hidden shrink-0 rotate-180 font-semibold tracking-[0.2em] text-primary uppercase [writing-mode:vertical-rl] sm:block",
                   headlineClass(props.heading),

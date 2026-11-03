@@ -9,6 +9,7 @@ frontend is data plus thin route files and `generate_frontend` makes no engine c
     src/components/sections/types.ts     the section content types, from the props models (Story 17.1)
     src/components/renderer/bindings.ts  operationId → fetcher / query keys (frontend_codegen.bindings_ts)
     src/components/renderer/form-schemas.ts  form id → generated Zod schema and defaults
+    src/components/renderer/icons.ts     the site's icon style and the icons it uses (Story 20.5)
     src/app/<route>/page.tsx             metadata + <PageRenderer pageId=… />
 
 Data sections read through the generated API client in dynamic mode (mocks first, then the live backend) and from
@@ -25,6 +26,7 @@ from typing import Any
 
 from src.modules.shared.domain.backend_spec.naming import to_camel, to_pascal
 from src.modules.shared.domain.frontend_spec import BUILTIN_SECTIONS, LAYOUT_SECTIONS, iter_sections
+from src.modules.shared.domain.frontend_spec.icons import GLYPHS, glyph, lucide_files, resolve_icon
 from src.modules.shared.domain.frontend_spec.registry import section_props_schemas
 from src.modules.shared.domain.frontend_spec.section_props import SECTION_PROPS, Surface
 
@@ -50,6 +52,8 @@ REGISTRY_FILE = "src/components/renderer/registry.ts"
 TYPES_FILE = f"{LIBRARY_DIR}/types.ts"
 BINDINGS_FILE = "src/components/renderer/bindings.ts"
 FORM_SCHEMAS_FILE = "src/components/renderer/form-schemas.ts"
+ICONS_FILE = "src/components/renderer/icons.ts"
+DEFAULT_ICONS = {"set": "lucide", "weight": "regular", "treatment": "plain"}
 
 
 def renderer_gaps(spec: dict[str, Any], routes: list[dict[str, Any]], forms: list[dict[str, Any]]) -> list[str]:
@@ -128,6 +132,8 @@ def _record_schema(contract: dict[str, Any], operation_id: str) -> dict[str, Any
         (r for status, r in sorted((operation.get("responses") or {}).items()) if status.startswith("2")), {}
     )
     schema = resolve(contract, (success.get("content") or {}).get("application/json", {}).get("schema", {}))
+    if schema.get("type") == "array":
+        return resolve(contract, schema.get("items", {}))
     items = (schema.get("properties") or {}).get("items")
     if isinstance(items, dict) and items.get("type") == "array":
         return resolve(contract, items.get("items", {}))
@@ -187,17 +193,43 @@ def _detail_links(plan: dict[str, Any], contract: dict[str, Any] | None) -> dict
     return links
 
 
+def icon_style(spec: dict[str, Any]) -> dict[str, str]:
+    """The site's icon set, weight and treatment (Story 20.5), with the defaults filled in."""
+    return DEFAULT_ICONS | {k: v for k, v in ((spec.get("theme") or {}).get("icons") or {}).items() if v}
+
+
+def resolve_icons(value: Any, icon_set: str) -> Any:
+    """A copy of section content or records with every item `icon` resolved to the site's set (`phosphor:Truck`);
+    icons that resolve to nothing (or every icon, with the set `none`) are left out."""
+    if isinstance(value, list):
+        return [resolve_icons(item, icon_set) for item in value]
+    if not isinstance(value, dict):
+        return value
+    out = {}
+    for key, item in value.items():
+        if key == "icon" and isinstance(item, str):
+            resolved = resolve_icon(item, icon_set)
+            if resolved:
+                out[key] = resolved
+        else:
+            out[key] = resolve_icons(item, icon_set)
+    return out
+
+
 class _Site:
     def __init__(self, plan: dict[str, Any], spec: dict[str, Any], contract: dict[str, Any] | None):
         self.contract = contract
-        self.collections = {item["collection"]: item["records"] for item in spec.get("content", [])}
+        self.icon_set = icon_style(spec)["set"]
+        self.collections = {
+            item["collection"]: resolve_icons(item["records"], self.icon_set) for item in spec.get("content", [])
+        }
         self.links = _detail_links(plan, contract)
         self.operations = contract_operations(contract) if contract else {}
 
     def section(self, section: dict[str, Any]) -> dict[str, Any]:
         out: dict[str, Any] = {"id": section["id"], "component": section["component"]}
         if section.get("content"):
-            out["content"] = section["content"]
+            out["content"] = resolve_icons(section["content"], self.icon_set)
         data = section.get("data") or {}
         if data.get("kind") == "content":
             records = self.collections.get(data["collection"], [])
@@ -342,7 +374,7 @@ def _page(site: "_Site", route: dict[str, Any], color_area: str | None = None) -
     return page
 
 
-def site_json(plan: dict[str, Any], spec: dict[str, Any], contract: dict[str, Any] | None = None) -> str:
+def site_data(plan: dict[str, Any], spec: dict[str, Any], contract: dict[str, Any] | None = None) -> dict[str, Any]:
     site = _Site(plan, spec, contract)
     color_area = (spec.get("theme") or {}).get("colorArea")
     data = {
@@ -350,7 +382,70 @@ def site_json(plan: dict[str, Any], spec: dict[str, Any], contract: dict[str, An
         "collections": site.collections,
         "forms": {form["id"]: _form(form) for form in plan["forms"]},
     }
-    return json.dumps(data, indent=2, ensure_ascii=False) + "\n"
+    motion = (spec.get("theme") or {}).get("motion") or {}
+    if motion.get("feel", "none") != "none":  # Story 20.6; a still site's site.json is unchanged
+        data["motion"] = {"feel": motion["feel"], "signature": motion.get("signature") or "none"}
+    return data
+
+
+def site_json(plan: dict[str, Any], spec: dict[str, Any], contract: dict[str, Any] | None = None) -> str:
+    return json.dumps(site_data(plan, spec, contract), indent=2, ensure_ascii=False) + "\n"
+
+
+def _used_icons(value: Any) -> set[str]:
+    if isinstance(value, dict):
+        found = {value["icon"]} if isinstance(value.get("icon"), str) else set()
+        return found.union(*(_used_icons(item) for item in value.values()))
+    if isinstance(value, list):
+        return set().union(*(_used_icons(item) for item in value))
+    return set()
+
+
+def _icon_import(ref: str) -> tuple[str, str]:
+    """(identifier, import line) for one icon, imported on its own so a site bundles only the icons it uses."""
+    icon_set, _, name = ref.partition(":")
+    if icon_set == "phosphor":
+        return (
+            f"Phosphor{name}",
+            f'import {{ {name} as Phosphor{name} }} from "@phosphor-icons/react/dist/ssr/{name}";\n',
+        )
+    return f"Lucide{name}", f'import Lucide{name} from "lucide-react/icons/{lucide_files()[name]}";\n'
+
+
+def icons_ts(data: dict[str, Any], spec: dict[str, Any]) -> str:
+    """The site's icon style and a component for every icon its content uses, plus the library's marks (checks,
+    contact details) in the site's set (Lucide when the set is `none`)."""
+    style = icon_style(spec)
+    glyph_set = "phosphor" if style["set"] == "phosphor" else "lucide"
+    refs = sorted(_used_icons(data)) if style["set"] != "none" else []
+    marks = {name: f"{glyph_set}:{glyph(name, style['set'])}" for name in GLYPHS}
+    imports: dict[str, str] = {}
+    for ref in [*refs, *marks.values()]:
+        identifier, line = _icon_import(ref)
+        imports[identifier] = line
+    ids = {ref: _icon_import(ref)[0] for ref in [*refs, *marks.values()]}
+    icon_entries = "".join(f"  {json.dumps(ref)}: {ids[ref]} as unknown as TIconComponent,\n" for ref in refs)
+    glyph_entries = "".join(f"  {name}: {ids[ref]} as unknown as TIconComponent,\n" for name, ref in marks.items())
+    glyph_names = " | ".join(json.dumps(name) for name in GLYPHS)
+    return (
+        HEADER
+        + 'import type { ComponentType } from "react";\n'
+        + "".join(imports[key] for key in sorted(imports))
+        + "\nexport type TIconComponent = ComponentType<Record<string, unknown>>;\n"
+        + f"export type TGlyph = {glyph_names};\n"
+        + "export type TIconStyle = {\n"
+        + '  set: "lucide" | "phosphor" | "none";\n'
+        + '  weight: "thin" | "light" | "regular" | "bold" | "fill" | "duotone";\n'
+        + '  treatment: "plain" | "tile";\n'
+        + "};\n\n"
+        + "/** The site's content icons (Story 20.5): set, weight and treatment from `theme.icons`. */\n"
+        + f"export const iconStyle: TIconStyle = {json.dumps(style)};\n\n"
+        + "/** The set the library's own marks are drawn in (Lucide when the site has no content icons). */\n"
+        + f'export const glyphSet: "lucide" | "phosphor" = {json.dumps(glyph_set)};\n\n'
+        + "/** The icons this site's content uses, by resolved reference. */\n"
+        + f"export const icons: Record<string, TIconComponent> = {{\n{icon_entries}}};\n\n"
+        + f"export const glyphs: Record<TGlyph, TIconComponent> = {{\n{glyph_entries}}};\n"
+    )
 
 
 def used_sections(plan: dict[str, Any]) -> list[str]:
@@ -443,8 +538,10 @@ def route_page(route: dict[str, Any]) -> str:
 
 
 def renderer_files(plan: dict[str, Any], spec: dict[str, Any], contract: dict[str, Any] | None) -> dict[str, str]:
+    data = site_data(plan, spec, contract)
     files = {
-        SITE_FILE: site_json(plan, spec, contract),
+        SITE_FILE: json.dumps(data, indent=2, ensure_ascii=False) + "\n",
+        ICONS_FILE: icons_ts(data, spec),
         REGISTRY_FILE: registry_ts(plan),
         TYPES_FILE: section_props_ts(),
         FORM_SCHEMAS_FILE: form_schemas_ts(plan),

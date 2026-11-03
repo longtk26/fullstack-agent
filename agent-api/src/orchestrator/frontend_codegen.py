@@ -830,14 +830,23 @@ def forms_unit_test(plan: dict[str, Any]) -> str:
     )
 
 
+def _bare_list(op: _Operation) -> bool:
+    success = next((r for s, r in sorted((op.raw.get("responses") or {}).items()) if s.startswith("2")), {})
+    return (success.get("content") or {}).get("application/json", {}).get("schema", {}).get("type") == "array"
+
+
 def api_unit_test(contract: dict[str, Any]) -> str:
     ops = [op for op in _ops(contract) if op.method == "GET" and op.action == "list" and not op.path_params]
     fixtures = (contract.get("x-bga") or {}).get("fixtures") or {}
+
+    def check(op: _Operation) -> str:
+        if _bare_list(op):  # a custom list answers with the records themselves, not a page
+            return f"    const rows = await {op.function}();\n    expect(rows.length).toBeGreaterThan(0);\n"
+        total = len(fixtures.get(op.entity) or [])
+        return f"    const page = await {op.function}();\n    expect(page.total).toBe({total});\n"
+
     checks = "".join(
-        f'  it("{op.function} answers from the mock layer", async () => {{\n'
-        f"    const page = await {op.function}();\n"
-        f"    expect(page.total).toBe({len(fixtures.get(op.entity) or [])});\n  }});\n"
-        for op in ops
+        f'  it("{op.function} answers from the mock layer", async () => {{\n{check(op)}  }});\n' for op in ops
     )
     imports = "".join(f"  {op.function},\n" for op in ops)
     return (

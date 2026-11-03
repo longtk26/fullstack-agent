@@ -1,7 +1,7 @@
-import { Mail, MapPin, Phone } from "lucide-react";
 import { Section } from "@/components/layout/Section";
 import { Card, CardContent } from "@/components/ui/card";
 import { backdropImage } from "./AssetImage";
+import { Icon } from "./Icon";
 import type { TContactInfoContent } from "./types";
 
 type ContactInfoProps = TContactInfoContent;
@@ -14,17 +14,17 @@ export function ContactInfo(props: ContactInfoProps) {
         <CardContent className="flex flex-col gap-3">
           {email && (
             <a href={`mailto:${email}`} className="flex items-center gap-2 hover:text-primary">
-              <Mail className="size-4" aria-hidden /> {email}
+              <Icon glyph="mail" decorative className="size-4" /> {email}
             </a>
           )}
           {phone && (
             <a href={`tel:${phone.replaceAll(" ", "")}`} className="flex items-center gap-2 hover:text-primary">
-              <Phone className="size-4" aria-hidden /> {phone}
+              <Icon glyph="phone" decorative className="size-4" /> {phone}
             </a>
           )}
           {address && (
             <p className="flex items-center gap-2">
-              <MapPin className="size-4" aria-hidden />
+              <Icon glyph="mapPin" decorative className="size-4" />
               {mapUrl ? (
                 <a href={mapUrl} className="hover:text-primary" rel="noreferrer" target="_blank">
                   {address}

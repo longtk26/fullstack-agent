@@ -645,6 +645,22 @@
           ],
           "default": null,
           "title": "Properties"
+        },
+        "type": {
+          "anyOf": [
+            {
+              "enum": [
+                "object",
+                "array"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Type"
         }
       },
       "title": "PayloadSchema",

@@ -81,8 +81,15 @@ export type TRhythm = "uniform" | "alternate" | "dividers";
 
 export type TSitePage = { title: string; rhythm?: TRhythm; sections: TSiteSection[] };
 
+/** Story 20.6: the theme's motion; absent for a still site. */
+export type TMotion = {
+  feel: "click" | "slide" | "flow" | "drop" | "bounce" | "float" | "cut";
+  signature: "none" | "countUp" | "headlineRise" | "imageUnmask" | "indicator";
+};
+
 export type TSite = {
   pages: Record<string, TSitePage>;
+  motion?: TMotion;
   collections: Record<string, TRecord[]>;
   forms: Record<string, TFormDef>;
 };

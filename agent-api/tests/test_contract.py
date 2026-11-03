@@ -251,3 +251,29 @@ def test_custom_operation_mock_plans():
     assert mocked["task.quickCreate"]["mock"] == "create"
     assert mocked["task.stats"]["mock"] == "sample"
     assert mocked["task.stats"]["sample"] == sample
+
+
+def test_a_custom_list_with_its_own_fields_is_a_list_operation():
+    spec = normalized(EXAMPLES / "specs" / "two-entity.json")
+    spec["operations"].append(
+        {
+            "operationId": "task.board",
+            "type": "custom",
+            "entity": "Task",
+            "method": "GET",
+            "path": "/tasks/board",
+            "response": {
+                "type": "array",
+                "properties": [{"name": "title", "type": "string"}, {"name": "late", "type": "boolean"}],
+            },
+        }
+    )
+    operation = contract_operations(build_contract(spec))["task.board"]["operation"]
+    schema = operation["responses"]["200"]["content"]["application/json"]["schema"]
+    assert schema["type"] == "array" and set(schema["items"]["properties"]) == {"title", "late"}
+    assert operation["x-bga"]["action"] == "list" and operation["x-bga"]["mock"] == "sample"
+    assert len(operation["x-bga"]["sample"]) == 3, "the mock serves a list"
+    from src.orchestrator.frontend_codegen import api_unit_test
+
+    test = api_unit_test(build_contract(spec))
+    assert "const rows = await boardTasks();\n    expect(rows.length)" in test, "no page.total on a bare list"

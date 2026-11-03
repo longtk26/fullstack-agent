@@ -1,4 +1,3 @@
-import { Check } from "lucide-react";
 import { Grid } from "@/components/layout/Grid";
 import { Section } from "@/components/layout/Section";
 import { Badge } from "@/components/ui/badge";
@@ -6,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { cn } from "@/lib/utils";
 import { backdropImage } from "./AssetImage";
 import { CtaLink } from "./CtaLink";
+import { Icon } from "./Icon";
 import { cardClass } from "./styles";
 import type { TPricingContent } from "./types";
 
@@ -21,6 +21,7 @@ export function Pricing(props: PricingProps) {
             <CardHeader>
               <CardTitle className="flex items-baseline justify-between gap-2">
                 <span className="flex items-center gap-2">
+                  {plan.icon && <Icon icon={plan.icon} className="text-primary" />}
                   {plan.name}
                   {plan.highlighted && <Badge className="h-6 text-sm">Popular</Badge>}
                 </span>
@@ -32,7 +33,7 @@ export function Pricing(props: PricingProps) {
               <ul className="flex flex-col gap-2 text-sm">
                 {(plan.features ?? []).map((feature) => (
                   <li key={feature} className="flex items-center gap-2">
-                    <Check className="size-4 text-primary" aria-hidden />
+                    <Icon glyph="check" className="size-4 text-primary" />
                     {feature}
                   </li>
                 ))}

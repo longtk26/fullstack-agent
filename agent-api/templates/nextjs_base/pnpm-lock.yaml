@@ -104,6 +104,9 @@ importers:
       '@hookform/resolvers':
         specifier: 6.0.0
         version: 6.0.0(@standard-schema/spec@1.1.0)(ajv-formats@2.1.1(ajv@8.20.0))(ajv@8.20.0)(react-hook-form@7.91.0(@types/react@19.3.0)(react@19.3.0))(zod@4.6.7)
+      '@phosphor-icons/react':
+        specifier: 2.1.10
+        version: 2.1.10(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@tanstack/react-query':
         specifier: 5.105.0
         version: 5.105.0(@types/react@19.3.0)(react@19.3.0)
@@ -1023,6 +1026,13 @@ packages:
 
   '@oxc-project/types@0.155.0':
     resolution: {integrity: sha512-SeE8JPwW1xs1tHeNycjUtUBdhorRa8o4jlvjwk49R7/Z291i+4DQa7JJIgOm/TaYQZx+QrPQbVJ/9c8dMIZN8Q==}
+
+  '@phosphor-icons/react@2.1.10':
+    resolution: {integrity: sha512-vt8Tvq8GLjheAZZYa+YG/pW7HDbov8El/MANW8pOAz4eGxrwhnbfrQZq0Cp4q8zBEu8NIhHdnr+r8thnfRSNYA==}
+    engines: {node: '>=10'}
+    peerDependencies:
+      react: '>= 16.8'
+      react-dom: '>= 16.8'
 
   '@playwright/test@1.64.1':
     resolution: {integrity: sha512-IaYGml/nSOiZWROfPtuIL7neuu9qDOZ3TNvNljUIrhDMxiGTgPjzj/g9p9RxpS2tSepPDRY+UwAaEeiKtUvIAg==}
@@ -5167,6 +5177,11 @@ snapshots:
   '@open-draft/until@2.1.0': {}
 
   '@oxc-project/types@0.155.0': {}
+
+  '@phosphor-icons/react@2.1.10(react-dom@19.3.0(react@19.3.0))(react@19.3.0)':
+    dependencies:
+      react: 19.3.0
+      react-dom: 19.3.0(react@19.3.0)
 
   '@playwright/test@1.64.1':
     dependencies:

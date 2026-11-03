@@ -187,3 +187,35 @@ def test_date_annotations_are_always_module_qualified():
         if table is not None:
             SQLModel.metadata.remove(table)
     assert "expenses" not in SQLModel.metadata.tables
+
+
+def test_python_keywords_in_entity_and_field_names_still_compile(tmp_path):
+    spec = copy.deepcopy(TWO_ENTITY)
+    text = json.dumps(spec).replace('"Project"', '"Class"').replace('"title"', '"from"')
+    for old, new in (('"project.', '"class.'), ("/projects", "/classes"), ("projectId", "classId")):
+        text = text.replace(old, new)
+    (tmp_path / "spec.json").write_text(text)
+    files = generated(normalized(tmp_path / "spec.json"))
+    for relative, source in files.items():
+        if relative.endswith(".py"):
+            compile(source, relative, "exec")
+    task_model = next(source for relative, source in files.items() if relative.endswith("/task_model.py"))
+    assert 'class_: "ClassModel"' in task_model and "from_:" in task_model
+    repositories = [source for relative, source in files.items() if relative.endswith("_repository.py")]
+    assert repositories and all(source.startswith("from __future__ import annotations") for source in repositories), (
+        "a custom `-> list[...]` after the `list` method must not name the method"
+    )
+
+
+def test_entity_indexes_and_unique_constraints_are_in_the_models(tmp_path):
+    spec = copy.deepcopy(TWO_ENTITY)
+    task = next(entity for entity in spec["entities"] if entity["name"] == "Task")
+    task["indexes"] = [{"fields": ["status"]}, {"fields": ["projectId", "dueDate"]}]
+    task["uniqueConstraints"] = [["projectId", "title"]]
+    (tmp_path / "spec.json").write_text(json.dumps(spec))
+    files = generated(normalized(tmp_path / "spec.json"))
+    model = next(source for relative, source in files.items() if relative.endswith("/task_model.py"))
+    compile(model, "task_model.py", "exec")
+    assert 'Index("ix_tasks_project_id_due_date", "project_id", "due_date")' in model
+    assert 'UniqueConstraint("project_id", "title", name="uq_tasks_project_id_title")' in model
+    assert "index=True" in model.split("status: TaskStatus | None = Field(")[1].split(")")[0], "one column: index=True"

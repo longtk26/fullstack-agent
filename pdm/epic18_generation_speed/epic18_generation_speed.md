@@ -64,6 +64,7 @@ drawings move to a lower-thinking model (`gemini-3.8-flash-low`).
 | 18.7 | [Drawings in parallel with frontend generation](story18.7_parallel_assets.md) | B | 18.5 |
 | 18.8 | [Previews start when their lane is done](story18.8_early_previews.md) | B | 18.6, 14.2 |
 | 18.9 | [Engine context packs and pre-warmed modules](story18.9_context_packs.md) | C | 18.2, 18.3 |
+| 18.10 | [Spec drafts through the Gemini API (no agent loop)](story18.10_api_drafts.md) | D | 2.4, 12.4, 20.4, 20.9 |
 
 ## How to implement (read first)
 
@@ -73,6 +74,9 @@ Work in this order and **stop at each checkpoint** for review:
    `claude`). **Checkpoint A:** stop; the reviewer reads the diff before Phase B.
 2. **Phase B:** 18.7 → 18.8. **Checkpoint B:** stop for review.
 3. **Phase C:** 18.9. **Checkpoint C:** stop for review, then the final measurement.
+4. **Phase D (added 2026-11-03):** 18.10, on `feat/story18.10-api-drafts` stacked on Epic 20's branch. A draft took
+   455–676 s with Antigravity's agent loop; one API request per step targets 120–180 s. **Checkpoint D:** stop for
+   review, then the paid comparison (needs the user's yes).
 
 Rules (from the repository's `CLAUDE.md`; they apply to every story):
 

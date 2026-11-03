@@ -85,7 +85,13 @@ Agent-specific notes:
   / headingCase / tracking / ratio`) are drawn by `frontend_theme.py` (`heading` utility, `--hero-<step>` sizes
   shrunk by `display_scale` for wide faces) and by `frontend_renderer.py` (`color_roles`, `alternate_backgrounds` in
   `site.json`); `orchestrator/design_tone.py` maps a five-scale tone to them. Without the new fields a spec plans
-  exactly as before and renders the same sizes and weights (`globals.css` gains the variables at today's values). Dev tools: `make design-check-fixture`, `make design-diversity`
+  exactly as before and renders the same sizes and weights (`globals.css` gains the variables at today's values).
+  Icons (20.5): items take `icon` (`lucide:` / `phosphor:` reference or `intent:` words), resolved to `theme.icons.set`
+  when the site is generated (`frontend_spec/icons.py`, index `templates/nextjs_base/icon-index.json` from
+  `scripts/icon-index.mjs`); `frontend_renderer.icons_ts` imports only the used icons; the library draws them with
+  `sections/Icon.tsx`. Motion (20.6): `theme.motion` (`feel`, `signature`) → `frontend_motion.py` (spring presets as
+  CSS `linear()`, rules under `html[data-motion="on"]`), `site.json` `motion`, `PageRenderer`'s inline script and
+  `MotionRoot.tsx` (reveals). Dev tools: `make design-check-fixture` (`--motion`), `make design-diversity`
   (`docs/development/design-checks.md`).
 - Site images (Epic 15): asset sources and render modes in `frontend_spec/assets.py`; the registry
   `src/assets/index.ts` (`asset_registry.py`) and the overlay's `components/assets/AssetImage.tsx`. `generate_assets`
