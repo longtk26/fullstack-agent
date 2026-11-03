@@ -80,7 +80,7 @@ lane, tracing, results, and an OpenAPI explorer that sends test calls to the run
 | 15 | [Site images & illustrations](epic15_site_assets/epic15_site_assets.md) | Phase 7 | 5 |
 | 16 | [Site revisions & feedback](epic16_site_revisions/epic16_site_revisions.md) | Phase 7 | 5 |
 | 17 | [Fast generation: section renderer, component cache, templated CRUD](epic17_fast_generation/epic17_fast_generation.md) | Phase 7 | 6 |
-| 18 | [Generation speed: fail fast, run in parallel, cache the slow builds](epic18_generation_speed/epic18_generation_speed.md) | Phase 7 | 10 |
+| 18 | [Generation speed: fail fast, run in parallel, cache the slow builds](epic18_generation_speed/epic18_generation_speed.md) | Phase 7 | 11 |
 | 19 | [Real photos and API-driven dynamic apps](epic19_photos_and_live_apps/epic19_photos_and_live_apps.md) | Phase 7 | 10 |
 | 20 | [Design diversity: distinct directions, icons and motion](epic20_design_diversity/epic20_design_diversity.md) (in progress) | Phase 7 | 10 |
 
@@ -114,7 +114,8 @@ workflow to be built before real generation works.
    Research: [docs/research/design-diversity.md](../docs/research/design-diversity.md).
 11. **Agreed 2026-11-03:** after Epic 20's Checkpoint D fixes, spec-drafting speed
    ([18.10](epic18_generation_speed/story18.10_api_drafts.md): drafts and repairs through the Gemini API, no agent
-   loop) → 20.10 (Japanese fonts and typesetting) → 20.7 and the final check.
+   loop) → [18.11](epic18_generation_speed/story18.11_lean_validation.md) (lean validation) → 20.10 (Japanese fonts
+   and typesetting) → 20.7 and the final check.
 
 ### Status (2026-10-30)
 

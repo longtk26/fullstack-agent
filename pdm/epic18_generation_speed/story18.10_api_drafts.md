@@ -98,17 +98,9 @@ above in this story's Status note.
 | 2 | Draft model | The API's Flash model (closest to today's quality and cost); Pro only if the measurement asks for it |
 | 3 | Branch | `feat/story18.10-api-drafts`, stacked on `feat/epic20-design-diversity` |
 
-## Follow-ups seen while measuring (not in this story)
+## Related
 
-- **Generation repairs: same rule.** When every failing check is in a file the generator owns, `repair_code` /
-  `repair_frontend` should not run: stop and report a generator bug (2026-11-03: the engine spent 30 minutes on a
-  generated `tests/unit/api.test.ts`, then broke a convention working around it).
-- **`complete_backend` context pack.** The prompt names `spec.json` (19 KB), `plan.json` (56 KB) and `contract.json`
-  (49 KB) by path and asks to read the module's files first; the agent read them in pages (contract ×5, plan ×5,
-  spec ×4) and explored other modules, `conftest.py`, `seed.py` and `SKILL.md`: 45 reads, 53 turns, ~8 min before the
-  first write, per module, modules one after the other. Inline the custom operation's spec entry and contract
-  operation, the touched models' fields and one example of each generated file kind (as 18.9 did for components),
-  say "do not read other files", and run modules in parallel: about 10 turns, 2–3 min.
+The same "stop on errors the engine cannot fix" rule for generation repairs, and the `complete_backend` context pack, are in [18.11](story18.11_lean_validation.md).
 
 ## Status
 
