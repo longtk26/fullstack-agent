@@ -20,7 +20,7 @@ from src.libs.queue import PreviewCommandBus
 from src.libs.redaction import Redactor
 from src.modules.generations.infrastructure.adapters import EventPublisher
 from src.orchestrator.contract import build_contract, dump_contract
-from src.orchestrator.previews import PreviewService
+from src.orchestrator.previews import PreviewClient, PreviewService
 from src.orchestrator.store import JobStore
 from src.orchestrator.validation import CheckResult, ValidationOutcome, ValidationRequest
 from src.sandbox import ExecResult, ISandbox, ISandboxProvider
@@ -113,6 +113,28 @@ def _configure_healthy_backend(runtime: FakePreviewRuntime, contract: dict[str, 
 def _artifacts(client, auth: dict, generation_id: str) -> dict[str, dict]:
     items = client.get(f"/api/v1/generations/{generation_id}/artifacts", headers=auth).json()["items"]
     return {item["name"]: item for item in items}
+
+
+class FailingBackendValidator:
+    async def run(self, request: ValidationRequest) -> ValidationOutcome:
+        return ValidationOutcome(
+            results=[
+                CheckResult(
+                    check="pytest",
+                    status="failed",
+                    duration_ms=10,
+                    summary="1 failed",
+                    output="AssertionError",
+                    started_at=datetime.now(UTC),
+                )
+            ],
+            digest="pytest: 1 failed\nAssertionError",
+            implicated_files=[],
+        )
+
+
+def _deploys(runtime: FakePreviewRuntime) -> int:
+    return sum(1 for call, _ in runtime.calls if call == "deploy")
 
 
 def _cleanup_previews(generation_id: str) -> None:
@@ -248,23 +270,6 @@ def test_healthy_backend_switches_frontend_preview_to_live_and_completes(client,
 
 
 def test_failing_backend_lane_keeps_frontend_on_mocks_and_completes_with_warnings(client, headers, tmp_path):
-    class FailingBackendValidator:
-        async def run(self, request: ValidationRequest) -> ValidationOutcome:
-            return ValidationOutcome(
-                results=[
-                    CheckResult(
-                        check="pytest",
-                        status="failed",
-                        duration_ms=10,
-                        summary="1 failed",
-                        output="AssertionError",
-                        started_at=datetime.now(UTC),
-                    )
-                ],
-                digest="pytest: 1 failed\nAssertionError",
-                implicated_files=[],
-            )
-
     auth = headers()
     generation_id = _submit_dynamic(client, auth, maxRepairAttempts=1)
     # Give frontend 0 repairs needed so frontend passes while backend fails after 1 repair attempt.
@@ -366,8 +371,8 @@ def test_unhealthy_backend_or_openapi_mismatch_keeps_mocks(
         _cleanup_previews(generation_id)
 
 
-def test_integration_wait_timeout_aborts_slow_backend_and_keeps_mocks(client, headers, tmp_path, monkeypatch):
-    """The wait counts from when the backend reaches validation (Story 17.6): a repair that takes too long then."""
+def test_a_slow_backend_repair_is_not_cancelled_once_the_frontend_passed(client, headers, tmp_path, monkeypatch):
+    """Story 18.12: no integration-wait watchdog any more; only the job timeout bounds a slow backend."""
     monkeypatch.setattr(config, "integration_wait_seconds", 0.1)
     auth = headers()
     generation_id = _submit_dynamic(client, auth, deployPreview=False)
@@ -375,11 +380,10 @@ def test_integration_wait_timeout_aborts_slow_backend_and_keeps_mocks(client, he
     steps["repair_code"][0].sleep_s = 2.0
 
     status = run_job(tmp_path, generation_id, engine=FakeEngine(tmp_path, steps))
-    assert status == "COMPLETED_WITH_WARNINGS"
+    assert status == "COMPLETED_WITH_WARNINGS"  # deployPreview=False: no backend preview to switch to
     row = generation(generation_id)
-    assert row.lanes == {"backend": "FAILED", "frontend": "COMPLETED", "integration": "SKIPPED"}
-    kept = next(e for e in events(generation_id) if e.type == "integration.kept_mocks")
-    assert "INTEGRATION_WAIT_SECONDS" in kept.payload["reason"]
+    assert row.lanes == {"backend": "COMPLETED", "frontend": "COMPLETED", "integration": "SKIPPED"}
+    assert not [e for e in events(generation_id) if "INTEGRATION_WAIT_SECONDS" in json.dumps(e.payload)]
 
 
 def test_a_backend_still_being_written_is_not_cancelled_by_the_integration_wait(client, headers, tmp_path, monkeypatch):
@@ -396,19 +400,58 @@ def test_a_backend_still_being_written_is_not_cancelled_by_the_integration_wait(
     assert not [e for e in events(generation_id) if "INTEGRATION_WAIT_SECONDS" in json.dumps(e.payload)]
 
 
-def test_failing_frontend_lane_aborts_backend_and_fails_job(client, headers, tmp_path):
+def test_failing_frontend_lane_lets_the_backend_finish_and_preview(client, headers, tmp_path):
+    """Story 18.12: a failed frontend lane no longer cancels the backend; the API preview runs, with warnings."""
+    auth = headers()
+    generation_id = _submit_dynamic(client, auth, shop=True, maxRepairAttempts=1)
+    # In demo_scenario(0), generate_frontend plants a conventions error; replaying it as the repair fails the
+    # frontend lane after one repair while the backend lane, slowed, is still running (its one repair succeeds).
+    steps = demo_scenario(0)
+    steps["repair_frontend"] = steps["generate_frontend"]
+    engine = _shop_engine(tmp_path, steps, "generate_backend", 2.0)
+    backend_rt, frontend_rt = FakePreviewRuntime(), FakePreviewRuntime()
+    store = JobStore()
+
+    async def go():
+        redis = redis_client()
+        try:
+            events_ = EventPublisher(redis, Redactor())
+            previews = PreviewService(
+                backend_rt, store, events_, PreviewCommandBus(redis), frontend_runtime=frontend_rt
+            )
+            async with runner_ctx(
+                tmp_path, engine=engine, previews=previews, on_completed=previews.request_start
+            ) as runner:
+                return await runner.run(generation_id)
+        finally:
+            await redis.aclose()
+
+    try:
+        status = asyncio.run(go())
+        row = generation(generation_id)
+        assert status == "COMPLETED_WITH_WARNINGS", (row.lanes, row.error_summary)
+        assert row.lanes == {"backend": "COMPLETED", "frontend": "FAILED", "integration": "SKIPPED"}
+        assert "frontend lane failed" in row.error_summary.lower()
+        ran_nodes = {run.node for run in node_runs(generation_id)}
+        assert {"integrate", "package_artifacts"} <= ran_nodes
+        assert store.preview(generation_id, "backend").status == "RUNNING"
+        assert store.preview(generation_id, "frontend") is None or _deploys(frontend_rt) == 0
+        assert "backend.zip" in _artifacts(client, auth, generation_id)
+    finally:
+        _cleanup_previews(generation_id)
+
+
+def test_both_lanes_failing_fails_the_job(client, headers, tmp_path):
     auth = headers()
     generation_id = _submit_dynamic(client, auth, shop=True, deployPreview=False, maxRepairAttempts=0)
-    # In demo_scenario(0), the first generate_frontend call plants a conventions error, so with maxRepairAttempts=0
-    # the frontend lane fails at validate_frontend while the backend lane is still running.
-    engine = _shop_engine(tmp_path, demo_scenario(0), "generate_backend", 2.0)
-
-    status = run_job(tmp_path, generation_id, engine=engine)
+    status = run_job(
+        tmp_path, generation_id, engine=_shop_engine(tmp_path, demo_scenario(0)), validator=FailingBackendValidator()
+    )
     assert status == "FAILED"
     row = generation(generation_id)
-    assert row.lanes["frontend"] == "FAILED"
-    ran_nodes = {run.node for run in node_runs(generation_id)}
-    assert "integrate" not in ran_nodes and "package_artifacts" not in ran_nodes
+    assert row.lanes == {"backend": "FAILED", "frontend": "FAILED", "integration": "SKIPPED"}
+    assert row.error_summary.startswith("Both lanes failed")
+    assert "package_artifacts" not in {run.node for run in node_runs(generation_id)}
 
 
 def test_cancel_stops_both_parallel_lanes(client, headers, tmp_path):
@@ -584,6 +627,9 @@ def test_live_contract_response_mismatch_and_playwright_smoke_failure_reported_w
         def for_job(
             self, generation_id: str, project_dir: Path, kind: str = "backend", part: str | None = None
         ) -> ISandbox:
+            if kind == "frontend" and part is None:  # a frontend that ships a Playwright smoke spec
+                (project_dir / "tests" / "e2e").mkdir(parents=True, exist_ok=True)
+                (project_dir / "tests" / "e2e" / "smoke.spec.ts").write_text("// smoke\n")
             return FakeFrontendSandbox()
 
         async def job_ids(self) -> set[str]:
@@ -793,6 +839,78 @@ def test_story18_8_early_backend_preview_and_direct_live_frontend(client, header
         # Verify backend.zip was packaged early and reused by package_artifacts
         head_file = tmp_path / generation_id / "state" / "backend-packaged-head"
         assert head_file.is_file()
+        # Story 18.12: the backend's CORS already allowed the frontend's port, so the switch did not restart it.
+        assert _deploys(backend_rt) == 1
+    finally:
+        _cleanup_previews(generation_id)
+
+
+def test_story18_12_previews_start_through_the_bus_from_a_non_preview_worker(client, headers, tmp_path):
+    """The host worker (PREVIEW_WORKER=false) has no preview runtime: its job sends the preview commands over the
+    bus. The frontend preview runs while the backend lane is still being generated, and switches to live once."""
+    auth = headers()
+    generation_id = _submit_dynamic(client, auth, deployPreview=True)
+    backend_rt, frontend_rt = FakePreviewRuntime(), FakePreviewRuntime()
+    _configure_healthy_backend(backend_rt)
+    store = JobStore()
+    steps = demo_scenario(0)
+    steps["generate_backend"][0].sleep_s = 2.0
+
+    async def go():
+        redis = redis_client()
+        worker_redis = redis_client()
+        stop = asyncio.Event()
+        try:
+            await redis.delete("bga:preview:commands")
+            events_ = EventPublisher(redis, Redactor())
+            service = PreviewService(
+                backend_rt, store, EventPublisher(worker_redis, Redactor()), PreviewCommandBus(worker_redis),
+                frontend_runtime=frontend_rt,
+            )  # fmt: skip
+
+            async def preview_worker() -> None:  # what WorkerService._preview_commands does on the preview worker
+                tasks = set()
+                while not stop.is_set():
+                    command = await service.bus.next(timeout_s=0.2)
+                    if command is not None:
+                        task = asyncio.create_task(service.handle(command))
+                        tasks.add(task)
+                        task.add_done_callback(tasks.discard)
+                await asyncio.gather(*tasks)
+
+            consumer = asyncio.create_task(preview_worker())
+            async with runner_ctx(
+                tmp_path,
+                engine=FakeEngine(tmp_path, steps),
+                previews=PreviewClient(store, events_, PreviewCommandBus(redis)),
+                on_completed=service.request_start,
+            ) as runner:
+                status = await runner.run(generation_id)
+            stop.set()
+            await consumer
+            return status
+        finally:
+            await redis.aclose()
+            await worker_redis.aclose()
+
+    try:
+        status = asyncio.run(go())
+        assert status == "COMPLETED", generation(generation_id).error_summary
+        stored = events(generation_id)
+        frontend_running = next(
+            e
+            for e in stored
+            if e.type == "preview.status" and e.payload.get("kind") == "frontend" and e.status == "RUNNING"
+        )
+        backend_done = next(
+            e for e in stored if e.type == "lane.changed" and e.lane == "backend" and e.status == "COMPLETED"
+        )
+        assert frontend_running.ts < backend_done.ts, "the frontend preview ran before the backend lane ended"
+        site, api = store.preview(generation_id, "frontend"), store.preview(generation_id, "backend")
+        assert site.status == "RUNNING" and site.mock_api is False and api.status == "RUNNING"
+        assert frontend_rt.options[generation_id]["apiBaseUrl"] == api.url
+        assert _deploys(frontend_rt) == 2 and _deploys(backend_rt) == 1, "mocks, then live once; backend once"
+        assert generation(generation_id).lanes["integration"] == "COMPLETED"
     finally:
         _cleanup_previews(generation_id)
 
@@ -887,5 +1005,55 @@ def test_story18_8_package_artifacts_reuses_or_rewrites_backend_zip(client, head
         packaged_head = head_file.read_text().strip() if head_file.is_file() else None
         current_head = workspace_mgr._git(ws, "rev-parse", "HEAD", repo="project").strip()
         assert packaged_head != current_head
+    finally:
+        _cleanup_previews(generation_id)
+
+
+def test_live_smoke_is_skipped_when_the_frontend_has_no_playwright_specs(client, headers, tmp_path):
+    """Since the frontend's e2e tests were dropped, `playwright test` found nothing and failed the integration lane;
+    Story 18.12 runs integration on every dynamic job, so the missing specs must read as skipped."""
+    auth = headers()
+    generation_id = _submit_dynamic(client, auth)
+    backend_rt, frontend_rt = FakePreviewRuntime(), FakePreviewRuntime()
+    _configure_healthy_backend(backend_rt)
+    store = JobStore()
+
+    async def go():
+        redis = redis_client()
+        try:
+            events_ = EventPublisher(redis, Redactor())
+            previews = PreviewService(
+                backend_rt, store, events_, PreviewCommandBus(redis), frontend_runtime=frontend_rt
+            )
+            async with runner_ctx(
+                tmp_path,
+                engine=FakeEngine(tmp_path, demo_scenario(0)),
+                previews=previews,
+                sandboxes=PassingSandboxes(),
+            ) as runner:
+                return await runner.run(generation_id)
+        finally:
+            await redis.aclose()
+
+    try:
+        assert asyncio.run(go()) == "COMPLETED", generation(generation_id).error_summary
+        smoke = [e for e in events(generation_id) if e.payload.get("check") == "integration:smoke"]
+        assert [e.status for e in smoke] == ["skipped"]
+    finally:
+        _cleanup_previews(generation_id)
+
+
+def test_a_backend_start_waits_for_no_frontend_build_once_the_frontend_has_its_port(client, headers):
+    """Story 18.12 (found on `make up`): the backend start took the frontend's lock to reserve its port, so it waited
+    for the frontend image to build (~2.5 min). With the frontend's port known it takes its own lock only."""
+    generation_id = _submit_dynamic(client, headers())
+    store = JobStore()
+    previews = PreviewService(FakePreviewRuntime(), store, None, None, frontend_runtime=FakePreviewRuntime())
+    try:
+        assert previews.lock_kinds(generation_id, "start", "backend") == ("backend", "frontend")
+        store.upsert_preview(generation_id, "frontend", status="STARTING", host_port=18042)
+        assert previews.lock_kinds(generation_id, "start", "backend") == ("backend",)
+        assert previews.lock_kinds(generation_id, "recheck", "frontend") == ("backend", "frontend")
+        assert previews.lock_kinds(generation_id, "stop", "backend") == ("backend",)
     finally:
         _cleanup_previews(generation_id)

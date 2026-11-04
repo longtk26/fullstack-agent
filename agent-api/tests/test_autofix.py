@@ -149,8 +149,8 @@ def test_eslint_uses_the_shared_node_modules_or_installs_first(tmp_path):
 @pytest.mark.usefixtures("clean_redis")
 def test_an_engine_edit_to_an_owned_file_no_longer_needs_a_repair(client, user_headers, tmp_path):
     scenario = demo_scenario(0)
-    step = scenario["generate_tests"][0]
-    scenario["generate_tests"][0] = step.model_copy(update={"write": {"src/main.py": "app = None\n"}})
+    step = scenario["generate_backend"][0]
+    scenario["generate_backend"][0] = step.model_copy(update={"write": {"src/main.py": "app = None\n"}})
     assert isinstance(step, FakeStep)
     generation_id = submit(client, user_headers)
 

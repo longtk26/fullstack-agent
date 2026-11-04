@@ -106,11 +106,9 @@ class JobContext:
         self.max_concurrent_invocations: int = 0
         self._extra_slot_acquired: bool = False
         self.backend_done = asyncio.Event()
-        self.backend_validating = asyncio.Event()  # the backend lane reached run_validation
         self.frontend_done = asyncio.Event()
         self.frontend_failed = False
         self.backend_aborted_reason: str | None = None
-        self._wait_task: asyncio.Task | None = None
         self._state_lock = asyncio.Lock()
         self._commit_lock = asyncio.Lock()
         self.frontend_plan_lock = asyncio.Lock()
@@ -172,8 +170,6 @@ class JobContext:
                 self.worker_slots.release()
         if lane == "backend":
             self.backend_done.set()
-            if self._wait_task is not None:
-                self._wait_task.cancel()
         elif lane == "frontend":
             self.frontend_done.set()
 
@@ -186,29 +182,9 @@ class JobContext:
         finally:
             self._deactivate_lane(lane)
 
-    def start_integration_wait_watchdog(self) -> None:
-        """Story 14.2: once the frontend lane completes, give the backend lane at most INTEGRATION_WAIT_SECONDS,
-        counted from when it reaches validation (Story 17.6): a backend still being written is never cancelled
-        for being slower than the frontend; the job timeout bounds it."""
-        if self.backend_done.is_set() or self._wait_task is not None:
-            return
-
-        async def _watch() -> None:
-            waits = [asyncio.create_task(self.backend_validating.wait()), asyncio.create_task(self.backend_done.wait())]
-            await asyncio.wait(waits, return_when=asyncio.FIRST_COMPLETED)
-            for wait in waits:
-                wait.cancel()
-            try:
-                await asyncio.wait_for(self.backend_done.wait(), timeout=config.integration_wait_seconds)
-            except TimeoutError:
-                if not self.backend_done.is_set():
-                    await self.abort_backend(
-                        f"backend lane timed out after {config.integration_wait_seconds:g}s (INTEGRATION_WAIT_SECONDS)"
-                    )
-
-        self._wait_task = asyncio.create_task(_watch())
-
     async def abort_backend(self, reason: str, *, frontend_failed: bool = False) -> None:
+        """Cancels the backend lane's engine calls: only when the whole job goes down (Story 18.12: a failed frontend
+        lane, a slow backend no longer do)."""
         if frontend_failed:
             self.frontend_failed = True
         if self.backend_aborted_reason is None:

@@ -188,3 +188,18 @@ static and dynamic output with `make up` first. What the user will see: every dr
 its pages as trees (`FRONTEND_TREES=true`); the section-library fixture's `/designed` page shows the renderer's
 range; a dashboard's figures come from templated aggregate operations. Open: 21.1's paid measurement, a real-engine
 tree's quality (the prompt is written for the Gemini API engine, one request per page), and the `AppShell`.
+
+**Fixes (2026-11-04)**, on `feat/story18.12-lane-previews`, from the first real dynamic run with trees
+(`gen_01M6J88EY82D746ZG01MB7WE77`, draft `a4c35e2f…`: 5 of 6 pages and the chrome drawn as trees):
+- **Old Lucide names.** The engine wrote `AlertTriangle`, `AlertCircle`, `CheckCircle2`, `Sliders`, `History`: names
+  lucide-react still exports as aliases but the icon index did not know, so `fix_trees` unwrapped them (10 icons
+  silently gone). `scripts/icon-index.mjs` now records lucide-react's 267 aliases (`lucide.aliases`;
+  `make icon-index` rebuilds only the index), `icons.lucide_current` maps an old name to the current one, and
+  `fix_trees` renames the node (`AlertTriangle` → `TriangleAlert`) with a note; `resolve_icon` accepts old names too.
+- **One wrong Metric cost the home page its tree.** "Designed page dropped (Metric 'fn' is one of count, sum, avg,
+  min, max)". `fix_trees` now maps a Metric's `fn` (`average` → `avg`, `total` → `sum` with a field, else `count`,
+  …; an unknown `fn` without a field counts) and a Chart's `kind` (`pie` → `donut`, an unknown kind → `bar`); a
+  Metric that stays unclear is dropped alone, so the page keeps its design.
+- **Sites without trees did not typecheck.** `PageRenderer.tsx` and `SiteShell.tsx` import `tree/TreeRenderer`, but
+  `library_files` skipped the whole tree folder for them (8 frontend sandbox tests failed: TS2307). Such a site now
+  gets `TreeRenderer.none.tsx` (renders nothing) as `tree/TreeRenderer.tsx`.

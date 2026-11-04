@@ -40,7 +40,7 @@ from .workspace import DiskLimitExceeded, WorkspaceManager
 
 logger = get_logger(__name__)
 TERMINAL = TERMINAL_STATUSES
-PROMPTS = ("generate_database", "generate_backend", "generate_tests", "repair_code")
+PROMPTS = ("generate_database", "generate_backend", "complete_backend", "repair_code")
 
 
 def job_timeout(engine: str) -> int:
@@ -263,16 +263,22 @@ class JobRunner:
         if outcome == Outcome.COMPLETED:
             status = overall_status(ctx.mode, ctx.lanes)
             fallbacks = _asset_warnings(state)
+            checks = _check_warnings(state)
             if status == GenerationStatus.COMPLETED_WITH_WARNINGS:
-                warning = "; ".join(filter(None, [_lane_warnings(ctx.lanes, state), fallbacks]))
+                warning = "; ".join(filter(None, [_lane_warnings(ctx.lanes, state), fallbacks, checks]))
                 return await self._finish(ctx, status, warning, "LANES_INCOMPLETE")
             if fallbacks:  # Story 15.3: a drawing on its placeholder still makes a working site
-                return await self._finish(ctx, GenerationStatus.COMPLETED_WITH_WARNINGS, fallbacks, "ASSET_FALLBACK")
+                warning = "; ".join(filter(None, [fallbacks, checks]))
+                return await self._finish(ctx, GenerationStatus.COMPLETED_WITH_WARNINGS, warning, "ASSET_FALLBACK")
+            if checks:  # Story 18.11: the app starts and its API works; lint and friends only report
+                return await self._finish(ctx, GenerationStatus.COMPLETED_WITH_WARNINGS, checks, "CHECK_WARNINGS")
             return await self._finish(ctx, status, None)
         if outcome == Outcome.SPEC_INVALID:
             return await self._finish(ctx, GenerationStatus.FAILED, state.get("error_summary"), "SPEC_INVALID")
         if outcome == Outcome.REPAIR_LIMIT:
             return await self._finish(ctx, GenerationStatus.FAILED, state.get("error_summary"), "REPAIR_LIMIT")
+        if outcome == Outcome.GENERATOR_BUG:
+            return await self._finish(ctx, GenerationStatus.FAILED, state.get("error_summary"), "GENERATOR_BUG")
         return await self._finish(ctx, GenerationStatus.FAILED, "Workflow ended without an outcome", "INTERNAL_ERROR")
 
     async def _finish(
@@ -371,13 +377,24 @@ def _lane_warnings(lanes: dict[str, str], state: dict[str, Any] | None = None) -
             reason = state.get("integration_reason") if lane == "integration" else None
             notes.append(reason or UNAVAILABLE_LANES.get(Lane(lane), f"The {lane} lane was skipped"))
         elif status == LaneStatus.FAILED.value:
-            reason = (
-                state.get("backend_error")
-                if lane == "backend"
-                else (state.get("integration_reason") if lane == "integration" else None)
-            )
+            reason = {
+                "backend": state.get("backend_error"),
+                "frontend": state.get("frontend_error"),
+                "integration": state.get("integration_reason"),
+            }.get(lane)
             notes.append(f"The {lane} lane failed: {reason}" if reason else f"The {lane} lane failed")
     return "; ".join(notes)
+
+
+def _check_warnings(state: dict[str, Any]) -> str:
+    """Story 18.11: checks that failed without blocking (lint, conventions, migration details) in the last run."""
+    warned = [
+        check
+        for summary in (state.get("validation") or {}, state.get("frontend_validation") or {})
+        for check, status in summary.items()
+        if status == "warning"
+    ]
+    return f"Completed with {len(warned)} warning(s): {', '.join(warned)}" if warned else ""
 
 
 def _asset_warnings(state: dict[str, Any]) -> str:

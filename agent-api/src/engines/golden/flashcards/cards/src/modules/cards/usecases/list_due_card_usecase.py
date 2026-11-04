@@ -14,7 +14,7 @@ class ListDueCardUsecase:
 
     async def execute(self, deck_id: uuid.UUID | None = None) -> list[CardResponseDto]:
         filters = {"deck_id": deck_id} if deck_id is not None else {}
-        cards, total = self.card_repo.list(filters=filters, sort=None, limit=1000, offset=0)
+        cards, total = self.card_repo.list(filters=filters, q=None, sort=None, limit=1000, offset=0)
         due = [c for c in cards if c.due_date and c.due_date <= date.today()]
         return [CardResponseDto.from_entity(c) for c in due]
 

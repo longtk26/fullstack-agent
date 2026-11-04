@@ -41,7 +41,7 @@ DEV_ENV := DB_URL=postgresql+psycopg://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@loc
            ANTIGRAVITY_AUTH=$(ANTIGRAVITY_AUTH) \
            IMAGE_PROVIDER=$(or $(IMAGE_PROVIDER),gemini)
 
-.PHONY: env up down down-all ps logs dev dev-down dev-api dev-worker dev-ui setup venv migrate test lint template runner runner-node frontend-base \
+.PHONY: env up down down-all ps logs dev dev-down dev-api dev-worker dev-ui setup venv migrate test lint template runner runner-node frontend-base icon-index \
         host-worker host-worker-stop design-data design-diversity design-check-fixture
 
 env:
@@ -83,6 +83,11 @@ frontend-base:
 	  "$$(cd $(API_DIR) && $(PY)/python -c 'from src.modules.shared.domain.frontend_spec.fonts import FONTS; print(" ".join(f.package for f in FONTS.values()))')"
 	cd $(API_DIR) && $(PY)/python -c 'import json; from src.orchestrator.frontend_scaffold import build_manifest, OVERLAY_DIR; \
 	  (OVERLAY_DIR / "overlay.json").write_text(json.dumps(build_manifest(), indent=2, sort_keys=True) + "\n")'
+
+# Only the icon index of the pinned base (Story 20.5; old Lucide names since 2026-11-04), without regenerating the base.
+icon-index:
+	docker run --rm -v "$(CURDIR)/scripts/icon-index.mjs:/icon-index.mjs:ro" \
+	  -v "$(CURDIR)/$(API_DIR)/templates/nextjs_base:/out" -w /out node:22-bookworm-slim node /icon-index.mjs .
 
 # UI UX Pro Max design data for drafted sites (Story 12.6), at a pinned commit: `make design-data COMMIT=<sha>`.
 design-data:

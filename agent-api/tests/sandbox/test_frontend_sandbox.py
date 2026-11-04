@@ -42,12 +42,19 @@ def _validate(project, plan):
     return asyncio.run(go())
 
 
+# Since 95b547b the frontend lane runs neither ESLint nor frontend tests, and journeys only where they are planned.
+PASSED = ("install", "typecheck", "conventions", "assets", "build", "routes")
+
+
+def _passing(summary: dict[str, str]) -> bool:
+    rest = {check: status for check, status in summary.items() if check != "journeys"}
+    return rest == {**dict.fromkeys(PASSED, "passed"), "lint": "skipped", "tests": "skipped"}
+
+
 def test_golden_static_site_passes_every_check_offline(landing):
     project, plan = landing
     outcome = _validate(project, plan)
-    assert outcome.summary == dict.fromkeys(
-        ("install", "typecheck", "lint", "conventions", "assets", "build", "routes", "tests"), "passed"
-    ), outcome.digest
+    assert _passing(outcome.summary), outcome.digest
     assert (project / "out" / "services" / "index.html").is_file()
 
 
@@ -63,9 +70,7 @@ def test_every_library_section_and_layout_node_builds_and_renders():
     scaffold_frontend(project, plan, result.normalized)
     try:
         outcome = _validate(project, plan)
-        assert outcome.summary == dict.fromkeys(
-            ("install", "typecheck", "lint", "conventions", "assets", "build", "routes", "tests"), "passed"
-        ), outcome.digest
+        assert _passing(outcome.summary), outcome.digest
     finally:
         shutil.rmtree(project.parent, ignore_errors=True)
 
@@ -81,9 +86,7 @@ def test_a_rendered_dynamic_app_passes_every_check_on_mocks():
     scaffold_frontend(project, plan, spec, contract)
     try:
         outcome = _validate(project, plan)
-        assert outcome.summary == dict.fromkeys(
-            ("install", "typecheck", "lint", "conventions", "assets", "build", "routes", "tests"), "passed"
-        ), outcome.digest
+        assert _passing(outcome.summary), outcome.digest
     finally:
         shutil.rmtree(project.parent, ignore_errors=True)
 
@@ -137,9 +140,7 @@ def test_eslint_autofix_then_every_check_passes_on_the_shared_node_modules():
         shared, fixed, outcome = asyncio.run(go())
         assert shared is not None and shared.startswith("bga-fe-modules-")
         assert fixed.fixed == ["src/features/home/format-title.ts"] and "const title" in helper.read_text()
-        assert outcome.summary == dict.fromkeys(
-            ("install", "typecheck", "lint", "conventions", "assets", "build", "routes", "tests"), "passed"
-        ), outcome.digest
+        assert _passing(outcome.summary), outcome.digest
         install = next(result for result in outcome.results if result.check == "install")
         assert "shared node_modules" in install.summary
         assert not any((project / "node_modules").iterdir())  # nothing was copied into the workspace
@@ -294,9 +295,7 @@ def test_drawn_and_uploaded_images_build_and_show_on_their_pages(tmp_path):
                 asset |= {"file": "public/assets/logo.png", "src": "/assets/logo.png", "width": 96, "height": 96}
         write_registry(project, plan)
         outcome = _validate(project, plan)
-        assert outcome.summary == dict.fromkeys(
-            ("install", "typecheck", "lint", "conventions", "assets", "build", "routes", "tests"), "passed"
-        ), outcome.digest
+        assert _passing(outcome.summary), outcome.digest
         home = (project / "out" / "index.html").read_text()
         assert 'data-bga-asset="hero"' in home and 'data-bga-asset="logo"' in home and "<svg" in home
         assert 'src="/assets/logo.png"' in home

@@ -42,7 +42,8 @@ B, S, D = GenerationMode.BACKEND, GenerationMode.STATIC, GenerationMode.DYNAMIC
         (S, {"frontend": "SKIPPED"}, "COMPLETED_WITH_WARNINGS"),
         (D, {"backend": "COMPLETED", "frontend": "COMPLETED", "integration": "COMPLETED"}, "COMPLETED"),
         (D, {"backend": "FAILED", "frontend": "COMPLETED", "integration": "SKIPPED"}, "COMPLETED_WITH_WARNINGS"),
-        (D, {"backend": "COMPLETED", "frontend": "FAILED", "integration": "SKIPPED"}, "FAILED"),
+        (D, {"backend": "COMPLETED", "frontend": "FAILED", "integration": "SKIPPED"}, "COMPLETED_WITH_WARNINGS"),
+        (D, {"backend": "FAILED", "frontend": "FAILED", "integration": "SKIPPED"}, "FAILED"),
         (D, {"backend": "COMPLETED", "frontend": "SKIPPED", "integration": "SKIPPED"}, "COMPLETED_WITH_WARNINGS"),
         (D, {"backend": "FAILED", "frontend": "SKIPPED", "integration": "SKIPPED"}, "FAILED"),
     ],
@@ -271,7 +272,6 @@ def test_dynamic_generation_runs_contract_backend_and_frontend_lanes(client, hea
         "plan_architecture",
         "generate_database",
         "generate_backend",
-        "generate_tests",
         "run_validation",
         "repair_code",
     )
@@ -286,7 +286,6 @@ def test_dynamic_generation_runs_contract_backend_and_frontend_lanes(client, hea
         "plan_architecture",
         "generate_database",
         "generate_backend",
-        "generate_tests",
         "run_validation",
         "repair_code",
         "run_validation",
@@ -296,7 +295,7 @@ def test_dynamic_generation_runs_contract_backend_and_frontend_lanes(client, hea
         "plan_frontend", "scaffold_frontend", "generate_frontend", "validate_frontend",
     ]  # fmt: skip
     assert {call.purpose for call in cli_invocations(generation_id)} == {
-        "generate_database", "generate_backend", "generate_tests", "repair_code",
+        "generate_database", "generate_backend", "repair_code",
     }  # fmt: skip
     frontend = tmp_path / generation_id / "frontend"
     assert (frontend / ".bga" / "contract.json").is_file() and (

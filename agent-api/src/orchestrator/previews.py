@@ -5,6 +5,9 @@ static export or the Next.js server). Commands arrive over Redis (PreviewCommand
 runner when a generation completes; `args.kind` picks the preview (default `backend`). Each generation's
 commands run one at a time per kind; the previews rows and `preview.status` events report the outcome.
 
+A job on a worker that does not drive previews (`PREVIEW_WORKER=false`, the host worker) reaches them through
+`PreviewClient` (Story 18.12): the same calls as `PreviewService`, sent over the bus.
+
 Locks are per generation and kind (`asyncio.Lock`, not re-entrant), held by the caller around `start` and friends,
 which never take them. An operation that touches both kinds (a backend start reserves the frontend row's port,
 `switch_frontend` may restart the backend) holds both, taken through `locked()` in the fixed order of `KINDS`
@@ -12,7 +15,9 @@ which never take them. An operation that touches both kinds (a backend start res
 """
 
 import asyncio
+import base64
 import json
+import time
 from collections import defaultdict
 from collections.abc import AsyncIterator
 from contextlib import AsyncExitStack, asynccontextmanager
@@ -21,7 +26,7 @@ from pathlib import Path
 from typing import Any
 
 from src.configs import config, get_logger
-from src.libs.queue import PreviewCommandBus
+from src.libs.queue import PreviewCommandBus, PreviewCommandTimeout
 from src.modules.generations.infrastructure.adapters import EventPublisher
 from src.modules.shared.domain.entities import ArtifactEntity, PreviewEntity
 from src.modules.shared.domain.enums import GenerationMode, GenerationStatus, LaneStatus, PreviewStatus
@@ -33,17 +38,35 @@ from .store import JobStore
 
 logger = get_logger(__name__)
 ACTIVE = (PreviewStatus.STARTING, PreviewStatus.RUNNING)
-MUTATING = {"start", "restart", "stop", "delete", "reset-db", "recheck", "use-mocks"}
+MUTATING = {"start", "restart", "stop", "delete", "reset-db", "recheck", "use-mocks", "switch-frontend"}
 KINDS = ("backend", "frontend")
 SOURCES = {"backend": "backend.zip", "frontend": "frontend.zip"}
 # Commands that touch both previews of a generation: a backend start reserves the frontend's port; recheck and
 # use-mocks go through `switch_frontend`, which may restart the backend.
 CROSS_KIND = {("start", "backend"), ("restart", "backend"), ("reset-db", "backend"), ("recheck", "frontend"),
-              ("use-mocks", "frontend")}  # fmt: skip
+              ("use-mocks", "frontend"), ("switch-frontend", "frontend")}  # fmt: skip
 
 
 def _now() -> datetime:
     return datetime.now(UTC)
+
+
+async def wait_settled(
+    store: JobStore, generation_id: str, kind: str, timeout_s: float, mock_api: bool | None = None
+) -> PreviewEntity | None:
+    """The preview row once it has left STARTING (and, with `mock_api`, runs on that API: a switch can queue behind
+    a start still building), or as it is when `timeout_s` runs out. Local calls settle before they return; this is
+    for commands sent over the bus (Story 18.12)."""
+    deadline = time.monotonic() + timeout_s
+    while True:
+        row = store.preview(generation_id, kind)
+        settled = row is None or (
+            row.status != PreviewStatus.STARTING
+            and (mock_api is None or row.status != PreviewStatus.RUNNING or row.mock_api is mock_api)
+        )
+        if settled or time.monotonic() >= deadline:
+            return row
+        await asyncio.sleep(0.25)
 
 
 class PreviewService:
@@ -63,6 +86,8 @@ class PreviewService:
         self.events = events
         self.bus = bus
         self.locks: defaultdict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
+        # The frontend port each running backend allows in its CORS, so a switch to live restarts it only if needed.
+        self.cors_ports: dict[str, int | None] = {}
 
     # -- entry points -------------------------------------------------------------------------------------------
 
@@ -101,8 +126,22 @@ class PreviewService:
             if kind not in self.runtimes:
                 result: Any = {"error": f"no {kind} previews on this worker"}
             elif op in MUTATING:
-                async with self.locked(generation_id, *(KINDS if (op, kind) in CROSS_KIND else (kind,))):
-                    result = await getattr(self, op.replace("-", "_"))(generation_id, kind)
+                async with self.locked(generation_id, *self.lock_kinds(generation_id, op, kind)):
+                    if op == "start":
+                        result = await self.start(generation_id, kind, options_override=args.get("options"))
+                    elif op == "switch-frontend":
+                        mock_api = bool(args.get("mockApi", True))
+                        await self.switch_frontend(
+                            generation_id, mock_api=mock_api, api_base_url=args.get("apiBaseUrl", "")
+                        )
+                        result = None
+                    else:
+                        result = await getattr(self, op.replace("-", "_"))(generation_id, kind)
+            elif op == "probe":
+                status, parsed, raw = await self.probe(
+                    generation_id, args.get("method", "GET"), args["path"], kind=kind, body=args.get("body")
+                )
+                result = {"status": status, "body": parsed, "raw": base64.b64encode(raw).decode()}
             elif op == "logs":
                 result = {"lines": await self.runtimes[kind].logs(generation_id, int(args.get("tail", 200)))}
             elif op == "requests":
@@ -117,6 +156,17 @@ class PreviewService:
             result = {"error": str(exc)[:500]}
         if command.get("reply"):
             await self.bus.reply(command["reply"], result)
+
+    def lock_kinds(self, generation_id: str, op: str, kind: str) -> tuple[str, ...]:
+        """The locks a command takes. A backend start needs the frontend's lock only to reserve its port; once the
+        frontend row has one, it takes its own lock alone, so it never waits for a frontend build (Story 18.12)."""
+        if (op, kind) not in CROSS_KIND:
+            return (kind,)
+        if op == "start" and kind == "backend":
+            frontend = self.store.preview(generation_id, "frontend")
+            if frontend is not None and frontend.host_port:
+                return (kind,)
+        return KINDS
 
     @asynccontextmanager
     async def locked(self, generation_id: str, *kinds: str) -> AsyncIterator[None]:
@@ -165,6 +215,9 @@ class PreviewService:
 
         seed = self.store.artifact_by_name(generation_id, "seed.json") if kind == "backend" else None
         options = self._options(generation, kind, prior)
+        if kind == "backend":
+            frontend_row = self.store.preview(generation_id, "frontend")
+            self.cors_ports[generation_id] = frontend_row.host_port if frontend_row else None
         if options_override:
             options.update(options_override)
         request = PreviewRequest(
@@ -238,8 +291,9 @@ class PreviewService:
     async def switch_frontend(
         self, generation_id: str, *, mock_api: bool, api_base_url: str = ""
     ) -> PreviewEntity | None:
-        """Restarts the frontend on mocks or on the live API (and the backend for its CORS). The caller holds both
-        locks (`locked(generation_id, *KINDS)`)."""
+        """Restarts the frontend on mocks or on the live API, and the backend only when its CORS lacks the frontend's
+        origin (it was started before that port was known). The caller holds both locks
+        (`locked(generation_id, *KINDS)`)."""
         if "frontend" not in self.runtimes:
             return None
         await self.start(
@@ -250,7 +304,8 @@ class PreviewService:
         frontend = self.store.preview(generation_id, "frontend")
         if not mock_api and "backend" in self.runtimes and frontend is not None and frontend.host_port:
             backend = self.store.preview(generation_id, "backend")
-            if backend is not None and backend.status == PreviewStatus.RUNNING:
+            allowed = self.cors_ports.get(generation_id)
+            if backend is not None and backend.status == PreviewStatus.RUNNING and allowed != frontend.host_port:
                 await self.start(generation_id, "backend")
         return self.store.preview(generation_id, "frontend")
 
@@ -475,3 +530,68 @@ class PreviewService:
 
     async def _event(self, generation_id: str, kind: str, status: PreviewStatus, **payload: Any) -> None:
         await self.events.publish(generation_id, "preview.status", status=status, payload={"kind": kind, **payload})
+
+
+class PreviewClient:
+    """Story 18.12: the preview calls a job makes (`package_lane_preview`, `integrate`, cancellation), for a worker
+    that does not drive previews itself. Commands go over the bus to the preview worker, which takes the locks;
+    `start` and `switch_frontend` mark the row STARTING first (as `request_start` does) and the switch waits until
+    the frontend runs again, so the caller reads the same rows it would after a local call."""
+
+    def __init__(self, store: JobStore, events: EventPublisher, bus: PreviewCommandBus):
+        self.store = store
+        self.events = events
+        self.bus = bus
+        self.runtimes: dict[str, None] = dict.fromkeys(KINDS)  # the preview worker runs both kinds
+
+    def lock_kinds(self, generation_id: str, op: str, kind: str) -> tuple[str, ...]:
+        return (kind,)  # the preview worker decides when it runs the command
+
+    @asynccontextmanager
+    async def locked(self, generation_id: str, *kinds: str) -> AsyncIterator[None]:
+        yield  # the preview worker holds the locks while it runs each command
+
+    async def start(
+        self, generation_id: str, kind: str = "backend", options_override: dict[str, Any] | None = None
+    ) -> None:
+        await self._mark_starting(generation_id, kind)
+        await self.bus.send("start", generation_id, kind=kind, options=options_override)
+
+    async def switch_frontend(
+        self, generation_id: str, *, mock_api: bool, api_base_url: str = ""
+    ) -> PreviewEntity | None:
+        await self._mark_starting(generation_id, "frontend")
+        await self.bus.send(
+            "switch-frontend", generation_id, kind="frontend", mockApi=mock_api, apiBaseUrl=api_base_url
+        )
+        return await wait_settled(
+            self.store, generation_id, "frontend", config.integration_wait_seconds, mock_api=mock_api
+        )
+
+    async def stop(self, generation_id: str, kind: str = "backend", reason: str | None = None) -> None:
+        await self.bus.send("stop", generation_id, kind=kind)
+
+    async def probe(
+        self, generation_id: str, method: str, path: str, kind: str = "backend", body: Any = None
+    ) -> tuple[int, Any, bytes]:
+        try:
+            reply = await self.bus.call(
+                "probe",
+                generation_id,
+                timeout_s=config.preview_command_timeout_seconds,
+                kind=kind,
+                method=method,
+                path=path,
+                body=body,
+            )
+        except PreviewCommandTimeout:
+            return 0, None, b""
+        if not isinstance(reply, dict) or "status" not in reply:
+            return 0, None, b""
+        return int(reply["status"]), reply.get("body"), base64.b64decode(reply.get("raw") or "")
+
+    async def _mark_starting(self, generation_id: str, kind: str) -> None:
+        self.store.upsert_preview(generation_id, kind, status=PreviewStatus.STARTING, started_at=_now(), error=None)
+        await self.events.publish(
+            generation_id, "preview.status", status=PreviewStatus.STARTING, payload={"kind": kind}
+        )

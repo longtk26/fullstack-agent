@@ -155,10 +155,12 @@ graph.add_edge("package_artifacts", END)
 #### Backend Subgraph (`_backend_subgraph`)
 1. `plan_architecture`: Deterministic planning fixing package layout, model columns, DTO schemas, and test cases.
 2. `generate_database`: Generates SQLModel models, Alembic migrations, and runs upgrade/downgrade checks.
-3. `generate_backend`: Generates hexagonal ports, persistence repositories, use cases, DTOs, and routers.
-4. `generate_tests`: Generates Pytest API integration tests.
-5. `run_validation`: Executes tests and linting in the `bga-runner` sandbox.
-6. `repair_code`: Iterative self-repair loop triggered if validation fails (up to `max_repair_attempts`).
+3. `generate_backend`: Generates hexagonal ports, persistence repositories, use cases, DTOs, routers and the CRUD
+   tests from templates; the engine completes only custom operations, rules and auth (no engine-written tests).
+4. `run_validation`: In the `bga-runner` sandbox. Blocking: dependencies, syntax, migration upgrade, startup, OpenAPI,
+   template tests and one smoke call per custom operation. Lint, conventions and migration details are warnings
+   (`COMPLETED_WITH_WARNINGS`, never repaired). Failures only in generator-owned files stop at once (generator bug).
+5. `repair_code`: Iterative self-repair loop triggered if a blocking check fails (up to `max_repair_attempts`).
 
 #### Frontend Subgraph (`_frontend_subgraph`)
 1. `plan_frontend`: Maps pages, routes, components, client states, and data queries.
@@ -170,7 +172,10 @@ graph.add_edge("package_artifacts", END)
 ### 3.3 Fault Tolerance & Checkpoint Rollbacks
 - **Git Commit Checkpoint per Node:** Before and after each graph node executes, a Git commit is created in the workspace (`node:<name> attempt:<N>`).
 - **State Checkpointing:** Execution state is persisted in PostgreSQL via `langgraph-checkpoint-postgres`.
-- **Cancellation & Abortion:** If the frontend lane experiences an unrecoverable failure, `ctx.abort_backend()` cancels pending backend nodes to avoid wasting engine quota.
+- **Independent lanes (Story 18.12):** each lane starts its preview the moment it passes, from any worker (the host
+  worker sends preview commands over the bus via `PreviewClient`). A failed frontend lane no longer cancels the
+  backend: the backend finishes and previews, and the job ends `COMPLETED_WITH_WARNINGS`; both lanes failing fails it.
+  `ctx.abort_backend()` is used only when the whole job goes down.
 
 ---
 

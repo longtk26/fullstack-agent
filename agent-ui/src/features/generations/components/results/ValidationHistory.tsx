@@ -13,9 +13,11 @@ import type { TCheckItem, TCheckRun, TCheckStatus, TValidationHistory } from "..
 const VARIANT: Record<TCheckStatus, "secondary" | "destructive" | "outline"> = {
   passed: "secondary",
   failed: "destructive",
+  warning: "outline",
   skipped: "outline",
   not_run: "outline",
 };
+const CLASS: Partial<Record<TCheckStatus, string>> = { warning: "border-warning/40 bg-warning/10 text-warning" };
 
 type ValidationHistoryProps = {
   history: TValidationHistory | undefined;
@@ -54,7 +56,7 @@ export function ValidationHistory({ history, loading }: ValidationHistoryProps) 
                   </TableCell>
                   <TableCell className="font-mono text-xs">{check}</TableCell>
                   <TableCell>
-                    <Badge variant={VARIANT[latest.status] ?? "outline"}>{latest.status.replaceAll("_", " ")}</Badge>
+                    <Badge variant={VARIANT[latest.status] ?? "outline"} className={CLASS[latest.status]}>{latest.status.replaceAll("_", " ")}</Badge>
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">{historyLabel(runs)}</TableCell>
                   <TableCell className="text-right text-xs tabular-nums">
@@ -104,7 +106,7 @@ function CheckRunDetails({ runs }: { runs: TCheckRun[] }) {
               ))}
             </ul>
           )}
-          {run.output && run.status === "failed" && (
+          {run.output && (run.status === "failed" || run.status === "warning") && (
             <pre className="max-h-64 overflow-auto rounded-md bg-muted/60 p-2 text-xs">{run.output}</pre>
           )}
         </div>

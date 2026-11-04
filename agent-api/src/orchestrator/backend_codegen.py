@@ -397,6 +397,9 @@ class _Module:
         self.dir = f"src/modules/{self.name}"
         self.spec_ops = {op["operationId"]: op for op in spec.get("operations", [])}
         self.ops = {op["action"]: op for op in module["operations"] if is_crud(op)}
+        # A module may list its records more than once (`GET /tasks`, `GET /projects/{projectId}/tasks`).
+        self.lists = [op for op in module["operations"] if is_crud(op) and op["action"] == "list"]
+        self.crud_ops = [op for op in self.ops.values() if op["action"] != "list"] + self.lists
         # Epic 21: aggregate operations, by their handler (also their repository method)
         self.aggregates = {op["handler"]: op for op in module["operations"] if op.get("type") == "aggregate"}
         self.has_fk = any(column.get("foreignKey") for column in self.model["columns"])
@@ -413,7 +416,9 @@ class _Module:
         return _request_columns(self.model, self.spec_ops.get(op["operationId"], {}))
 
     def search(self) -> list[dict[str, Any]]:
-        return (self.ops.get("list") or {}).get("search") or []
+        """The repository's search fields: those of every list of the module."""
+        fields = {item["attr"]: item for op in self.lists for item in op.get("search") or []}
+        return list(fields.values())
 
     # -- ports & repository ------------------------------------------------------------------------------------
 
@@ -763,8 +768,7 @@ class _Module:
             f"{line}\n"
         )
 
-    def list_dto(self) -> str:
-        op = self.ops["list"]
+    def list_dto(self, op: dict[str, Any]) -> str:
         return (
             "from pydantic import BaseModel, ConfigDict\nfrom pydantic.alias_generators import to_camel\n\n"
             f"from .{self.response_file} import {self.response_dto}\n\n\n"
@@ -780,13 +784,17 @@ class _Module:
         if {"create", "get", "list", "update"} & set(self.ops):
             files[f"{base}/{self.response_file}.py"] = self.response_dto_file()
             exports.append((self.response_file, self.response_dto))
-        for action, builder in (("create", self.create_dto), ("update", self.update_dto), ("list", self.list_dto)):
+        for action, builder in (("create", self.create_dto), ("update", self.update_dto)):
             op = self.ops.get(action)
             if op is None:
                 continue
             name = op["dtoFile"].removesuffix(".py")
             files[f"{base}/{name}.py"] = builder()
-            exports.append((name, op["requestDto"] if action != "list" else op["responseDto"]))
+            exports.append((name, op["requestDto"]))
+        for op in self.lists:
+            name = op["dtoFile"].removesuffix(".py")
+            files[f"{base}/{name}.py"] = self.list_dto(op)
+            exports.append((name, op["responseDto"]))
         for op in self.aggregates.values():  # Epic 21
             name = op["dtoFile"].removesuffix(".py")
             files[f"{base}/{name}.py"] = self._aggregate_dto(op)
@@ -828,7 +836,8 @@ class _Module:
         dtos = f"{self.pkg}.presenter.dtos"
         repo = f"self.{self.repo_var}"
         log_id = f'extra={{"{self.snake}_id": str({self.var}.{self.pk["attr"]})}}'
-        for action, op in self.ops.items():
+        for op in self.crud_ops:
+            action = op["action"]
             imports = Imports()
             pk = self._pk_imports(imports) if action in ("get", "update", "delete") else ""
             if action == "create":
@@ -875,7 +884,7 @@ class _Module:
             files[f"{self.dir}/usecases/{op['usecaseFile']}"] = self._aggregate_usecase(op)
         exports = [
             (op["usecaseFile"].removesuffix(".py"), op["usecaseDep"])
-            for op in [*self.ops.values(), *self.aggregates.values()]
+            for op in [*self.crud_ops, *self.aggregates.values()]
         ]
         files[f"{self.dir}/usecases/__init__.py"] = _package(exports)
         return files
@@ -897,13 +906,13 @@ class _Module:
         if enums:
             imports.add(ENTITIES_PKG.replace("/", "."), *enums)
         signature = "".join(f",\n        {variable}: {annotation} | None" for variable, annotation, _ in params)
-        search = self.search()
+        search = bool(op.get("search"))
         if search:
             signature += ",\n        q: str | None"
         signature += ",\n        sort: str | None,\n        limit: int,\n        offset: int,\n    "
         sort_fields = ", ".join(f'"{item["param"]}": "{item["attr"]}"' for item in op.get("sort", []))
         candidates = ", ".join(f'"{flt["attr"]}": {variable}' for variable, _, flt in params)
-        q_arg = "q, " if search else ""
+        q_arg = ("q, " if search else "None, ") if self.search() else ""
         plural = to_snake(self.name)
         body = (
             f"        candidates = {{{candidates}}}\n"
@@ -965,8 +974,11 @@ class _Module:
             if responses:
                 decorator_args.append(f"responses={{{responses}}}")
             params: list[str] = []
+            columns = {column["attr"]: column for column in self.model["columns"]}
+            scope = {flt["param"]: columns[flt["attr"]] for flt in op.get("filters", []) if flt.get("in") == "path"}
             for name in path_params:
-                params.append(f"{name}: {self._pk_imports(imports)}")
+                annotation = _type(scope[name], imports) if name in scope else self._pk_imports(imports)
+                params.append(f"{name}: {annotation}")
             args = [name for name in path_params]
             if action in ("create", "update"):
                 imports.add(dtos, op["requestDto"])
@@ -1007,10 +1019,13 @@ class _Module:
         if enums:
             imports.add(ENTITIES_PKG.replace("/", "."), *enums)
         for variable, annotation, flt in filters:
+            if flt.get("in") == "path":  # the router's path parameter of that name
+                args.append(flt["param"])
+                continue
             alias = f', alias="{flt["param"]}"' if flt["param"] != variable else ""
             params.append(f"{variable}: {annotation} | None = Query(default=None{alias})")
             args.append(variable)
-        if self.search():
+        if op.get("search"):
             params.append("q: str | None = Query(default=None)")
             args.append("q")
         if op.get("sort"):
@@ -1397,19 +1412,50 @@ class _Tests:
             return fks[0]["apiName"], expression, f'response.json()["{fks[0]["apiName"]}"]'
         return None
 
+    def _list_scope(self, op: dict[str, Any]) -> tuple[str, list[str], str]:
+        """(setup lines, seed overrides, URL) of a list scoped by its path (`/fields/{fieldId}/reviews`): the test
+        seeds every record under one parent and calls the real URL."""
+        path, setup, overrides = op["path"], "", []
+        for flt in op.get("filters", []):
+            if flt.get("in") != "path":
+                continue
+            column = self._column(flt["attr"])
+            variable = f"scope_{column['attr']}"
+            if column.get("foreignKey"):
+                parent = self._parent(column)
+                setup += f"    {variable} = {self.seed(parent)}().{_pk(parent)['attr']}\n"
+            else:
+                fixed = self._fixed(column, 0)
+                if fixed is None or fixed[1] is None:
+                    continue
+                setup += f"    {variable} = {fixed[0]}\n"
+            overrides.append(f"{column['attr']}={variable}")
+            path = path.replace(f"{{{flt['param']}}}", f"{{{variable}}}")
+        if not setup:
+            return "", [], f'"{path}"'
+        path = re.sub(r"\{(?!scope_)(\w+)\}", r"{{\1}}", path)
+        return setup, overrides, f'f"{path}"'
+
     def _list_case(self, name: str, case: str, op: dict[str, Any], seed: str) -> str | None:
-        path = f'"{op["path"]}"'
+        setup, overrides, path = self._list_scope(op)
+
+        def call(*extra: str) -> str:
+            return f"{seed}({', '.join([*overrides, *extra])})"
+
+        head = f"def {name}(client):\n{setup}"
+        pk = self.crud.pk
+        ids = f'[item["{pk["apiName"]}"] for item in body["items"]]'
         if case == "ok":
             return (
-                f"def {name}(client):\n    first, second = {seed}(), {seed}()\n\n"
+                f"{head}    first, second = {call()}, {call()}\n\n"
                 f"    body = client.get({path}).json()\n\n"
                 '    assert body["total"] == 2\n'
-                f'    assert {{item["{self.crud.pk["apiName"]}"] for item in body["items"]}} == '
-                f"{{str(first.{self.crud.pk['attr']}), str(second.{self.crud.pk['attr']})}}\n"
+                f'    assert {{item["{pk["apiName"]}"] for item in body["items"]}} == '
+                f"{{str(first.{pk['attr']}), str(second.{pk['attr']})}}\n"
             )
         if case == "pagination":
             return (
-                f"def {name}(client):\n    for _ in range(3):\n        {seed}()\n\n"
+                f"{head}    for _ in range(3):\n        {call()}\n\n"
                 f'    page = client.get({path}, params={{"limit": 2, "offset": 2}}).json()\n\n'
                 '    assert page["total"] == 3 and page["limit"] == 2 and page["offset"] == 2\n'
                 '    assert len(page["items"]) == 1\n'
@@ -1417,41 +1463,48 @@ class _Tests:
         if case.startswith("filter_"):
             flt = next(f for f in op.get("filters", []) if f"filter_{to_snake(f['param'])}" == case)
             column = next(c for c in self.crud.model["columns"] if c["attr"] == flt["attr"])
-            pk = self.crud.pk
+            if flt.get("in") == "path":  # a record under another parent stays out of the list
+                high = None if column.get("foreignKey") else self._fixed(column, 1)
+                other = f"{column['attr']}={high[0]}" if high else ""
+                return (
+                    f"{head}    first = {call()}\n    {seed}({other})\n\n"
+                    f"    body = client.get({path}).json()\n\n"
+                    f"    assert {ids} == [str(first.{pk['attr']})]\n"
+                )
             if column.get("foreignKey"):
                 return (
-                    f"def {name}(client):\n    first = {seed}()\n    {seed}()\n\n"
+                    f"{head}    first = {call()}\n    {call()}\n\n"
                     f'    body = client.get({path}, params={{"{flt["param"]}": str(first.{column["attr"]})}})'
                     ".json()\n\n"
-                    f'    assert [item["{pk["apiName"]}"] for item in body["items"]] == [str(first.{pk["attr"]})]\n'
+                    f"    assert {ids} == [str(first.{pk['attr']})]\n"
                 )
             low, high = self._fixed(column, 0), self._fixed(column, 1)
             if low is None or high is None or low[1] is None:
                 return None
             query = _py(low[1]) if column["type"] != "boolean" else _py("true" if low[1] else "false")
+            attr = column["attr"]
             return (
-                f"def {name}(client):\n"
-                f"    first = {seed}({column['attr']}={low[0]})\n"
-                f"    {seed}({column['attr']}={high[0]})\n\n"
+                f"{head}    first = {call(f'{attr}={low[0]}')}\n"
+                f"    {call(f'{attr}={high[0]}')}\n\n"
                 f'    body = client.get({path}, params={{"{flt["param"]}": {query}}}).json()\n\n'
-                f'    assert [item["{pk["apiName"]}"] for item in body["items"]] == [str(first.{pk["attr"]})]\n'
+                f"    assert {ids} == [str(first.{pk['attr']})]\n"
             )
         if case == "sort":
             item = op["sort"][0]
             column = next(c for c in self.crud.model["columns"] if c["attr"] == item["attr"])
             low, high = self._fixed(column, 0), self._fixed(column, 1)
-            pk = self.crud.pk
             if low is None or high is None:
                 return (
-                    f"def {name}(client):\n"
+                    f"{head}"
                     f'    assert client.get({path}, params={{"sort": "{item["param"]}"}}).status_code == 200\n'
                     f'    assert client.get({path}, params={{"sort": "-{item["param"]}"}}).status_code == 200\n'
                 )
             ids = f'[entry["{pk["apiName"]}"] for entry in body["items"]]'
+            attr = column["attr"]
             return (
-                f"def {name}(client):\n"
-                f"    high = {seed}({column['attr']}={high[0]})\n"
-                f"    low = {seed}({column['attr']}={low[0]})\n"
+                f"{head}"
+                f"    high = {call(f'{attr}={high[0]}')}\n"
+                f"    low = {call(f'{attr}={low[0]}')}\n"
                 f"    expected = [str(low.{pk['attr']}), str(high.{pk['attr']})]\n\n"
                 f'    body = client.get({path}, params={{"sort": "{item["param"]}"}}).json()\n'
                 f"    assert {ids} == expected\n"
@@ -1459,24 +1512,21 @@ class _Tests:
                 f"    assert {ids} == expected[::-1]\n"
             )
         if case == "invalid_sort":
-            return (
-                f"def {name}(client):\n"
-                f'    assert client.get({path}, params={{"sort": "notAField"}}).status_code == 422\n'
-            )
+            return f'{head}    assert client.get({path}, params={{"sort": "notAField"}}).status_code == 422\n'
         if case == "search":
             item = next(
                 (i for i in op["search"] if self._column(i["attr"])["type"] in ("string", "text")), op["search"][0]
             )
             column = self._column(item["attr"])
-            pk = self.crud.pk
             if column["type"] not in ("string", "text"):
-                return f'def {name}(client):\n    assert client.get({path}, params={{"q": "x"}}).status_code == 200\n'
+                return f'{head}    assert client.get({path}, params={{"q": "x"}}).status_code == 200\n'
+            match, other = call(f'{column["attr"]}="Needle in a haystack"'), call(f'{column["attr"]}="Something else"')
             return (
-                f"def {name}(client):\n"
-                f'    match = {seed}({column["attr"]}="Needle in a haystack")\n'
-                f'    {seed}({column["attr"]}="Something else")\n\n'
+                f"{head}"
+                f"    match = {match}\n"
+                f"    {other}\n\n"
                 f'    body = client.get({path}, params={{"q": "needle"}}).json()\n\n'
-                f'    assert [item["{pk["apiName"]}"] for item in body["items"]] == [str(match.{pk["attr"]})]\n'
+                f"    assert {ids} == [str(match.{pk['attr']})]\n"
             )
         return None
 

@@ -50,6 +50,7 @@ FORM_FIELD_TYPES = frozenset(
 LIBRARY_DIR = "src/components/sections"
 SITE_FILE = "src/content/site.json"
 TREE_DIR = "src/components/renderer/tree"  # Epic 21: copied only for sites with designed pages
+TREE_STUB = "src/components/renderer/TreeRenderer.none.tsx"  # … the others get this as tree/TreeRenderer.tsx
 REGISTRY_FILE = "src/components/renderer/registry.ts"
 TYPES_FILE = f"{LIBRARY_DIR}/types.ts"
 BINDINGS_FILE = "src/components/renderer/bindings.ts"
@@ -694,6 +695,10 @@ def library_files(plan: dict[str, Any], available: list[str]) -> dict[str, str]:
     for relative in sorted(available):
         directory, _, name = relative.rpartition("/")
         stem, _, variant = name.removesuffix(".tsx").removesuffix(".ts").partition(".")
+        if relative == TREE_STUB:
+            if not plan.get("trees"):  # the renderer and the shell import it whether the site has trees or not
+                files[f"{TREE_DIR}/TreeRenderer.tsx"] = relative
+            continue
         if relative.startswith(f"{TREE_DIR}/") and not plan.get("trees"):
             continue  # Epic 21: the tree renderer and its primitives only for sites with designed pages
         if stem == "SiteShell":

@@ -9,7 +9,6 @@ NODES = (
     "plan_architecture",
     "generate_database",
     "generate_backend",
-    "generate_tests",
     "run_validation",
     "repair_code",
     "plan_frontend",
@@ -26,7 +25,6 @@ BACKEND_NODES = (
     "plan_architecture",
     "generate_database",
     "generate_backend",
-    "generate_tests",
     "run_validation",
     "repair_code",
 )
@@ -87,6 +85,7 @@ class Outcome:
     COMPLETED = "completed"
     SPEC_INVALID = "spec_invalid"
     REPAIR_LIMIT = "repair_limit"
+    GENERATOR_BUG = "generator_bug"  # Story 18.11: failures only in generator-owned files; no repair can fix them
 
 
 def _latest_commit(current: str | None, update: str | None) -> str | None:
@@ -130,6 +129,7 @@ class GenerationState(TypedDict, total=False):
     evicted_components: list[str]  # … and the ones it evicted because they broke the site
     asset_fallbacks: list[dict[str, str]]  # Story 15.3: drawings shown as placeholders (id, reason)
     backend_error: str | None
+    frontend_error: str | None  # Story 18.12: a failed frontend lane in dynamic mode (the backend goes on)
     # integration lane (Epic 14)
     integration: dict[str, Any]
     integration_reason: str | None
@@ -161,5 +161,6 @@ class FrontendLaneOutput(TypedDict, total=False):
     cached_components: list[str]
     evicted_components: list[str]
     asset_fallbacks: list[dict[str, str]]
+    frontend_error: str | None
     outcome: str | None
     error_summary: str | None

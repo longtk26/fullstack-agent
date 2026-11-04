@@ -46,16 +46,15 @@ from .packaging import (
     report_markdown,
 )
 from .planner import build_plan, dump_plan
-from .scaffold import SCAFFOLD_INFO, add_owned, record_owned, scaffold_project
+from .scaffold import OWNED_INFO, SCAFFOLD_INFO, add_owned, record_owned, scaffold_project
 from .state import GenerationState, Outcome
-from .validation import ValidationRequest, write_report
+from .validation import ValidationRequest, generator_bug_files, write_report
 
 DIGEST_LIMIT = 30_000
 PROMPT_VERSIONS = {
     "generate_database": "v2",
     "generate_backend": "v3",
-    "complete_backend": "v3",
-    "generate_tests": "v2",
+    "complete_backend": "v4",
     "repair_code": "v3",
 }
 CONTRACT_REF = ".bga/contract.json"
@@ -386,8 +385,10 @@ async def generate_backend(state: GenerationState, ctx: JobContext) -> NodeResul
     files = {"src/routers.py": routers_file(plan)}
     owned = ["src/routers.py"]
     generated: dict[str, list[str]] = {}
+    run_tests = state["options"].get("runTests", True)
     for module in plan["modules"]:
-        module_code = module_files(plan, spec, module)
+        # Story 18.11: the template tests come with the code; no engine call writes tests.
+        module_code = module_files(plan, spec, module) | (module_tests(plan, spec, module) if run_tests else {})
         files |= module_code
         generated[module["name"]] = sorted(module_code)
         if not codegen_gaps(module):
@@ -470,54 +471,27 @@ def _touching_journeys(frontend_spec: dict[str, Any] | None, module_op_ids: set[
     return touching
 
 
-async def generate_tests(state: GenerationState, ctx: JobContext) -> NodeResult:
-    if not state["options"].get("runTests", True):
-        return {}, {"_status": "skipped", "reason": "runTests=false"}
-    plan = _read_json(ctx, state["plan_ref"])
-    templates = _templates(state)
-    if templates:
-        spec = _read_json(ctx, state["spec_ref"])
-        files: dict[str, str] = {}
-        for module in plan["modules"]:
-            files |= module_tests(plan, spec, module)
-        owned = [module["testFile"] for module in plan["modules"] if not codegen_gaps(module)]
-        await _write_generated(ctx, files, owned)
-    engine_calls = 0
-    for module in plan["modules"]:
-        cases = module["tests"]
-        if templates:
-            custom = {op["operationId"] for op in module["operations"] if not is_crud(op)}
-            cases = [case for case in cases if case["operationId"] in custom]
-            if not cases:
-                continue
-        prompt = ctx.prompts.render(
-            "generate_tests",
-            PROMPT_VERSIONS["generate_tests"],
-            module=module,
-            test_cases=cases,
-            spec_path=state["spec_ref"],
-            plan_path=state["plan_ref"],
-        )
-        await ctx.run_engine("generate_tests", "generate_tests", prompt)
-        engine_calls += 1
-    return {}, {"modules": len(plan["modules"]), "engineCalls": engine_calls}
-
-
 async def run_validation(state: GenerationState, ctx: JobContext) -> NodeResult:
     attempt = state.get("repair_attempts", 0) + 1
-    ctx.backend_validating.set()  # the integration wait starts now at the earliest (Story 17.6)
     contract = None
     if state.get("contract_ref"):
         canonical = _contract_copy(ctx).read_text()
         ctx.project_path(*CONTRACT_REF.split("/")).write_text(canonical)  # undo any edit by the engine
         contract = json.loads(canonical)
     fixes = await autofix_before_validation(ctx, "project", attempt, "run_validation")
+    plan = _read_json(ctx, state["plan_ref"])
+    # Story 18.11: the template tests must exist (no engine writes the custom operations' tests any more); the
+    # custom operations get one smoke call each, following the contract (backend mode: one built from the spec).
+    crud_ops = {op["operationId"] for module in plan["modules"] for op in module["operations"] if is_crud(op)}
+    required = [test for test in plan.get("tests", []) if test["operationId"] in crud_ops] if _templates(state) else []
     request = ValidationRequest(
         project=ctx.workspace.project,
-        plan=_read_json(ctx, state["plan_ref"]),
+        plan=plan,
         run_tests=bool(state["options"].get("runTests", True)),
         sandbox=await ctx.sandbox(),
         contract=contract,
+        smoke_contract=contract or contract_for(_read_json(ctx, state["spec_ref"]), plan),
+        required_tests=required,
     )
     outcome = await ctx.validator.run(request)
     for name, document in request.artifacts.items():
@@ -545,7 +519,15 @@ async def run_validation(state: GenerationState, ctx: JobContext) -> NodeResult:
         )
     write_report(ctx.workspace.reports / f"validation-{attempt}.json", outcome)
     digest_path = ctx.workspace.reports / f"digest-{attempt}.txt"
-    digest_path.write_text(outcome.digest[:DIGEST_LIMIT])
+    owned = _owned(ctx)
+    owned_failing = sorted(set(outcome.implicated_files) & owned)
+    digest = outcome.digest
+    if owned_failing:
+        digest += (
+            "\n\nGenerator-owned files (restored before every check, never edit them; fix the code around them): "
+            + ", ".join(owned_failing)
+        )
+    digest_path.write_text(digest[:DIGEST_LIMIT])
 
     failed = outcome.failed_checks
     update: dict[str, Any] = {
@@ -556,6 +538,16 @@ async def run_validation(state: GenerationState, ctx: JobContext) -> NodeResult:
     }
     at_limit = failed and state.get("repair_attempts", 0) >= state["max_repair_attempts"]
     message = f"Validation still failing after {state.get('repair_attempts', 0)} repair attempt(s): {', '.join(failed)}"
+    bug_files = generator_bug_files(outcome, owned)
+    if bug_files:  # Story 18.11: no engine call can fix these; say so at once
+        at_limit = True
+        message = (
+            f"Generator bug: {', '.join(failed)} failed only in generator-owned files ({', '.join(bug_files)}); "
+            "the engine may not edit them, so no repair was tried"
+        )
+        if state.get("mode") != GenerationMode.DYNAMIC:
+            update["outcome"] = Outcome.GENERATOR_BUG
+            update["error_summary"] = message
     if state.get("mode") == GenerationMode.DYNAMIC:
         # Dynamic mode: the backend lane ends here; the frontend lane runs either way (on mocks if this failed).
         if not failed:
@@ -564,10 +556,18 @@ async def run_validation(state: GenerationState, ctx: JobContext) -> NodeResult:
         elif at_limit:
             await ctx.set_lane("backend", LaneStatus.FAILED, reason=message)
             update["backend_error"] = message
-    elif at_limit:
+    elif at_limit and not bug_files:
         update["outcome"] = Outcome.REPAIR_LIMIT
         update["error_summary"] = message
-    return update, {"_status": "failed" if failed else "succeeded", "failedChecks": failed, **fixes}
+    summary = {"_status": "failed" if failed else "succeeded", "failedChecks": failed, **fixes}
+    if outcome.warnings:
+        summary["warnings"] = outcome.warnings
+    return update, summary
+
+
+def _owned(ctx: JobContext) -> set[str]:
+    path = ctx.workspace.project / OWNED_INFO
+    return set(json.loads(path.read_text())) if path.is_file() else set()
 
 
 async def repair_code(state: GenerationState, ctx: JobContext) -> NodeResult:
@@ -828,7 +828,6 @@ NODE_FUNCTIONS = {
     "plan_architecture": plan_architecture,
     "generate_database": generate_database,
     "generate_backend": generate_backend,
-    "generate_tests": generate_tests,
     "run_validation": run_validation,
     "repair_code": repair_code,
     "integrate": integrate,

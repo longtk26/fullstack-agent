@@ -238,6 +238,8 @@ def _parameters(op: dict[str, Any], model: dict[str, Any] | None) -> list[dict[s
             }
         )
     for flt in op.get("filters", []):
+        if flt.get("in") == "path":  # already the path parameter of that name
+            continue
         schema = field_schema(by_api[flt["param"]], nullable=False)
         schema.pop("default", None)
         parameters.append({"name": flt["param"], "in": "query", "required": False, "schema": schema})

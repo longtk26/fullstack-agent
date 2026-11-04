@@ -25,7 +25,7 @@ from workflow_helpers import cli_invocations, events, generation, node_runs, run
 
 SNAPSHOTS = Path(__file__).parent / "fixtures" / "backend-codegen"
 TWO_ENTITY = json.loads((EXAMPLES / "specs" / "two-entity.json").read_text())
-ENGINE_STEPS = ("generate_database", "generate_backend", "complete_backend", "generate_tests")
+ENGINE_STEPS = ("generate_database", "generate_backend", "complete_backend", "generate_tests")  # none writes tests
 
 
 def generated(spec: dict) -> dict[str, str]:
@@ -120,7 +120,7 @@ def test_a_crud_spec_makes_no_backend_engine_call(client, user_headers, tmp_path
     assert [c.purpose for c in cli_invocations(generation_id) if c.purpose in ENGINE_STEPS] == []
     summaries = {run.node: run.summary for run in node_runs(generation_id)}
     assert summaries["generate_database"]["engineCalls"] == 0 and summaries["generate_backend"]["engineCalls"] == 0
-    assert summaries["generate_tests"]["engineCalls"] == 0
+    assert "generate_tests" not in summaries  # Story 18.11: the template tests come with generate_backend
     assert [run.node for run in node_runs(generation_id)].count("repair_code") == 0  # no planted defect to fix
     parts = [e.payload["part"] for e in events(generation_id) if e.type == "backend.generated"]
     assert parts == ["database", "modules"]
@@ -136,7 +136,7 @@ def test_only_what_is_not_crud_goes_to_the_engine(client, user_headers, tmp_path
 
     run_job(tmp_path, generation_id, engine=engine)
     purposes = [c.purpose for c in cli_invocations(generation_id) if c.purpose in ENGINE_STEPS]
-    assert purposes == ["complete_backend", "generate_tests"]  # the tasks module, and the custom op's test
+    assert purposes == ["complete_backend"]  # the tasks module; its custom op gets a smoke call, not a test
     [complete] = [call for call in engine.calls if call.purpose == "complete_backend"]
     assert "task.complete: custom operation" in complete.prompt
     assert "src/modules/tasks/presenter/router.py" in complete.prompt

@@ -380,14 +380,12 @@ def test_fake_dynamic_generation_of_flashcards_completes(client, user_headers, t
     purposes = [c.purpose for c in cli_invocations(generation_id)]
     assert "complete_backend" in purposes
 
-    # Check that custom review card usecase and tests were written
+    # The custom review use case was written; its check is a smoke call now, not an engine-written test (18.11)
     project = tmp_path / generation_id / "project"
     review_usecase = project / "src/modules/cards/usecases/review_card_usecase.py"
     assert review_usecase.exists()
     assert "SM-2" in review_usecase.read_text() or "ReviewLog" in review_usecase.read_text()
-
-    review_test = project / "tests/modules/cards/test_card_review_api.py"
-    assert review_test.exists()
+    assert not (project / "tests/modules/cards/test_card_review_api.py").exists()
 
 
 class FakeJourneySandbox(ISandbox):

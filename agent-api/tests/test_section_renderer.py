@@ -248,4 +248,8 @@ def test_a_designed_page_is_planned_bound_and_rendered_by_the_tree_renderer():
     with_trees = library_files(plan, available)
     assert any(path.startswith(TREE_DIR) for path in with_trees)
     without = library_files({**plan, "trees": False}, available)
-    assert not any(path.startswith(TREE_DIR) for path in without), "section-only sites do not get the tree renderer"
+    # Section-only sites get no tree renderer, only the stub PageRenderer and SiteShell import (it renders nothing).
+    assert [(path, source) for path, source in without.items() if path.startswith(TREE_DIR)] == [
+        (f"{TREE_DIR}/TreeRenderer.tsx", "src/components/renderer/TreeRenderer.none.tsx")
+    ]
+    assert "src/components/renderer/TreeRenderer.none.tsx" not in with_trees.values()

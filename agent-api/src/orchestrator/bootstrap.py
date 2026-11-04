@@ -14,7 +14,7 @@ from src.sandbox import DockerSandboxProvider
 from .checkpointer import postgres_checkpointer
 from .drafting import DraftRunner
 from .frontend_validation import SandboxFrontendValidationRunner, StaticFrontendValidationRunner
-from .previews import PreviewService
+from .previews import PreviewClient, PreviewService
 from .runner import JobRunner
 from .store import JobStore
 from .validation import SandboxValidationRunner, StaticValidationRunner
@@ -59,7 +59,10 @@ async def build_worker_service(worker_id: str | None = None):
             on_completed=previews.request_start if previews else None,
             frontend_engine_context=build_frontend_engine_context(prompts),
             frontend_validator=SandboxFrontendValidationRunner() if sandboxes else StaticFrontendValidationRunner(),
-            previews=previews if config.preview_worker else None,
+            # Story 18.12: a job reaches the previews from any worker; elsewhere its calls go over the bus.
+            previews=previews
+            if config.preview_worker or previews is None
+            else PreviewClient(store, events, previews.bus),
         )
         # Every worker requests previews for its finished jobs; only a preview worker drives the containers.
         queue = JobQueue(redis)

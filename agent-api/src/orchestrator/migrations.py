@@ -88,6 +88,21 @@ async def verify_migration(sandbox: ISandbox) -> ExecResult:
     )
 
 
+async def upgrade_migration(sandbox: ISandbox) -> ExecResult:
+    """Fresh database upgraded to head: what the app needs to start (Story 18.11, blocking)."""
+    await sandbox.reset_database("app")
+    return await sandbox.exec("alembic upgrade head", timeout_s=180)
+
+
+async def roundtrip_migration(sandbox: ISandbox) -> ExecResult:
+    """No drift, full downgrade, upgrade again (a warning since Story 18.11); the schema ends at head either way."""
+    return await sandbox.exec(
+        "alembic check && alembic downgrade base && alembic upgrade head; status=$?; "
+        "[ $status -eq 0 ] || alembic upgrade head >/dev/null 2>&1; exit $status",
+        timeout_s=180,
+    )
+
+
 async def reflect_schema(sandbox: ISandbox) -> tuple[dict[str, Any] | None, ExecResult]:
     result = await sandbox.exec("python /opt/bga/bin/reflect_schema.py", timeout_s=60)
     if not result.ok or SCHEMA_MARKER not in result.stdout:

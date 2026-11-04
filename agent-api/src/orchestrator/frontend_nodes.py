@@ -25,11 +25,11 @@ from .frontend_assets import (
     write_registry,
 )
 from .frontend_planner import dump_frontend_plan, plan_frontend
-from .frontend_scaffold import scaffold_frontend
+from .frontend_scaffold import OWNED_INFO, scaffold_frontend
 from .frontend_validation import FrontendValidationRequest
 from .integration import package_lane_preview
 from .state import GenerationState, Outcome
-from .validation import write_report
+from .validation import generator_bug_files, write_report
 
 logger = get_logger(__name__)
 
@@ -248,21 +248,31 @@ async def validate_frontend(state: GenerationState, ctx: JobContext) -> NodeResu
     if evicted:
         update["evicted_components"] = evicted
     limit = state["max_repair_attempts"]
+    bug_files = generator_bug_files(outcome, _owned(ctx)) if failed else []
     if not failed:
         await ctx.set_lane("frontend", LaneStatus.COMPLETED)
         if ctx.mode == GenerationMode.DYNAMIC:
-            ctx.start_integration_wait_watchdog()
             await package_lane_preview(state, ctx, "frontend")
-    elif state.get("frontend_repair_attempts", 0) >= limit:
+    elif bug_files or state.get("frontend_repair_attempts", 0) >= limit:
         message = (
-            f"Frontend validation still failing after {state.get('frontend_repair_attempts', 0)} repair "
+            f"Generator bug: {', '.join(failed)} failed only in generator-owned files ({', '.join(bug_files)}); "
+            "the engine may not edit them, so no repair was tried"
+            if bug_files  # Story 18.11's stop, for the frontend lane too
+            else f"Frontend validation still failing after {state.get('frontend_repair_attempts', 0)} repair "
             f"attempt(s): {', '.join(failed)}"
         )
         await ctx.set_lane("frontend", LaneStatus.FAILED, reason=message)
-        await ctx.abort_backend("frontend lane failed", frontend_failed=True)
-        update["outcome"] = Outcome.REPAIR_LIMIT
-        update["error_summary"] = message
+        if ctx.mode == GenerationMode.DYNAMIC:
+            update["frontend_error"] = message  # Story 18.12: the backend lane goes on; `integrate` decides
+        else:
+            update["outcome"] = Outcome.GENERATOR_BUG if bug_files else Outcome.REPAIR_LIMIT
+            update["error_summary"] = message
     return update, {"_status": "failed" if failed else "succeeded", "failedChecks": failed, **fixes}
+
+
+def _owned(ctx: JobContext) -> set[str]:
+    path = ctx.frontend_path(OWNED_INFO)
+    return set(json.loads(path.read_text())) if path.is_file() else set()
 
 
 async def _evict_broken_components(

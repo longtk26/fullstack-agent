@@ -8,6 +8,7 @@ keeps the spec's camelCase names through Pydantic aliases.
 """
 
 import json
+import re
 from typing import Any
 
 from src.modules.shared.domain.backend_spec.naming import pluralize, py_name, to_pascal, to_snake
@@ -342,9 +343,13 @@ def _operation(op: dict[str, Any], model: dict[str, Any] | None) -> dict[str, An
             planned["dtoFile"] = f"{handler}_dto.py"
         planned["pagination"] = pagination
         by_api = {c["apiName"]: c for c in model["columns"]} if model else {}
+        # A list's path parameter that names a column scopes it (`/fields/{fieldId}/reviews`): a filter bound to the
+        # path, never also a query parameter of the same name.
+        scope = [name for name in re.findall(r"\{(\w+)\}", op["path"]) if name in by_api] if action == "list" else []
         planned["filters"] = [
             {"param": name, "attr": by_api[name]["attr"], "type": by_api[name]["type"]}
-            for name in op.get("filters", [])
+            | ({"in": "path"} if name in scope else {})
+            for name in dict.fromkeys([*scope, *op.get("filters", [])])
             if name in by_api
         ]
         planned["sort"] = [
@@ -406,7 +411,8 @@ def _tests(module: dict[str, Any], model: dict[str, Any]) -> list[dict[str, Any]
             if op.get("pagination"):
                 add(op, "pagination", 200, "limit and offset page through the records; total counts all")
             for flt in op.get("filters", []):
-                add(op, f"filter_{to_snake(flt['param'])}", 200, f"?{flt['param']}= returns only matching records")
+                what = f"{{{flt['param']}}} in the path" if flt.get("in") == "path" else f"?{flt['param']}="
+                add(op, f"filter_{to_snake(flt['param'])}", 200, f"{what} returns only matching records")
             if op.get("sort"):
                 add(op, "sort", 200, "?sort=<field> ascending and ?sort=-<field> descending")
                 add(op, "invalid_sort", 422, "sorting by an undeclared field is rejected")

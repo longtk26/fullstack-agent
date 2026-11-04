@@ -17,7 +17,7 @@ from collections.abc import Iterator
 from typing import Any
 
 from .catalogue import BUILTIN_SECTIONS
-from .icons import icon_index, kebab
+from .icons import icon_index, kebab, lucide_current
 
 MAX_NODES = 2000
 MAX_DEPTH = 24
@@ -86,6 +86,13 @@ DATA_COMPONENTS = (
 )
 AGGREGATE_FUNCTIONS = ("count", "sum", "avg", "min", "max")
 CHART_KINDS = ("bar", "line", "area", "donut")
+# Other words engines write for them; `fix_trees` maps them so one Metric does not cost the page its design.
+# "total" sums a field when the Metric has one and counts the records otherwise.
+AGGREGATE_SYNONYMS = {
+    "average": "avg", "mean": "avg", "minimum": "min", "lowest": "min", "maximum": "max", "highest": "max",
+    "number": "count", "length": "count", "size": "count", "total": "sum",
+}  # fmt: skip
+CHART_SYNONYMS = {"pie": "donut", "doughnut": "donut", "column": "bar", "histogram": "bar"}
 
 # Classes that bypass the theme: Tailwind palette colours and arbitrary colour values. Theme tokens
 # (`bg-primary/10`, `text-muted-foreground`, `border-border`) are the only colours a tree may use.
@@ -345,7 +352,9 @@ def _check_data_node(
 def fix_trees(spec: dict[str, Any]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """Repairs every tree of a spec in place and returns (spec, notes). Only what the rules can decide alone:
     unknown wrappers are unwrapped, removed elements dropped, raw colours and `fixed` stripped, foreign image sources
-    replaced by placeholder assets, missing alts filled, the page CSS scoped and cleaned."""
+    replaced by placeholder assets, missing alts filled, the page CSS scoped and cleaned, old Lucide icon names
+    renamed, a Metric's `fn` and a Chart's `kind` mapped to the allowed ones (a Metric that stays unclear is dropped
+    alone, so the page keeps its design)."""
     notes: list[dict[str, Any]] = []
     assets = spec.setdefault("assets", []) if isinstance(spec.get("assets"), list) else []
     asset_ids = {a.get("id") for a in assets if isinstance(a, dict)}
@@ -417,6 +426,9 @@ def _fix_node(
     if not isinstance(node_type, str):
         return None
     kind = classify(node_type)
+    if kind == "unknown" and (current := lucide_current(node_type)):
+        notes.append(_note(f"{where}/type", f"Icon '{node_type}' renamed to '{current}' (Lucide's current name)"))
+        node_type, kind = current, "icon"
     props = dict(node.get("props") or {})
     children = [
         fixed
@@ -436,6 +448,10 @@ def _fix_node(
         kept = [token for token in str(props["className"]).split() if token not in bad]
         props["className"] = " ".join(kept)
         notes.append(_note(f"{where}/props/className", f"Removed {', '.join(bad)}: theme tokens only, nothing fixed"))
+    if node_type == "Metric" and not _fix_metric(props, where, notes):
+        return None
+    if node_type == "Chart":
+        _fix_chart(props, where, notes)
     if node_type == "img":
         src = props.get("src")
         if not (isinstance(src, str) and _ASSET_REF.match(src) and _ASSET_REF.match(src).group(1) in asset_ids):
@@ -457,6 +473,39 @@ def _fix_node(
     if children or node_type not in VOID_ELEMENTS:
         out["children"] = children
     return out
+
+
+def _fix_metric(props: dict[str, Any], where: str, notes: list[dict[str, Any]]) -> bool:
+    """Maps a Metric's `fn` to an allowed function in place; False when it cannot be decided (drop the Metric)."""
+    fn = props.get("fn")
+    has_field = isinstance(props.get("field"), str)
+    word = fn.strip().lower() if isinstance(fn, str) else ""
+    fixed = word if word in AGGREGATE_FUNCTIONS else AGGREGATE_SYNONYMS.get(word)
+    if fixed == "sum" and word == "total" and not has_field:
+        fixed = "count"
+    if fixed is None and not has_field:
+        fixed = "count"  # with no field the only thing a Metric can show is how many records there are
+    if fixed is None or (fixed != "count" and not has_field):
+        reason = (
+            f"'fn' {fn!r} is not one of {', '.join(AGGREGATE_FUNCTIONS)}"
+            if fixed is None
+            else f"'{fixed}' needs 'field'"
+        )
+        notes.append(_note(where, f"Metric dropped ({reason}); the rest of the page keeps its design"))
+        return False
+    if fixed != fn:
+        props["fn"] = fixed
+        notes.append(_note(f"{where}/props/fn", f"Metric 'fn' {fn!r} read as '{fixed}'"))
+    return True
+
+
+def _fix_chart(props: dict[str, Any], where: str, notes: list[dict[str, Any]]) -> None:
+    kind = props.get("kind")
+    word = kind.strip().lower() if isinstance(kind, str) else ""
+    fixed = word if word in CHART_KINDS else CHART_SYNONYMS.get(word, "bar")
+    if fixed != kind:
+        props["kind"] = fixed
+        notes.append(_note(f"{where}/props/kind", f"Chart 'kind' {kind!r} read as '{fixed}'"))
 
 
 def tree_collections(spec: dict[str, Any]) -> dict[str, set[str]]:

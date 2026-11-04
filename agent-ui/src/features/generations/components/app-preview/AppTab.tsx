@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, AppWindow, Database, Play, ShieldAlert, Sparkles } from "lucide-react";
+import { Activity, AppWindow, Database, Hourglass, Play, ShieldAlert, Sparkles } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -116,11 +116,29 @@ export function AppTab({ detail, onOpenTab }: AppTabProps) {
 
   // Extract mock reason if running on mocks in dynamic mode
   const mockReason = isDynamic && isMock ? detail.error ?? "Backend preview was not ready when integration checked." : null;
+  // Story 18.12: the frontend runs as soon as its lane passes; until the backend is up it uses the mock API.
+  const backendLane = detail.lanes.backend;
+  const backendBuilding =
+    isDynamic && (backendLane === "PENDING" || backendLane === "RUNNING" || backendLane === "VALIDATING" || backendLane === "REPAIRING");
+  const switchingToLive = isDynamic && !backendBuilding && detail.lanes.integration === "RUNNING";
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Still on mocks while the backend is generated or the switch to live runs */}
+      {isRunning && isMock && (backendBuilding || switchingToLive) && (
+        <Alert variant="default">
+          <Hourglass className="size-4" />
+          <AlertTitle>
+            {backendBuilding ? "Mock data: the backend is still being generated" : "Switching to the live API…"}
+          </AlertTitle>
+          <AlertDescription className="text-xs">
+            The preview moves to the live API by itself once the backend passes its checks.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Backend not ready / running on mocks warning banner */}
-      {isDynamic && isRunning && isMock && (
+      {isDynamic && isRunning && isMock && !backendBuilding && !switchingToLive && (
         <Alert variant="default" className="border-warning/40 bg-warning/10 text-foreground">
           <ShieldAlert className="size-4 text-warning" />
           <AlertTitle className="text-warning font-semibold">Backend not ready — running on mocks</AlertTitle>

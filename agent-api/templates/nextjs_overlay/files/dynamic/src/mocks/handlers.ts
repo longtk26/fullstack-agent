@@ -51,8 +51,12 @@ function compare(a: unknown, b: unknown): number {
   return String(a).localeCompare(String(b), undefined, { numeric: true });
 }
 
-function list(op: TMockOperation, url: URL) {
+function list(op: TMockOperation, url: URL, params: Record<string, unknown> = {}) {
   let items = [...records(op.entity)];
+  // A list scoped by its path (`/fields/:fieldId/reviews`) keeps the records of that parent.
+  for (const [name, value] of Object.entries(params)) {
+    if (typeof value === "string" && items.some((it) => name in it)) items = items.filter((item) => String(item[name]) === value);
+  }
   for (const [name, value] of url.searchParams.entries()) {
     if (!value || ["limit", "offset", "sort", "q"].includes(name)) continue;
     if (name.endsWith("Before")) {
@@ -150,7 +154,7 @@ function handler(op: TMockOperation): HttpHandler {
       const first = (sample[0] ?? {}) as Record<string, unknown>;
       return HttpResponse.json(rows.length ? rows.map((row) => ({ ...first, ...row })) : sample);
     }
-    if (op.action === "list" || op.mock === "records") return list(op, url);
+    if (op.action === "list" || op.mock === "records") return list(op, url, op.action === "list" ? params : {});
     if (op.action === "get" || op.mock === "record") return find() ? HttpResponse.json(find()) : notFound(op.entity);
     if (op.action === "create" || op.mock === "create") {
       const body = ((await request.json().catch(() => ({}))) || {}) as TRecord;

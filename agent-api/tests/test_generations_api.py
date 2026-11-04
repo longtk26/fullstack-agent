@@ -175,7 +175,6 @@ def test_graph_describes_the_workflow(client, user_headers):
         "plan_architecture",
         "generate_database",
         "generate_backend",
-        "generate_tests",
         "run_validation",
         "repair_code",
         "package_artifacts",

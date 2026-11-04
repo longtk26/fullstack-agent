@@ -62,7 +62,7 @@ def test_a_generation_is_one_trace_with_the_epic_8_shape(client, user_headers, t
     assert checks["check:syntax"]["error"].startswith("failed") and "check:conventions" in checks
 
     engines = recorder.named("engine:fake")
-    assert len(engines) == 6 and all(run["run_type"] == "tool" for run in engines)
+    assert len(engines) == 4 and all(run["run_type"] == "tool" for run in engines)  # no generate_tests (18.11)
     assert engines[0]["inputs"]["prompt"] == "generate_database@v2"
     calls = recorder.children(engines[0]["id"])
     assert [run["name"] for run in calls] == ["llm:fake #1", "llm:fake #2"]
@@ -121,8 +121,8 @@ def test_local_trace_and_usage(client, user_headers, login, tmp_path):
     assert PLANTED not in json.dumps(trace)
 
     usage = trace["usage"]
-    assert usage["engineCalls"] == 6 and usage["modelCalls"] == 12
-    assert usage["tokens"]["input"] == 6000 and usage["cost"] == {
+    assert usage["engineCalls"] == 4 and usage["modelCalls"] == 8
+    assert usage["tokens"]["input"] == 4000 and usage["cost"] == {
         "reported": 0.0,
         "estimated": 0.0,
         "total": 0.0,
@@ -140,7 +140,7 @@ def test_local_trace_and_usage(client, user_headers, login, tmp_path):
     assert missing.status_code == 404
 
     report = client.get(f"/api/v1/generations/{generation_id}/usage", headers=user_headers).json()
-    assert report["modelCalls"] == 12
+    assert report["modelCalls"] == 8
 
     totals = client.get("/api/v1/usage", headers=user_headers).json()
     assert totals["totals"]["generations"] >= 1 and any(

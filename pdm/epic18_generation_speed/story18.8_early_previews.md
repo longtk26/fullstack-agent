@@ -55,6 +55,11 @@ completes and the integration step actually runs.
 - Cancellation cleans up early preview containers.
 - Delay from generation COMPLETED to both previews RUNNING reduced from ~285 s to ~0 s (both previews already RUNNING upon job completion). Verified across unit tests and full fake engine runs.
 
+**Found 2026-11-04:** the early starts work only on a preview worker. On the host worker (`PREVIEW_WORKER=false`, used
+for Antigravity with `ANTIGRAVITY_AUTH=account`) `ctx.previews` is `None`, so `package_lane_preview` does nothing and
+`integrate` has nothing to probe with (`gen_01M6J88EY82D746ZG01MB7WE77`: frontend preview RUNNING 22.5 min after its
+lane passed). Fixed by [18.12](story18.12_lane_previews_first.md).
+
 ## Verify
 
 `make lint`, `make test`, `BGA_SANDBOX_TESTS=1 make test`, `make up` with the fake engine: dynamic

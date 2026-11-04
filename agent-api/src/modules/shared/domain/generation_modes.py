@@ -5,8 +5,9 @@
     dynamic  → backend, frontend, integration (the switch from mocks to the live API, Epic 14)
 
 Overall status once the workflow has ended: every lane COMPLETED → COMPLETED. In `dynamic` mode a FAILED backend
-with a COMPLETED frontend (still working on mocks, 14.2) → COMPLETED_WITH_WARNINGS. Any other FAILED lane →
-FAILED. Lanes that were SKIPPED (for example not available yet) next to completed ones → COMPLETED_WITH_WARNINGS.
+with a COMPLETED frontend (still working on mocks, 14.2), or a FAILED frontend with a COMPLETED backend (its API
+preview runs, 18.12) → COMPLETED_WITH_WARNINGS. Any other FAILED lane → FAILED. Lanes that were SKIPPED (for
+example not available yet) next to completed ones → COMPLETED_WITH_WARNINGS.
 """
 
 from src.modules.shared.domain.enums import GenerationMode, GenerationStatus, Lane, LaneStatus
@@ -30,11 +31,13 @@ def overall_status(mode: GenerationMode, lanes: dict[str, str]) -> GenerationSta
     statuses = {lane: LaneStatus(lanes.get(lane.value, LaneStatus.PENDING)) for lane in LANES[mode]}
     if all(status == LaneStatus.COMPLETED for status in statuses.values()):
         return GenerationStatus.COMPLETED
+    ended = (LaneStatus.COMPLETED, LaneStatus.FAILED, LaneStatus.SKIPPED)
     if (
         mode == GenerationMode.DYNAMIC
-        and statuses[Lane.FRONTEND] == LaneStatus.COMPLETED
-        and statuses[Lane.BACKEND] in (LaneStatus.COMPLETED, LaneStatus.FAILED, LaneStatus.SKIPPED)
-        and statuses[Lane.INTEGRATION] in (LaneStatus.COMPLETED, LaneStatus.FAILED, LaneStatus.SKIPPED)
+        and LaneStatus.COMPLETED in (statuses[Lane.FRONTEND], statuses[Lane.BACKEND])
+        and statuses[Lane.FRONTEND] in ended
+        and statuses[Lane.BACKEND] in ended
+        and statuses[Lane.INTEGRATION] in ended
     ):
         return GenerationStatus.COMPLETED_WITH_WARNINGS
     if any(status not in (LaneStatus.COMPLETED, LaneStatus.SKIPPED) for status in statuses.values()):

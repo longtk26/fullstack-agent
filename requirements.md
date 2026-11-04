@@ -1,8 +1,16 @@
 # AI Fullstack Generation Agent — Requirements Specification
 
-**Version:** 1.6  
+**Version:** 1.7  
 **Status:** Approved for MVP — backlog in [`pdm/`](pdm/README.md)  
 **Priority:** High
+
+**Changes in 1.7 (2026-11-04):**
+- **Lanes deliver on their own** (dynamic mode): each lane's preview starts as soon as the lane passes; the switch to
+  the live API and the live checks run in the background; a failed frontend lane no longer fails the generation or
+  cancels the backend (FR-21, FR-27).
+- **Lean backend validation**: no engine step writes tests (`generate_tests` removed; template tests only), and only
+  the checks that prove the app starts and its API works can fail the backend or start a repair (FR-09, FR-11).
+- Backlog: Stories 18.11, 18.12, 18.13.
 
 **Changes in 1.6 (2026-10-31):**
 - **Real photos**: FrontendSpec assets can have `source: "photo"` with Gemini image API generation (`gemini-3.1-flash-lite-image`), WebP post-processing, and caching. Photos are created during drafting and stored as uploads, with fallback to placeholders when unconfigured (FR-31).
@@ -410,11 +418,10 @@ The workflow must include the following nodes:
 1. `validate_spec`
 2. `plan_architecture`
 3. `generate_database`
-4. `generate_backend`
-5. `generate_tests`
-6. `run_validation`
-7. `repair_code`
-8. `package_artifacts`
+4. `generate_backend` (also writes the template tests; no engine call writes tests, since v1.7)
+5. `run_validation`
+6. `repair_code`
+7. `package_artifacts`
 
 Required conditional behavior:
 
@@ -462,9 +469,15 @@ After generating backend code, the system must execute:
 7. Pytest test suite.
 8. FastAPI OpenAPI schema generation (from the started application).
 
+Since v1.7 only the checks that prove the application starts (dependencies, syntax, migration upgrade to head,
+startup) and that its API works (OpenAPI, the template tests, one smoke call per custom operation against the
+seeded database) are blocking. Ruff, the conventions check and migration details (downgrade round trip, index and
+constraint names) are warnings: recorded and shown, never repaired, and they end the job
+`COMPLETED_WITH_WARNINGS`.
+
 The agent must only report validation as passed when the corresponding command actually succeeds.
 
-If validation fails, the captured errors must be forwarded to the repair node.
+If a blocking check fails, the captured errors must be forwarded to the repair node.
 
 ### FR-12: Automatic Repair
 
@@ -644,7 +657,8 @@ The user must choose one mode per generation:
 
 A generation has an overall status and one status per lane (`frontend`, `backend`, `integration`). In dynamic
 mode a failed backend lane leaves the frontend usable on mocks and the overall status is
-`COMPLETED_WITH_WARNINGS`; a failed frontend lane fails the generation.
+`COMPLETED_WITH_WARNINGS`; since v1.7 a failed frontend lane likewise leaves the backend running as its own
+preview, with the overall status `COMPLETED_WITH_WARNINGS`. Neither lane cancels the other.
 
 ### FR-22: FrontendSpec
 
@@ -700,11 +714,12 @@ A generated frontend must be downloadable (ZIP, FrontendSpec, plan, report) and 
 
 ### FR-27: Parallel Generation and Live-API Switch
 
-In dynamic mode the frontend and backend lanes must run concurrently. The frontend starts with
-`MOCK_TEST_API=true`. When the frontend lane finishes, the system must check the backend (lane COMPLETED,
-preview `/health` OK, OpenAPI matching the contract) and, if healthy, restart the frontend preview with
-`MOCK_TEST_API=false` and `API_BASE_URL` set to the backend preview, then run live smoke tests (every page
-renders, data-bound sections show backend data, forms submit). If the backend is not healthy, the frontend stays
+In dynamic mode the frontend and backend lanes must run concurrently. Each lane's preview starts as soon as that
+lane passes, without waiting for the other lane or for integration; the frontend starts with `MOCK_TEST_API=true`
+unless the backend preview is already running. Once both previews run, the system must, in the background, check
+the backend (lane COMPLETED, preview `/health` OK, OpenAPI matching the contract) and, if healthy, restart the
+frontend preview with `MOCK_TEST_API=false` and `API_BASE_URL` set to the backend preview, then run live smoke
+tests (every page renders, data-bound sections show backend data, forms submit). If the backend is not healthy, the frontend stays
 on mocks with the reason recorded, and the user can re-check later.
 
 ### FR-28: Site Assets

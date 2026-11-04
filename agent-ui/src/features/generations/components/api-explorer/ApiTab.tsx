@@ -29,7 +29,7 @@ export function ApiTab({ detail }: ApiTabProps) {
             ? "Static sites have no API."
             : isSucceeded(detail.status)
             ? "This generation has no exported OpenAPI (it ran without the sandbox)."
-            : "The OpenAPI explorer appears when the generation completes."
+            : "The OpenAPI explorer appears when the backend lane completes."
         }
       />
     );

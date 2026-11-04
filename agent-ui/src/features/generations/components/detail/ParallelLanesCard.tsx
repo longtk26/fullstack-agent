@@ -105,6 +105,11 @@ export function ParallelLanesCard({
                 note = typeof keptEvt.payload.reason === "string" ? keptEvt.payload.reason : null;
               } else if (status === "RUNNING") {
                 currentStepName = "Checking backend readiness";
+              } else if (status === "PENDING") {
+                // Story 18.12: each lane's preview already runs; the switch waits only for the other lane.
+                const done = (other: TLane) => ["COMPLETED", "FAILED", "SKIPPED"].includes(lanes[other] ?? "PENDING");
+                if (done("frontend") && !done("backend")) currentStepName = "Waiting for the backend";
+                else if (done("backend") && !done("frontend")) currentStepName = "Waiting for the frontend";
               } else if (status === "COMPLETED") {
                 currentStepName = "Integration smoke passed";
               } else if (status === "SKIPPED") {

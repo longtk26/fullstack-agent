@@ -96,10 +96,12 @@ def test_broken_project_reports_structured_failures(shared_dir):
 
     outcome = _validate(project, two_entity_plan(), normalize=False)
 
-    assert outcome.summary["lint"] == "failed" and outcome.summary["migration"] == "failed"
-    assert outcome.summary["tests"] == "skipped"  # depends on migration
-    assert "F401" in outcome.digest and "column name should be unique" in outcome.digest
-    assert "src/modules/projects/presenter/router.py" in outcome.implicated_files
+    # Story 18.11: lint findings and schema details are warnings; they skip nothing and stay out of the digest.
+    assert outcome.summary["lint"] == "warning" and outcome.summary["migration"] == "warning"
+    assert outcome.warnings == ["lint", "migration"]
+    assert outcome.summary["tests"] == "failed", outcome.digest  # the unique constraint is gone: the conflict test
+    assert "F401" not in outcome.digest and "column name should be unique" not in outcome.digest
+    assert "src/modules/projects/presenter/router.py" not in outcome.implicated_files
 
     model.write_text(model.read_text().replace("unique=False", "unique=True"))
     outcome = _validate(project, two_entity_plan(), normalize=False)
@@ -137,7 +139,7 @@ def test_autofix_clears_import_order_and_formatting_before_lint(shared_dir):
 
     dirty, result, clean = asyncio.run(go())
 
-    assert dirty.status == "failed" and {d["code"] for d in dirty.details} >= {"format"}
+    assert dirty.status == "warning" and {d["code"] for d in dirty.details} >= {"format"}
     assert result.fixed == ["src/modules/tasks/infrastructure/persistence/task_repository.py"]
     assert clean.status == "passed", clean.details
     assert "def helper(a, b):" in repository.read_text()

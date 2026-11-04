@@ -53,7 +53,10 @@ export function useApiTab(detail: TGenerationDetail) {
 
   return {
     ...preview,
-    canPreview: isSucceeded(detail.status) && detail.artifacts.some((a) => a.name === "backend.zip"),
+    // Story 18.12: in a dynamic run the backend preview starts when its lane passes, before the job ends.
+    canPreview:
+      (isSucceeded(detail.status) || detail.lanes.backend === "COMPLETED") &&
+      detail.artifacts.some((a) => a.name === "backend.zip"),
     hasOpenapi: Boolean(openapiArtifact),
     document,
     loadingDocument: openapi.isLoading,

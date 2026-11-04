@@ -154,6 +154,56 @@ def test_the_fixes_repair_what_the_rules_can_decide():
     assert fixed["pages"][0]["tree"]["children"][0]["props"]["className"] == "grid" and len(auto_notes) >= 4
 
 
+def test_old_lucide_names_are_renamed_not_unwrapped():
+    """gen_01M6J88EY82D746ZG01MB7WE77: the engine wrote AlertTriangle, CheckCircle2, History; they were dropped."""
+    tree = {
+        "type": "main",
+        "children": [
+            {"type": "AlertTriangle", "props": {"className": "size-4"}},
+            {"type": "CheckCircle2", "props": {"className": "size-4"}},
+            {"type": "History"},
+            {"type": "Sparkles"},
+        ],
+    }
+    spec, notes = fix_trees(tree_spec(tree))
+    types = [child["type"] for child in spec["pages"][0]["tree"]["children"]]
+    assert types == ["TriangleAlert", "CircleCheck", "RotateCcwClock", "Sparkles"]
+    assert all(classify(name) == "icon" for name in types)
+    assert spec["pages"][0]["tree"]["children"][0]["props"] == {"className": "size-4"}
+    assert sum("Lucide's current name" in note["message"] for note in notes) == 3
+    assert not any("unwrapped" in note["message"] for note in notes)
+
+
+def test_metric_and_chart_words_are_mapped_and_an_unclear_metric_goes_alone():
+    """gen_01M6J88EY82D746ZG01MB7WE77: one Metric with a wrong `fn` cost the home page its whole tree."""
+    metric = lambda **props: {"type": "Metric", "props": {"collection": "products", **props}}  # noqa: E731
+    tree = {
+        "type": "main",
+        "children": [
+            metric(fn="average", field="price"),
+            metric(fn="Total", field="price"),
+            metric(fn="total"),
+            metric(fn="latest"),
+            metric(fn="median", field="price"),
+            metric(fn="max"),
+            {"type": "Chart", "props": {"collection": "products", "kind": "pie", "groupBy": "category"}},
+            {"type": "h1", "children": ["Stock"]},
+        ],
+    }
+    spec, notes = fix_trees(tree_spec(tree))
+    children = spec["pages"][0]["tree"]["children"]
+    assert [child["props"].get("fn") for child in children if child["type"] == "Metric"] == [
+        "avg",
+        "sum",
+        "count",
+        "count",
+    ], "'total' without a field counts; an unknown fn without a field counts; median and max without field go"
+    assert children[-2]["props"]["kind"] == "donut" and children[-1]["type"] == "h1"
+    assert sum("Metric dropped" in note["message"] for note in notes) == 2
+    found = check_tree(spec["pages"][0]["tree"], "/pages/0/tree", set(), set(), {"products": {"price", "category"}})
+    assert not [issue for issue in found if not issue["warning"]]
+
+
 def test_css_is_scoped_to_the_page():
     css = ".a{color:red} @media (min-width:600px){.b, .c{x:1}} @keyframes k{from{opacity:0}} @supports (x:y){.d{y:1}}"
     assert scope_css(css, "home").splitlines() == [

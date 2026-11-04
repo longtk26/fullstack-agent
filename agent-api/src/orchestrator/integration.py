@@ -1,6 +1,7 @@
 """Dynamic integration lane (Stories 14.2, 14.3): readiness check, MOCK_TEST_API switch and live smoke checks.
 
-After the parallel backend and frontend lanes finish, `integrate`:
+Each lane's preview starts as soon as the lane passes (`package_lane_preview`, Stories 18.8, 18.12), from any
+worker, so the user can use either one while the other lane still runs. After both lanes, `integrate`:
 1. Restores the canonical `.bga/contract.json` in both workspaces so neither engine could have altered it.
 2. Waits up to `INTEGRATION_WAIT_SECONDS` while the backend lane or its preview is still starting, then checks
    that the backend lane is `COMPLETED`, `GET /health` → 200, and `GET /openapi.json` matches the contract.
@@ -31,8 +32,8 @@ from .checks.parsers import junit_failures, last_lines
 from .context import JobContext
 from .contract import contract_operations, resolve
 from .packaging import ArtifactWriter, build_contract_seed, build_seed, build_source_zip
-from .previews import KINDS
-from .state import GenerationState
+from .previews import KINDS, wait_settled
+from .state import GenerationState, Outcome
 from .validation import CheckResult, ValidationOutcome, traced_check, write_report
 
 CHECK_PREFIX = "integration:"
@@ -55,7 +56,8 @@ def _clip(value: Any, limit: int = 300) -> str:
 
 async def package_lane_preview(state: GenerationState, ctx: JobContext, kind: str) -> None:
     """Packages a completed lane's source ZIP (and seed/OpenAPI for the backend) and starts its preview container
-    during a dynamic run so `integrate` can probe the backend and switch the frontend preview."""
+    during a dynamic run (Story 18.12: the moment the lane passes, whatever the other lane is doing). The frontend
+    starts on the mock API, or on the live one when the backend preview already runs; `integrate` checks it later."""
     if ctx.mode != GenerationMode.DYNAMIC or ctx.previews is None:
         return
     if kind not in ctx.previews.runtimes:
@@ -100,11 +102,15 @@ async def package_lane_preview(state: GenerationState, ctx: JobContext, kind: st
         head_sha = ctx.workspaces._git(ctx.workspace, "rev-parse", "HEAD", repo="project").strip()
         head_file.write_text(head_sha)
     ctx.store.replace_artifacts(ctx.generation_id, writer.written)
-    # A backend start also reserves the frontend row's port: it holds both locks (backend, then frontend).
-    async with ctx.previews.locked(ctx.generation_id, *(KINDS if kind == "backend" else (kind,))):
+    # A backend start also reserves the frontend row's port: it holds both locks (backend, then frontend), unless
+    # the frontend already has its port; then it never waits for a frontend build (Story 18.12).
+    async with ctx.previews.locked(ctx.generation_id, *ctx.previews.lock_kinds(ctx.generation_id, "start", kind)):
         existing = ctx.store.preview(ctx.generation_id, kind)
         if existing is None or existing.status not in (PreviewStatus.STARTING, PreviewStatus.RUNNING):
-            await ctx.previews.start(ctx.generation_id, kind)
+            backend = ctx.store.preview(ctx.generation_id, "backend") if kind == "frontend" else None
+            live = backend is not None and backend.status == PreviewStatus.RUNNING and backend.url
+            override = {"mockApi": False, "apiBaseUrl": backend.url} if live else None
+            await ctx.previews.start(ctx.generation_id, kind, options_override=override)
 
 
 def verify_openapi_matches_contract(
@@ -518,6 +524,10 @@ async def run_playwright_live_smoke(
         return CheckResult(check="smoke", status="not_run", summary="requires the frontend sandbox runner")
 
     frontend_project = ctx.workspace.frontend
+    if not any((frontend_project / "tests" / "e2e").glob("*.spec.ts")):
+        # The frontend ships no Playwright specs since its e2e tests were dropped; `playwright test` would fail with
+        # "No tests found". The live contract check still runs (Story 18.12 made this path reachable on every run).
+        return CheckResult(check="smoke", status="skipped", summary="no Playwright specs in the frontend")
     frontend_plan = _optional_json(frontend_project / ".bga" / "frontend-plan.json") or {}
     junit = frontend_project / JUNIT_PATH
     junit.unlink(missing_ok=True)
@@ -592,6 +602,21 @@ async def integrate(state: GenerationState, ctx: JobContext) -> NodeResult:
     and runs the live contract + Playwright smoke checks."""
     contract, contract_sha256 = _enforce_canonical_contract(ctx)
     plan = _optional_json(ctx.workspace.project / ".bga" / "plan.json")
+    frontend_error = state.get("frontend_error")
+    if frontend_error or ctx.lanes.get("frontend") == LaneStatus.FAILED.value:
+        # Story 18.12: the backend still finished on its own (and its preview runs); nothing to switch.
+        backend_error = state.get("backend_error") or ctx.backend_aborted_reason
+        if ctx.lanes.get("backend") != LaneStatus.COMPLETED.value or backend_error:
+            message = f"Both lanes failed. Frontend: {frontend_error or 'failed'}; backend: {backend_error or 'failed'}"
+            await ctx.set_lane("integration", LaneStatus.SKIPPED, reason="both lanes failed")
+            return {"outcome": Outcome.REPAIR_LIMIT, "error_summary": message[:2000]}, {
+                "_status": "skipped",
+                "reason": "both lanes failed",
+            }
+        reason = "frontend lane failed"
+        await ctx.set_lane("integration", LaneStatus.SKIPPED, reason=reason)
+        info = {"switchedToLive": False, "mockApi": None, "apiBaseUrl": "", "reason": reason}
+        return {"integration": info, "integration_reason": reason}, {"_status": "skipped", "reason": reason}
 
     # In dynamic mode, backend preview was started early when backend lane completed.
     # If it wasn't started (e.g. preview worker delayed or retry), package and start it now.
@@ -645,7 +670,9 @@ async def integrate(state: GenerationState, ctx: JobContext) -> NodeResult:
         }
 
     assert ctx.previews is not None
-    # Package frontend and start directly on live API (Story 18.8: created once, directly live).
+    # The frontend usually runs already (on mocks, since its lane passed); a start sent over the bus may still be
+    # building. A frontend that is not running yet starts directly on the live API (Story 18.8).
+    await wait_settled(ctx.store, ctx.generation_id, "frontend", wait_s)
     writer = ArtifactWriter(
         Path(config.artifact_root), ctx.generation_id, {a.name: a.id for a in ctx.store.artifacts(ctx.generation_id)}
     )
@@ -660,6 +687,7 @@ async def integrate(state: GenerationState, ctx: JobContext) -> NodeResult:
             fe_preview = ctx.store.preview(ctx.generation_id, "frontend")
         elif fe_preview.mock_api is not False:
             fe_preview = await ctx.previews.switch_frontend(ctx.generation_id, mock_api=False, api_base_url=backend_url)
+    fe_preview = await wait_settled(ctx.store, ctx.generation_id, "frontend", wait_s, mock_api=False)
     be_preview = ctx.store.preview(ctx.generation_id, "backend")
     frontend_url = fe_preview.url if fe_preview and fe_preview.url else f"http://{config.preview_public_host}:3000"
     await ctx.emit(

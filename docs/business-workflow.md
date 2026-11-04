@@ -81,8 +81,7 @@ stateDiagram-v2
         state "Backend Lane" as BE {
             plan_architecture --> generate_database
             generate_database --> generate_backend
-            generate_backend --> generate_tests
-            generate_tests --> run_validation
+            generate_backend --> run_validation
         }
         state "Frontend Lane" as FE {
             plan_frontend --> scaffold_frontend
@@ -98,7 +97,8 @@ stateDiagram-v2
 #### A. Backend Lane (`backend_lane`)
 - **Fast Deterministic Codegen (No LLM):** Instantly generates SQLModel entities, Alembic migrations, repository ports/adapters, use cases, DTOs, and routers for all standard CRUD operations.
 - **AI Coding Engine:** The LLM engine only implements custom business operations, domain validation rules, and specialized authentication logic.
-- **Automated Tests:** Generates Pytest integration tests for all planned endpoints.
+- **Automated Tests:** CRUD tests come from the templates with the code (no engine writes tests); after startup,
+  every custom operation is called once against seeded data and must answer as the contract says (Story 18.11).
 
 #### B. Frontend Lane (`frontend_lane`)
 - **Fast Deterministic Codegen (No LLM):** Generates TypeScript types (`T`-prefixed), Zod form schemas, React Query hooks (`useQuery`, `useMutation`), and MSW mock fixtures directly from the contract.

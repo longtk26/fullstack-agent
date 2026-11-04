@@ -14,7 +14,6 @@ PURPOSES = (
     "repair_spec",
     "generate_database",
     "generate_backend",
-    "generate_tests",
     "repair_code",
 )
 

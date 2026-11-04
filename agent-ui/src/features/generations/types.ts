@@ -172,7 +172,8 @@ export type TArtifact = {
   createdAt: string | null;
 };
 
-export type TCheckStatus = "passed" | "failed" | "skipped" | "not_run";
+// "warning": failed without blocking (lint, conventions, migration details; Story 18.11), never repaired.
+export type TCheckStatus = "passed" | "failed" | "warning" | "skipped" | "not_run";
 
 export type TCheckItem = {
   file?: string;

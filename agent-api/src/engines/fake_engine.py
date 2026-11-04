@@ -254,12 +254,6 @@ def shop_demo_scenario(delay_s: float = 0.3) -> dict[str, list[FakeStep]]:
                 write={_CONTACT_ROUTER: fixed_router + "\n\ndef broken(:\n"},
             ),
         ],
-        "generate_tests": [
-            FakeStep(sleep_s=delay_s, copy_from=GOLDEN_SHOP / "tests_categories"),
-            FakeStep(sleep_s=delay_s, copy_from=GOLDEN_SHOP / "tests_products"),
-            FakeStep(sleep_s=delay_s, copy_from=GOLDEN_SHOP / "tests_cart_items"),
-            FakeStep(sleep_s=delay_s, copy_from=GOLDEN_SHOP / "tests_contact_messages"),
-        ],
         "repair_code": [
             FakeStep(
                 sleep_s=delay_s,
@@ -301,10 +295,6 @@ def demo_scenario(delay_s: float = 0.3) -> dict[str, list[FakeStep]]:
                 copy_from=GOLDEN / "tasks",
                 write={_TASK_ROUTER: fixed_router + "\n\ndef broken(:\n"},
             ),
-        ],
-        "generate_tests": [
-            FakeStep(sleep_s=delay_s, copy_from=GOLDEN / "tests_projects"),
-            FakeStep(sleep_s=delay_s, copy_from=GOLDEN / "tests_tasks"),
         ],
         "repair_code": [
             FakeStep(

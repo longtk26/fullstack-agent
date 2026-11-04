@@ -13,7 +13,19 @@ const FLUSH_MS = 100;
 const DETAIL_REFRESH_MS = 400;
 const RECONNECT_MS = 3000;
 const MAX_EVENTS = 10_000;
-const REFRESHING_TYPES = new Set(["status.changed", "step.started", "step.finished", "engine.finished", "job.resumed"]);
+// Story 18.12: lanes, previews and the switch to live change the detail while the job runs (each lane's preview
+// starts the moment the lane passes).
+const REFRESHING_TYPES = new Set([
+  "status.changed",
+  "step.started",
+  "step.finished",
+  "engine.finished",
+  "job.resumed",
+  "lane.changed",
+  "preview.status",
+  "integration.switched_to_live",
+  "integration.kept_mocks",
+]);
 
 function isTerminalEvent(event: TGenerationEvent): boolean {
   return event.type === "status.changed" && isTerminal(event.status);
@@ -76,6 +88,11 @@ export function useGenerationStream(id: string) {
         );
       }
       if (batch.some((event) => REFRESHING_TYPES.has(event.type))) refreshDetail();
+      for (const kind of ["backend", "frontend"] as const) {
+        if (batch.some((event) => event.type === "preview.status" && event.payload?.kind === kind)) {
+          queryClient.invalidateQueries({ queryKey: generationKeys.preview(id, kind) });
+        }
+      }
     };
 
     const connect = () => {

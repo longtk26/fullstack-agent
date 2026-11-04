@@ -42,6 +42,18 @@ const lucideIcons = Object.fromEntries(
   Object.entries(lucideTags).map(([name, tags]) => [name, words(name.split("-"), tags)]),
 );
 
+// Renamed Lucide icons stay importable under their old names (`alert-triangle` → `triangle-alert`): lucide-react ships
+// each old name as a file that re-exports the current one. Engines often write the old names, so the index keeps them.
+const lucideReact = join(unpack(`lucide-react@${lucide}`), "dist", "esm", "icons");
+const lucideAliases = Object.fromEntries(
+  readdirSync(lucideReact)
+    .filter((file) => file.endsWith(".mjs"))
+    .flatMap((file) => {
+      const target = readFileSync(join(lucideReact, file), "utf8").match(/export \{ default \} from '\.\/([a-z0-9-]+)\.mjs'/);
+      return target && target[1] in lucideIcons ? [[file.replace(/\.mjs$/, ""), target[1]]] : [];
+    }),
+);
+
 const react = unpack(`@phosphor-icons/react@${phosphor}`);
 const shipped = new Set(
   readdirSync(join(react, "dist", "ssr"))
@@ -58,7 +70,13 @@ const phosphorIcons = Object.fromEntries(
 const sorted = (icons) => Object.fromEntries(Object.entries(icons).sort(([a], [b]) => a.localeCompare(b)));
 const index = {
   about: "Icon names with their words (name, tags, categories) for the FrontendSpec icon resolver (Story 20.5).",
-  lucide: { package: "lucide-react", version: lucide, tags: `lucide-static@${lucide}`, icons: sorted(lucideIcons) },
+  lucide: {
+    package: "lucide-react",
+    version: lucide,
+    tags: `lucide-static@${lucide}`,
+    icons: sorted(lucideIcons),
+    aliases: sorted(lucideAliases),
+  },
   phosphor: {
     package: "@phosphor-icons/react",
     version: phosphor,
@@ -67,4 +85,7 @@ const index = {
   },
 };
 writeFileSync(join(base, "icon-index.json"), `${JSON.stringify(index)}\n`);
-console.log(`icon-index.json: ${Object.keys(lucideIcons).length} lucide, ${Object.keys(phosphorIcons).length} phosphor`);
+console.log(
+  `icon-index.json: ${Object.keys(lucideIcons).length} lucide (${Object.keys(lucideAliases).length} old names), ` +
+    `${Object.keys(phosphorIcons).length} phosphor`,
+);

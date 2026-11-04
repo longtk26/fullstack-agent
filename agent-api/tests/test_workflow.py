@@ -47,15 +47,14 @@ def test_demo_run_goes_through_one_repair_and_completes(client, user_headers, tm
         ("plan_architecture", 1, "succeeded"),
         ("generate_database", 1, "succeeded"),
         ("generate_backend", 1, "succeeded"),
-        ("generate_tests", 1, "succeeded"),
         ("run_validation", 1, "failed"),
         ("repair_code", 1, "succeeded"),
         ("run_validation", 2, "succeeded"),
         ("package_artifacts", 1, "succeeded"),
     ]
     purposes = sorted(i.purpose for i in cli_invocations(generation_id))
-    # two-entity spec = two modules, so backend and tests run once per module
-    assert purposes == ["generate_backend"] * 2 + ["generate_database"] + ["generate_tests"] * 2 + ["repair_code"]
+    # two-entity spec = two modules, so the backend runs once per module; no engine writes tests (Story 18.11)
+    assert purposes == ["generate_backend"] * 2 + ["generate_database"] + ["repair_code"]
     assert all(i.status == "ok" and i.node_run_id is not None for i in cli_invocations(generation_id))
 
     project = tmp_path / generation_id / "project"
@@ -94,14 +93,14 @@ def test_repair_limit_fails_with_a_diagnostic(client, user_headers, tmp_path):
     assert [r.node for r in node_runs(generation_id)].count("run_validation") == 3
 
 
-def test_run_tests_false_skips_test_generation(client, user_headers, tmp_path):
+def test_run_tests_false_skips_the_tests_check(client, user_headers, tmp_path):
     generation_id = submit(client, user_headers, runTests=False)
 
     assert run_job(tmp_path, generation_id) == "COMPLETED"
 
-    tests_step = next(r for r in node_runs(generation_id) if r.node == "generate_tests")
-    assert tests_step.status == "skipped"
-    assert "generate_tests" not in {i.purpose for i in cli_invocations(generation_id)}
+    assert "generate_tests" not in {r.node for r in node_runs(generation_id)}  # Story 18.11: no such step
+    checks = {e.payload["check"]: e.status for e in events(generation_id) if e.type == "validation.check"}
+    assert checks["tests"] == "skipped"
 
 
 class UnavailableEngine(FakeEngine):

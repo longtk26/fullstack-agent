@@ -47,12 +47,6 @@ CONTEXT = {
         "plan_path": ".bga/plan.json",
         "file_tree": "src/",
     },
-    "generate_tests": {
-        "module": {"name": "orders", "entity": "Order"},
-        "test_cases": [{"id": "order_create__ok", "operationId": "order.create", "description": "creates"}],
-        "spec_path": ".bga/spec.json",
-        "plan_path": ".bga/plan.json",
-    },
     "repair_code": {
         "attempt": 1,
         "max_attempts": 3,

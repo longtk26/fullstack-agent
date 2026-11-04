@@ -3,15 +3,18 @@
 Order and dependencies (a failed check skips its dependents; independent checks still run):
 
     1 syntax       static parse of every .py file                    –
-    2 lint         ruff check (JSON) + ruff format --check            –
+    2 lint         ruff check (JSON) + ruff format --check            –      warning
     3 deps         baked venv matches requirements, else install; uv pip check   –
     4 startup      import + serve the app, GET /health                1, 3
-    5 migration    autogenerate if models changed; up / check / down / up; schema == plan   3
-    6 conventions  fastapi-skills AST checker (static)                1
-    7 tests        pytest + planned test ids present                  4, 5
+    5 migration    autogenerate if models changed; upgrade to head    3
+                   (check / down / up and schema == plan: warning)
+    6 conventions  fastapi-skills AST checker (static)                1      warning
+    7 tests        pytest (template tests) + a smoke call per custom operation   4, 5
     8 openapi      OpenAPI of the started app == planned operations   4
                    (and conforms to the API contract in dynamic mode, Story 12.3)
 
+Story 18.11: only what proves the app starts and its API works can fail; the rest reports `warning` (recorded and
+shown, never repaired; the job ends COMPLETED_WITH_WARNINGS). A warning counts as passed for the checks after it.
 Every validation re-runs all checks (they take seconds), so a repair can never hide a regression.
 """
 
@@ -36,7 +39,8 @@ from .checks.conformance import compare_contract
 from .checks.conventions import check_conventions
 from .checks.parity import compare_openapi, compare_schema, missing_tests
 from .checks.parsers import junit_failures, last_lines, ruff_failures, traceback_frames
-from .migrations import ensure_migration, reflect_schema, verify_migration
+from .checks.smoke import SMOKE_FILE, SMOKE_MARKER, SMOKE_SCRIPT, SMOKE_SCRIPT_FILE, judge, rule_answer, smoke_calls
+from .migrations import ensure_migration, reflect_schema, roundtrip_migration, upgrade_migration
 
 CHECKS = ("syntax", "lint", "deps", "startup", "migration", "conventions", "tests", "openapi")
 DEPENDS_ON = {"startup": ("syntax", "deps"), "migration": ("deps",), "conventions": ("syntax",)}
@@ -52,7 +56,7 @@ DIGEST_LIMIT = 30_000
 
 class CheckResult(BaseModel):
     check: str
-    status: str  # passed | failed | skipped | not_run
+    status: str  # passed | failed | warning (failed, not blocking: Story 18.11) | skipped | not_run
     started_at: datetime | None = None
     duration_ms: int = 0
     summary: str = ""
@@ -70,6 +74,10 @@ class ValidationOutcome(BaseModel):
         return [r.check for r in self.results if r.status == "failed"]
 
     @property
+    def warnings(self) -> list[str]:
+        return [r.check for r in self.results if r.status == "warning"]
+
+    @property
     def summary(self) -> dict[str, str]:
         return {r.check: r.status for r in self.results}
 
@@ -81,6 +89,10 @@ class ValidationRequest:
     run_tests: bool
     sandbox: ISandbox | None = None
     contract: dict[str, Any] | None = None  # the API contract (dynamic mode)
+    # Story 18.11: the contract the smoke calls follow (dynamic: the contract; backend: one built from the spec),
+    # and the planned tests that must exist (the template ones; None = all planned tests)
+    smoke_contract: dict[str, Any] | None = None
+    required_tests: list[dict[str, Any]] | None = None
     artifacts: dict[str, Any] = field(default_factory=dict)  # filled by checks (schema, openapi)
 
 
@@ -131,10 +143,10 @@ def conventions_check(project: Path, plan: dict[str, Any]) -> CheckResult:
     violations = check_conventions(project, plan)
     summary = "fastapi-skills checklist met"
     if violations:
-        summary = f"{len(violations)} fastapi-skills violation(s) (advisory)"
+        summary = f"{len(violations)} fastapi-skills violation(s)"
     return CheckResult(
         check="conventions",
-        status="passed",  # advisory: reported, never fails the run
+        status="warning" if violations else "passed",  # reported, never fails the run
         duration_ms=int((time.monotonic() - started) * 1000),
         summary=summary,
         details=violations,
@@ -230,7 +242,7 @@ class SandboxValidationRunner(IValidationRunner):
             "openapi": self._openapi,
         }
         for check in CHECKS:
-            blocked = [d for d in DEPENDS_ON.get(check, ()) if results[d].status != "passed"]
+            blocked = [d for d in DEPENDS_ON.get(check, ()) if results[d].status not in ("passed", "warning")]
             with traced_check(check) as slot:
                 if check == "tests" and not request.run_tests:
                     result = CheckResult(check=check, status="skipped", summary="runTests=false")
@@ -272,6 +284,8 @@ class SandboxValidationRunner(IValidationRunner):
         summary = "ruff check and format clean" if ok else f"{len(details)} ruff finding(s)"
         result = self._result("lint", ok, summary, check if not check.ok else fmt, details=details)
         result.duration_ms = check.duration_ms + fmt.duration_ms
+        if not ok:
+            result.status = "warning"
         return result
 
     async def _deps(self, request: ValidationRequest) -> CheckResult:
@@ -305,30 +319,38 @@ class SandboxValidationRunner(IValidationRunner):
         if generated is not None and not generated.ok:
             details = traceback_frames(generated.output)[-5:]
             return self._result("migration", False, "alembic autogenerate failed", generated, details=details)
-        verify = await verify_migration(sandbox)
-        if not verify.ok:
-            details = traceback_frames(verify.output)[-5:]
-            return self._result(
-                "migration", False, "upgrade / check / downgrade / upgrade failed", verify, details=details
-            )
+        upgrade = await upgrade_migration(sandbox)
+        if not upgrade.ok:
+            details = traceback_frames(upgrade.output)[-5:]
+            return self._result("migration", False, "alembic upgrade head failed", upgrade, details=details)
+        # Story 18.11: the app can migrate and start; the round trip and the planned schema details are warnings.
+        roundtrip = await roundtrip_migration(sandbox)
         schema, reflect = await reflect_schema(sandbox)
-        if schema is None:
-            return self._result("migration", False, "could not reflect the migrated schema", reflect)
-        request.artifacts["schema"] = schema
-        problems = compare_schema(request.plan, schema)
-        summary = (
-            f"{len(problems)} schema mismatch(es) with the plan"
-            if problems
-            else f"{len(schema['tables'])} table(s) match the plan"
-            + (" (migration regenerated)" if regenerated else "")
-        )
-        result = self._result("migration", not problems, summary, None, details=problems)
-        result.duration_ms = verify.duration_ms + reflect.duration_ms + (generated.duration_ms if generated else 0)
+        problems = compare_schema(request.plan, schema) if schema is not None else []
+        if schema is not None:
+            request.artifacts["schema"] = schema
+        if not roundtrip.ok:
+            summary = "upgrade works; check / downgrade / upgrade failed"
+        elif schema is None:
+            summary = "upgrade works; could not reflect the migrated schema"
+        elif problems:
+            summary = f"upgrade works; {len(problems)} schema difference(s) from the plan"
+        else:
+            summary = f"{len(schema['tables'])} table(s) match the plan" + (
+                " (migration regenerated)" if regenerated else ""
+            )
+        ok = roundtrip.ok and schema is not None and not problems
+        details = problems if roundtrip.ok else traceback_frames(roundtrip.output)[-5:]
+        failed_run = roundtrip if not roundtrip.ok else (reflect if schema is None else None)
+        result = self._result("migration", ok, summary, failed_run, details=details)
+        if not ok:
+            result.status = "warning"
+        result.duration_ms = sum(run.duration_ms for run in (upgrade, roundtrip, reflect, generated) if run is not None)
         return result
 
     async def _tests(self, request: ValidationRequest) -> CheckResult:
         sandbox, project = request.sandbox, request.project
-        missing = missing_tests(request.plan, project)
+        missing = missing_tests(request.plan, project, request.required_tests)
         await sandbox.reset_database("app_test")
         junit = project / JUNIT_PATH
         junit.unlink(missing_ok=True)
@@ -345,7 +367,54 @@ class SandboxValidationRunner(IValidationRunner):
             )
         else:
             summary = f"{len(missing)} planned test(s) missing"
-        return self._result("tests", ok, summary, run if not run.ok else None, details=failures + missing)
+        result = self._result("tests", ok, summary, run if not run.ok else None, details=failures + missing)
+        if request.smoke_contract is not None:
+            smoke = await self._smoke(request)
+            if smoke is not None:
+                result.duration_ms += smoke.duration_ms
+                result.details += smoke.details
+                result.summary = f"{result.summary}; {smoke.summary}"
+                if smoke.status == "failed":
+                    result.status = "failed"
+                    result.output = "\n".join(filter(None, [result.output, smoke.output]))  # the app's log too
+        return result
+
+    async def _smoke(self, request: ValidationRequest) -> CheckResult | None:
+        """Story 18.11: each custom operation called once against the seeded database (none: nothing to call)."""
+        from .packaging import build_contract_seed
+
+        contract = request.smoke_contract
+        calls, skipped = smoke_calls(contract, request.plan)
+        if not calls:
+            return None
+        project = request.project
+        (project / SMOKE_FILE).write_text(
+            json.dumps({"seed": build_contract_seed(contract, request.plan), "calls": calls})
+        )
+        (project / SMOKE_SCRIPT_FILE).write_text(SMOKE_SCRIPT)
+        run = await request.sandbox.exec(f"python {SMOKE_SCRIPT_FILE}", timeout_s=120)
+        if SMOKE_MARKER not in run.stdout:
+            summary = "smoke calls could not run (seed or startup failed)"
+            return self._result("tests", False, summary, run, details=traceback_frames(run.output)[-5:])
+        try:
+            answers = json.loads(run.stdout.split(SMOKE_MARKER, 1)[1].strip())
+        except json.JSONDecodeError:
+            return self._result("tests", False, "smoke answers are not JSON", run)
+        problems = judge(contract, calls, answers)
+        note = f" ({len(skipped)} skipped: {', '.join(s['operation'] for s in skipped)})" if skipped else ""
+        ruled = [
+            f"{call['operationId']} {answer['status']}"
+            for call, answer in zip(calls, answers, strict=False)
+            if rule_answer(answer)
+        ]
+        if ruled:
+            note += f"; answered by a business rule: {', '.join(ruled)}"
+        summary = (
+            f"{len(problems)} of {len(calls)} custom operation(s) answered wrongly"
+            if problems
+            else f"{len(calls)} custom operation(s) answer as the contract says"
+        ) + note
+        return self._result("tests", not problems, summary, run if problems else None, details=problems)
 
     async def _openapi(self, request: ValidationRequest) -> CheckResult:
         run = await request.sandbox.exec("python /opt/bga/bin/export_openapi.py", timeout_s=90)
@@ -369,3 +438,19 @@ class SandboxValidationRunner(IValidationRunner):
 def write_report(path: Path, outcome: ValidationOutcome) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(outcome.model_dump(mode="json"), indent=2))
+
+
+def generator_bug_files(outcome: Any, owned: set[str]) -> list[str]:
+    """The files of the blocking failures when every one of them points only at generator-owned files. A failure
+    with no file (a startup crash) may be anywhere, a failing test names its test file whatever broke, and a
+    conventions failure names the owned file the engine changed (a repair can undo that), so none of them counts."""
+    failing = [result for result in outcome.results if result.status == "failed"]
+    if not failing or not owned or any(result.check in ("tests", "conventions") for result in failing):
+        return []
+    files: set[str] = set()
+    for result in failing:
+        named = {d["file"] for d in result.details if isinstance(d.get("file"), str) and d["file"]}
+        if not named:
+            return []
+        files |= named
+    return sorted(files) if files <= owned else []

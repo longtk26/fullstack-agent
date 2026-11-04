@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { deriveNodeStates } from "../lib/node-states";
 import type { TDetailTab } from "../types";
@@ -19,6 +19,11 @@ export function useGenerationDetail(id: string) {
   );
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const autoSwitchedRef = useRef(false);
+  const userPickedRef = useRef(false);
+  const selectTab = useCallback((next: TDetailTab) => {
+    userPickedRef.current = true;
+    setTab(next);
+  }, []);
 
   const status = detail.data?.status;
   const progress = useMemo(() => deriveNodeStates(events, status), [events, status]);
@@ -31,20 +36,19 @@ export function useGenerationDetail(id: string) {
     [progress],
   );
 
-  // Story 9.9 / Q13: v0-style hand-off to the App tab on completion with running frontend preview
+  // Story 9.9 / Q13: v0-style hand-off to the App tab. Story 18.12: as soon as the frontend preview first runs,
+  // even while the backend is still being generated; once, and never after the user picked a tab.
   useEffect(() => {
-    if (autoSwitchedRef.current || requestedTab) return;
+    if (autoSwitchedRef.current || userPickedRef.current || requestedTab) return;
     const mode = detail.data?.mode;
     if (mode !== "static" && mode !== "dynamic") return;
 
-    const s = detail.data?.status;
-    const feRunning = detail.data?.frontendPreview?.status === "RUNNING";
-    if ((s === "COMPLETED" || s === "COMPLETED_WITH_WARNINGS") && feRunning) {
+    if (detail.data?.frontendPreview?.status === "RUNNING") {
       autoSwitchedRef.current = true;
       const timer = setTimeout(() => setTab("app"), 0);
       return () => clearTimeout(timer);
     }
-  }, [detail.data?.status, detail.data?.mode, detail.data?.frontendPreview?.status, requestedTab]);
+  }, [detail.data?.mode, detail.data?.frontendPreview?.status, requestedTab]);
 
   return {
     detail,
@@ -56,7 +60,7 @@ export function useGenerationDetail(id: string) {
     frontendRepairAttempts,
     maxRepairAttempts: detail.data?.options.maxRepairAttempts ?? 3,
     tab,
-    setTab,
+    setTab: selectTab,
     selectedNode,
     setSelectedNode,
   };

@@ -7,8 +7,9 @@ and categories; BM25), a reference to the other set by its name's words. Switchi
 every icon meaningful without touching the items.
 
 The index (`templates/nextjs_base/icon-index.json`) is written by `scripts/icon-index.mjs` from the pinned base's
-lucide-react and @phosphor-icons/react (`make frontend-base`). Lucide icons are keyed by file name (`truck`), Phosphor
-icons by component name (`Truck`); references always use the component name.
+lucide-react and @phosphor-icons/react (`make frontend-base`, or `make icon-index` for the index alone). Lucide
+icons are keyed by file name (`truck`), Phosphor icons by component name (`Truck`); references always use the
+component name. Lucide's old names (`alert-triangle`) map to the current ones in `lucide.aliases`.
 """
 
 import difflib
@@ -117,6 +118,18 @@ def lucide_files() -> dict[str, str]:
 
 
 @lru_cache
+def _lucide_aliases() -> dict[str, str]:
+    return dict(icon_index()["lucide"].get("aliases") or {})
+
+
+def lucide_current(name: str) -> str | None:
+    """The current component name of a renamed Lucide icon (`AlertTriangle` → `TriangleAlert`), or None. lucide-react
+    still exports the old names, but the index, the icon imports and the checks use the current ones."""
+    target = _lucide_aliases().get(kebab(name))
+    return pascal(target) if target else None
+
+
+@lru_cache
 def _ranker(icon_set: str) -> tuple[list[str], Bm25]:
     names = sorted(icon_words(icon_set))
     documents = []
@@ -163,6 +176,8 @@ def resolve_icon(ref: str | None, icon_set: str) -> str | None:
     if kind == "intent":
         best = rank_icons(value, icon_set, 1)
         return f"{icon_set}:{best[0][0]}" if best else None
+    if kind == "lucide":
+        value = lucide_current(value) or value
     if value in icon_words(icon_set):
         return f"{icon_set}:{value}"
     best = rank_icons(kebab(value).replace("-", " "), icon_set, 1)

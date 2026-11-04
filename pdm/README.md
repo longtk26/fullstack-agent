@@ -80,7 +80,7 @@ lane, tracing, results, and an OpenAPI explorer that sends test calls to the run
 | 15 | [Site images & illustrations](epic15_site_assets/epic15_site_assets.md) | Phase 7 | 5 |
 | 16 | [Site revisions & feedback](epic16_site_revisions/epic16_site_revisions.md) | Phase 7 | 5 |
 | 17 | [Fast generation: section renderer, component cache, templated CRUD](epic17_fast_generation/epic17_fast_generation.md) | Phase 7 | 6 |
-| 18 | [Generation speed: fail fast, run in parallel, cache the slow builds](epic18_generation_speed/epic18_generation_speed.md) | Phase 7 | 11 |
+| 18 | [Generation speed: fail fast, run in parallel, cache the slow builds](epic18_generation_speed/epic18_generation_speed.md) | Phase 7 | 13 |
 | 19 | [Real photos and API-driven dynamic apps](epic19_photos_and_live_apps/epic19_photos_and_live_apps.md) | Phase 7 | 10 |
 | 20 | [Design diversity: distinct directions, icons and motion](epic20_design_diversity/epic20_design_diversity.md) (in progress) | Phase 7 | 11 |
 | 21 | [Designed pages: element trees for static and dynamic sites](epic21_designed_pages/epic21_designed_pages.md) (approved, next after 18.10) | Phase 7 | 7 (outline) |
@@ -120,6 +120,13 @@ workflow to be built before real generation works.
    (lean validation) → 20.10 (Japanese fonts and typesetting) → 20.7 and Epic 20's final check.
    [20.11](epic20_design_diversity/story20.11_app_pages.md) is mostly superseded by Epic 21: its route-order fix (done
    with 18.10) and app theme limits stay.
+12. **Re-planned 2026-11-04 (the user's two priorities first):**
+   [18.12](epic18_generation_speed/story18.12_lane_previews_first.md) (each lane's preview starts the moment the lane
+   passes, on any worker; the switch to live and the live checks run in the background; lanes no longer cancel each
+   other) → [18.11](epic18_generation_speed/story18.11_lean_validation.md), re-scoped (no `generate_tests` node, only
+   template tests; validation proves the app starts and its API works) →
+   [18.13](epic18_generation_speed/story18.13_backend_context_pack.md) (the rest of the old 18.11: `complete_backend`
+   context pack, parallel modules, frontend warnings) → 20.10 → 20.7 and Epic 20's final check.
 
 ### Status (2026-10-30)
 
@@ -137,6 +144,7 @@ workflow to be built before real generation works.
 | 15 | 15.1–15.4 done 2026-10-30 (drawn SVGs, asset checks with placeholder fallback, uploads and links); 15.5 only if asked |
 | 20 | Checkpoints A, B and C done 2026-11-02 (diversity report and baseline; hero layouts, section forms, rhythm, tone tokens, 30 fonts, seven new sections; direction cards with the difference test, content-led home pages, stock-phrase checks, dynamic apps checked on the mock API); Checkpoint D done 2026-11-03 (icons in the site's set, motion presets with a signature moment); 20.10 Japanese fonts added 2026-11-03 (after spec-drafting speed); 20.7 next; real-engine numbers on the final check |
 | 18.10, 21 | implemented 2026-11-04 (drafts through the Gemini API, one request per step; designed pages as element trees for static and dynamic sites, aggregates from templates); on `feat/story18.10-api-drafts`, under the user's review; 21.1's paid measurement open |
+| 18.12, 18.11 | implemented 2026-11-04 on `feat/story18.12-lane-previews` (stacked on 18.10), under the user's review: each lane's preview starts when the lane passes, from any worker, integration in the background, lanes no longer cancel each other; no `generate_tests` step, validation blocks only on "starts" and "API works" (smoke call per custom operation), lint / conventions / migration details are warnings; plus Epic 21 fixes (old Lucide names, Metric `fn`, sites without trees). Real-run timings and 18.13 open |
 | 10, 11, 16 | open (16 to be revised after Epic 20) |
 
 ### Next up (re-planned 2026-10-30)
@@ -203,6 +211,8 @@ Open decisions along the way:
 | Q20 (2026-10-28) | Component cache is **shared by all users, exact key only**; no similarity matching | 17.3 |
 | REQ (2026-10-30) | The requirement is **plain text or Markdown**, typed or uploaded as `.md` / `.txt` (UTF-8, ≤ 64 KB), for all three modes; one draft endpoint (`POST /spec-drafts`, `mode: backend\|static\|dynamic`). PDF / DOCX are not accepted | 2.4, 12.4, 9.2, 9.7b; requirements v1.5 (FR-01, FR-24) |
 | DESIGN (2026-10-30) | Drafts take their design direction from **UI UX Pro Max's data** (MIT; CSVs vendored at a pinned commit; our own ranker, their scripts not run): product type → palette, font pairing, section order, anti-patterns. **Taste Skill** is used only as rules (17.7 checklist, drafter copy rules), not as a step: its random art direction, browser critique loop (30–45 min a build) and photo fetching do not fit a no-engine renderer | New Story 12.6; 17.7 font set and checklist; `theme.direction` in FrontendSpec (additive, still 1.0) |
+| LANES (2026-11-04, default, please confirm) | In dynamic mode each lane delivers on its own: its preview starts when it passes, integration runs in the background. A **failed frontend lane no longer cancels or fails the backend**: the backend finishes and previews, overall `COMPLETED_WITH_WARNINGS` (mirror of Q14). The integration-wait watchdog that cancelled a slow backend is removed | 18.12; FR-21, FR-27 (requirements v1.7) |
+| TESTS (2026-11-04) | The backend lane has **no `generate_tests` step**: only template tests, written with the code; validation blocks only on "starts" (deps, syntax, migration upgrade, startup) and "API works" (OpenAPI, template tests, one smoke call per custom operation); lint, conventions and migration details are warnings | 18.11; FR-09, FR-11 (requirements v1.7) |
 | Q15 (2026-10-26) | Product renamed **Fullstack Generation Agent** (docs, UI, `APP_NAME`, LangSmith project). Internal identifiers stay: `bga-runner`, `.bga/`, compose project `bga`, schema `$id`s, repo folder | – |
 
 ## Changes from requirements v1.0 (accepted via Q1; now part of v1.1)

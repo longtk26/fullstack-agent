@@ -16,6 +16,7 @@ from .state import (
     BackendLaneOutput,
     FrontendLaneOutput,
     GenerationState,
+    Outcome,
 )
 
 ATTEMPT_NODES = {"run_validation", "repair_code", "validate_frontend", "repair_frontend"}
@@ -23,7 +24,6 @@ BACKEND_LANE_NODES = (
     "plan_architecture",
     "generate_database",
     "generate_backend",
-    "generate_tests",
     "run_validation",
     "repair_code",
 )
@@ -55,7 +55,7 @@ def route_after_spec(state: GenerationState) -> str:
 
 
 def route_after_validation(state: GenerationState) -> str:
-    if state.get("backend_error"):
+    if state.get("backend_error") or state.get("outcome") == Outcome.GENERATOR_BUG:
         return "repair limit reached"
     if not state.get("failed_checks"):
         return "passed"
@@ -65,6 +65,8 @@ def route_after_validation(state: GenerationState) -> str:
 
 
 def route_after_frontend_validation(state: GenerationState) -> str:
+    if state.get("frontend_error") or state.get("outcome") == Outcome.GENERATOR_BUG:
+        return "repair limit reached"
     if not state.get("frontend_failed_checks"):
         return "passed"
     if state.get("frontend_repair_attempts", 0) < state["max_repair_attempts"]:
@@ -72,8 +74,8 @@ def route_after_frontend_validation(state: GenerationState) -> str:
     return "repair limit reached"
 
 
-def route_after_frontend_lane(state: GenerationState) -> str:
-    return "passed" if not state.get("frontend_failed_checks") else "repair limit reached"
+def route_after_integrate(state: GenerationState) -> str:
+    return "both lanes failed" if state.get("outcome") == Outcome.REPAIR_LIMIT else "packaged"
 
 
 def _attempt(name: str, state: GenerationState) -> int:
@@ -132,8 +134,9 @@ def _node(name: str, ctx: JobContext | None):
                         await ctx.set_lane("backend", LaneStatus.FAILED, reason=reason)
                     return {"backend_error": reason}
                 if ctx.mode == GenerationMode.DYNAMIC and name in FRONTEND_NODES:
+                    # Story 18.12: the backend lane goes on; `integrate` decides how the job ends.
                     await ctx.set_lane("frontend", LaneStatus.FAILED, reason=reason)
-                    await ctx.abort_backend("frontend lane failed", frontend_failed=True)
+                    return {"frontend_error": reason}
                 raise
             except Exception as exc:
                 reason = str(exc)[:500]
@@ -168,8 +171,7 @@ def _backend_subgraph(ctx: JobContext | None) -> StateGraph:
     for source, target in (
         ("plan_architecture", "generate_database"),
         ("generate_database", "generate_backend"),
-        ("generate_backend", "generate_tests"),
-        ("generate_tests", "run_validation"),
+        ("generate_backend", "run_validation"),
         ("repair_code", "run_validation"),
     ):
         sub.add_conditional_edges(
@@ -190,21 +192,30 @@ def _frontend_subgraph(ctx: JobContext | None) -> StateGraph:
     for name in FRONTEND_LANE_NODES:
         sub.add_node(name, _node(name, ctx))
     sub.add_edge(START, "plan_frontend")
-    sub.add_edge("plan_frontend", "scaffold_frontend")
-    sub.add_edge("scaffold_frontend", "generate_frontend")
-    sub.add_edge("generate_frontend", "validate_frontend")
+    for source, target in (
+        ("plan_frontend", "scaffold_frontend"),
+        ("scaffold_frontend", "generate_frontend"),
+        ("generate_frontend", "validate_frontend"),
+        ("repair_frontend", "validate_frontend"),
+    ):
+        sub.add_conditional_edges(
+            source,
+            lambda state, nxt=target: END if state.get("frontend_error") else nxt,
+            {target: target, END: END},
+        )
     sub.add_conditional_edges(
         "validate_frontend",
         route_after_frontend_validation,
         {"passed": END, "failed": "repair_frontend", "repair limit reached": END},
     )
-    sub.add_edge("repair_frontend", "validate_frontend")
     return sub
 
 
 def build_graph(ctx: JobContext | None, mode: GenerationMode = GenerationMode.BACKEND) -> StateGraph:
     """backend: today's graph. static: frontend lane only. dynamic (Story 14.1): validate_inputs → build_contract →
-    parallel backend_lane + frontend_lane subgraphs → integrate (Story 14.2/14.3) → package_artifacts."""
+    parallel backend_lane + frontend_lane subgraphs → integrate (Story 14.2/14.3) → package_artifacts. Each lane
+    starts its own preview when it passes (Story 18.12); neither lane's failure stops the other, and `integrate` ends
+    the job only when both failed."""
     graph = StateGraph(GenerationState)
     if mode == GenerationMode.DYNAMIC:
         graph.add_node("validate_inputs", _node("validate_inputs", ctx))
@@ -218,12 +229,10 @@ def build_graph(ctx: JobContext | None, mode: GenerationMode = GenerationMode.BA
         graph.add_edge("build_contract", "backend_lane")
         graph.add_edge("build_contract", "frontend_lane")
         graph.add_edge("backend_lane", END)
+        graph.add_edge("frontend_lane", "integrate")  # runs once both lanes have ended (one super-step)
         graph.add_conditional_edges(
-            "frontend_lane",
-            route_after_frontend_lane,
-            {"passed": "integrate", "repair limit reached": END},
+            "integrate", route_after_integrate, {"packaged": "package_artifacts", "both lanes failed": END}
         )
-        graph.add_edge("integrate", "package_artifacts")
         graph.add_edge("package_artifacts", END)
         return graph
 
@@ -234,8 +243,7 @@ def build_graph(ctx: JobContext | None, mode: GenerationMode = GenerationMode.BA
         graph.add_conditional_edges("validate_spec", route_after_spec, {"valid": "plan_architecture", "invalid": END})
         graph.add_edge("plan_architecture", "generate_database")
         graph.add_edge("generate_database", "generate_backend")
-        graph.add_edge("generate_backend", "generate_tests")
-        graph.add_edge("generate_tests", "run_validation")
+        graph.add_edge("generate_backend", "run_validation")
         graph.add_conditional_edges(
             "run_validation",
             route_after_validation,
@@ -276,8 +284,7 @@ def _display_graph(mode: GenerationMode = GenerationMode.BACKEND) -> StateGraph:
     graph.add_edge("build_contract", "plan_frontend")
     graph.add_edge("plan_architecture", "generate_database")
     graph.add_edge("generate_database", "generate_backend")
-    graph.add_edge("generate_backend", "generate_tests")
-    graph.add_edge("generate_tests", "run_validation")
+    graph.add_edge("generate_backend", "run_validation")
     graph.add_conditional_edges(
         "run_validation",
         route_after_validation,
@@ -290,10 +297,12 @@ def _display_graph(mode: GenerationMode = GenerationMode.BACKEND) -> StateGraph:
     graph.add_conditional_edges(
         "validate_frontend",
         route_after_frontend_validation,
-        {"passed": "integrate", "failed": "repair_frontend", "repair limit reached": END},
+        {"passed": "integrate", "failed": "repair_frontend", "repair limit reached": "integrate"},
     )
     graph.add_edge("repair_frontend", "validate_frontend")
-    graph.add_edge("integrate", "package_artifacts")
+    graph.add_conditional_edges(
+        "integrate", route_after_integrate, {"packaged": "package_artifacts", "both lanes failed": END}
+    )
     graph.add_edge("package_artifacts", END)
     return graph
 

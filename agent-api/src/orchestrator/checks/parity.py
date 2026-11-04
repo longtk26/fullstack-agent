@@ -130,10 +130,13 @@ def test_names(project: Path) -> set[str]:
     return names
 
 
-def missing_tests(plan: dict[str, Any], project: Path) -> list[dict[str, Any]]:
+def missing_tests(
+    plan: dict[str, Any], project: Path, required: list[dict[str, Any]] | None = None
+) -> list[dict[str, Any]]:
+    """Planned tests not found in `tests/` (`required`: the ones that must exist; default every planned test)."""
     present = test_names(project)
     return [
         {"file": test["file"], "test": test["id"], "message": f"planned test missing: {test['description']}"}
-        for test in plan.get("tests", [])
+        for test in (plan.get("tests", []) if required is None else required)
         if test["id"] not in present
     ]
