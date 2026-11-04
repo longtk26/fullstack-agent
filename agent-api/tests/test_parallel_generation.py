@@ -115,6 +115,14 @@ def _artifacts(client, auth: dict, generation_id: str) -> dict[str, dict]:
     return {item["name"]: item for item in items}
 
 
+class FailingFrontendValidator:
+    """A frontend that never builds (Story 18.13: style findings no longer fail the frontend lane)."""
+
+    async def run(self, request) -> ValidationOutcome:
+        result = CheckResult(check="build", status="failed", summary="next build failed", output="Error")
+        return ValidationOutcome(results=[result], digest="build: next build failed", implicated_files=[])
+
+
 class FailingBackendValidator:
     async def run(self, request: ValidationRequest) -> ValidationOutcome:
         return ValidationOutcome(
@@ -404,11 +412,8 @@ def test_failing_frontend_lane_lets_the_backend_finish_and_preview(client, heade
     """Story 18.12: a failed frontend lane no longer cancels the backend; the API preview runs, with warnings."""
     auth = headers()
     generation_id = _submit_dynamic(client, auth, shop=True, maxRepairAttempts=1)
-    # In demo_scenario(0), generate_frontend plants a conventions error; replaying it as the repair fails the
-    # frontend lane after one repair while the backend lane, slowed, is still running (its one repair succeeds).
-    steps = demo_scenario(0)
-    steps["repair_frontend"] = steps["generate_frontend"]
-    engine = _shop_engine(tmp_path, steps, "generate_backend", 2.0)
+    # The frontend never builds, so its lane fails after one repair while the backend lane, slowed, is still running.
+    engine = _shop_engine(tmp_path, demo_scenario(0), "generate_backend", 2.0)
     backend_rt, frontend_rt = FakePreviewRuntime(), FakePreviewRuntime()
     store = JobStore()
 
@@ -420,7 +425,11 @@ def test_failing_frontend_lane_lets_the_backend_finish_and_preview(client, heade
                 backend_rt, store, events_, PreviewCommandBus(redis), frontend_runtime=frontend_rt
             )
             async with runner_ctx(
-                tmp_path, engine=engine, previews=previews, on_completed=previews.request_start
+                tmp_path,
+                engine=engine,
+                previews=previews,
+                on_completed=previews.request_start,
+                frontend_validator=FailingFrontendValidator(),
             ) as runner:
                 return await runner.run(generation_id)
         finally:
@@ -445,7 +454,11 @@ def test_both_lanes_failing_fails_the_job(client, headers, tmp_path):
     auth = headers()
     generation_id = _submit_dynamic(client, auth, shop=True, deployPreview=False, maxRepairAttempts=0)
     status = run_job(
-        tmp_path, generation_id, engine=_shop_engine(tmp_path, demo_scenario(0)), validator=FailingBackendValidator()
+        tmp_path,
+        generation_id,
+        engine=_shop_engine(tmp_path, demo_scenario(0)),
+        validator=FailingBackendValidator(),
+        frontend_validator=FailingFrontendValidator(),
     )
     assert status == "FAILED"
     row = generation(generation_id)

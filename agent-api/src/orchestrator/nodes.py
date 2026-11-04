@@ -26,6 +26,7 @@ from .backend_codegen import (
     module_tests,
     routers_file,
 )
+from .backend_completion import complete_modules, module_context
 from .checks.consistency import check_spec_pair
 from .checks.parity import compare_schema
 from .context import EngineFailure, JobContext
@@ -54,7 +55,7 @@ DIGEST_LIMIT = 30_000
 PROMPT_VERSIONS = {
     "generate_database": "v2",
     "generate_backend": "v3",
-    "complete_backend": "v4",
+    "complete_backend": "v5",
     "repair_code": "v3",
 }
 CONTRACT_REF = ".bga/contract.json"
@@ -395,34 +396,32 @@ async def generate_backend(state: GenerationState, ctx: JobContext) -> NodeResul
             owned += list(module_code)
     await _write_generated(ctx, files, owned)
     await ctx.emit("backend.generated", step="generate_backend", part="modules", files=len(files))
-    completed = []
     frontend_spec = _read_json(ctx, state["frontend_ref"]) if state.get("frontend_ref") else None
-    for module in plan["modules"]:
-        gaps = codegen_gaps(module)
-        if not gaps:
-            continue
+    contract = _read_json(ctx, state["contract_ref"]) if state.get("contract_ref") else contract_for(spec, plan)
+
+    def render(module: dict[str, Any]):
+        # Story 18.13: the prompt carries what the module needs (read from the project as it is now)
         module_op_ids = {op["operationId"] for op in module.get("operations", [])}
-        touching = _touching_journeys(frontend_spec, module_op_ids)
-        prompt = ctx.prompts.render(
+        return ctx.prompts.render(
             "complete_backend",
             PROMPT_VERSIONS["complete_backend"],
             module=module,
             module_json=_module_json(module),
-            gaps=gaps,
-            generated_files=generated[module["name"]],
+            gaps=codegen_gaps(module),
+            pack=module_context(ctx.workspace.project, plan, spec, contract, module, generated[module["name"]]),
             spec_path=state["spec_ref"],
             plan_path=state["plan_ref"],
             contract_path=state.get("contract_ref"),
-            file_tree=ctx.file_tree(),
-            journeys=touching,
+            journeys=_touching_journeys(frontend_spec, module_op_ids),
         )
-        await ctx.run_engine("generate_backend", "complete_backend", prompt)
-        completed.append(module["name"])
+
+    pending = [module for module in plan["modules"] if codegen_gaps(module)]
+    completion = await complete_modules(ctx, pending, render) if pending else {"completedByEngine": []}
     return {}, {
         "modules": len(plan["modules"]),
         "generatedFiles": len(files),
-        "engineCalls": len(completed),
-        "completedByEngine": completed,
+        "engineCalls": len(pending) + len(completion.get("conflicts", [])),
+        **completion,
     }
 
 

@@ -231,6 +231,9 @@ def test_shop_first_run_generates_three_components_and_the_second_takes_them_fro
         assert f'import {name}Custom from "@/components/custom/{entry["key"]}";' in registry
     assert not (tmp_path / first / "scratch").exists()
 
+    headers = {"Authorization": f"Bearer {login('user@test.local', 'userpass')}"}
+    # the test database lives for the session: other runs of this user (the sandbox tests) count in the totals too
+    hits_before = client.get("/api/v1/usage", headers=headers).json()["totals"]["cacheHits"]
     second = submit_shop(client, login)
     assert run_job(tmp_path, second, engine=FakeEngine(tmp_path, demo_scenario(0)), sandboxes=PassingSandboxes()) == (
         "COMPLETED_WITH_WARNINGS"
@@ -240,9 +243,8 @@ def test_shop_first_run_generates_three_components_and_the_second_takes_them_fro
     assert len([e for e in events(second) if e.type == "component.cache_hit"]) == 3
     assert [row.hits for row in cache_rows()] == [1, 1, 1]
 
-    headers = {"Authorization": f"Bearer {login('user@test.local', 'userpass')}"}
     usage = client.get("/api/v1/usage", headers=headers).json()
-    assert usage["totals"]["cacheHits"] == 3 and usage["catalogueCandidates"] == []
+    assert usage["totals"]["cacheHits"] - hits_before == 3 and usage["catalogueCandidates"] == []
     admin = {"Authorization": f"Bearer {login('admin@test.local', 'adminpass')}"}
     candidates = client.get("/api/v1/usage?scope=all", headers=admin).json()["catalogueCandidates"]
     assert sorted(c["name"] for c in candidates) == list(CUSTOM) and {c["hits"] for c in candidates} == {1}

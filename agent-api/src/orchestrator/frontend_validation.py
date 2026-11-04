@@ -4,12 +4,13 @@
                    pre-warmed store (offline); egress only when new packages are needed
     2 typecheck    tsc --noEmit                                                     1
     3 lint         ESLint (eslint-config-next)                                      1
-    4 conventions  static nextjs-skills checker, owned files unchanged, planned files present   –
+    4 conventions  static nextjs-skills checker, owned files unchanged, planned files present   –      warning
     5 build        next build                                                       1, 2
     6 routes       every planned route is in the build output                       5
     7 tests        Vitest (unit) + Playwright smoke on the mock API / the export    5
 
-A failed check skips its dependents; every validation re-runs all checks.
+A failed check skips its dependents; every validation re-runs all checks. Story 18.13: `conventions` findings and
+type errors only in test files are `warning`s (shown, never repaired), as on the backend lane (18.11).
 """
 
 import json
@@ -33,7 +34,8 @@ CHECKS = ("install", "typecheck", "lint", "conventions", "assets", "build", "rou
 DEPENDS_ON = {"typecheck": ("install",), "lint": ("install",), "build": ("install", "typecheck")}
 DEPENDS_ON |= {"routes": ("build",), "tests": ("build",), "journeys": ("build", "tests")}
 DIGEST_ORDER = ("install", "typecheck", "build", "assets", "conventions", "lint", "routes", "tests", "journeys")
-TS_ERROR = re.compile(r"^(?:\./)?(src/[^\s(:]+)\((\d+),\d+\): error (TS\d+): (.+)$", re.MULTILINE)
+TS_ERROR = re.compile(r"^(?:\./)?((?:src|tests)/[^\s(:]+)\((\d+),\d+\): error (TS\d+): (.+)$", re.MULTILINE)
+TEST_FILE = re.compile(r"(?:^tests/|\.(?:test|spec)\.tsx?$)")
 BUILD_LOCATION = re.compile(r"^\./(src/[^\s:]+):(\d+):\d+", re.MULTILINE)
 NO_OFFLINE = ("ERR_PNPM_NO_OFFLINE", "ERR_PNPM_OFFLINE", "not found in the store", "ERR_PNPM_FETCH")
 
@@ -62,6 +64,12 @@ def typescript_errors(output: str) -> list[dict[str, Any]]:
         {"file": match[0], "line": int(match[1]), "code": match[2], "message": match[3].strip()}
         for match in TS_ERROR.findall(output)
     ][:60]
+
+
+def only_in_tests(output: str, errors: list[dict[str, Any]]) -> bool:
+    """Every type error is in a test file (and every error line was parsed)."""
+    parsed_all = len(errors) == output.count(": error TS")
+    return bool(errors) and parsed_all and all(TEST_FILE.search(error["file"]) for error in errors)
 
 
 def eslint_failures(output: str) -> list[dict[str, Any]]:
@@ -137,7 +145,7 @@ def conventions_check(project: Path, plan: dict[str, Any]) -> CheckResult:
     violations = check_frontend_conventions(project, plan)
     return CheckResult(
         check="conventions",
-        status="failed" if violations else "passed",
+        status="warning" if violations else "passed",  # Story 18.13: reported, never repaired (as on the backend)
         duration_ms=int((time.monotonic() - started) * 1000),
         summary=f"{len(violations)} nextjs-skills violation(s)" if violations else "nextjs-skills checklist met",
         details=violations,
@@ -226,7 +234,10 @@ class SandboxFrontendValidationRunner:
         run = await request.sandbox.exec("pnpm exec tsc --noEmit --pretty false", timeout_s=300)
         errors = typescript_errors(run.output)
         summary = "no type errors" if run.ok else f"{len(errors) or 'some'} type error(s)"
-        return _result("typecheck", run.ok, summary, run, details=errors)
+        result = _result("typecheck", run.ok, summary, run, details=errors)
+        if not run.ok and only_in_tests(run.output, errors):  # Story 18.13: the app's code type-checks
+            result.status, result.summary = "warning", f"{len(errors)} type error(s), only in test files"
+        return result
 
     async def _lint(self, request: FrontendValidationRequest) -> CheckResult:
         run = await request.sandbox.exec("pnpm exec eslint --format json .", timeout_s=300)

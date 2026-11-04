@@ -62,6 +62,13 @@ Agent-specific notes:
   as owned (`scaffold.add_owned`). The engine only completes what `codegen_gaps` / `database_gaps` name (custom
   operations, rules, auth; one-to-one / many-to-many models), with the `complete_backend` prompt.
   `options.crudFromTemplates=false` restores the engine path (tests of the engine plumbing use it).
+- Backend completion (Story 18.13): `orchestrator/backend_completion.py`. `module_context` is the context pack the
+  `complete_backend@v5` prompt inlines (custom operations with their spec entry and contract operation, schemas
+  resolved; the module's generated files; its entity and model; related entities and their repository ports; the
+  exception helpers), and the prompt says not to read other files. `complete_modules` runs the modules at once, each
+  in a scratch copy (`<workspace>/scratch/module-<name>`), merges their changes in plan order, and reruns a module in
+  the project when it changed a file an earlier module changed differently. One module, or `ENGINE_CONCURRENCY=1`,
+  runs in the project directly. Frontend `conventions` findings and type errors only in test files are warnings.
 - Requirement drafting (Stories 2.4, 12.4): `POST/GET /api/v1/spec-drafts` (`specs` module) stores a `spec_drafts` row
   and queues it on `bga:drafts:<engine>`; the worker's `_consume_drafts` (own slots, `DRAFT_CONCURRENCY`) runs
   `orchestrator/drafting.py` in `<WORKSPACE_ROOT>/drafts/<id>/` (inputs in `.bga/`: schemas, an example from
