@@ -1,8 +1,19 @@
 # AI Fullstack Generation Agent — Requirements Specification
 
-**Version:** 1.7  
+**Version:** 1.8  
 **Status:** Approved for MVP — backlog in [`pdm/`](pdm/README.md)  
 **Priority:** High
+
+**Changes in 1.8 (2026-11-04):**
+- **Backend feature plugins**: auth, roles and ownership, rules, file storage, background jobs and events, email,
+  webhooks and payments are written from tested plugin code, with their frontend half in dynamic mode; the engine
+  writes only custom operations, custom rules and custom job bodies (FR-06, FR-07, new FR-34).
+- **Forms that fit the API**: every request field has a source (server, signed-in user, route, a picked record, an
+  upload, or the user's input), so no form asks for an id; forms use designed components and show server errors on
+  their fields (new FR-35).
+- Capacity, no-overlap and unique-together rules are enforced by the database, and many-to-many and one-to-one
+  relations are generated from templates (FR-04, FR-07).
+- Backlog: Epic 10 re-planned (13 stories). FR-33 stays reserved for Epic 20 (design directions).
 
 **Changes in 1.7 (2026-11-04):**
 - **Lanes deliver on their own** (dynamic mode): each lane's preview starts as soon as the lane passes; the switch to
@@ -363,6 +374,10 @@ Authorization must be enforced by the backend and must not depend on frontend va
 
 Security-sensitive configuration, such as signing keys, must be provided through environment variables rather than generated hardcoded secrets.
 
+Authentication and authorization code is written from tested plugin code (FR-34), not by the code engine. In dynamic
+mode the generated frontend has sign-up and sign-in pages, sends the token on protected calls, redirects to sign-in on
+401, and hides actions the signed-in user may not take.
+
 ### FR-07: Business Logic Generation
 
 The agent must support declarative business rules.
@@ -381,6 +396,9 @@ For complex custom rules, the code-generation engine may generate use-case imple
 Generated business logic must include tests covering both expected and rejected behavior.
 
 When requirements are ambiguous, the system must record unresolved assumptions instead of inventing critical business policies.
+
+In dynamic mode the frontend follows the predefined rules too (only allowed status changes are offered, locked
+records cannot be edited), and the mock API enforces them with the same errors as the backend.
 
 ### FR-08: Code Engine Integration (Claude Code CLI, Antigravity CLI)
 
@@ -792,6 +810,36 @@ Dynamic fullstack applications are driven by user journeys and complete API cove
 - Automated Playwright journey tests execute on mock fixtures during frontend validation, and against the live backend during integration.
 - The UI offers a one-click generation flow from requirement to running application with automated transitions across `DRAFTING`, `PENDING`, and execution phases.
 
+### FR-34: Backend Feature Plugins
+
+Backend features beyond CRUD are generation-time plugins: tested source in the fastapi-skills layout, copied into the
+generated project, recorded with its version in the manifest, and connected to the generated code through fixed hook
+points. In dynamic mode a plugin also provides its frontend part and its mock API behaviour.
+
+Plugins:
+- JWT authentication; role and ownership authorization; predefined business rules (FR-06, FR-07).
+- File storage: uploads and reads through signed URLs on an S3-compatible store (MinIO locally; S3 by configuration).
+- Background jobs and events: a Postgres-backed queue with retries and schedules; events are recorded in the same
+  transaction as the change that caused them, so nothing runs for a change that was rolled back.
+- Email through SMTP (a console sender for development), sent as jobs; previews collect sent emails for inspection.
+- Webhooks: signed outgoing deliveries with retries, signed incoming events handled exactly once.
+- Payments through a provider port, starting with a fake provider that runs the full checkout and webhook flow
+  without keys; real providers are added as adapters.
+
+Integrations with no plugin are generated as a stub adapter and listed in `unresolved`. Previews run the generated
+backend's job worker and use shared local storage and email services.
+
+### FR-35: Forms That Fit the API
+
+Every request field in the API contract states where its value comes from: the server, the signed-in user, the route,
+a related record picked by its label, an upload, or the user's input. A generated frontend never asks the user for an
+id. Before generation, each form is checked to have a working source for every required field; drafts that cannot be
+repaired are rejected.
+
+Generated forms validate with a schema for every form, use designed input components (calendar date and time pickers,
+pickers for related records, switches, selects with readable labels, number limits), and show server rejections on the
+field that caused them.
+
 ---
 
 ## 5. BackendSpec Input Example
@@ -1064,8 +1112,8 @@ Artifact names are identifiers resolved through authenticated artifact APIs, not
 - JWT authentication.
 - Role and ownership authorization.
 - Custom business rules.
-- External integrations.
-- Background task generation.
+- File storage, background jobs and events, email, webhooks, payments (FR-34).
+- Forms that fit the API (FR-35).
 - Natural-language requirement drafting and Frontend site JSON import.
 - Better automated evaluation.
 

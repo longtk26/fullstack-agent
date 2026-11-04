@@ -72,7 +72,7 @@ lane, tracing, results, and an OpenAPI explorer that sends test calls to the run
 | 7 | [Artifacts & preview container](epic7_artifacts_and_preview/epic7_artifacts_and_preview.md) | Phase 4 | 4 |
 | 8 | [Observability & tracing](epic8_observability/epic8_observability.md) | Phase 4 | 4 |
 | 9 | [Agent UI](epic9_agent_ui/epic9_agent_ui.md) | cross-phase | 10 |
-| 10 | [Advanced generation (auth, policies, rules)](epic10_advanced_generation/epic10_advanced_generation.md) | Phase 5 | 4 |
+| 10 | [Advanced generation: forms, plugins, auth, rules, files, jobs, email, webhooks, payments](epic10_advanced_generation/epic10_advanced_generation.md) (planned, next after 18.13) | Phase 5 | 13 |
 | 11 | [Hardening, benchmark & release](epic11_hardening_and_release/epic11_hardening_and_release.md) | DoD §10 | 4 |
 | 12 | [Generation modes, FrontendSpec & API contract](epic12_contract_and_frontend_spec/epic12_contract_and_frontend_spec.md) | Phase 6 | 6 |
 | 13 | [Frontend generation (Next.js on nextjs-skills)](epic13_frontend_generation/epic13_frontend_generation.md) | Phase 6 | 5 |
@@ -127,6 +127,14 @@ workflow to be built before real generation works.
    template tests; validation proves the app starts and its API works) →
    [18.13](epic18_generation_speed/story18.13_backend_context_pack.md) (the rest of the old 18.11: `complete_backend`
    context pack, parallel modules, frontend warnings) → 20.10 → 20.7 and Epic 20's final check.
+13. **Re-planned 2026-11-04 (Epic 10 is the next phase):** 18.13 →
+   [Epic 10](epic10_advanced_generation/epic10_advanced_generation.md), re-scoped around generation-time plugins, in
+   four checkpoints with a review after each: **A** forms (10.0a form kit, 10.0b field sources and references; 10.0a
+   can run alongside 18.13) → **B** plugin framework, JWT auth, roles and ownership, rules → **C** file storage (MinIO),
+   background jobs and events, email → **D** webhooks, payments (fake provider first) → **E** capacity / no-overlap / unique-together rules, many-to-many and
+   one-to-one relations. 20.10, 20.7 and Epic 20's final check move after Epic 10; Epic 11 stays last. Candidate epics
+   after Epic 10: teams and organisations; backend revisions (schema change → clear the preview database and run the
+   migrations again from empty, no data migrations).
 
 ### Status (2026-10-30)
 
@@ -143,9 +151,10 @@ workflow to be built before real generation works.
 | 2.4 | done 2026-10-30 (requirement drafting for backend, static and dynamic; with 12.4, 9.2 Requirement tab, 9.7b) |
 | 15 | 15.1–15.4 done 2026-10-30 (drawn SVGs, asset checks with placeholder fallback, uploads and links); 15.5 only if asked |
 | 20 | Checkpoints A, B and C done 2026-11-02 (diversity report and baseline; hero layouts, section forms, rhythm, tone tokens, 30 fonts, seven new sections; direction cards with the difference test, content-led home pages, stock-phrase checks, dynamic apps checked on the mock API); Checkpoint D done 2026-11-03 (icons in the site's set, motion presets with a signature moment); 20.10 Japanese fonts added 2026-11-03 (after spec-drafting speed); 20.7 next; real-engine numbers on the final check |
-| 18.10, 21 | implemented 2026-11-04 (drafts through the Gemini API, one request per step; designed pages as element trees for static and dynamic sites, aggregates from templates); on `feat/story18.10-api-drafts`, under the user's review; 21.1's paid measurement open |
-| 18.12, 18.11 | implemented 2026-11-04 on `feat/story18.12-lane-previews` (stacked on 18.10), under the user's review: each lane's preview starts when the lane passes, from any worker, integration in the background, lanes no longer cancel each other; no `generate_tests` step, validation blocks only on "starts" and "API works" (smoke call per custom operation), lint / conventions / migration details are warnings; plus Epic 21 fixes (old Lucide names, Metric `fn`, sites without trees). Real-run timings and 18.13 open |
-| 10, 11, 16 | open (16 to be revised after Epic 20) |
+| 18.10, 21 | implemented 2026-11-04 (drafts through the Gemini API, one request per step; designed pages as element trees for static and dynamic sites, aggregates from templates); merged to `main`; 21.1's paid measurement open |
+| 18.12, 18.11 | done 2026-11-04 (merged to `main`): each lane's preview starts when the lane passes, from any worker, integration in the background, lanes no longer cancel each other; no `generate_tests` step, validation blocks only on "starts" and "API works" (smoke call per custom operation), lint / conventions / migration details are warnings; plus Epic 21 fixes (old Lucide names, Metric `fn`, sites without trees). Real-run timings and 18.13 open |
+| 10 | re-planned 2026-11-04: 13 stories in checkpoints A–E (forms, core plugins, infrastructure, integrations, domain shapes); next after 18.13 |
+| 11, 16 | open (16 to be revised after Epic 20) |
 
 ### Next up (re-planned 2026-10-30)
 
@@ -213,6 +222,12 @@ Open decisions along the way:
 | DESIGN (2026-10-30) | Drafts take their design direction from **UI UX Pro Max's data** (MIT; CSVs vendored at a pinned commit; our own ranker, their scripts not run): product type → palette, font pairing, section order, anti-patterns. **Taste Skill** is used only as rules (17.7 checklist, drafter copy rules), not as a step: its random art direction, browser critique loop (30–45 min a build) and photo fetching do not fit a no-engine renderer | New Story 12.6; 17.7 font set and checklist; `theme.direction` in FrontendSpec (additive, still 1.0) |
 | LANES (2026-11-04, default, please confirm) | In dynamic mode each lane delivers on its own: its preview starts when it passes, integration runs in the background. A **failed frontend lane no longer cancels or fails the backend**: the backend finishes and previews, overall `COMPLETED_WITH_WARNINGS` (mirror of Q14). The integration-wait watchdog that cancelled a slow backend is removed | 18.12; FR-21, FR-27 (requirements v1.7) |
 | TESTS (2026-11-04) | The backend lane has **no `generate_tests` step**: only template tests, written with the code; validation blocks only on "starts" (deps, syntax, migration upgrade, startup) and "API works" (OpenAPI, template tests, one smoke call per custom operation); lint, conventions and migration details are warnings | 18.11; FR-09, FR-11 (requirements v1.7) |
+| PLUGINS (2026-11-04) | Backend features are **generation-time plugins**: plain fastapi-skills source copied into the project (owned, versioned in the manifest) through six named codegen hooks, with their frontend half in dynamic mode; the engine writes only custom operations, rules and job bodies, calling the plugins' APIs. Audit log, soft delete and SSE are out of scope | Epic 10 re-scoped (10.1); FR-34 (requirements v1.8) |
+| FIELDS (2026-11-04) | Every request field has a **source** in the contract (`x-bga.source`: server, currentUser, route, reference, upload, input); foreign keys are picked by label or taken from the route; the pair check rejects forms with a field they cannot fill. Forms use a kit on the base's shadcn components (Calendar, Combobox, Switch, …) with Zod schemas for every form | 10.0a, 10.0b; FR-35 (requirements v1.8) |
+| QUEUE (2026-11-04) | Generated backends run jobs on a **Postgres-backed queue** with a transactional outbox, not Redis + `arq` | 10.6 |
+| PAY (2026-11-04) | Payments start with a **fake provider** behind a port; a developer adds Stripe as an adapter later | 10.9 |
+| FILES (2026-11-04) | Files go to **MinIO** through signed URLs on the S3 API, so S3 is an env change | 10.5 |
+| TOKEN (2026-11-04) | Generated frontends store the auth token by a **runtime flag**, `AUTH_TOKEN_STORAGE=local` (default, `localStorage` + bearer) or `cookie` (httpOnly cookie, same-origin proxy adds the bearer); a developer switches it in the downloaded project with an env change. Both modes are tested; the backend stays bearer-only. Agreed exception to nextjs-skills' "never `localStorage`" rule | 10.2 |
 | Q15 (2026-10-26) | Product renamed **Fullstack Generation Agent** (docs, UI, `APP_NAME`, LangSmith project). Internal identifiers stay: `bga-runner`, `.bga/`, compose project `bga`, schema `$id`s, repo folder | – |
 
 ## Changes from requirements v1.0 (accepted via Q1; now part of v1.1)
@@ -234,6 +249,6 @@ Open decisions along the way:
 | Q7 | Do you have a LangSmith API key and project? Tracing is a no-op without one. | Optional. Works without it, and the local trace store (8.3) still feeds the UI. |
 | Q9 | Template fixes such as tests, ruff, `ConflictException` and the migrate-on-start entrypoint live in our overlay. Should they go upstream into `longtk26/template-frameworks@feat/fastapi` instead, so the overlay shrinks? | Overlay now; upstream later as a separate PR to your template repo |
 | Q16 | Which raster image provider for 15.5, if any? | Build 15.5 only when asked; Gemini image model first (key already used by Antigravity), behind a port |
-| Q17 | Should revisions also cover the backend (and contract changes in dynamic mode)? | Not in Epic 16; a later epic once frontend revisions prove out |
+| Q17 | Should revisions also cover the backend (and contract changes in dynamic mode)? | Not in Epic 16; a later epic once frontend revisions prove out. **Database policy agreed 2026-11-04:** a schema change clears the preview database and runs the migrations again from empty (then the seed); no data migrations |
 | Q21 | Design direction (12.6): apply the top match automatically and offer 2 alternatives, or ask the user to pick one of 3 before the draft is written? | Top match applied, 2 alternatives switchable in the review |
 | Q10 | The template registers routers inside `lifespan`, so `app.openapi()` is empty unless the app has started. Should the overlay move router registration to module level? | No. Keep the template as-is and export OpenAPI inside a started app (6.2). |
