@@ -2,6 +2,88 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://backend-generation-agent.local/schemas/backend-spec-1.0.json",
   "$defs": {
+    "Aggregate": {
+      "additionalProperties": false,
+      "description": "Epic 21: a figure computed from an entity's records, written from templates like CRUD (no engine): `fn` of\n`field` (count needs none), optionally grouped by a field, limited to the current period of a date field, and\nfiltered by equality. The response is `{\"value\": n}` or, grouped, `[{\"key\": \"…\", \"value\": n}, …]`.",
+      "properties": {
+        "fn": {
+          "enum": [
+            "count",
+            "sum",
+            "avg",
+            "min",
+            "max"
+          ],
+          "title": "Fn",
+          "type": "string"
+        },
+        "field": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Field"
+        },
+        "groupBy": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Groupby"
+        },
+        "period": {
+          "anyOf": [
+            {
+              "enum": [
+                "day",
+                "week",
+                "month",
+                "year"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Period"
+        },
+        "dateField": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Datefield"
+        },
+        "filters": {
+          "additionalProperties": true,
+          "default": {},
+          "title": "Filters",
+          "type": "object"
+        }
+      },
+      "required": [
+        "fn"
+      ],
+      "title": "Aggregate",
+      "type": "object"
+    },
     "Auth": {
       "additionalProperties": false,
       "properties": {
@@ -396,7 +478,8 @@
         "type": {
           "enum": [
             "crud",
-            "custom"
+            "custom",
+            "aggregate"
           ],
           "title": "Type",
           "type": "string"
@@ -419,6 +502,17 @@
           ],
           "default": null,
           "title": "Action"
+        },
+        "aggregate": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Aggregate"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "entity": {
           "anyOf": [

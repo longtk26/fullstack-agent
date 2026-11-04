@@ -24,6 +24,27 @@ variant changes.
 | Off-black / off-white in dark mode | `frontend_theme.py` clamps the dark palette to `#0a0a0a` / `#fafafa` | body `#0a0a0a`…`#14122f` (tinted per preset) with `#fafafa` / `#f8fafc` text; never `#000` / `#fff` |
 | Motion on transform and opacity only, with a `prefers-reduced-motion` fallback | The only library motion is the CardGrid hover lift (`transition-transform`, `motion-reduce:` off); colour changes are instant | by review |
 
+## Designed pages (Epic 21)
+
+A page may be an element tree the drafting engine designed (`pages[].tree`, `layout.chrome`, `footerTree`),
+rendered by `renderer/tree/TreeRenderer.tsx`. The rules above still apply; the tree rules (`frontend_spec/trees.py`,
+checked by the validator and repaired by `fix_trees`) keep what a free hand could break:
+
+| Rule | How it is kept |
+|---|---|
+| Colours only through theme tokens | Palette classes (`bg-emerald-500`) and arbitrary colour values (`text-[#fff]`) are stripped with a note; raw colours in the page CSS are a warning |
+| Nothing fixed, nothing hidden | `fixed` is stripped on pages (the chrome may stick); `script`, `iframe`, `style`, `form`, `input`, `video` are removed; `animate` only moves opacity, translate and scale under `html[data-motion="on"]`, revealed by `MotionRoot` like sections |
+| One `h1`, images with alt, links that exist | Warnings; a foreign image source becomes a placeholder asset; a link to an unknown page goes home |
+| Bounded | ≤ 2000 nodes, ≤ 24 levels (errors); unknown node types are unwrapped, their children kept |
+| Page CSS scoped to its page | Every selector is prefixed with `[data-page="<id>"]`; `@keyframes` keep their names; imports, external and data URLs are dropped |
+| Data from the contract or a collection | `tree_bindings.bind_tree` binds containers, figures and writes; a page whose tree still fails keeps its sections |
+
+The fixture's `/designed` page exercises elements, a Tabs primitive, icons, a Faq section node, `Metric` and
+`Chart`, a `CollectionStrip` and a `CollectionBrowser` with controls; `make design-check-fixture` measures it with the
+other pages. Known deviations on it: `font-mono` on a site without a mono font reports `ui-monospace` as not loaded
+(the tree prompt forbids `font-mono` unless the direction names one); its two-line headline wraps to 3–4 lines at
+390 px in `text-5xl` (the prompt asks for `text-4xl md:text-6xl` or smaller).
+
 ## Variants
 
 | Variant | Where | Values |

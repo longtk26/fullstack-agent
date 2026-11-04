@@ -145,6 +145,7 @@ class EngineHealth(BaseModel):
     available: bool
     reason: str | None = None
     version: str | None = None
+    drafts_only: bool = False  # Story 18.10: an API engine drafts specs but writes no code
 
 
 OnEngineEvent = Callable[[EngineEvent], Awaitable[None]]
@@ -152,6 +153,10 @@ OnEngineEvent = Callable[[EngineEvent], Awaitable[None]]
 
 class ICodeEngine(ABC):
     name: str
+    # Story 18.10: an API engine has no files or tools: it drafts specs from a prompt that carries every input
+    # (`inline_inputs`) and cannot write a project (`drafts_only`).
+    drafts_only: bool = False
+    inline_inputs: bool = False
 
     @abstractmethod
     async def health(self) -> EngineHealth:

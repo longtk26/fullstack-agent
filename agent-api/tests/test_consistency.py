@@ -8,7 +8,7 @@ from generation_helpers import EXAMPLES, normalized
 
 from src.modules.shared.domain.backend_spec import Severity
 from src.modules.shared.domain.frontend_spec import validate_frontend_spec_data
-from src.orchestrator.checks.consistency import check_spec_pair, reconcile_spec_pair
+from src.orchestrator.checks.consistency import check_spec_pair, closest_field, reconcile_spec_pair
 
 SHOP_FRONTEND = json.loads((EXAMPLES / "frontend-specs" / "shop-dynamic.json").read_text())
 
@@ -404,3 +404,32 @@ def test_a_list_section_needs_an_operation_that_returns_a_list(tmp_path):
     assert len(shape_issues()) == 1 and '"type": "array"' in shape_issues()[0].hint
     backend["operations"][-1]["response"]["type"] = "array"
     assert shape_issues() == [], "declared as a list: the renderer can draw it"
+
+
+def test_reconcile_renames_response_fields_to_the_closest_one_or_drops_them():
+    """A misnamed response field (`totalValue` for `totalStockValue`) is fixed in code, never left for review."""
+    frontend = json.loads((EXAMPLES / "frontend-specs" / "project-tracker-dynamic.json").read_text())
+    backend_spec = normalized(EXAMPLES / "specs" / "two-entity.json")
+    frontend["pages"][0]["sections"][1]["data"]["fields"] = ["projectName", "description", "nothingLikeThis"]
+    frontend["pages"][1]["sections"][0]["data"]["fields"] = ["Name", "created_at"]
+    frontend["pages"][0]["sections"][0]["content"]["items"] = [
+        {"label": "Newest", "data": {"operationId": "project.list", "value": "created"}},
+        {"label": "Odd", "data": {"operationId": "project.list", "value": "zzz"}},
+    ]
+    healed, notes = reconcile_spec_pair(frontend, backend_spec)
+    assert healed["pages"][0]["sections"][1]["data"]["fields"] == ["name", "description"]
+    assert healed["pages"][1]["sections"][0]["data"]["fields"] == ["name", "createdAt"]
+    stats = healed["pages"][0]["sections"][0]["content"]["items"]
+    assert stats[0]["data"]["value"] == "createdAt" and "data" not in stats[1]
+    by_path = {n["path"]: n["message"] for n in notes}
+    assert "'projectName' is 'name'" in by_path["/pages/0/sections/1/data/fields/0"]
+    assert "dropped" in by_path["/pages/0/sections/1/data/fields/2"]
+    assert not [i for i in check_spec_pair(healed, backend_spec) if i.code == "CONTRACT_FIELD_MISSING"]
+
+
+def test_closest_field_guesses_only_when_one_field_is_clearly_meant():
+    assert closest_field("totalValue", ["category", "totalStockValue", "itemCount"]) == "totalStockValue"
+    assert closest_field("item_count", ["itemCount", "total"]) == "itemCount"
+    assert closest_field("quantiy", ["quantity", "unit"]) == "quantity"
+    assert closest_field("price", ["unitPrice", "priceCents"]) is None, "two equally close fields: no guess"
+    assert closest_field("name", ["title", "price"]) is None

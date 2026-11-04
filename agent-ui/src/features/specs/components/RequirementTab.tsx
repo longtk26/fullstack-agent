@@ -139,7 +139,7 @@ export function RequirementTab({ mode, engine, onGenerateDirect, isGenerating }:
         {tab.tooShort && tab.text.length > 0 && (
           <span className="text-xs text-muted-foreground">At least {REQUIREMENT_MIN_CHARS} characters.</span>
         )}
-        {engine && <span className="text-xs text-muted-foreground">Engine: {engine} (from Options)</span>}
+        {engine && <span className="text-xs text-muted-foreground">Drafting with {engine} (Options → Draft engine)</span>}
       </Stack>
 
       {tab.isRunning && (

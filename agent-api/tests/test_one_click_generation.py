@@ -644,3 +644,28 @@ def test_chaining_does_not_start_a_generation_cancelled_meanwhile(client, user_h
     assert gen_row.status == GenerationStatus.CANCELLED
     assert gen_row.spec_id is None
     assert gen_id not in _queued_jobs()
+
+
+def test_chaining_queues_the_generation_on_its_own_engine_not_the_drafts(client, user_headers, tmp_path):
+    """Story 18.10: a draft on a drafts-only engine (gemini_api) must not move its generation to that engine's queue."""
+    shop_spec = json.loads((EXAMPLES / "specs" / "shop.json").read_text())
+    gen_id = _orphaned_drafting(
+        client, user_headers, SpecDraftStatus.SUCCEEDED, backend_spec=shop_spec, engine="gemini_api"
+    )
+    with Session(db_session_manager.engine) as session:
+        session.get(GenerationModel, gen_id).engine = "antigravity"
+        session.commit()
+    draft = JobStore().draft(uuid.UUID(generation(gen_id).options["draftId"]))
+
+    async def scenario():
+        redis = redis_client()
+        try:
+            await _draft_service(tmp_path, redis, FakeEngine(tmp_path)).drafts._chain_generation(draft)
+            return await redis.lrange("bga:jobs:antigravity", 0, -1), await redis.lrange("bga:jobs:gemini_api", 0, -1)
+        finally:
+            await redis.aclose()
+
+    on_generation_engine, on_draft_engine = asyncio.run(scenario())
+    assert generation(gen_id).status == GenerationStatus.PENDING
+    assert gen_id in on_generation_engine
+    assert gen_id not in on_draft_engine

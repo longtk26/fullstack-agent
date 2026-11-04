@@ -12,7 +12,11 @@ async def list_engines(_: CurrentUserDep, usecase: ListEnginesUsecaseDep) -> Lis
     catalog = await usecase.execute()
     return ListEnginesResponseDto(
         default=catalog.default,
-        engines=[EngineDto(name=e.name, available=e.available, reason=e.reason) for e in catalog.engines],
+        draft_default=catalog.draft_default,
+        engines=[
+            EngineDto(name=e.name, available=e.available, reason=e.reason, drafts_only=e.drafts_only)
+            for e in catalog.engines
+        ],
         reported_by_worker=catalog.reported_by_worker,
         reported_at=catalog.reported_at,
     )

@@ -89,10 +89,24 @@ class PayloadSchema(SpecModel):
     type: Literal["object", "array"] | None = None
 
 
+class Aggregate(SpecModel):
+    """Epic 21: a figure computed from an entity's records, written from templates like CRUD (no engine): `fn` of
+    `field` (count needs none), optionally grouped by a field, limited to the current period of a date field, and
+    filtered by equality. The response is `{"value": n}` or, grouped, `[{"key": "…", "value": n}, …]`."""
+
+    fn: Literal["count", "sum", "avg", "min", "max"]
+    field: str | None = None
+    group_by: str | None = None
+    period: Literal["day", "week", "month", "year"] | None = None
+    date_field: str | None = None
+    filters: dict[str, Any] = {}
+
+
 class Operation(SpecModel):
     operation_id: str = Field(pattern=OPERATION_ID, max_length=128)
-    type: Literal["crud", "custom"]
+    type: Literal["crud", "custom", "aggregate"]
     action: CrudAction | None = None
+    aggregate: Aggregate | None = None  # Epic 21, with type "aggregate"
     entity: str | None = None
     method: HttpMethod
     path: str = Field(pattern=API_PATH, max_length=255)

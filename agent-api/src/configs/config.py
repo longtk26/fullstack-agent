@@ -63,6 +63,18 @@ class Config(BaseSettings):
     antigravity_auth: Literal["gemini_api_key", "adc", "account"] = "gemini_api_key"
     gemini_api_key: str | None = None
     google_application_credentials: str | None = None
+    # Story 18.10: spec drafts through the Gemini API (one request per step, no agent loop). The engine for drafts
+    # (empty: gemini_api when GEMINI_API_KEY is set, else the default engine), its model, the thinking budget
+    # (empty: the model's default) and the per-request timeout. Generation keeps the CLI engines.
+    draft_engine: str | None = None
+    gemini_api_model: str = "gemini-3.8-flash"
+    # Epic 21: after a frontend draft, design each page as an element tree (one engine call per page; the pages
+    # of an API engine run in parallel). Off: the section pages as before.
+    frontend_trees: bool = True
+    frontend_tree_concurrency: int = 4
+    gemini_api_thinking_budget: int | None = None
+    gemini_api_max_output_tokens: int = 65536
+    gemini_api_timeout_seconds: int = 600
 
     # USD per 1M tokens, merged over src/engines/pricing.py DEFAULT_PRICES, e.g.
     # {"gemini-4-argon": {"input": 1.25, "output": 10, "cache_read": 0.125}}. A model without a price has no cost.
@@ -173,12 +185,24 @@ class Config(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    @field_validator("langsmith_api_key", "langsmith_agent_id", "gemini_image_api_key", mode="before")
+    @field_validator(
+        "langsmith_api_key",
+        "langsmith_agent_id",
+        "gemini_image_api_key",
+        "draft_engine",
+        "gemini_api_thinking_budget",
+        mode="before",
+    )
     @classmethod
     def _blank_is_unset(cls, value):
         return value or None
 
-    @field_validator("claude_code_model", "antigravity_model", "image_provider", mode="before")
+    @property
+    def draft_engine_name(self) -> str:
+        """The engine that drafts specs (Story 18.10)."""
+        return self.draft_engine or ("gemini_api" if self.gemini_api_key else self.default_engine)
+
+    @field_validator("claude_code_model", "antigravity_model", "image_provider", "gemini_api_model", mode="before")
     @classmethod
     def _blank_model_means_default(cls, value, info):
         # Compose passes `CLAUDE_CODE_MODEL=` when .env leaves it empty; that means "the default", not "none".

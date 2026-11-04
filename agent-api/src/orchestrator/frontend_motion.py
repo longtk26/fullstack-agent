@@ -152,6 +152,31 @@ html[data-motion='on'] [data-slot='tabs-trigger'][data-active]::after {{
 {SECTION}:not([data-revealed]) img {{
   scale: 1.08;
 }}
+/* Epic 21: a designed page's `animate` nodes (data-animate="fade-up" | fade-down | fade-left | fade-right |
+   scale-in), revealed by MotionRoot like sections; --animate-delay comes from the node. */
+html[data-motion='on'] [data-animate] {{
+  transition:
+    opacity var(--motion-duration) var(--motion-ease) var(--animate-delay, 0s),
+    translate var(--motion-duration) var(--motion-ease-mark) var(--animate-delay, 0s),
+    scale var(--motion-duration) var(--motion-ease) var(--animate-delay, 0s);
+}}
+html[data-motion='on'] [data-animate]:not([data-revealed]) {{
+  opacity: 0;
+  translate: 0 16px;
+}}
+html[data-motion='on'] [data-animate='fade-down']:not([data-revealed]) {{
+  translate: 0 -16px;
+}}
+html[data-motion='on'] [data-animate='fade-left']:not([data-revealed]) {{
+  translate: 16px 0;
+}}
+html[data-motion='on'] [data-animate='fade-right']:not([data-revealed]) {{
+  translate: -16px 0;
+}}
+html[data-motion='on'] [data-animate='scale-in']:not([data-revealed]) {{
+  translate: 0 0;
+  scale: 0.92;
+}}
 """ + "".join(
     f"{SECTION} :is([data-slot='card'], li, figure):nth-child({n}) {{\n"
     f"  transition-delay: calc(var(--motion-stagger) * {min(n - 1, 5)});\n}}\n"

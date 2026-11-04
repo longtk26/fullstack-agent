@@ -18,6 +18,7 @@ import { useCreateGeneration } from "./use-generation-mutations";
 
 const DEFAULT_OPTIONS: TGenerationOptionsFormValues = {
   engine: "claude_code",
+  draftEngine: "gemini_api",
   maxRepairAttempts: 3,
   runTests: true,
   generateDockerfile: true,
@@ -73,11 +74,15 @@ export function useNewGeneration({
   });
 
   const defaultEngine = engines.data?.default;
+  const defaultDraftEngine = engines.data?.draftDefault;
   useEffect(() => {
     if (defaultEngine && isEngineName(defaultEngine) && !form.formState.dirtyFields.engine) {
       form.setValue("engine", defaultEngine);
     }
-  }, [defaultEngine, form]);
+    if (defaultDraftEngine && isEngineName(defaultDraftEngine) && !form.formState.dirtyFields.draftEngine) {
+      form.setValue("draftEngine", defaultDraftEngine);
+    }
+  }, [defaultEngine, defaultDraftEngine, form]);
 
   const submitOptions = async (options: TGenerationOptionsFormValues) => {
     if (!canSubmit) return;

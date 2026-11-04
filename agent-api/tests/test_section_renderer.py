@@ -140,7 +140,7 @@ def test_generated_files_hold_the_pages_as_data():
     assert site["collections"]["products"][0]["name"] == "Blue mug"
     registry = files["src/components/renderer/registry.ts"]
     assert 'import { DataTable } from "@/components/sections/DataTable";' in registry
-    assert "Form" not in registry
+    assert "Form" in registry and "ActionBar" not in registry, "Form comes with the designed page's RecordForm"
     page = files["src/app/catalogue/page.tsx"]
     assert 'export const metadata: Metadata = {"title": "Catalogue"};' in page
     assert '<PageRenderer pageId="catalogue" />' in page
@@ -195,3 +195,57 @@ def test_custom_components_are_registered_with_their_fallback_until_resolved(tmp
     assert "  ProductGrid: ProductGridCustom as unknown as TSectionComponent,\n" in registry
     assert 'import { CardGrid } from "@/components/sections/CardGrid";' in registry  # the home page uses it
     assert "  ProductDetail: DetailView as unknown as TSectionComponent,\n" in registry
+
+
+# -- Epic 21 designed pages --------------------------------------------------------------------------------------------
+
+
+def test_a_designed_page_is_planned_bound_and_rendered_by_the_tree_renderer():
+    from src.orchestrator.frontend_renderer import TREE_DIR, icons_ts, library_files, site_data, used_sections
+
+    plan = planned(LIBRARY)
+    assert plan["trees"] is True and plan["rendering"] == "renderer"
+    route = next(r for r in plan["routes"] if r["pageId"] == "designed")
+    assert route["tree"]["type"] == "main" and route["css"].startswith(".rug")
+    assert "Faq" in used_sections(plan), "a library section inside a tree is copied like any other"
+    assert {"tabs", "sheet", "chart", "input", "table"} <= set(plan["shadcn"])
+
+    spec = validate_frontend_spec_data(LIBRARY).normalized
+    data = site_data(plan, spec)
+    page = data["pages"]["designed"]
+    tree = page["tree"]
+    assert page["css"].startswith('[data-page="designed"] .rug') and tree["kind"] == "element"
+    assert tree["props"]["className"].startswith("rug ")
+    hero = tree["children"][0]
+    badge = hero["children"][0]["children"][0]
+    assert badge["children"][0] == {
+        "kind": "icon",
+        "type": "Sparkles",
+        "icon": "lucide:Sparkles",
+        "props": {"className": "size-3.5"},
+    }
+    assert hero["props"]["animate"]["type"] == "fade-up", "the renderer turns animate into data-animate"
+    links = hero["children"][0]["children"][3]["children"]
+    assert links[0]["kind"] == "link" and links[0]["props"]["href"] == "/catalogue"
+    assert links[1]["props"] == {
+        "href": "https://example.com/docs",
+        "external": True,
+        "className": links[1]["props"]["className"],
+    }
+    image = hero["children"][1]["children"][0]["children"][0]
+    assert image == {"kind": "image", "type": "img", "asset": "hero", "props": {"className": "rounded-2xl"}}
+    metrics = tree["children"][1]["children"][0]["children"]
+    assert metrics[0]["binding"] == {"collection": "products"} and metrics[2]["component"] == "Chart"
+    strip = tree["children"][2]["children"][1]
+    assert strip["component"] == "CollectionStrip" and strip["binding"] == {"collection": "products"}
+    assert strip["children"][0]["component"] == "ItemList" and "binding" not in strip["children"][0]
+    faq = tree["children"][-1]
+    assert faq["kind"] == "section" and faq["component"] == "Faq" and faq["content"]["items"][0]["question"]
+    icons = icons_ts(data, spec)
+    assert "lucide:Sparkles" in icons and "lucide:ArrowRight" in icons and "lucide:Clock" in icons
+
+    available = [p.relative_to(LIBRARY_DIR.parents[2]).as_posix() for p in LIBRARY_DIR.parents[2].rglob("*.ts*")]
+    with_trees = library_files(plan, available)
+    assert any(path.startswith(TREE_DIR) for path in with_trees)
+    without = library_files({**plan, "trees": False}, available)
+    assert not any(path.startswith(TREE_DIR) for path in without), "section-only sites do not get the tree renderer"

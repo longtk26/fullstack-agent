@@ -7,6 +7,7 @@ import re
 from typing import Any
 
 from .normalizer import page_id, route_params
+from .trees import fix_trees
 
 
 def _iter_all_sections(sections: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -72,9 +73,10 @@ def autofix_frontend_spec(spec: dict[str, Any]) -> tuple[dict[str, Any], list[di
     """Inspects `spec` for links targeting pages with unbound route parameters (FE_ROUTE_PARAM_UNBOUND),
     points them at the nearest prefix page or list page for the same entity, or removes them if optional.
     Returns `(fixed_spec, notes)` where notes are assumption entries."""
+    spec, tree_notes = fix_trees(spec)  # Epic 21: designed pages first, so their links are checked below too
     pages = [p for p in spec.get("pages") or [] if isinstance(p, dict)]
     pages_by_id = {p.get("id") or page_id(p.get("route", "")): p for p in pages}
-    notes: list[dict[str, Any]] = []
+    notes: list[dict[str, Any]] = list(tree_notes)
 
     def resolve_target(
         target_id: str, provided_params: set[str] | None = None

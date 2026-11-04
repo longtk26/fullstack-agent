@@ -19,7 +19,7 @@ RUNNER_NODE_IMAGE ?= bga-runner-node:1
 # Docker worker runs the other engines. Jobs are queued per engine, so each goes to a worker that can run it.
 comma := ,
 HOST_WORKER           := $(filter account,$(ANTIGRAVITY_AUTH))
-DOCKER_WORKER_ENGINES := $(if $(HOST_WORKER),claude_code$(comma)fake,)
+DOCKER_WORKER_ENGINES := $(if $(HOST_WORKER),claude_code$(comma)fake$(comma)gemini_api,)
 HOST_WORKER_PID       := $(CURDIR)/.data/host-worker.pid
 HOST_WORKER_LOG       := $(CURDIR)/.data/host-worker.log
 

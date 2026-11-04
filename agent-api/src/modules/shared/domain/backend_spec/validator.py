@@ -280,6 +280,8 @@ class _SemanticChecker:
             entity = self._entity_ref(op.entity, f"{path}/entity")
             if op.type == "crud":
                 self._check_crud(op, entity, path)
+            elif op.type == "aggregate":
+                self._check_aggregate(op, entity, path)
             elif op.entity is None and owning_entity(op, self.spec.entities) is None:
                 self._add(
                     C.SCHEMA_VIOLATION,
@@ -295,6 +297,46 @@ class _SemanticChecker:
             for r_index, rule_id in enumerate(op.rules):
                 if rule_id not in self.rule_ids:
                     self._add(C.UNKNOWN_RULE_REF, f"{path}/rules/{r_index}", f"Unknown rule '{rule_id}'")
+
+    def _check_aggregate(self, op: Operation, entity: Entity | None, path: str) -> None:
+        """Epic 21: an aggregate names its entity, a numeric field (except count), and known group / date fields."""
+        if op.entity is None or entity is None:
+            self._add(C.SCHEMA_VIOLATION, f"{path}/entity", "aggregate operations require 'entity'")
+            return
+        if op.aggregate is None:
+            self._add(C.SCHEMA_VIOLATION, f"{path}/aggregate", "aggregate operations require 'aggregate'")
+            return
+        if op.method != "GET":
+            self._add(C.SCHEMA_VIOLATION, f"{path}/method", "aggregate operations are GET")
+        fields = {field.name: field for field in entity.fields}
+        agg = op.aggregate
+        if agg.fn != "count":
+            if not agg.field:
+                self._add(C.SCHEMA_VIOLATION, f"{path}/aggregate/field", f"'{agg.fn}' needs a numeric 'field'")
+            elif agg.field not in fields:
+                self._add(
+                    C.UNKNOWN_FIELD_REF, f"{path}/aggregate/field", f"Entity '{entity.name}' has no field '{agg.field}'"
+                )
+            elif fields[agg.field].type not in ("integer", "float", "decimal"):
+                self._add(
+                    C.SCHEMA_VIOLATION,
+                    f"{path}/aggregate/field",
+                    f"'{agg.fn}' needs a numeric field; '{agg.field}' is {fields[agg.field].type}",
+                )
+        for key in ("group_by", "date_field"):
+            name = getattr(agg, key)
+            if name and name not in fields:
+                pointer = "groupBy" if key == "group_by" else "dateField"
+                self._add(
+                    C.UNKNOWN_FIELD_REF, f"{path}/aggregate/{pointer}", f"Entity '{entity.name}' has no field '{name}'"
+                )
+        if agg.date_field and fields.get(agg.date_field) and fields[agg.date_field].type not in ("date", "datetime"):
+            self._add(C.SCHEMA_VIOLATION, f"{path}/aggregate/dateField", f"'{agg.date_field}' is not a date field")
+        if agg.period and not agg.date_field and not any(f.type in ("date", "datetime") for f in entity.fields):
+            self._add(
+                C.SCHEMA_VIOLATION, f"{path}/aggregate/period", f"'{entity.name}' has no date field for the period"
+            )
+        self._field_refs(entity, list(agg.filters), f"{path}/aggregate/filters")
 
     def _check_crud(self, op: Operation, entity: Entity | None, path: str) -> None:
         if op.action is None:

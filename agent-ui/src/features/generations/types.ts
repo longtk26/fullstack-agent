@@ -20,7 +20,7 @@ export type TLaneStatus = "PENDING" | "RUNNING" | "VALIDATING" | "REPAIRING" | "
 
 export type TLanes = Partial<Record<TLane, TLaneStatus>>;
 
-export type TEngineName = "claude_code" | "antigravity" | "fake";
+export type TEngineName = "claude_code" | "antigravity" | "gemini_api" | "fake";
 
 export type TGenerationOptions = {
   maxRepairAttempts: number;
@@ -28,6 +28,8 @@ export type TGenerationOptions = {
   generateDockerfile: boolean;
   deployPreview: boolean;
   engine?: TEngineName | null;
+  /** Story 18.10: the engine that drafts the specs of a one-click generation. */
+  draftEngine?: TEngineName | null;
   timeoutSeconds?: number | null;
   draftId?: string | null;
   autoGenerate?: boolean | null;

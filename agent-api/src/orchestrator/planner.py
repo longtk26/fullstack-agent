@@ -304,6 +304,24 @@ def _operation(op: dict[str, Any], model: dict[str, Any] | None) -> dict[str, An
     }
     if op.get("summary"):
         planned["summary"] = op["summary"]
+    if op["type"] == "aggregate":  # Epic 21: templated like CRUD; the response is a value or grouped values
+        by_api = {c["apiName"]: c for c in model["columns"]} if model else {}
+        agg = dict(op.get("aggregate") or {})
+        planned["aggregate"] = {
+            "fn": agg.get("fn", "count"),
+            "field": agg.get("field"),
+            "attr": by_api.get(agg.get("field") or "", {}).get("attr"),
+            "groupBy": agg.get("groupBy"),
+            "groupAttr": by_api.get(agg.get("groupBy") or "", {}).get("attr"),
+            "period": agg.get("period"),
+            "dateAttr": by_api.get(agg.get("dateField") or "", {}).get("attr")
+            or next((c["attr"] for c in (model or {}).get("columns", []) if c["type"] in ("date", "datetime")), None),
+            "filters": {by_api[k]["attr"]: v for k, v in (agg.get("filters") or {}).items() if k in by_api},
+        }
+        planned["responseDto"] = f"{to_pascal(handler)}ResponseDto"
+        planned["dtoFile"] = f"{handler}_dto.py"
+        planned["transactional"] = False
+        return planned
     entity = model["entity"] if model else None
     if action in ("get", "update", "delete") or (action is None and "{" in op["path"]):
         planned["errors"].append({"status": 404, "exception": "NotFoundException", "code": "NOT_FOUND"})
@@ -352,6 +370,8 @@ def _repository_methods(operations: list[dict[str, Any]]) -> list[str]:
         for method in needed.get(op["action"] or "", []):
             if method not in methods:
                 methods.append(method)
+        if op.get("type") == "aggregate" and op["handler"] not in methods:  # Epic 21: one repository method each
+            methods.append(op["handler"])
     return methods
 
 

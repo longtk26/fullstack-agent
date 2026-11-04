@@ -56,6 +56,7 @@ from src.modules.shared.domain.frontend_spec.assets import MAX_GENERATED_ASSETS,
 from src.modules.shared.domain.frontend_spec.copy_rules import phrase_list
 from src.modules.shared.domain.generation_modes import initial_lanes
 from src.modules.shared.domain.schema_digest import schema_digest
+from src.orchestrator import tree_drafting
 
 from . import tracing
 from .checks.consistency import check_spec_pair
@@ -85,6 +86,7 @@ from .design_direction import (
     directions,
     pick,
 )
+from .pair_fixes import adapt_backend, prune_frontend
 from .store import JobStore
 
 logger = get_logger(__name__)
@@ -225,6 +227,40 @@ def write_inputs(
         _write_json(inputs / "site.json", draft.inputs.get("siteJson"))
         context |= {"base_spec_path": f"{INPUTS}/base-spec.json", "site_json_path": f"{INPUTS}/site.json"}
     return context
+
+
+def inline_inputs(work: Path, context: dict[str, Any]) -> dict[str, Any]:
+    """Story 18.10: the prompt context for an engine without files (`inline_inputs`): the `.bga/` inputs as text."""
+    inputs = work / INPUTS
+
+    def text(name: str) -> str:
+        path = inputs / name
+        return path.read_text() if path.is_file() else ""
+
+    added: dict[str, Any] = {"inline": True}
+    if "frontend_schema_digest_path" in context:
+        added |= {
+            "frontend_schema_digest": text("frontend-spec.schema.md"),
+            "frontend_example": text("examples/frontend-spec.json"),
+            "sections": text("sections.md"),
+        }
+    if "backend_schema_digest_path" in context:
+        added |= {
+            "schema_digest": text("backend-spec.schema.md"),
+            "backend_schema_digest": text("backend-spec.schema.md"),
+            "example": text("examples/backend-spec.json"),
+            "backend_example": text("examples/backend-spec.json"),
+        }
+    if context.get("design_path"):
+        added["design"] = text("design.md")
+    if "site_json_path" in context:
+        added |= {"base_spec": text("base-spec.json"), "site_json": text("site.json")}
+    return added
+
+
+def spec_documents(work: Path, files: list[str]) -> dict[str, str]:
+    """The current spec files, for an inline repair prompt (the patches point into them)."""
+    return {name: (work / name).read_text() for name in files if (work / name).is_file()}
 
 
 # -- checks --------------------------------------------------------------------------------------------------------
@@ -568,9 +604,28 @@ def autofix_draft(work: Path) -> list[dict[str, Any]]:
         if b_issue is None and isinstance(b_spec, dict):
             from src.orchestrator.checks.consistency import reconcile_spec_pair
 
-            fixed_spec, r_notes = reconcile_spec_pair(fixed_spec, b_spec)
-            notes.extend(r_notes)
+            # The BackendSpec is still a plan: it follows what the pages read and send first.
+            b_spec, a_notes = adapt_backend(fixed_spec, b_spec)
+            if a_notes:
+                _write_json(backend_file, b_spec)
+                notes.extend(a_notes)
+            normalized = validate_spec_data(b_spec).normalized  # the contract builds from the normalized spec
+            if normalized is not None:
+                fixed_spec, r_notes = reconcile_spec_pair(fixed_spec, normalized)
+                notes.extend(r_notes)
     _write_json(work / FRONTEND_FILE, fixed_spec)
+    return notes
+
+
+def prune_draft(work: Path) -> list[dict[str, Any]]:
+    """Cuts from FRONTEND_FILE what the pair check still rejects (`pair_fixes.prune_frontend`); returns the notes."""
+    frontend_raw, issue_fe = _load(work / FRONTEND_FILE)
+    backend_raw, issue_be = _load(work / BACKEND_FILE)
+    if issue_fe or issue_be:
+        return []
+    pruned, notes = prune_frontend(frontend_raw, backend_raw)
+    if notes:
+        _write_json(work / FRONTEND_FILE, pruned)
     return notes
 
 
@@ -683,18 +738,20 @@ class DraftRunner:
             return
         if latest.status == SpecDraftStatus.SUCCEEDED:
             # Conditional: a cancel committed while drafting / attaching wins, and the generation is not started.
-            if self.store.start_draft_generation(draft.generation_id, latest) is None:
+            generation = self.store.start_draft_generation(draft.generation_id, latest)
+            if generation is None:
                 logger.info("generation left DRAFTING; not starting it", extra={"generation_id": draft.generation_id})
                 return
+            # The generation's own engine, not the draft's: drafts may run on a drafts-only engine (Story 18.10).
             if self.events is not None:
                 await self.events.publish(
                     draft.generation_id,
                     "status.changed",
                     status=GenerationStatus.PENDING,
-                    payload={"engine": latest.engine, "mode": latest.mode, "lanes": initial_lanes(latest.mode)},
+                    payload={"engine": generation.engine, "mode": latest.mode, "lanes": initial_lanes(latest.mode)},
                 )
             if self.queue is not None:
-                await self.queue.enqueue(draft.generation_id, latest.engine)
+                await self.queue.enqueue(draft.generation_id, generation.engine)
         elif latest.status == SpecDraftStatus.NEEDS_REVIEW:
             moved = self.store.update_generation_if_status(
                 draft.generation_id, GenerationStatus.DRAFTING, status=GenerationStatus.NEEDS_REVIEW
@@ -789,8 +846,12 @@ class DraftRunner:
         found = draft_directions(draft)
         seed = draft_seed(draft) if found else None
         context = write_inputs(work, draft, self.examples_dir, found, seed)
+        inline = engine.inline_inputs  # Story 18.10: an API engine reads no files
+        context["inline"] = inline
+        if inline:
+            context |= inline_inputs(work, context)
         frontend = mode != GenerationMode.BACKEND
-        purpose, version = ("draft_frontend_spec", "v9") if frontend else ("draft_spec", "v3")
+        purpose, version = ("draft_frontend_spec", "v10") if frontend else ("draft_spec", "v4")
         max_repairs = config.draft_repair_attempts_frontend if frontend else config.draft_repair_attempts_backend
         calls: list[dict[str, Any]] = []
         trace = tracing.GenerationTrace.open(
@@ -860,14 +921,25 @@ class DraftRunner:
                         for k, d in enumerate(kept)
                         if k != index
                     ]
+                    extra: dict[str, Any] = {}
+                    if inline:
+                        notes_doc, _ = _load(work / NOTES_FILE)
+                        cards = (notes_doc.get("design") or {}).get("cards") if isinstance(notes_doc, dict) else None
+                        card_doc = cards[index] if isinstance(cards, list) and index < len(cards) else {}
+                        extra = {
+                            "card_json": json.dumps(card_doc, indent=2, ensure_ascii=False),
+                            "design": context.get("design", ""),
+                        }
                     prompt = self.prompts.render(
                         "repair_direction",
-                        "v1",
+                        "v2",
                         notes_path=NOTES_FILE,
                         design_path=context["design_path"],
                         card=index + 1,
                         problems=found_problems,
                         others=others,
+                        inline=inline,
+                        **extra,
                     )
                     await call("repair_direction", prompt)
 
@@ -880,6 +952,7 @@ class DraftRunner:
             check = check_draft(work, mode)
             attempts = 0
             stock_round = False
+            last_signature: list[tuple[str, str, str]] | None = None
             while attempts < max_repairs:
                 stock = stock_warnings(check) if frontend and check.ok and not stock_round else []
                 if check.ok and not stock:
@@ -890,23 +963,91 @@ class DraftRunner:
                 label = "copy" if stock else f"{attempts}/{max_repairs}"
                 await update_progress(f"repairing ({label})", attempts_count=attempts)
                 errors = stock or check.repair_errors()
+                signature = sorted((e["code"], e["path"], e["message"]) for e in errors)
+                if signature == last_signature:
+                    # Story 18.10: the same errors after a round: another round would buy the same answer; stop (a
+                    # generator-side problem the engine cannot fix, or an engine that gave up).
+                    error = f"Repair {attempts - 1} changed nothing: the same {len(errors)} error(s) remain"
+                    break
+                last_signature = signature
                 files = sorted(
                     {error["file"] for error in errors} | {e["backendFile"] for e in errors if "backendFile" in e}
                 )
-                result = await call("repair", self.prompts.render("repair_spec", "v2", files=files, errors=errors))
+                documents = spec_documents(work, files) if inline else {}
+                prompt = self.prompts.render(
+                    "repair_spec", "v3", files=files, errors=errors, inline=inline, documents=documents
+                )
+                result = await call("repair", prompt)
                 if result.status != EngineStatus.OK:
                     check = check_draft(work, mode)
                     if not check.ok:
                         error = f"Repair {attempts} stopped: {result.error_message or result.status}"
                         break
                 if frontend:
-                    autofix_draft(work)
+                    autofix_notes += autofix_draft(work)
                 if mode == GenerationMode.DYNAMIC:
                     manage_notes = apply_manage_area(work)
                 check = check_draft(work, mode)
             if design is not None:
                 finish_design(work, design)
                 check = check_draft(work, mode)
+            if not check.ok and mode == GenerationMode.DYNAMIC:
+                # The last resort: both specs are valid but still disagree after the repair rounds. What the backend
+                # cannot provide is cut from the pages (each cut noted), so the user never fixes the pair by hand.
+                cut_notes = prune_draft(work)
+                if cut_notes:
+                    autofix_notes += cut_notes
+                    check = check_draft(work, mode)
+                    if check.ok:
+                        error = None
+            if check.ok and frontend and config.frontend_trees:
+                # Epic 21: design each page as an element tree, one engine call per page (in parallel on an API
+                # engine); the chrome too. The tree rules repair what they can; a page whose tree still fails keeps
+                # its sections, and a dynamic app's BackendSpec gains the operations the trees' data need.
+                await update_progress("designing pages")
+                spec_now, _ = _load(work / FRONTEND_FILE)
+                requests = tree_drafting.tree_requests(spec_now) if isinstance(spec_now, dict) else []
+                (work / tree_drafting.TREES_DIR).mkdir(exist_ok=True)
+
+                async def design_page(request: dict[str, Any]) -> None:
+                    _write_json(work / INPUTS / f"tree-{request['id']}.json", request)  # the fake engine reads it
+                    context_page = tree_drafting.prompt_context(spec_now, request, inline)
+                    await call(f"tree:{request['id']}", self.prompts.render("draft_tree", "v1", **context_page))
+
+                if inline:
+                    limit = asyncio.Semaphore(config.frontend_tree_concurrency)
+
+                    async def bounded(request: dict[str, Any]) -> None:
+                        async with limit:
+                            await design_page(request)
+
+                    await asyncio.gather(*(bounded(request) for request in requests))
+                else:
+                    for request in requests:
+                        await design_page(request)
+                tree_notes = tree_drafting.apply_tree_files(work, work / FRONTEND_FILE)
+                if mode == GenerationMode.DYNAMIC:
+                    tree_notes += tree_drafting.complete_backend_for_trees(work / FRONTEND_FILE, work / BACKEND_FILE)
+                check = check_draft(work, mode)
+                if not check.ok:  # the designed pages must not cost the draft: back to the section pages
+                    tree_notes.append(
+                        {
+                            "spec": "frontend",
+                            "path": "/pages",
+                            "message": "Designed pages dropped: the draft no longer validated with them",
+                            "suggestion": None,
+                        }
+                    )
+                    spec_plain = {
+                        **spec_now,
+                        "pages": [{k: v for k, v in p.items() if k not in ("tree", "css")} for p in spec_now["pages"]],
+                    }
+                    spec_plain["layout"] = {
+                        k: v for k, v in (spec_now.get("layout") or {}).items() if k not in ("chrome", "footerTree")
+                    }
+                    _write_json(work / FRONTEND_FILE, spec_plain)
+                    check = check_draft(work, mode)
+                autofix_notes += tree_notes
         except BaseException as exc:
             trace.close({"status": "failed"}, error=f"{type(exc).__name__}: {exc}"[:500])
             raise

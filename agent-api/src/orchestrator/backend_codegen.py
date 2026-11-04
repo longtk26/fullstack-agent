@@ -59,7 +59,7 @@ def codegen_gaps(module: dict[str, Any]) -> list[str]:
     gaps = []
     for op in module["operations"]:
         where = op["operationId"]
-        if not is_crud(op):
+        if not is_crud(op) and op.get("type") != "aggregate":  # Epic 21: aggregates are templated too
             gaps.append(f"{where}: custom operation")
         if op.get("rules"):
             gaps.append(f"{where}: business rules")
@@ -397,6 +397,8 @@ class _Module:
         self.dir = f"src/modules/{self.name}"
         self.spec_ops = {op["operationId"]: op for op in spec.get("operations", [])}
         self.ops = {op["action"]: op for op in module["operations"] if is_crud(op)}
+        # Epic 21: aggregate operations, by their handler (also their repository method)
+        self.aggregates = {op["handler"]: op for op in module["operations"] if op.get("type") == "aggregate"}
         self.has_fk = any(column.get("foreignKey") for column in self.model["columns"])
         self.unique = [column for column in self.model["columns"] if column["unique"] and not column["primaryKey"]]
 
@@ -439,6 +441,10 @@ class _Module:
                 methods.append(f"    def update(self, {self.var}: {entity}) -> {entity}:\n        pass")
             elif method == "delete":
                 methods.append(f"    def delete(self, {self.snake}_id: {pk}) -> None:\n        pass")
+            elif method in self.aggregates:
+                methods.append(
+                    f"    def {method}(self) -> {self._aggregate_returns(self.aggregates[method])}:\n        pass"
+                )
         body = "\n\n".join(f"    @abstractmethod\n{method}" for method in methods)
         return FUTURE + imports.render() + f"\n\nclass {self.module['port']['interface']}(ABC):\n{body}\n"
 
@@ -524,6 +530,9 @@ class _Module:
                 "            self.session.delete(model)\n"
                 "            self.__flush(deleting=True)"
             )
+        for method in port["methods"]:  # Epic 21: aggregate queries
+            if method in self.aggregates:
+                methods.append(self._aggregate_repository_method(self.aggregates[method], imports))
         if writes:
             imports.add("sqlalchemy.exc", "IntegrityError").add("src.libs.exceptions", "ConflictException")
             label = _label(self.model)
@@ -576,6 +585,68 @@ class _Module:
             + "\n\n".join(methods)
             + f"\n\n\n{port['dep']} = Annotated[{port['interface']}, Depends({port['implementation']})]\n"
         )
+
+    # -- aggregates (Epic 21) ------------------------------------------------------------------------------------
+
+    @staticmethod
+    def _grouped(op: dict[str, Any]) -> bool:
+        return bool(op["aggregate"].get("groupAttr"))
+
+    def _aggregate_returns(self, op: dict[str, Any]) -> str:
+        return "list[tuple[str, float]]" if self._grouped(op) else "float"
+
+    def _aggregate_repository_method(self, op: dict[str, Any], imports: Imports) -> str:
+        """`select(func.sum(Model.amount))` with the aggregate's period and filters; grouped: `(key, value)` rows."""
+        model = self.module["model"]
+        agg = op["aggregate"]
+        imports.add("sqlmodel", "col", "func", "select")
+        measure = "func.count()" if agg["fn"] == "count" else f"func.{agg['fn']}(col({model}.{agg['attr']}))"
+        if agg["fn"] != "count":
+            measure = f"func.coalesce({measure}, 0)"
+        lines = []
+        if self._grouped(op):
+            group = f"col({model}.{agg['groupAttr']})"
+            lines.append(f"        query = select({group}, {measure}).group_by({group})")
+        else:
+            lines.append(f"        query = select({measure}).select_from({model})")
+        for attr, value in sorted(agg.get("filters", {}).items()):
+            lines.append(f"        query = query.where(col({model}.{attr}) == {_value({'type': 'string'}, value)})")
+        if agg.get("period") and agg.get("dateAttr"):
+            imports.add("datetime as dt")
+            start = {
+                "day": "now.replace(hour=0, minute=0, second=0, microsecond=0)",
+                "week": "now - dt.timedelta(days=7)",
+                "month": "now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)",
+                "year": "now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)",
+            }[agg["period"]]
+            lines.append("        now = dt.datetime.now(dt.UTC)")
+            lines.append(f"        query = query.where(col({model}.{agg['dateAttr']}) >= {start})")
+        if self._grouped(op):
+            lines.append("        rows = self.session.exec(query).all()")
+            lines.append("        return [(str(key), float(value or 0)) for key, value in rows]")
+        else:
+            lines.append("        return float(self.session.exec(query).one() or 0)")
+        return f"    def {op['handler']}(self) -> {self._aggregate_returns(op)}:\n" + "\n".join(lines)
+
+    def _aggregate_dto(self, op: dict[str, Any]) -> str:
+        fields = "    key: str\n    value: float\n" if self._grouped(op) else "    value: float\n"
+        return (
+            "from pydantic import BaseModel\n\n\n"
+            f"class {op['responseDto']}(BaseModel):\n"
+            f'    """{op.get("summary") or op["operationId"]} (Epic 21 aggregate)."""\n\n' + fields
+        )
+
+    def _aggregate_usecase(self, op: dict[str, Any]) -> str:
+        imports = Imports().add(f"{self.pkg}.presenter.dtos", op["responseDto"])
+        repo = f"self.{self.repo_var}"
+        if self._grouped(op):
+            body = (
+                f"        rows = {repo}.{op['handler']}()\n"
+                f"        return [{op['responseDto']}(key=key, value=value) for key, value in rows]"
+            )
+            return self._usecase(op, imports, "", body, f"list[{op['responseDto']}]")
+        body = f"        return {op['responseDto']}(value={repo}.{op['handler']}())"
+        return self._usecase(op, imports, "", body, op["responseDto"])
 
     # -- DTOs --------------------------------------------------------------------------------------------------
 
@@ -716,6 +787,10 @@ class _Module:
             name = op["dtoFile"].removesuffix(".py")
             files[f"{base}/{name}.py"] = builder()
             exports.append((name, op["requestDto"] if action != "list" else op["responseDto"]))
+        for op in self.aggregates.values():  # Epic 21
+            name = op["dtoFile"].removesuffix(".py")
+            files[f"{base}/{name}.py"] = self._aggregate_dto(op)
+            exports.append((name, op["responseDto"]))
         files[f"{base}/__init__.py"] = _package(exports)
         return files
 
@@ -796,7 +871,12 @@ class _Module:
             else:
                 text = self._list_usecase(op, imports)
             files[f"{self.dir}/usecases/{op['usecaseFile']}"] = text
-        exports = [(op["usecaseFile"].removesuffix(".py"), op["usecaseDep"]) for op in self.ops.values()]
+        for op in self.aggregates.values():  # Epic 21
+            files[f"{self.dir}/usecases/{op['usecaseFile']}"] = self._aggregate_usecase(op)
+        exports = [
+            (op["usecaseFile"].removesuffix(".py"), op["usecaseDep"])
+            for op in [*self.ops.values(), *self.aggregates.values()]
+        ]
         files[f"{self.dir}/usecases/__init__.py"] = _package(exports)
         return files
 
@@ -858,6 +938,16 @@ class _Module:
         handlers = []
         for op in self.module["operations"]:
             action = op["action"]
+            if op.get("type") == "aggregate":  # Epic 21: declared before the `/{id}` routes below
+                imports.add(usecases, op["usecaseDep"]).add(dtos, op["responseDto"])
+                returns = f"list[{op['responseDto']}]" if self._grouped(op) else op["responseDto"]
+                handlers.insert(
+                    0,
+                    f'@{variable}.get("{op["path"]}", operation_id="{op["operationId"]}", response_model={returns})\n'
+                    f"async def {op['handler']}(usecase: {op['usecaseDep']}) -> {returns}:\n"
+                    "    return await usecase.execute()\n",
+                )
+                continue
             if action not in self.ops:
                 continue
             imports.add(usecases, op["usecaseDep"])
@@ -1182,6 +1272,21 @@ class _Tests:
             path = path.replace(f"{{{name}}}", "{MISSING}")
         return f'f"{path}"'
 
+    def aggregate_case(self, test: dict[str, Any], op: dict[str, Any]) -> str:
+        """Epic 21: the aggregate answers 200 with a number (or grouped numbers) once a record exists."""
+        seed = self.seed(self.crud.model)
+        shape = (
+            '    assert isinstance(body, list) and all({"key", "value"} <= set(row) for row in body)\n'
+            if op["aggregate"].get("groupAttr")
+            else '    assert isinstance(body["value"], int | float)\n'
+        )
+        return (
+            f"def {test['id']}(client):\n    {seed}()\n\n"
+            f'    response = client.get("{op["path"]}")\n\n'
+            "    assert response.status_code == 200, response.text\n"
+            "    body = response.json()\n" + shape
+        )
+
     def case(self, test: dict[str, Any], op: dict[str, Any]) -> str | None:
         name = test["id"]
         case = test["case"]
@@ -1385,6 +1490,9 @@ class _Tests:
         payload = self.payload_helper(create) if create else ""
         for test in self.module["tests"]:
             op = ops.get(test["operationId"])
+            if op is not None and op.get("type") == "aggregate":  # Epic 21
+                cases.append(self.aggregate_case(test, op))
+                continue
             if op is None or not is_crud(op):
                 continue
             text = self.case(test, op)

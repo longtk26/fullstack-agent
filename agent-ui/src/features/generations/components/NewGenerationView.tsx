@@ -5,7 +5,6 @@ import { useSearchParams } from "next/navigation";
 import { useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { AppWindow, Braces, FileCode, FileInput, Globe, MessageSquareText, Rocket } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,7 +12,6 @@ import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Stack } from "@/components/layout/Stack";
 import { prettyJson } from "@/lib/files";
-import { ConsistencyIssueList } from "@/features/specs/components/ConsistencyIssueList";
 import { DesignPanel } from "@/features/specs/components/DesignPanel";
 import { FrontendImportTab } from "@/features/specs/components/FrontendImportTab";
 import { FrontendSpecSummaryPanel } from "@/features/specs/components/FrontendSpecSummaryPanel";
@@ -141,7 +139,8 @@ export function NewGenerationView() {
   const canSubmit = {
     backend: backend.isSubmittable,
     static: frontend.isSubmittable,
-    dynamic: frontend.isSubmittable && backend.isSubmittable && pair.isSubmittable,
+    // The pair is not the user's to fix: drafts settle it in code; pasted specs are checked by the first step.
+    dynamic: frontend.isSubmittable && backend.isSubmittable,
   }[mode];
   const submit = useNewGeneration({
     mode,
@@ -152,7 +151,7 @@ export function NewGenerationView() {
     canSubmit,
     onCreated: clearDraft,
   });
-  const engine = useWatch({ control: submit.form.control, name: "engine" });
+  const draftEngine = useWatch({ control: submit.form.control, name: "draftEngine" });
 
   useEffect(() => {
     useSpecDraftStore.persist.rehydrate();
@@ -218,8 +217,6 @@ export function NewGenerationView() {
     setActiveTab(kind === "frontend" ? "frontend" : "json");
     requestAnimationFrame(() => editors[kind].jumpTo(issue));
   };
-  const jumpToPointer = (kind: TSpecKind, pointer: string) =>
-    jumpTo(kind, { code: "", path: pointer, message: "", hint: null, severity: "error" });
 
   if (urlDraftId && (!hydrated || (urlDraftQuery.isLoading && !urlDraftQuery.data))) {
     return <Skeleton className="h-[640px] w-full rounded-xl" />;
@@ -262,7 +259,7 @@ export function NewGenerationView() {
             <TabsContent value="requirement" className="pt-2" keepMounted>
               <RequirementTab
                 mode={mode}
-                engine={engine ?? null}
+                engine={draftEngine ?? null}
                 onGenerateDirect={submit.generateFromRequirement}
                 isGenerating={submit.isSubmitting}
               />
@@ -337,27 +334,6 @@ export function NewGenerationView() {
                 emptyText={EMPTY_TEXT.backend}
                 onSelect={(issue) => jumpTo("backend", issue)}
               />
-            )}
-            {mode === "dynamic" && (
-              <Card size="sm">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    Consistency
-                    {pair.isChecking && <Spinner />}
-                    {pair.errorCount > 0 && <Badge variant="destructive">{pair.errorCount} errors</Badge>}
-                  </CardTitle>
-                  <CardDescription>Does the FrontendSpec only use what the BackendSpec&apos;s API provides?</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ConsistencyIssueList
-                    issues={pair.issues}
-                    isReady={pair.isReady}
-                    isChecking={pair.isChecking}
-                    onSelect={jumpToPointer}
-                  />
-                  {pair.requestError && <p className="mt-2 text-sm text-destructive">{pair.requestError.message}</p>}
-                </CardContent>
-              </Card>
             )}
 
             {mode !== "backend" && design && design.directions.length > 0 && (

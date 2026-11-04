@@ -1,5 +1,6 @@
 import asyncio
 import json
+import re
 import shutil
 import time
 from datetime import UTC, datetime
@@ -42,6 +43,8 @@ class FakeStep(BaseModel):
     plant_component_defect: bool = False
     # Spec drafts (Stories 2.4, 12.4): write the example spec(s) matching the requirement in `.bga/` (DRAFT_FIXTURES).
     draft_fixture: bool = False
+    # Epic 21: write the designed page `.bga/tree-<page>.json` asks for, composed from its sections (fake_trees.py).
+    tree_fixture: bool = False
     # Site images (Story 15.2): draw the SVGs `.bga/assets.json` asks for, from `GOLDEN_ASSETS` (a simple generic
     # drawing for any other id); `unsafe_assets` plants a script, an external link and a hex colour in each (15.3).
     golden_assets: bool = False
@@ -174,6 +177,12 @@ DRAFT_DEFAULTS = {
     "static": ["frontend-specs/static-landing.json"],
     "dynamic": ["frontend-specs/project-tracker-dynamic.json", "specs/two-entity.json"],
 }
+
+
+def _tree_request_id(prompt: str) -> str:
+    """The page a `draft_tree` prompt asks for (`trees/<page>.json` in the prompt), Epic 21."""
+    match = re.search(r"trees/([a-z0-9-]+)\.json", prompt)
+    return match.group(1) if match else "home"
 
 
 def write_draft_fixture(workdir: Path) -> list[str]:
@@ -320,6 +329,7 @@ def demo_scenario(delay_s: float = 0.3) -> dict[str, list[FakeStep]]:
         # Spec drafts (Stories 2.4, 12.4): the example spec(s) the requirement matches; nothing to repair.
         "draft_spec": [FakeStep(sleep_s=delay_s, draft_fixture=True, message="Drafted the spec.")],
         "draft_frontend_spec": [FakeStep(sleep_s=delay_s, draft_fixture=True, message="Drafted the specs.")],
+        "draft_tree": [FakeStep(sleep_s=delay_s, tree_fixture=True, message="Designed the page.")],
         "repair_spec": [FakeStep(sleep_s=delay_s, message="Nothing to repair.")],
         # Story 20.4: the fake's cards already differ; a repair call (only when a test scripts failing cards) keeps
         # the card, so the code fallback runs.
@@ -439,6 +449,14 @@ class FakeEngine(ICodeEngine):
                     for relative in write_draft_fixture(workdir):
                         await emit(EngineEventKind.TOOL_USE, f"Write {relative}", tool="Write", target=relative)
                         tools.append(ToolCall(name="Write", target=relative, started_at=datetime.now(UTC)))
+                if step.tree_fixture:
+                    from .fake_trees import write_tree_fixture
+
+                    request_file = workdir / ".bga" / f"tree-{_tree_request_id(request.prompt)}.json"
+                    if request_file.is_file():
+                        for relative in write_tree_fixture(workdir, request_file):
+                            await emit(EngineEventKind.TOOL_USE, f"Write {relative}", tool="Write", target=relative)
+                            tools.append(ToolCall(name="Write", target=relative, started_at=datetime.now(UTC)))
                 if step.golden_assets or step.unsafe_assets:
                     for relative in write_assets(workdir, step.unsafe_assets):
                         await emit(EngineEventKind.TOOL_USE, f"Write {relative}", tool="Write", target=relative)

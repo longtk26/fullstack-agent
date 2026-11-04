@@ -169,14 +169,22 @@ seed. The design (layout, density, colour) is the model's; the data is ours.
 | 5 | 20.11 | Keep its route-order fix and app theme rules; build app pages as trees |
 | 6 | Order | 18.10 → this epic's measurement story → the rest |
 
-## Stories (outline; each is detailed in its own file when it starts)
+## Stories
 
-| # | Story |
-|---|---|
-| 21.1 | Measurement first: the same five requirements (2 static, 3 dynamic) drafted as section pages and as trees; screenshots, time, cost, validity |
-| 21.2 | Tree renderer: nodes → elements, icons, primitives, data components; page CSS scoping; `animate` on the motion engine |
-| 21.3 | Guard rails: allowed types, class and CSS rules, accessibility checks, code fixes with notes |
-| 21.4 | Data components for dynamic apps: `RecordForm`, `RecordAction`, `Metric`, `Chart`, states, `AppShell` |
-| 21.5 | Importer for dynamic: writes, aggregates, states → BackendSpec; `aggregate` operations in the contract, mocks and backend templates |
-| 21.6 | Drafting trees through the API (pages in parallel), with the direction as the design brief |
-| 21.7 | Design check and diversity report on trees (overflow, contrast, light/dark, first-screen similarity) |
+| # | Story | State (2026-11-04) |
+|---|---|---|
+| 21.1 | [Measurement: section pages against designed pages](story21.1_measurement.md) | ready to run; needs the user's yes (paid) |
+| 21.2 | [Tree renderer](story21.2_tree_renderer.md) | done |
+| 21.3 | [Guard rails](story21.3_guard_rails.md) | done |
+| 21.4 | [Data components](story21.4_data_components.md) | done (no `AppShell`: sidebar shells keep their own sidebar) |
+| 21.5 | [Aggregates without the engine; the trees' operations in the BackendSpec](story21.5_aggregates_and_importer.md) | done |
+| 21.6 | [Drafting designed pages](story21.6_drafting_trees.md) | done for the flow and the fake engine |
+| 21.7 | [Design check and diversity report on designed pages](story21.7_checks_on_trees.md) | done for the fixture and the checklist |
+
+## Status
+
+**Implemented (2026-11-04)** on `feat/story18.10-api-drafts`, with 18.10, not committed: the user reviews the
+static and dynamic output with `make up` first. What the user will see: every draft (fake or real engine) designs
+its pages as trees (`FRONTEND_TREES=true`); the section-library fixture's `/designed` page shows the renderer's
+range; a dashboard's figures come from templated aggregate operations. Open: 21.1's paid measurement, a real-engine
+tree's quality (the prompt is written for the Gemini API engine, one request per page), and the `AppShell`.

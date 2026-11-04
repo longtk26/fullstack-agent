@@ -657,6 +657,66 @@ def _note(path: str, message: str) -> dict[str, Any]:
     return {"spec": "frontend", "path": path, "message": message, "suggestion": None}
 
 
+def _name_tokens(name: str) -> list[str]:
+    return [t.lower() for t in re.findall(r"[A-Z]?[a-z]+|[A-Z]+(?![a-z])|\d+", name)]
+
+
+def closest_field(name: str, available: list[str]) -> str | None:
+    """The response field a misnamed one most likely means (`totalValue` → `totalStockValue`): the same name in
+    another case or separator, then one whose words contain the other's, then a close spelling. None when nothing
+    is close, or two fields are equally close."""
+    import difflib
+
+    words = _name_tokens(name)
+    scored: list[tuple[float, str]] = []
+    for candidate in available:
+        other = _name_tokens(candidate)
+        if words and words == other:
+            score = 1.0
+        elif words and other and (set(words) <= set(other) or set(other) <= set(words)):
+            score = 0.9 - 0.01 * abs(len(words) - len(other))
+        else:
+            score = difflib.SequenceMatcher(None, name.lower(), candidate.lower()).ratio()
+            if score < 0.75:
+                continue
+        scored.append((score, candidate))
+    scored.sort(reverse=True)
+    if not scored or (len(scored) > 1 and scored[0][0] == scored[1][0]):
+        return None
+    return scored[0][1]
+
+
+def _heal_response_fields(
+    data: dict[str, Any], operation_id: str, properties: list[str], path: str, notes: list[dict[str, Any]]
+) -> None:
+    """Section `data.fields` the response does not have: renamed to the closest response field, else dropped."""
+    fields = data.get("fields")
+    if not isinstance(fields, list):
+        return
+    healed: list[Any] = []
+    for index, field in enumerate(fields):
+        if not isinstance(field, str) or field in properties:
+            healed.append(field)
+            continue
+        match = closest_field(field, [p for p in properties if p not in fields and p not in healed])
+        if match is not None:
+            healed.append(match)
+            notes.append(
+                _note(f"{path}/fields/{index}", f"Field '{field}' is '{match}' in the response of '{operation_id}'.")
+            )
+        else:
+            notes.append(
+                _note(
+                    f"{path}/fields/{index}",
+                    f"Field '{field}' is not in the response of '{operation_id}' ({', '.join(properties)}); dropped.",
+                )
+            )
+    if healed:
+        data["fields"] = healed
+    else:
+        del data["fields"]
+
+
 def _fill_path_params(
     target: dict[str, Any],
     operation_id: str,
@@ -732,6 +792,7 @@ def reconcile_spec_pair(
     - Fills missing path parameters from the record (row/card actions) or the page route, when either has them
     - Adds confirmation prompt to DELETE actions if missing
     - Clears unknown operationIds from section data bindings or stats items
+    - Renames section data fields and stats values the response lacks to its closest field (else drops them)
     - Prunes unsupported section controls (search/filter/sort)
     - Declares placeholder assets for seed records that reference undeclared (valid) asset ids
     Works on a copy and never changes the BackendSpec (it is already stored and seeds the backend). Every change
@@ -942,6 +1003,31 @@ def reconcile_spec_pair(
                                         f"Stats item invalid operation '{stat_op}' removed.",
                                     )
                                 )
+                            elif stat_op and item["data"].get("value", "count") != "count":
+                                value = item["data"]["value"]
+                                stat_props = list(
+                                    _response_record(contract, ops[stat_op]["operation"]).get("properties") or {}
+                                )
+                                if value not in stat_props:
+                                    match = closest_field(value, stat_props)
+                                    stat_path = f"{sec_path}/content/items/{i_idx}/data"
+                                    if match is not None:
+                                        item["data"]["value"] = match
+                                        notes.append(
+                                            _note(
+                                                f"{stat_path}/value",
+                                                f"Stats value '{value}' is '{match}' in the response of '{stat_op}'.",
+                                            )
+                                        )
+                                    else:
+                                        del item["data"]
+                                        notes.append(
+                                            _note(
+                                                stat_path,
+                                                f"Stats item reads '{value}', which '{stat_op}' does not return; "
+                                                "its data binding was removed.",
+                                            )
+                                        )
 
             # Section data binding
             if isinstance(data, dict):
@@ -958,6 +1044,13 @@ def reconcile_spec_pair(
                     else:
                         _fill_path_params(
                             data, sec_op, ops[sec_op]["operation"], f"{sec_path}/data", route, None, notes
+                        )
+                        _heal_response_fields(
+                            data,
+                            sec_op,
+                            list(_response_record(contract, ops[sec_op]["operation"]).get("properties") or {}),
+                            f"{sec_path}/data",
+                            notes,
                         )
 
                         if isinstance(content, dict) and isinstance(content.get("controls"), dict):

@@ -62,8 +62,12 @@ def test_two_workers_report_their_own_engines(client, login):
     assert {e["name"]: e["available"] for e in body["engines"]} == {
         "claude_code": True,
         "antigravity": True,
+        "gemini_api": False,
         "fake": True,
     }
+    by_name = {e["name"]: e for e in body["engines"]}
+    assert by_name["gemini_api"]["draftsOnly"] is True and by_name["claude_code"]["draftsOnly"] is False
+    assert body["draftDefault"] in by_name, "Story 18.10: the engine that drafts unless the user picks another"
 
 
 def test_without_a_worker_report_real_engines_are_unavailable(client, login):

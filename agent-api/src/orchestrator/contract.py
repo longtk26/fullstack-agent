@@ -133,7 +133,8 @@ def _synthesize(column: dict[str, Any], entity: str, index: int, slug: str) -> A
     if kind == "datetime":
         return f"2026-01-{index + 1:02d}T09:00:00Z"
     if kind == "enum":
-        values = column["enum"]["values"]
+        # Payload properties (custom operations) carry `values` themselves; entity columns carry an `enum` entry.
+        values = list(column["enum"]["values"] if "enum" in column else column.get("values") or [])
         return values[index % len(values)] if values else None
     return {}
 
@@ -374,10 +375,42 @@ class _Builder:
             return rows if spec_resp.get("type") == "array" else rows[0]
         return {"ok": True}
 
+    def _aggregate_operation(self, module: dict[str, Any], op: dict[str, Any], spec_op: dict[str, Any]) -> dict:
+        """Epic 21: `{"value": n}`, or grouped `[{"key", "value"}, …]`; the mock computes it from the fixtures."""
+        aggregate = dict(spec_op.get("aggregate") or {})
+        value = _object({"value": {"type": "number"}}, ["value"])
+        grouped = bool(aggregate.get("groupBy"))
+        schema = (
+            {
+                "type": "array",
+                "items": _object({"key": {"type": "string"}, "value": {"type": "number"}}, ["key", "value"]),
+            }
+            if grouped
+            else value
+        )
+        description = f"{aggregate.get('fn', 'count')} of {module['entity']}" + (
+            " by " + aggregate["groupBy"] if grouped else ""
+        )
+        return {
+            "operationId": op["operationId"],
+            "summary": op.get("summary") or spec_op.get("summary") or description,
+            "tags": [module["name"]],
+            "x-bga": {
+                "entity": module["entity"],
+                "action": "aggregate",
+                "module": module["name"],
+                "mock": "aggregate",
+                "aggregate": aggregate,
+            },
+            "responses": {"200": {"description": description, "content": {"application/json": {"schema": schema}}}},
+        }
+
     def operation(self, module: dict[str, Any], op: dict[str, Any]) -> dict[str, Any]:
         entity = module["entity"]
         model = self.models.get(entity)
         spec_op = self.spec_ops.get(op["operationId"], {})
+        if spec_op.get("type") == "aggregate":
+            return self._aggregate_operation(module, op, spec_op)
         action = op.get("action")
         records = self.fixtures.get(entity, [])
         seeded = entity in self.seeded

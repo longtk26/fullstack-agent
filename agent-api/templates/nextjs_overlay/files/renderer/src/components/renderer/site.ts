@@ -79,7 +79,36 @@ export type TSiteSection = {
  * hairline between sections (PageRenderer). */
 export type TRhythm = "uniform" | "alternate" | "dividers";
 
-export type TSitePage = { title: string; rhythm?: TRhythm; sections: TSiteSection[] };
+/** Epic 21: where a tree's data component reads: a content collection, or an API operation (with `computed`, the
+ * browser aggregates the list itself); `route` is a record's detail page. */
+export type TTreeBinding = {
+  collection?: string;
+  operationId?: string;
+  action?: string;
+  params?: Record<string, unknown>;
+  computed?: boolean;
+  route?: string;
+};
+
+/** Epic 21: one node of a designed page, classified by the generator (`frontend_renderer.tree_site`). */
+export type TTreeNode = {
+  kind: "element" | "image" | "icon" | "link" | "primitive" | "section" | "data";
+  type: string;
+  props?: Record<string, unknown>;
+  children?: (TTreeNode | string)[];
+  asset?: string;
+  icon?: string;
+  id?: string;
+  component?: string;
+  content?: Record<string, unknown>;
+  binding?: TTreeBinding;
+  /** A library section node: its data binding, form and states, as a page section has them. */
+  data?: TBinding;
+  form?: string;
+  states?: TStates;
+};
+
+export type TSitePage = { title: string; rhythm?: TRhythm; sections: TSiteSection[]; tree?: TTreeNode; css?: string };
 
 /** Story 20.6: the theme's motion; absent for a still site. */
 export type TMotion = {
@@ -90,9 +119,13 @@ export type TMotion = {
 export type TSite = {
   pages: Record<string, TSitePage>;
   motion?: TMotion;
+  /** Epic 21: designed chrome and footer, replacing the shell's own header and footer when present. */
+  chrome?: TTreeNode;
+  footerTree?: TTreeNode;
   collections: Record<string, TRecord[]>;
   forms: Record<string, TFormDef>;
 };
 
 /** The FrontendSpec pages, content collections and forms, validated when the spec was (Story 17.1). */
-export const site = data as TSite;
+// Via unknown: a designed page's tree (Epic 21) is a deep union the JSON import infers differently from TTreeNode.
+export const site = data as unknown as TSite;

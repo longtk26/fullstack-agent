@@ -136,6 +136,7 @@ workflow to be built before real generation works.
 | 2.4 | done 2026-10-30 (requirement drafting for backend, static and dynamic; with 12.4, 9.2 Requirement tab, 9.7b) |
 | 15 | 15.1–15.4 done 2026-10-30 (drawn SVGs, asset checks with placeholder fallback, uploads and links); 15.5 only if asked |
 | 20 | Checkpoints A, B and C done 2026-11-02 (diversity report and baseline; hero layouts, section forms, rhythm, tone tokens, 30 fonts, seven new sections; direction cards with the difference test, content-led home pages, stock-phrase checks, dynamic apps checked on the mock API); Checkpoint D done 2026-11-03 (icons in the site's set, motion presets with a signature moment); 20.10 Japanese fonts added 2026-11-03 (after spec-drafting speed); 20.7 next; real-engine numbers on the final check |
+| 18.10, 21 | implemented 2026-11-04 (drafts through the Gemini API, one request per step; designed pages as element trees for static and dynamic sites, aggregates from templates); on `feat/story18.10-api-drafts`, under the user's review; 21.1's paid measurement open |
 | 10, 11, 16 | open (16 to be revised after Epic 20) |
 
 ### Next up (re-planned 2026-10-30)

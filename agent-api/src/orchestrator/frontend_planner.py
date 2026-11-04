@@ -13,8 +13,9 @@ from pathlib import Path
 from typing import Any
 
 from src.modules.shared.domain.backend_spec.naming import pluralize, to_camel, to_kebab, to_pascal, to_snake
-from src.modules.shared.domain.frontend_spec import BUILTIN_SECTIONS, iter_sections, route_params
+from src.modules.shared.domain.frontend_spec import BUILTIN_SECTIONS, all_trees, iter_sections, route_params
 from src.modules.shared.domain.frontend_spec.assets import aspect_ratio, render_mode
+from src.modules.shared.domain.frontend_spec.trees import TREE_SHADCN
 
 from .contract import contract_operations, resolve
 from .frontend_renderer import custom_components, library_primitives, renderer_gaps
@@ -260,6 +261,10 @@ class _Planner:
             )
             if page.get("rhythm", "uniform") != "uniform":
                 routes[-1]["rhythm"] = page["rhythm"]  # Story 20.2; absent for the default, so old plans stay equal
+            if page.get("tree"):  # Epic 21: a designed page, with its scoped CSS
+                routes[-1]["tree"] = page["tree"]
+                if page.get("css"):
+                    routes[-1]["css"] = page["css"]
         return routes
 
     # -- components ---------------------------------------------------------------------------------------------
@@ -318,6 +323,8 @@ class _Planner:
             wanted |= {"sidebar"}
         if layout.get("header", {}).get("navigation"):
             wanted |= {"navigation-menu", "sheet"}
+        if all_trees(self.spec):  # Epic 21: the tree renderer imports every primitive a tree may name
+            wanted |= set(TREE_SHADCN) | {"input", "chart"}
         return primitive_closure(wanted)
 
     # -- forms ---------------------------------------------------------------------------------------------------
@@ -435,7 +442,8 @@ class _Planner:
                 return {"label": item["label"], "href": pages[item["page"]], "page": item["page"]}
             return {"label": item["label"], "href": item["href"], "external": True}
 
-        library = {"routes": routes, "shell": {"shell": shell}, "customComponents": custom}
+        trees = bool(all_trees(spec))  # Epic 21: designed pages or chrome; the tree renderer is copied
+        library = {"routes": routes, "shell": {"shell": shell}, "customComponents": custom, "trees": trees}
         plan = {
             "planVersion": FRONTEND_PLAN_VERSION,
             "project": {
@@ -468,6 +476,7 @@ class _Planner:
             },
             "rendering": "engine" if gaps else "renderer",
             "rendererGaps": gaps,
+            "trees": bool(all_trees(spec)),  # Epic 21: designed pages or chrome; the tree renderer is copied
             "routes": routes,
             "components": components,
             "shadcn": self.shadcn(components, None if gaps else library_primitives(library)),

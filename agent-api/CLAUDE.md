@@ -69,6 +69,30 @@ Agent-specific notes:
   SUCCEEDED / NEEDS_REVIEW / FAILED. Usage is kept on the draft (`usage`), not in `model_calls` (those belong to a
   generation); `/usage` reports it as `drafts`. A generation created with `draftId` stores `options.draftId`, and
   packaging writes `requirement.md` / `.txt`. Requirement checks: `modules/shared/domain/requirement.py`.
+- Pair fixes (dynamic drafts): the user never fixes the FrontendSpec ↔ BackendSpec pair. `orchestrator/pair_fixes.py`
+  `adapt_backend` (in `autofix_draft`, before every check) makes the BackendSpec follow the pages: a custom operation
+  gets the request its form sends or the response its section reads (`type: "array"` for list sections, fields from
+  the section or the operation's description), a list the filter / sort / search a page asks for, a create / update
+  form's field joins its entity; each change is kept only if the BackendSpec stays valid. After the repair rounds,
+  `prune_frontend` cuts what the pair check still rejects (action, binding, parameter, field). Both write notes.
+- Draft engine (Story 18.10): `engines/gemini_api/` drafts specs with one `generateContent` request per step (no
+  agent loop); it has `inline_inputs` (drafting renders the inline prompt versions `draft_frontend_spec@v10`,
+  `draft_spec@v4`, `repair_spec@v3`, `repair_direction@v2`, inputs in the prompt) and `drafts_only` (refuses code
+  purposes; the engine list marks it). Answers are one JSON envelope of `files` and RFC 6902 `patches`
+  (`libs/jsonpatch.py`). `DRAFT_ENGINE` / `registry.draft_default` pick it for drafts; generation keeps the CLI
+  engines. A repair round whose errors repeat the previous round's ends the loop. `docs/engines/gemini-api.md`.
+- Designed pages (Epic 21): a page may be an element **tree** (`FrontendSpec` `pages[].tree` + `css`, `layout.chrome`
+  / `footerTree`; `TreeNode` in `schema_v1.py`), as Frontend-Agent's site JSON writes it. `frontend_spec/trees.py`
+  classifies node types (elements, shadcn primitives, Lucide icons, library sections, data components), checks the
+  rules (theme-token colours, no fixed, one h1, assets, links, node and depth limits) and repairs what it can
+  (`fix_trees`, run by `autofix_frontend_spec`); `tree_bindings.py` binds data components to a collection (static)
+  or to the contract's operations (dynamic; `Metric` / `Chart` to **aggregate** operations, else computed from the
+  list) and derives the operations a BackendSpec needs (`derive_operations`). `frontend_renderer.tree_site` writes
+  the classified tree into `site.json`; the overlay's `renderer/tree/` (copied only when `plan["trees"]`) renders it
+  (`TreeRenderer.tsx`, data components in `tree-data.tsx`, `tree-metrics.tsx`, `tree-forms.tsx`). Drafting designs
+  each page with `draft_tree@v1` after the spec is valid (`orchestrator/tree_drafting.py`; `FRONTEND_TREES`), in
+  parallel on an API engine; a page whose tree fails keeps its sections. BackendSpec `type: "aggregate"` operations
+  are templated like CRUD (`planner.py`, `backend_codegen.py`, the contract and the mock compute them).
 - Design direction (Stories 12.6, 20.4, 20.9): the drafting engine writes three direction cards in `notes.json`
   (`design.cards`: concept, tone, hero layout, fonts, colours, key visual, forms, rhythm, `home` section ids, fit);
   `orchestrator/design_cards.py` checks and fills them (bundled fonts, AA contrast, `design_tone` tokens), runs the

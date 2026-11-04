@@ -18,6 +18,7 @@ from .normalizer import normalize_frontend_spec, page_id, route_params, walk_sec
 from .registry import FRONTEND_SPEC_MODELS
 from .schema_v1 import FrontendSpecV1, NavLink, Page, Section
 from .section_props import LAYOUT_SECTIONS, MAX_DEPTH, SECTION_ITEMS, SECTION_PROPS, Props
+from .trees import check_tree, css_problems, tree_collections
 
 C = FrontendIssueCode
 _HEX = re.compile(r"^#([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$")
@@ -241,9 +242,32 @@ class _SemanticChecker:
         self._check_forms()
         self._check_content()
         self._check_journeys()
+        self._check_trees()
         if self.spec.auth is not None:
             self._add(C.FE_UNSUPPORTED_FEATURE, "/auth", "Auth pages arrive with Epic 10; 'auth' is ignored", True)
         return self.issues
+
+    def _check_trees(self) -> None:
+        """Epic 21: designed pages and chrome follow the tree rules (`trees.py`)."""
+        trees: list[tuple[Any, str]] = [
+            (page.tree, f"/pages/{index}/tree") for index, page in enumerate(self.spec.pages) if page.tree is not None
+        ]
+        layout = self.spec.layout
+        trees += [
+            (node, f"/layout/{key}")
+            for key, node in (("chrome", layout.chrome), ("footerTree", layout.footer_tree))
+            if node
+        ]
+        if not trees:
+            return
+        collections = tree_collections(self.spec.model_dump(by_alias=True)) if self.static else None
+        for node, path in trees:
+            tree = node.model_dump(by_alias=True)
+            for issue in check_tree(tree, path, set(self.page_ids), self.assets, collections):
+                self._add(C(issue["code"]), issue["path"], issue["message"], issue["warning"], issue.get("hint"))
+        for index, page in enumerate(self.spec.pages):
+            if page.css and (problems := css_problems(page.css)):
+                self._add(C.FE_DESIGN_RULE, f"/pages/{index}/css", "; ".join(problems), warning=True)
 
     def _add(self, code: FrontendIssueCode, path: str, message: str, warning: bool = False, hint: str | None = None):
         severity = Severity.WARNING if warning else Severity.ERROR

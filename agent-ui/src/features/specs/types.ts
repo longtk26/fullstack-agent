@@ -65,10 +65,14 @@ export type TEngineInfo = {
   name: string;
   available: boolean;
   reason: string | null;
+  /** Story 18.10: an API engine drafts specs but writes no code. */
+  draftsOnly?: boolean;
 };
 
 export type TEngineList = {
   default: string;
+  /** Story 18.10: the engine that drafts specs unless the user picks another. */
+  draftDefault?: string;
   engines: TEngineInfo[];
   reportedByWorker: boolean;
   reportedAt: string | null;

@@ -22,6 +22,7 @@ import type { TGenerationMode } from "../types";
 const ENGINE_LABELS: Record<string, string> = {
   claude_code: "Claude Code",
   antigravity: "Antigravity",
+  gemini_api: "Gemini API (drafts only)",
   fake: "Fake (test/demo: bundled examples only)",
 };
 
@@ -77,38 +78,63 @@ type GenerationOptionsFormProps = {
   mode: TGenerationMode;
 };
 
-export function GenerationOptionsForm({ form, engines, mode }: GenerationOptionsFormProps) {
-  const engineItems = engines.map((engine) => ({ value: engine.name, label: ENGINE_LABELS[engine.name] ?? engine.name }));
+/** One engine select; the generation engine leaves out engines that only draft (Story 18.10). */
+function EngineSelect({
+  name,
+  label,
+  description,
+  engines,
+  form,
+}: {
+  name: "engine" | "draftEngine";
+  label: string;
+  description?: string;
+  engines: TEngineInfo[];
+  form: UseFormReturn<TGenerationOptionsFormValues>;
+}) {
+  const items = engines.map((engine) => ({ value: engine.name, label: ENGINE_LABELS[engine.name] ?? engine.name }));
+  return (
+    <Controller
+      name={name}
+      control={form.control}
+      render={({ field, fieldState }) => (
+        <Field data-invalid={fieldState.invalid}>
+          <FieldLabel htmlFor={name}>{label}</FieldLabel>
+          <Select items={items} value={field.value} onValueChange={(value) => field.onChange(value)}>
+            <SelectTrigger id={name} className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {engines.map((engine) => (
+                <SelectItem key={engine.name} value={engine.name} disabled={!engine.available}>
+                  {ENGINE_LABELS[engine.name] ?? engine.name}
+                  {!engine.available && <span className="text-xs text-muted-foreground">unavailable</span>}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {engines.find((engine) => engine.name === field.value && !engine.available)?.reason ? (
+            <FieldDescription>{engines.find((engine) => engine.name === field.value)?.reason}</FieldDescription>
+          ) : (
+            description && <FieldDescription>{description}</FieldDescription>
+          )}
+          <FieldError errors={[fieldState.error]} />
+        </Field>
+      )}
+    />
+  );
+}
 
+export function GenerationOptionsForm({ form, engines, mode }: GenerationOptionsFormProps) {
   return (
     <FieldGroup>
-      <Controller
-        name="engine"
-        control={form.control}
-        render={({ field, fieldState }) => (
-          <Field data-invalid={fieldState.invalid}>
-            <FieldLabel htmlFor="engine">Engine</FieldLabel>
-            <Select items={engineItems} value={field.value} onValueChange={(value) => field.onChange(value)}>
-              <SelectTrigger id="engine" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {engines.map((engine) => (
-                  <SelectItem key={engine.name} value={engine.name} disabled={!engine.available}>
-                    {ENGINE_LABELS[engine.name] ?? engine.name}
-                    {!engine.available && <span className="text-xs text-muted-foreground">unavailable</span>}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {engines.find((engine) => engine.name === field.value && !engine.available)?.reason && (
-              <FieldDescription>
-                {engines.find((engine) => engine.name === field.value)?.reason}
-              </FieldDescription>
-            )}
-            <FieldError errors={[fieldState.error]} />
-          </Field>
-        )}
+      <EngineSelect name="engine" label="Engine" engines={engines.filter((engine) => !engine.draftsOnly)} form={form} />
+      <EngineSelect
+        name="draftEngine"
+        label="Draft engine"
+        description="Drafts the specs from a requirement; one API request per step."
+        engines={engines}
+        form={form}
       />
       <Controller
         name="maxRepairAttempts"

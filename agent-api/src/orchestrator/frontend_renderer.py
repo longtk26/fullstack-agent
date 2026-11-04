@@ -19,6 +19,7 @@ without a props schema, static forms, route parameters in static mode) still goe
 in `rendererGaps`.
 """
 
+import copy
 import json
 import re
 from pathlib import Path
@@ -48,6 +49,7 @@ FORM_FIELD_TYPES = frozenset(
 )
 LIBRARY_DIR = "src/components/sections"
 SITE_FILE = "src/content/site.json"
+TREE_DIR = "src/components/renderer/tree"  # Epic 21: copied only for sites with designed pages
 REGISTRY_FILE = "src/components/renderer/registry.ts"
 TYPES_FILE = f"{LIBRARY_DIR}/types.ts"
 BINDINGS_FILE = "src/components/renderer/bindings.ts"
@@ -225,6 +227,11 @@ class _Site:
         }
         self.links = _detail_links(plan, contract)
         self.operations = contract_operations(contract) if contract else {}
+        self.spec = spec
+        self.pages = {route["pageId"]: route["route"] for route in plan["routes"]}
+
+    def tree(self, tree: dict[str, Any]) -> dict[str, Any]:
+        return tree_site(tree, self.spec, self.contract, self.pages, self.icon_set, self.section)
 
     def section(self, section: dict[str, Any]) -> dict[str, Any]:
         out: dict[str, Any] = {"id": section["id"], "component": section["component"]}
@@ -371,7 +378,96 @@ def _page(site: "_Site", route: dict[str, Any], color_area: str | None = None) -
     page: dict[str, Any] = {"title": route["title"], "sections": sections}
     if rhythm != "uniform":
         page["rhythm"] = rhythm
+    if route.get("tree"):  # Epic 21: a designed page; its sections (if any) are only its content outline
+        from src.modules.shared.domain.frontend_spec.trees import scope_css
+
+        page["tree"] = site.tree(route["tree"])
+        if route.get("css"):
+            page["css"] = scope_css(route["css"], route["pageId"])  # idempotent: a drafted spec is scoped already
     return page
+
+
+def tree_site(
+    tree: dict[str, Any],
+    spec: dict[str, Any],
+    contract: dict[str, Any] | None,
+    pages: dict[str, str],
+    icon_set: str,
+    section_renderer: Any = None,
+) -> dict[str, Any]:
+    """A checked tree as `site.json` carries it: every node gets a `kind` (`TreeRenderer.tsx` renders by it), images
+    become asset nodes, icons are resolved to the site's set, `Link` targets to routes, library sections keep
+    their content, and data components get their `binding` (`tree_bindings.bind_tree`)."""
+    from src.modules.shared.domain.frontend_spec.icons import resolve_icon
+    from src.modules.shared.domain.frontend_spec.tree_bindings import bind_tree
+    from src.modules.shared.domain.frontend_spec.trees import classify
+
+    tree = copy.deepcopy(tree)
+    collections = [item["collection"] for item in spec.get("content") or []]
+    mode = spec["project"]["mode"]
+    bind_tree(tree, mode, collections, contract if mode == "dynamic" else None, pages)
+    counter = [0]
+
+    def convert(node: Any, root: bool = False) -> Any:
+        if isinstance(node, str):
+            return node
+        node_type = str(node.get("type"))
+        if root and node_type == "main":
+            node_type = "div"  # the shell already renders the page inside <main>
+        props = dict(node.get("props") or {})
+        kind = classify(node_type)
+        out: dict[str, Any] = {"kind": kind, "type": node_type}
+        children = [convert(child) for child in node.get("children") or []]
+        if node_type == "img" and isinstance(props.get("src"), str):
+            out["kind"] = "image"
+            out["asset"] = props.pop("src").removeprefix("asset:")
+            props.pop("alt", None)
+        elif kind == "icon":
+            out["icon"] = resolve_icon(f"lucide:{node_type}", icon_set) or f"lucide:{node_type}"
+        elif node_type == "Link":
+            out["kind"] = "link"
+            target = props.pop("to", None) or props.pop("href", None)
+            if isinstance(target, str) and target.startswith("page:"):
+                props["href"] = pages.get(target[5:], "/")
+            elif isinstance(target, str):
+                props["href"] = target
+                props["external"] = target.startswith("http")
+        elif kind == "section":
+            # A library section inside a tree: its props are the section's content, plus an optional `data`
+            # binding and `form`, rendered exactly like a page section (bindings, columns, record links).
+            counter[0] += 1
+            data = props.pop("data", None)
+            form = props.pop("form", None)
+            section: dict[str, Any] = {
+                "id": str(props.pop("id", "")) or f"{node_type.lower()}-{counter[0]}",
+                "component": node_type,
+                "content": props,
+            }
+            if isinstance(data, dict):
+                kind_of = "operation" if data.get("operationId") else "content" if data.get("collection") else None
+                if kind_of:
+                    section["data"] = {"kind": kind_of, **data}
+            if isinstance(form, str):
+                section["form"] = form
+            rendered = (
+                section_renderer(section)
+                if section_renderer
+                else {**section, "content": resolve_icons(props, icon_set)}
+            )
+            out.update({k: v for k, v in rendered.items() if k != "children"})
+            props = {}
+            children = []
+        elif kind == "data":
+            out["component"] = node_type
+            if node.get("binding"):
+                out["binding"] = node["binding"]
+        if props:
+            out["props"] = props
+        if children:
+            out["children"] = children
+        return out
+
+    return convert(tree, root=True)
 
 
 def site_data(plan: dict[str, Any], spec: dict[str, Any], contract: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -382,6 +478,10 @@ def site_data(plan: dict[str, Any], spec: dict[str, Any], contract: dict[str, An
         "collections": site.collections,
         "forms": {form["id"]: _form(form) for form in plan["forms"]},
     }
+    layout = spec.get("layout") or {}
+    for key in ("chrome", "footerTree"):  # Epic 21: designed chrome and footer
+        if isinstance(layout.get(key), dict):
+            data[key] = site.tree(layout[key])
     motion = (spec.get("theme") or {}).get("motion") or {}
     if motion.get("feel", "none") != "none":  # Story 20.6; a still site's site.json is unchanged
         data["motion"] = {"feel": motion["feel"], "signature": motion.get("signature") or "none"}
@@ -449,7 +549,16 @@ def icons_ts(data: dict[str, Any], spec: dict[str, Any]) -> str:
 
 
 def used_sections(plan: dict[str, Any]) -> list[str]:
-    return sorted({section["component"] for route in plan["routes"] for section in iter_sections(route["sections"])})
+    from src.modules.shared.domain.frontend_spec.trees import classify, walk
+
+    used = {section["component"] for route in plan["routes"] for section in iter_sections(route["sections"])}
+    for route in plan["routes"]:  # Epic 21: library sections inside designed pages
+        for node, _, _ in walk(route.get("tree")):
+            if classify(str(node.get("type"))) == "section":
+                used.add(str(node["type"]))
+    if plan.get("trees"):
+        used.add("Form")  # the tree renderer's RecordForm renders through the Form section
+    return sorted(used)
 
 
 def library_sections(plan: dict[str, Any], resolved: bool = False) -> set[str]:
@@ -585,6 +694,8 @@ def library_files(plan: dict[str, Any], available: list[str]) -> dict[str, str]:
     for relative in sorted(available):
         directory, _, name = relative.rpartition("/")
         stem, _, variant = name.removesuffix(".tsx").removesuffix(".ts").partition(".")
+        if relative.startswith(f"{TREE_DIR}/") and not plan.get("trees"):
+            continue  # Epic 21: the tree renderer and its primitives only for sites with designed pages
         if stem == "SiteShell":
             if variant == shell or (not variant and f"{directory}/SiteShell.{shell}.tsx" not in available):
                 files[f"{directory}/SiteShell.tsx"] = relative

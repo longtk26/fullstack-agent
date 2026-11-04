@@ -224,11 +224,68 @@
         {"id": "quote", "component": "Statement", "content": {"form": "quote", "background": "muted", "text": "The best croissant on this side of the river.", "attribution": "A regular, since 2016"}},
         {"id": "band", "component": "Statement", "content": {"form": "band", "text": "Everything is baked here, every morning."}}
       ]
+    },
+    {
+      "route": "/designed",
+      "title": "Designed",
+      "sections": [],
+      "css": ".rug { background-image: radial-gradient(color-mix(in oklch, var(--primary) 8%, transparent) 1.5px, transparent 1.5px); background-size: 24px 24px; }",
+      "tree": {"type": "main", "props": {"className": "rug relative overflow-x-hidden bg-background text-foreground"}, "children": [
+        {"type": "section", "props": {"className": "mx-auto grid max-w-7xl gap-10 px-6 py-20 md:grid-cols-12", "animate": {"on": "view", "type": "fade-up", "duration": 0.6}}, "children": [
+          {"type": "div", "props": {"className": "md:col-span-7"}, "children": [
+            {"type": "span", "props": {"className": "inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs uppercase tracking-widest text-primary"}, "children": [
+              {"type": "Sparkles", "props": {"className": "size-3.5"}}, "Epic 21"]},
+            {"type": "h1", "props": {"className": "heading mt-6 font-heading text-5xl font-black leading-[1.05] tracking-tight md:text-7xl"}, "children": [
+              {"type": "span", "props": {"className": "block"}, "children": ["A page the"]},
+              {"type": "span", "props": {"className": "block text-primary underline decoration-wavy underline-offset-8"}, "children": ["model designed."]}]},
+            {"type": "p", "props": {"className": "mt-6 max-w-xl text-muted-foreground"}, "children": ["Elements, primitives, icons, a library section and data components, all from one JSON tree."]},
+            {"type": "div", "props": {"className": "mt-8 flex flex-wrap gap-3"}, "children": [
+              {"type": "Link", "props": {"to": "page:catalogue", "className": "inline-flex h-10 items-center gap-2 rounded-md bg-primary px-5 text-sm font-medium text-primary-foreground"}, "children": ["Browse the catalogue", {"type": "ArrowRight", "props": {"className": "size-4"}}]},
+              {"type": "Link", "props": {"href": "https://example.com/docs", "className": "inline-flex h-10 items-center rounded-md border px-5 text-sm"}, "children": ["Docs"]}]}]},
+          {"type": "figure", "props": {"className": "md:col-span-5 lg:-mt-10", "animate": {"on": "view", "type": "scale-in", "delay": 0.2}}, "children": [
+            {"type": "div", "props": {"className": "rounded-3xl border-2 border-primary/20 bg-card p-3 shadow-xl"}, "children": [
+              {"type": "img", "props": {"src": "asset:hero", "alt": "A desk", "className": "rounded-2xl"}}]},
+            {"type": "figcaption", "props": {"className": "mt-3 flex items-center gap-2 px-2 text-xs text-muted-foreground"}, "children": [
+              {"type": "Clock", "props": {"className": "size-3.5 text-primary"}}, "Rendered in seconds, no engine call"]}]}]},
+        {"type": "section", "props": {"className": "border-y border-border/60 bg-muted/40 py-12"}, "children": [
+          {"type": "div", "props": {"className": "mx-auto grid max-w-7xl gap-6 px-6 sm:grid-cols-3"}, "children": [
+            {"type": "Metric", "props": {"collection": "products", "fn": "count", "label": "Products", "className": "flex flex-col gap-1"}},
+            {"type": "Metric", "props": {"collection": "products", "fn": "max", "field": "stock", "label": "Largest stock", "format": "count"}},
+            {"type": "Chart", "props": {"collection": "products", "kind": "bar", "fn": "sum", "field": "stock", "groupBy": "name", "className": "h-32 w-full"}}]}]},
+        {"type": "section", "props": {"className": "mx-auto max-w-7xl px-6 py-16"}, "children": [
+          {"type": "h2", "props": {"className": "heading font-heading text-3xl"}, "children": ["Three of the products"]},
+          {"type": "CollectionStrip", "props": {"collection": "products", "limit": 3, "sortBy": "name", "className": "mt-8"}, "children": [
+            {"type": "ItemList", "props": {"className": "grid gap-6 sm:grid-cols-3"}, "children": [
+              {"type": "article", "props": {"className": "rounded-2xl border bg-card p-4"}, "children": [
+                {"type": "RecordImage", "props": {"field": "image", "className": "rounded-xl"}},
+                {"type": "h3", "props": {"className": "mt-3 font-heading text-lg"}, "children": [{"type": "RecordField", "props": {"field": "name"}}]},
+                {"type": "RecordPrice", "props": {"field": "stock", "currency": "GBP", "className": "text-sm text-muted-foreground"}}]}]},
+            {"type": "Empty", "props": {"className": "text-sm text-muted-foreground"}, "children": ["No products yet."]}]}]},
+        {"type": "section", "props": {"className": "mx-auto max-w-7xl px-6 pb-16"}, "children": [
+          {"type": "CollectionBrowser", "props": {"collection": "products", "pageSize": 1, "sortFields": [{"field": "name", "label": "Name"}], "searchFields": ["name"]}, "children": [
+            {"type": "div", "props": {"className": "flex flex-wrap items-center gap-3"}, "children": [
+              {"type": "SearchBox", "props": {"placeholder": "Search products", "className": "max-w-xs"}},
+              {"type": "SortControl", "props": {"label": "Sort"}},
+              {"type": "ResultCount"}]},
+            {"type": "ItemList", "props": {"className": "mt-6 divide-y rounded-xl border"}, "children": [
+              {"type": "div", "props": {"className": "flex items-center justify-between p-3"}, "children": [
+                {"type": "RecordField", "props": {"field": "name", "className": "font-medium"}},
+                {"type": "RecordField", "props": {"field": "price"}}]}]},
+            {"type": "Pagination", "props": {"className": "mt-4 flex items-center justify-between text-sm"}}]}]},
+        {"type": "Tabs", "props": {"defaultValue": "why", "className": "mx-auto max-w-3xl px-6 pb-16"}, "children": [
+          {"type": "TabsList", "children": [
+            {"type": "TabsTrigger", "props": {"value": "why"}, "children": ["Why"]},
+            {"type": "TabsTrigger", "props": {"value": "how"}, "children": ["How"]}]},
+          {"type": "TabsContent", "props": {"value": "why"}, "children": [{"type": "p", "props": {"className": "text-muted-foreground"}, "children": ["The model designs the layout; code keeps the data exact."]}]},
+          {"type": "TabsContent", "props": {"value": "how"}, "children": [{"type": "p", "props": {"className": "text-muted-foreground"}, "children": ["One JSON tree per page, checked and bound by the generator."]}]}]},
+        {"type": "Faq", "props": {"title": "Questions about designed pages", "items": [{"question": "Can a tree use a library section?", "answer": "Yes: this one is a Faq node."}]}}
+      ]}
     }
   ],
   "content": [
     { "collection": "products", "records": [
-      { "name": "Blue mug", "price": "£12", "image": "asset:mug" }, { "name": "Green mug", "price": "£14", "image": "asset:mug" } ] },
+      { "id": "blue", "name": "Blue mug", "price": "£12", "stock": 12, "image": "asset:mug" },
+      { "id": "green", "name": "Green mug", "price": "£14", "stock": 30, "image": "asset:mug" } ] },
     { "collection": "news", "records": [
       { "title": "We launched", "summary": "The library is live.", "date": "2026-10-29" } ] },
     { "collection": "faq", "records": [ { "question": "Is it fast?", "answer": "Yes." } ] },

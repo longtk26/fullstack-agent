@@ -5,6 +5,8 @@ import { useEffect, useLayoutEffect } from "react";
 // A section reveals once this much of it is in view (or this many pixels, for sections taller than the screen).
 const VISIBLE_RATIO = 0.15;
 const VISIBLE_PX = 240;
+// Sections (Story 20.6) and the animated nodes of a designed page (Epic 21, `data-animate`).
+const REVEALED = "[data-bga-section]:not([data-revealed]), [data-animate]:not([data-revealed])";
 
 /**
  * Reveals the page's sections as they come into view, once each (Story 20.6). The page's inline script turned motion
@@ -25,9 +27,9 @@ export function MotionRoot() {
     const root = document.documentElement;
     if (root.dataset.motion !== "on") return;
     root.dataset.motionReady = "1";
-    const sections = document.querySelectorAll<HTMLElement>("[data-bga-section]:not([data-revealed])");
+    const targets = document.querySelectorAll<HTMLElement>(REVEALED);
     if (!("IntersectionObserver" in window)) {
-      sections.forEach((section) => section.setAttribute("data-revealed", ""));
+      targets.forEach((target) => target.setAttribute("data-revealed", ""));
       return;
     }
     const observer = new IntersectionObserver(
@@ -42,7 +44,7 @@ export function MotionRoot() {
       },
       { threshold: [0, 0.05, 0.1, VISIBLE_RATIO, 0.3] },
     );
-    sections.forEach((section) => observer.observe(section));
+    targets.forEach((target) => observer.observe(target));
     return () => observer.disconnect();
   }, []);
   return null;

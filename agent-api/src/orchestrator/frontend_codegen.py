@@ -398,12 +398,19 @@ def bindings_ts(contract: dict[str, Any] | None) -> str:
 # -- mocks -----------------------------------------------------------------------------------------------------------
 
 
+def _route_order(path: str) -> tuple[tuple[int, str], ...]:
+    """Sort key: at each segment a literal sorts before a parameter."""
+    return tuple((1 if _PATH_PARAM.fullmatch(segment) else 0, segment) for segment in path.strip("/").split("/"))
+
+
 def mock_operations(contract: dict[str, Any]) -> list[dict[str, Any]]:
     """What the generic MSW handlers need per operation (`src/mocks/handlers.ts` reads this)."""
     fixtures = (contract.get("x-bga") or {}).get("fixtures") or {}
     schemas = contract.get("components", {}).get("schemas", {})
     planned = []
-    for op in _ops(contract):
+    # MSW matches handlers in order: a literal segment (`/classes/today`) must come before a parameter
+    # (`/classes/:id`) at the same position, or the parameter answers it (404 for id "today").
+    for op in sorted(_ops(contract), key=lambda op: _route_order(op.path)):
         query = {p["name"]: p for p in op.params if p["in"] == "query"}
         sort = (query.get("sort") or {}).get("schema", {}).get("enum") or []
         limit = (query.get("limit") or {}).get("schema", {})
@@ -428,6 +435,7 @@ def mock_operations(contract: dict[str, Any]) -> list[dict[str, Any]]:
             "action": op.action,
             "mock": mock_plan,
             "sample": sample,
+            "aggregate": op.raw.get("x-bga", {}).get("aggregate"),  # Epic 21: what the mock computes
             "envelope": envelope,
             "primaryKey": pk,
             "status": next((int(s) for s in sorted(op.raw.get("responses") or {}) if s.startswith("2")), 200),

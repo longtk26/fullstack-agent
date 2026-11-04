@@ -34,6 +34,8 @@ class GenerationOptionsDto(CamelModel):
     generate_dockerfile: bool = True
     deploy_preview: bool = True
     engine: Literal["claude_code", "antigravity", "fake"] | None = None
+    # Story 18.10: the engine that drafts the specs of a one-click generation (empty: the server's draft default).
+    draft_engine: Literal["gemini_api", "claude_code", "antigravity", "fake"] | None = None
     timeout_seconds: int | None = Field(default=None, ge=60, le=7200)
     # Story 17.6: CRUD modules, models and tests from templates; false makes the engine write the whole backend.
     crud_from_templates: bool = True

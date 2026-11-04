@@ -46,8 +46,10 @@ def singularize(word: str) -> str:
         return _IRREGULAR_SINGULARS[lower]
     if lower.endswith("ies") and len(word) > 3:
         return word[:-3] + "y"
-    if re.search(r"(ses|xes|zes|ches|shes)$", lower):
-        return word[:-2]
+    if re.search(r"(sses|uses|xes|zzes|ches|shes)$", lower):
+        return word[:-2]  # classes, statuses, boxes, buzzes, branches, dishes
+    if re.search(r"(ses|zes)$", lower):
+        return word[:-1]  # expenses, courses, cases, prizes
     if lower.endswith("s") and not lower.endswith("ss"):
         return word[:-1]
     return word

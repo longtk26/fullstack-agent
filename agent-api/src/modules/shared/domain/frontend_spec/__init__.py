@@ -12,6 +12,7 @@ from .registry import (
 )
 from .schema_v1 import FrontendSpecV1
 from .section_props import LAYOUT_SECTIONS, MAX_DEPTH, SECTION_ITEMS, SECTION_PROPS
+from .trees import all_trees, check_tree, classify, fix_trees, scope_css, used_primitives, walk
 from .validator import (
     FrontendValidationResult,
     route_matches,
@@ -22,7 +23,14 @@ from .validator import (
 
 __all__ = [
     "add_manage_area",
+    "all_trees",
     "autofix_frontend_spec",
+    "check_tree",
+    "classify",
+    "fix_trees",
+    "scope_css",
+    "used_primitives",
+    "walk",
     "covered_operations",
     "remove_manage_area",
     "uncovered_operations",

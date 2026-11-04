@@ -125,6 +125,8 @@ type Layout = {
   shell?: "header-footer" | "sidebar" | "blank";
   header?: Header;
   footer?: Footer;
+  chrome?: TreeNode | null;
+  footerTree?: TreeNode | null;
 };
 
 // Story 20.6: how the site moves.
@@ -151,7 +153,9 @@ type Page = {
   purpose?: string | null;
   seo?: Seo | null;
   rhythm?: "uniform" | "alternate" | "dividers";
-  sections: Section[];
+  sections?: Section[];
+  tree?: TreeNode | null;
+  css?: string | null;
 };
 
 type Project = {
@@ -232,6 +236,13 @@ type Tone = {
   density?: number;
   weight?: number;
   seriousness?: number;
+};
+
+// Epic 21: one node of a designed page: an HTML element, a shadcn primitive, a Lucide icon, a library section or a data component, with Tailwind classes and props; children are nodes or text.
+type TreeNode = {
+  type: string;
+  props?: Record<string, unknown>;
+  children?: (TreeNode | string)[];
 };
 
 type Typography = {

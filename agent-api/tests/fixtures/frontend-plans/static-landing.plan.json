@@ -626,5 +626,6 @@
     },
     "radius": "0.375rem",
     "scale": "default"
-  }
+  },
+  "trees": false
 }

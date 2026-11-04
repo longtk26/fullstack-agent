@@ -12,7 +12,8 @@ import { summarizeSpec } from "../lib/spec-summary";
 import type { TSpecDraft, TValidationReport } from "../types";
 import { NotesPanel } from "./NotesPanel";
 
-const REPORT_LABELS = { backend: "BackendSpec", frontend: "FrontendSpec", pair: "Consistency" } as const;
+// The pair is settled in code while drafting (pair_fixes), so only the two specs are shown.
+const REPORT_LABELS = { backend: "BackendSpec", frontend: "FrontendSpec" } as const;
 
 type DraftResultProps = {
   draft: TSpecDraft;

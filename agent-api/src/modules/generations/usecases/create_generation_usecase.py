@@ -134,9 +134,13 @@ class CreateGenerationUsecase:
                 "deployPreview requires generateDockerfile", code=ErrorCode.OPTIONS_CONFLICT
             )
         engine = options.get("engine") or self.registry.default
-        if engine not in self.registry.names():
-            raise UnprocessableEntityException(f"Engine '{engine}' is not enabled", code=ErrorCode.ENGINE_UNKNOWN)
-        options = {**options, "engine": engine}
+        if engine not in self.registry.code_engine_names():
+            raise UnprocessableEntityException(f"Engine '{engine}' cannot generate code", code=ErrorCode.ENGINE_UNKNOWN)
+        # The fake engine drafts for itself (its drafts are bundled examples); others use the draft default.
+        draft_engine = options.get("draftEngine") or ("fake" if engine == "fake" else self.registry.draft_default)
+        if draft_engine not in self.registry.names():
+            raise UnprocessableEntityException(f"Engine '{draft_engine}' is not enabled", code=ErrorCode.ENGINE_UNKNOWN)
+        options = {**options, "engine": engine, "draftEngine": draft_engine}
         if inputs.mode in NEEDS_FRONTEND:
             options["frontend"] = options.get("frontend") or {
                 "runTests": True,
@@ -162,11 +166,13 @@ class CreateGenerationUsecase:
             draft_id = uuid.uuid4()
             gen_id = new_generation_id()
             options = {**options, "draftId": str(draft_id), "autoGenerate": True}
-            generation = await self._persist_from_requirement(user, inputs, options, engine, gen_id, draft_id, req)
+            generation = await self._persist_from_requirement(
+                user, inputs, options, engine, gen_id, draft_id, req, draft_engine
+            )
             if idempotency_redis_key:
                 await self.redis.set(idempotency_redis_key, generation.id, ex=IDEMPOTENCY_TTL_S, nx=True)
             # Queued draft, not generation:
-            await self.queue.enqueue_draft(str(draft_id), engine)
+            await self.queue.enqueue_draft(str(draft_id), draft_engine)
             await self.events.publish(
                 generation.id,
                 "status.changed",
@@ -198,6 +204,7 @@ class CreateGenerationUsecase:
         gen_id: str,
         draft_id: uuid.UUID,
         req: Requirement,
+        draft_engine: str,
     ) -> GenerationEntity:
         generation = self.generation_repo.create(
             GenerationEntity(
@@ -221,7 +228,7 @@ class CreateGenerationUsecase:
                 requirement_text=req.text,
                 requirement_format=req.format,
                 requirement_file_name=req.file_name,
-                engine=engine,
+                engine=draft_engine,
                 status=SpecDraftStatus.PENDING,
                 generation_id=gen_id,
             )

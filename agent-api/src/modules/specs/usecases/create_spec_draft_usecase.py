@@ -35,7 +35,7 @@ class CreateSpecDraftUsecase:
         self.registry = registry
 
     async def execute(self, user: UserEntity, request: DraftRequest) -> SpecDraftEntity:
-        engine = request.engine or self.registry.default
+        engine = request.engine or self.registry.draft_default
         if engine not in self.registry.names():
             raise UnprocessableEntityException(f"Engine '{engine}' is not enabled", code=ErrorCode.ENGINE_UNKNOWN)
         draft = self._persist(user, request, engine)

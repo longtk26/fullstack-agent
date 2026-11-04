@@ -9,6 +9,7 @@ from src.libs.redaction import default_redactor
 from .antigravity import AntigravityEngine
 from .claude_code import ClaudeCodeEngine
 from .fake_engine import FakeEngine, demo_scenario
+from .gemini_api import GeminiApiEngine
 from .port import EngineContext, EngineHealth, ICodeEngine
 from .prompts import PromptLibrary
 from .workspace import directory_sha256
@@ -19,12 +20,18 @@ class UnknownEngineError(LookupError):
 
 
 class EngineRegistry:
-    def __init__(self, engines: list[ICodeEngine], default: str):
+    def __init__(self, engines: list[ICodeEngine], default: str, draft_default: str | None = None):
         self.engines = {engine.name: engine for engine in engines}
         self.default = default
+        # Story 18.10: the engine that drafts specs when a request names none (an API engine when it is configured).
+        self.draft_default = draft_default if draft_default in self.engines else default
 
     def names(self) -> list[str]:
         return list(self.engines)
+
+    def code_engine_names(self) -> list[str]:
+        """Engines that can write a project (an API engine only drafts, Story 18.10)."""
+        return [name for name, engine in self.engines.items() if not engine.drafts_only]
 
     def get(self, name: str | None = None) -> ICodeEngine:
         key = name or self.default
@@ -94,9 +101,20 @@ def build_engine_registry(cfg=default_config) -> EngineRegistry:
             },
         ),
     ]
+    engines.append(
+        GeminiApiEngine(
+            api_key=cfg.gemini_api_key,
+            model=cfg.gemini_api_model,
+            allowed_root=root,
+            redactor=redactor,
+            default_timeout_s=cfg.gemini_api_timeout_seconds,
+            max_output_tokens=cfg.gemini_api_max_output_tokens,
+            thinking_budget=cfg.gemini_api_thinking_budget,
+        )
+    )
     if cfg.enable_fake_engine:
         engines.append(FakeEngine(allowed_root=root, scenario=demo_scenario(cfg.fake_engine_delay_seconds)))
-    return EngineRegistry(engines, default=cfg.default_engine)
+    return EngineRegistry(engines, default=cfg.default_engine, draft_default=cfg.draft_engine_name)
 
 
 @lru_cache

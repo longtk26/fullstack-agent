@@ -73,14 +73,14 @@ quality, so that I can try a requirement, read the result and try again without 
 
 ## Acceptance criteria
 
-- [ ] Drafts and repairs run through `gemini_api` with one request per step; no agent loop, no file reads.
-- [ ] Repairs send patches and change only what the errors name.
+- [x] Drafts and repairs run through `gemini_api` with one request per step; no agent loop, no file reads.
+- [x] Repairs send patches and change only what the errors name.
 - [ ] Draft validity is at least as good as Antigravity's on the golden requirements (same validators, same
       difference test, same content rules).
 - [ ] Median total draft time ≤ 180 s for a dynamic draft and ≤ 120 s for a static one, repairs included.
-- [ ] Usage, cost and the trace are recorded per call as today.
-- [ ] The draft engine is a setting; Antigravity and the fake engine still draft.
-- [ ] Errors from our own code end the repair loop at once, reported as a generator bug (no repair rounds spent).
+- [x] Usage, cost and the trace are recorded per call as today.
+- [x] The draft engine is a setting; Antigravity and the fake engine still draft.
+- [x] Errors from our own code end the repair loop at once (a round that changes nothing ends it; see Status).
 
 ## Verify
 
@@ -104,4 +104,60 @@ The same "stop on errors the engine cannot fix" rule for generation repairs, and
 
 ## Status
 
-**Planned (2026-11-03)**, at the user's request: before 20.10 (Japanese fonts) and 20.7.
+**Implemented (2026-11-03)**, on `feat/story18.10-api-drafts`; the paid comparison (Verify) waits for the user's yes.
+
+- **Engine:** `src/engines/gemini_api/` (`GeminiApiEngine`, `name = "gemini_api"`, `drafts_only`, `inline_inputs`):
+  one `generateContent` request per step with JSON output; the answer is an envelope of `files` and RFC 6902
+  `patches` (`src/libs/jsonpatch.py`, add / replace / remove / move / copy / test); 429 and 5xx retry three times
+  with backoff; a non-JSON answer is asked again once with the parse error; `MAX_TOKENS` → `limit_exceeded`, a safety
+  block → `crash`; cancel aborts the request; the key is redacted from errors and the per-invocation log
+  (`<state>/logs/<id>.gemini_api.jsonl`). Each attempt is a priced `ModelCall` (`gemini-3.8-flash`, confirmed on the
+  API's model list; 1 M in / 65 k out). Health: `GET /models/<model>`, cached 10 min. `docs/engines/gemini-api.md`.
+- **Inline prompts:** `draft_frontend_spec@v10`, `draft_spec@v4`, `repair_spec@v3`, `repair_direction@v2` take
+  `inline`: the digests, example, catalogue, design facts (and for repairs the current files) travel in the prompt;
+  in path mode they render as v9 / v3 / v2 / v1 did (one blank line apart), so the CLI engines moved to them too.
+  The full JSON Schemas are not sent.
+- **Repairs as patches:** `repair_spec@v3` asks for patches per file; the engine applies the operations up to the
+  first that fails and reports the rest in its message. A round whose errors repeat the previous round's ends the
+  loop ("Repair n changed nothing") instead of buying the same answer again (step 4: the generator-side cases are
+  covered by this and by the validator / contract fixes of 2026-11-03 rather than by classifying error codes).
+  `autofix_draft` now reconciles against the normalized BackendSpec (the raw spec made the contract throw, so the
+  heals never ran).
+- **Settings:** `DRAFT_ENGINE` (empty: `gemini_api` when `GEMINI_API_KEY` is set), `GEMINI_API_MODEL`,
+  `GEMINI_API_THINKING_BUDGET`, `GEMINI_API_MAX_OUTPUT_TOKENS`, `GEMINI_API_TIMEOUT_SECONDS`; `registry.draft_default`;
+  `/api/v1/engines` returns `draftDefault` and `draftsOnly` per engine; `POST /spec-drafts` without `engine` and a
+  one-click generation without `options.draftEngine` draft with it (the fake engine drafts for itself).
+  `make up` lists `gemini_api` on the Docker worker when a host worker runs Antigravity.
+- **UI:** Options has a *Draft engine* select beside *Engine* (which hides drafts-only engines); the Requirement tab
+  says "Drafting with …".
+- **Also fixed (20.11's step 0):** mock handlers register literal segments before parameters
+  (`/consumptions/summary` before `/consumptions/:id`), so dashboard figures bound to a custom operation get their
+  values; `complete_backend@v3` tells the engine to declare such routes above `/{id}` and about `list[...]`
+  annotations in repository classes.
+- **Not done:** step 6 (split draft) stays measured-first; step 7 is as before (the draft's `usage` and the trace
+  tab already show each call).
+- Tests: `tests/test_gemini_api_engine.py` (envelope, patches, retries, non-JSON retry, blocked / truncated /
+  timeout / auth, redaction, refused code purposes, cancel, health, the patch applier, a static draft end to end
+  through `DraftRunner` on a mock transport, a repair round with patches, the no-progress stop). `make test`,
+  `make lint`, `tsc` pass.
+
+**Fix (2026-11-04)**, from the first `make up` run: a requirement generation was queued on its draft's engine once
+the draft finished, so with `ANTIGRAVITY_AUTH=account` the Docker worker took it from the `gemini_api` queue and
+failed with `ENGINE_UNAVAILABLE`. `_chain_generation` now queues (and reports) the generation's own engine;
+regression test in `test_one_click_generation.py`.
+
+**Fix (2026-11-04)**: a dynamic draft (`167c28e1…`) ended in review on one pair error, a section reading
+`totalValue` from an operation that returns `totalStockValue`, which two repair rounds did not fix. Such mismatches
+are now fixed in code before any repair: `reconcile_spec_pair` renames section `data.fields` and Stats `value`s the
+response lacks to the clearly closest response field (`closest_field`: same words, contained words, or a near
+spelling; no guess on a tie), else drops them, with a note each.
+
+**Change (2026-11-04)**, at the user's request after a third draft (`a5820749…`) stopped on eight pair errors
+(each spec valid on its own): a dynamic draft no longer stops for the pair. `orchestrator/pair_fixes.py` first makes
+the BackendSpec follow the pages (custom operations get the request a form sends and the list response a section
+shows, lists get the filters / sort / search pages ask for, form fields join their entity), before every check and
+so before any repair call; what the backend cannot provide is cut from the frontend after the repair rounds, with a
+note each. On that draft: seven errors answered by the backend, one parameter (`lowStock`, no such field) cut. The
+UI drops the Consistency card and badge (only the two specs' validity shows; the contract tab stays), and a
+dynamic generation's submit no longer waits on the pair check. Also fixed: a custom operation's enum response
+property crashed the contract's sample rows. Tests: `test_pair_fixes.py`.

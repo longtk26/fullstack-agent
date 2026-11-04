@@ -1,10 +1,12 @@
 import { z } from "zod";
 
-export const ENGINE_NAMES = ["claude_code", "antigravity", "fake"] as const;
+export const ENGINE_NAMES = ["claude_code", "antigravity", "gemini_api", "fake"] as const;
 
 export const generationOptionsSchema = z
   .object({
     engine: z.enum(ENGINE_NAMES),
+    // Story 18.10: the engine that drafts specs from a requirement (an API engine by default; it writes no code).
+    draftEngine: z.enum(ENGINE_NAMES),
     maxRepairAttempts: z.number().int().min(1, "At least 1").max(10, "At most 10"),
     runTests: z.boolean(),
     generateDockerfile: z.boolean(),

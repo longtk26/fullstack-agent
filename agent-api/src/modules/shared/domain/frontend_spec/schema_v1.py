@@ -155,10 +155,22 @@ class Footer(SpecModel):
     links: list[NavLink] = []
 
 
+class TreeNode(SpecModel):
+    """Epic 21: one node of a designed page: an HTML element, a shadcn primitive, a Lucide icon, a library section
+    or a data component, with Tailwind classes and props; children are nodes or text."""
+
+    type: str = Field(pattern=r"^[a-zA-Z][A-Za-z0-9-]*$", max_length=63)
+    props: dict[str, Any] = {}
+    children: list["TreeNode | str"] = []
+
+
 class Layout(SpecModel):
     shell: Literal["header-footer", "sidebar", "blank"] = "header-footer"
     header: Header = Header()
     footer: Footer = Footer()
+    # Epic 21: designed chrome and footer trees; when present they replace the header's and footer's own rendering.
+    chrome: TreeNode | None = None
+    footer_tree: TreeNode | None = Field(default=None, alias="footerTree")
 
 
 class Seo(SpecModel):
@@ -207,7 +219,17 @@ class Page(SpecModel):
     # Story 20.2: how sections follow each other. uniform: each section's own background; alternate: content sections
     # without a background alternate the page colour and the muted tone; dividers: a hairline between sections.
     rhythm: Literal["uniform", "alternate", "dividers"] = "uniform"
-    sections: list[Section] = Field(min_length=1)
+    sections: list[Section] = []
+    # Epic 21: a page designed as an element tree (Frontend-Agent's site JSON), with its own scoped CSS. A page has
+    # sections or a tree; with both, the tree is rendered and the sections are its content outline.
+    tree: TreeNode | None = None
+    css: str | None = Field(default=None, max_length=20_000)
+
+    @model_validator(mode="after")
+    def _sections_or_tree(self):
+        if not self.sections and self.tree is None:
+            raise ValueError("a page needs sections or a tree")
+        return self
 
 
 class Component(SpecModel):

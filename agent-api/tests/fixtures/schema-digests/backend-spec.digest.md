@@ -16,6 +16,16 @@ type BackendSpec = {
   x-frontendBindings?: FrontendBinding[];
 };
 
+// Epic 21: a figure computed from an entity's records, written from templates like CRUD (no engine): `fn` of `field` (count needs none), optionally grouped by a field, limited to the current period of a date field, and filtered by equality.
+type Aggregate = {
+  fn: "count" | "sum" | "avg" | "min" | "max";
+  field?: string | null;
+  groupBy?: string | null;
+  period?: "day" | "week" | "month" | "year" | null;
+  dateField?: string | null;
+  filters?: Record<string, unknown>;
+};
+
 type Auth = {
   type: string;
   userEntity?: string;
@@ -76,8 +86,9 @@ type Integration = {
 
 type Operation = {
   operationId: string;
-  type: "crud" | "custom";
+  type: "crud" | "custom" | "aggregate";
   action?: "create" | "get" | "list" | "update" | "delete" | null;
+  aggregate?: Aggregate | null;
   entity?: string | null;
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   path: string;
