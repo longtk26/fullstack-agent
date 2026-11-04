@@ -19,10 +19,10 @@ from src.engines.fake_engine import FakeEngine, demo_scenario
 from src.libs.queue import PreviewCommandBus
 from src.libs.redaction import Redactor
 from src.modules.generations.infrastructure.adapters import EventPublisher
-from src.orchestrator.contract import build_contract, dump_contract
+from src.orchestrator.backend.validation import CheckResult, ValidationOutcome, ValidationRequest
+from src.orchestrator.integration.contract import build_contract, dump_contract
 from src.orchestrator.previews import PreviewClient, PreviewService
 from src.orchestrator.store import JobStore
-from src.orchestrator.validation import CheckResult, ValidationOutcome, ValidationRequest
 from src.sandbox import ExecResult, ISandbox, ISandboxProvider
 from workflow_helpers import (
     TWO_ENTITY,

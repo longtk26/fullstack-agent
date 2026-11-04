@@ -4,7 +4,7 @@ from fastapi import Depends
 
 from src.libs.decorators.transactional_decorator import Transactional
 from src.modules.generations.ports.output import IComponentCacheRepoDep
-from src.orchestrator.component_cache import drop_files
+from src.orchestrator.frontend.component_cache import drop_files
 
 
 class PurgeComponentCacheUsecase:

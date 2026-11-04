@@ -12,11 +12,12 @@ from src.modules.shared.domain.entities import ValidationRunEntity
 from src.modules.shared.domain.enums import GenerationMode, LaneStatus
 from src.modules.shared.domain.frontend_spec import iter_sections
 
-from .autofix import autofix_before_validation
-from .component_cache import CUSTOM_DIR, drop_files
-from .context import EngineFailure, JobContext
-from .custom_components import CustomComponents, Resolved
-from .frontend_assets import (
+from ..autofix import autofix_before_validation
+from ..backend.validation import generator_bug_files, write_report
+from ..context import EngineFailure, JobContext
+from ..integration.integrate import package_lane_preview
+from ..state import GenerationState, NodeResult, Outcome
+from .assets import (
     copy_uploads,
     due_fallbacks,
     fall_back,
@@ -24,12 +25,11 @@ from .frontend_assets import (
     redraw_after_repair,
     write_registry,
 )
-from .frontend_planner import dump_frontend_plan, plan_frontend
-from .frontend_scaffold import OWNED_INFO, scaffold_frontend
-from .frontend_validation import FrontendValidationRequest
-from .integration import package_lane_preview
-from .state import GenerationState, Outcome
-from .validation import generator_bug_files, write_report
+from .component_cache import CUSTOM_DIR, drop_files
+from .custom_components import CustomComponents, Resolved
+from .planner import dump_frontend_plan, plan_frontend
+from .scaffold import OWNED_INFO, scaffold_frontend
+from .validation import FrontendValidationRequest
 
 logger = get_logger(__name__)
 
@@ -37,7 +37,6 @@ DIGEST_LIMIT = 30_000
 FRONTEND_PROMPTS = {"generate_frontend_shell": "v1", "generate_frontend_page": "v1", "repair_frontend": "v2"}
 PLAN_REF = ".bga/frontend-plan.json"
 CHECK_PREFIX = "frontend:"
-NodeResult = tuple[dict[str, Any], dict[str, Any]]
 
 
 def _json(path: Path) -> dict[str, Any]:

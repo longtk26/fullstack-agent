@@ -2,7 +2,8 @@
 
 PNG, JPEG and WebP are decoded and re-encoded with Pillow, which drops their metadata (EXIF, GPS, comments) after
 applying the camera orientation, and shrinks them to `MAX_SIDE` pixels on the longest side. SVGs must pass the same
-safety rules as drawn assets (orchestrator/svg_assets.py) except the theme-colour rule, and are kept as uploaded.
+safety rules as drawn assets (orchestrator/frontend/svg_assets.py) except the theme-colour rule, and are kept as
+uploaded.
 """
 
 import io
@@ -10,7 +11,7 @@ from dataclasses import dataclass
 
 from PIL import Image, ImageOps, UnidentifiedImageError
 
-from src.orchestrator.svg_assets import SvgIssue, check_svg, parse_svg
+from src.orchestrator.frontend.svg_assets import SvgIssue, check_svg, parse_svg
 
 MAX_SIDE = 2_560
 MAX_PIXELS = 50_000_000  # Pillow's decompression-bomb guard, below its own default

@@ -11,8 +11,8 @@ from src.configs import config
 from src.engines import PromptLibrary
 from src.engines.fake_trees import fake_tree
 from src.modules.shared.domain.frontend_spec import validate_frontend_spec_data
-from src.orchestrator.frontend_planner import plan_frontend
-from src.orchestrator.tree_drafting import apply_tree_files, complete_backend_for_trees, prompt_context, tree_requests
+from src.orchestrator.drafting.trees import apply_tree_files, complete_backend_for_trees, prompt_context, tree_requests
+from src.orchestrator.frontend.planner import plan_frontend
 
 LANDING = json.loads((EXAMPLES / "frontend-specs" / "static-landing.json").read_text())
 TRACKER = json.loads((EXAMPLES / "frontend-specs" / "project-tracker-dynamic.json").read_text())
@@ -71,12 +71,12 @@ def test_a_dynamic_draft_designs_its_pages_and_binds_them_to_the_contract(client
     pages = draft["frontend_spec"]["pages"]
     assert all(page.get("tree") for page in pages)
     from src.modules.shared.domain.backend_spec import validate_spec_data
-    from src.orchestrator.contract import build_contract
+    from src.orchestrator.integration.contract import build_contract
 
     contract = build_contract(validate_spec_data(draft["backend_spec"]).normalized)
     plan = plan_frontend(validate_frontend_spec_data(draft["frontend_spec"]).normalized, contract)
     assert plan["rendering"] == "renderer" and plan["trees"] is True
-    from src.orchestrator.frontend_renderer import site_data
+    from src.orchestrator.frontend.renderer import site_data
 
     site = site_data(plan, validate_frontend_spec_data(draft["frontend_spec"]).normalized, contract)
     bound = [

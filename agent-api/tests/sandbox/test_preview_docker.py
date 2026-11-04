@@ -20,9 +20,9 @@ from src.libs.queue import PreviewCommandBus
 from src.libs.redaction import Redactor
 from src.modules.generations.infrastructure.adapters import EventPublisher
 from src.modules.shared.domain.enums import PreviewStatus
+from src.orchestrator.backend.validation import SandboxValidationRunner
 from src.orchestrator.previews import PreviewService
 from src.orchestrator.store import JobStore
-from src.orchestrator.validation import SandboxValidationRunner
 from src.preview.docker_preview import DockerPreviewRuntime, names
 from src.sandbox import DockerSandboxProvider
 from tests.generation_helpers import REPO

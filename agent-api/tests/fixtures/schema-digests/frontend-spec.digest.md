@@ -229,7 +229,7 @@ type ThemeDirection = {
   seed?: number | null;
 };
 
-// A direction's feel on five scales, 1–5 (Story 20.3, `orchestrator/design_tone.py`).
+// A direction's feel on five scales, 1–5 (Story 20.3, `orchestrator/drafting/design_tone.py`).
 type Tone = {
   energy?: number;
   finish?: number;

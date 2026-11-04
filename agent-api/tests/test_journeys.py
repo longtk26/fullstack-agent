@@ -18,12 +18,12 @@ from src.modules.shared.domain.frontend_spec import (
     validate_frontend_spec_data,
 )
 from src.orchestrator.checks.consistency import check_spec_pair
-from src.orchestrator.frontend_validation import (
+from src.orchestrator.frontend.validation import (
     FrontendValidationRequest,
     SandboxFrontendValidationRunner,
     StaticFrontendValidationRunner,
 )
-from src.orchestrator.integration import run_playwright_live_journeys
+from src.orchestrator.integration.integrate import run_playwright_live_journeys
 from src.sandbox import ExecResult, ISandbox
 from tests.workflow_helpers import cli_invocations, generation, run_job
 
@@ -287,7 +287,7 @@ def test_golden_flashcards_pair_validates_cleanly():
     assert len(errors) == 0, f"Pair errors: {errors}"
 
     # With manage area, 0 warnings as well
-    from src.orchestrator.contract import build_contract
+    from src.orchestrator.integration.contract import build_contract
 
     contract = build_contract(be_res.normalized)
     managed_fe, _ = add_manage_area(fe_res.normalized, contract)

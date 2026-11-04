@@ -8,7 +8,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from src.orchestrator.frontend_scaffold import OWNED_INFO, changed_owned
+from src.orchestrator.frontend.scaffold import OWNED_INFO, changed_owned
 
 SKIP_DIRS = {"node_modules", ".next", "out", ".git", ".bga", ".claude", ".agents", "test-results", "playwright-report"}
 OWNED_PREFIXES = ("src/components/ui/", "src/lib/", "src/mocks/", "src/content/", "tests/")

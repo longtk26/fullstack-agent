@@ -27,15 +27,16 @@ from src.modules.shared.domain.generation_modes import (
 from src.sandbox import ISandboxProvider, SandboxError
 
 from . import tracing
+from .backend.nodes import PROMPT_VERSIONS
+from .backend.scaffold import TemplateDrift
+from .backend.validation import IValidationRunner
 from .context import EngineFailure, JobCancelled, JobContext
-from .frontend_scaffold import FrontendTemplateDrift
-from .frontend_validation import StaticFrontendValidationRunner
+from .frontend.scaffold import FrontendTemplateDrift
+from .frontend.validation import StaticFrontendValidationRunner
 from .graph import build_graph
-from .nodes import PROMPT_VERSIONS, write_artifacts
-from .scaffold import TemplateDrift
+from .nodes import write_artifacts
 from .state import GenerationState, Outcome
 from .store import JobStore
-from .validation import IValidationRunner
 from .workspace import DiskLimitExceeded, WorkspaceManager
 
 logger = get_logger(__name__)

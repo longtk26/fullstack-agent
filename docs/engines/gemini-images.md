@@ -104,7 +104,7 @@ When refused, the model output step contains only a `text` item explaining the r
 
 ## How the agent uses it (2026-11-02)
 
-- Photos are made at the end of drafting only (`orchestrator/drafting.py`), at most `FRONTEND_MAX_PHOTOS` (default 8)
+- Photos are made at the end of drafting only (`orchestrator/drafting/drafts.py`), at most `FRONTEND_MAX_PHOTOS` (default 8)
   paid calls per draft; the rest stay placeholders with an assumption note. The generation graph has no
   `generate_assets` node (removed in 1e224de), so drawings (`source: "generate"`) render as placeholders.
 - `source: "photo"` is valid for kinds `image`, `illustration` and `logo` (logos and illustrations get their own

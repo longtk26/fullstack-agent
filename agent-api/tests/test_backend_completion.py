@@ -7,11 +7,11 @@ from types import SimpleNamespace
 
 from src.engines import PromptLibrary
 from src.engines.fake_engine import FakeEngine, demo_scenario
-from src.orchestrator.backend_codegen import codegen_gaps, database_files, module_files
-from src.orchestrator.backend_completion import complete_modules, module_context, related_entities
-from src.orchestrator.contract import build_contract
-from src.orchestrator.frontend_validation import conventions_check, only_in_tests, typescript_errors
-from src.orchestrator.planner import build_plan
+from src.orchestrator.backend.codegen import codegen_gaps, database_files, module_files
+from src.orchestrator.backend.completion import complete_modules, module_context, related_entities
+from src.orchestrator.backend.planner import build_plan
+from src.orchestrator.frontend.validation import conventions_check, only_in_tests, typescript_errors
+from src.orchestrator.integration.contract import build_contract
 from tests.generation_helpers import normalized
 from tests.workflow_helpers import events, node_runs, run_job, submit
 
@@ -196,10 +196,10 @@ def test_flashcards_modules_complete_in_parallel(client, user_headers, tmp_path)
 
 def test_frontend_conventions_findings_are_a_warning(tmp_path, monkeypatch):
     finding = {"rule": "type-not-interface", "file": "src/lib/a.ts", "message": "use `type`"}
-    monkeypatch.setattr("src.orchestrator.frontend_validation.check_frontend_conventions", lambda *_: [finding])
+    monkeypatch.setattr("src.orchestrator.frontend.validation.check_frontend_conventions", lambda *_: [finding])
     result = conventions_check(tmp_path, {})
     assert result.status == "warning" and result.details == [finding]
-    monkeypatch.setattr("src.orchestrator.frontend_validation.check_frontend_conventions", lambda *_: [])
+    monkeypatch.setattr("src.orchestrator.frontend.validation.check_frontend_conventions", lambda *_: [])
     assert conventions_check(tmp_path, {}).status == "passed"
 
 

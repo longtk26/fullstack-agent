@@ -313,7 +313,7 @@ def fake_tree(page: dict[str, Any], spec: dict[str, Any], seed: int) -> dict[str
 
 
 def write_tree_fixture(workdir: Path, request_file: Path) -> list[str]:
-    """Writes the tree `.bga/tree-<page>.json` asks for (orchestrator/tree_drafting.py) from the current spec."""
+    """Writes the tree `.bga/tree-<page>.json` asks for (orchestrator/drafting/trees.py) from the current spec."""
     request = json.loads(request_file.read_text())
     spec = json.loads((workdir / "frontend-spec.json").read_text())
     seed = int(json.loads((workdir / ".bga" / "draft.json").read_text()).get("designSeed") or 0)

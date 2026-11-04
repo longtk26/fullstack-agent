@@ -30,13 +30,13 @@ from src.configs import config, get_logger
 from src.configs.config import uploads_dir
 from src.images import generate_single_photo, get_image_generator
 
+from ..backend.validation import CheckResult
+from ..context import EngineFailure, JobContext
+from ..state import GenerationState
 from .asset_registry import ASSETS_FILE, assets_ts
-from .context import EngineFailure, JobContext
-from .frontend_planner import asset_component, dump_frontend_plan
-from .frontend_scaffold import drop_owned, update_owned
-from .state import GenerationState
+from .planner import asset_component, dump_frontend_plan
+from .scaffold import drop_owned, update_owned
 from .svg_assets import THEME_TOKENS, VIEWBOXES, check_component, check_svg, svg_to_tsx
-from .validation import CheckResult
 
 logger = get_logger(__name__)
 PROMPT_VERSION = "v1"  # generate_assets

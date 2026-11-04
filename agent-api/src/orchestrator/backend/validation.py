@@ -34,12 +34,12 @@ from pydantic import BaseModel
 
 from src.sandbox import ExecResult, ISandbox
 
-from . import tracing
-from .checks.conformance import compare_contract
-from .checks.conventions import check_conventions
-from .checks.parity import compare_openapi, compare_schema, missing_tests
-from .checks.parsers import junit_failures, last_lines, ruff_failures, traceback_frames
-from .checks.smoke import SMOKE_FILE, SMOKE_MARKER, SMOKE_SCRIPT, SMOKE_SCRIPT_FILE, judge, rule_answer, smoke_calls
+from .. import tracing
+from ..checks.conformance import compare_contract
+from ..checks.conventions import check_conventions
+from ..checks.parity import compare_openapi, compare_schema, missing_tests
+from ..checks.parsers import junit_failures, last_lines, ruff_failures, traceback_frames
+from ..checks.smoke import SMOKE_FILE, SMOKE_MARKER, SMOKE_SCRIPT, SMOKE_SCRIPT_FILE, judge, rule_answer, smoke_calls
 from .migrations import ensure_migration, reflect_schema, roundtrip_migration, upgrade_migration
 
 CHECKS = ("syntax", "lint", "deps", "startup", "migration", "conventions", "tests", "openapi")
@@ -381,7 +381,7 @@ class SandboxValidationRunner(IValidationRunner):
 
     async def _smoke(self, request: ValidationRequest) -> CheckResult | None:
         """Story 18.11: each custom operation called once against the seeded database (none: nothing to call)."""
-        from .packaging import build_contract_seed
+        from ..packaging import build_contract_seed
 
         contract = request.smoke_contract
         calls, skipped = smoke_calls(contract, request.plan)

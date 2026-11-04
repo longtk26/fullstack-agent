@@ -1,9 +1,9 @@
 import copy
 
+from src.orchestrator.backend.migrations import add_enum_drops
 from src.orchestrator.checks.conventions import check_conventions
 from src.orchestrator.checks.parity import compare_openapi, compare_schema, missing_tests
 from src.orchestrator.checks.parsers import junit_failures, ruff_failures
-from src.orchestrator.migrations import add_enum_drops
 from tests.generation_helpers import golden_project, two_entity_plan
 
 # What reflect_schema.py printed for the golden project in the sandbox.

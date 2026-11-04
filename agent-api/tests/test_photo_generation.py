@@ -23,7 +23,7 @@ from src.images import (
     photos_enabled,
     post_process_photo,
 )
-from src.orchestrator.frontend_assets import _run_photos, generate_assets
+from src.orchestrator.frontend.assets import _run_photos, generate_assets
 
 
 def test_build_photo_prompt():
@@ -231,7 +231,7 @@ def test_regenerate_skips_the_cache_read_but_refreshes_it(tmp_path, monkeypatch)
 def test_generate_assets_with_photos_and_remade_uploads(tmp_path, monkeypatch):
     from unittest.mock import MagicMock
 
-    from src.orchestrator.frontend_scaffold import record_owned
+    from src.orchestrator.frontend.scaffold import record_owned
 
     async def _run():
         monkeypatch.setattr(config, "artifact_root", str(tmp_path))

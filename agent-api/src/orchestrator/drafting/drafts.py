@@ -56,11 +56,12 @@ from src.modules.shared.domain.frontend_spec.assets import MAX_GENERATED_ASSETS,
 from src.modules.shared.domain.frontend_spec.copy_rules import phrase_list
 from src.modules.shared.domain.generation_modes import initial_lanes
 from src.modules.shared.domain.schema_digest import schema_digest
-from src.orchestrator import tree_drafting
+from src.orchestrator.drafting import trees as tree_drafting
 
-from . import tracing
-from .checks.consistency import check_spec_pair
-from .contract import build_contract
+from .. import tracing
+from ..checks.consistency import check_spec_pair
+from ..integration.contract import build_contract
+from ..store import JobStore
 from .design_cards import (
     MAX_SEED,
     best_fit,
@@ -87,7 +88,6 @@ from .design_direction import (
     pick,
 )
 from .pair_fixes import adapt_backend, prune_frontend
-from .store import JobStore
 
 logger = get_logger(__name__)
 

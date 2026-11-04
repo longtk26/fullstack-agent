@@ -8,7 +8,7 @@ from generation_helpers import EXAMPLES
 from test_drafting import _create, _run
 
 from src.engines.fake_engine import FakeEngine, FakeStep
-from src.orchestrator.pair_fixes import adapt_backend, pair_errors, prune_frontend
+from src.orchestrator.drafting.pair_fixes import adapt_backend, pair_errors, prune_frontend
 
 FRONTEND = json.loads((EXAMPLES / "frontend-specs" / "project-tracker-dynamic.json").read_text())
 BACKEND = json.loads((EXAMPLES / "specs" / "two-entity.json").read_text())

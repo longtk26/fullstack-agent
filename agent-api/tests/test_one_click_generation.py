@@ -28,7 +28,7 @@ from src.modules.shared.infrastructure.models import (
     SpecDraftModel,
     UploadModel,
 )
-from src.orchestrator.drafting import DraftRunner
+from src.orchestrator.drafting.drafts import DraftRunner
 from src.orchestrator.store import JobStore
 from src.orchestrator.worker_service import WorkerService
 from src.orchestrator.workspace import WorkspaceManager

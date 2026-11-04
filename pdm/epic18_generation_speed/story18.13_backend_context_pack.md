@@ -52,7 +52,7 @@ complete in parallel; a planted frontend `conventions` finding gives `COMPLETED_
 
 **Done (2026-11-04)**, except the paid measurement (open, only with the user's yes).
 
-- **Context pack** (`orchestrator/backend_completion.py`, `module_context`): the new `complete_backend@v5` inlines,
+- **Context pack** (`orchestrator/backend/completion.py`, `module_context`): the new `complete_backend@v5` inlines,
   per module, each custom operation's plan entry, spec entry, named rules and contract operation (local `$ref`s
   resolved, mock plans and samples left out); the module's generated source files whole (up to 48 KB, else the files
   the engine edits plus one example of each kind; empty packages skipped); its entity and model; the entities and

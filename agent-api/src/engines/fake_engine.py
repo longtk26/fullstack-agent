@@ -186,7 +186,8 @@ def _tree_request_id(prompt: str) -> str:
 
 
 def write_draft_fixture(workdir: Path) -> list[str]:
-    """The draft the orchestrator asked for in `.bga/draft.json` (orchestrator/drafting.py), from the examples."""
+    """The draft the orchestrator asked for in `.bga/draft.json` (`orchestrator/drafting/drafts.py`), from the
+    examples."""
     from src.configs import config
 
     inputs = workdir / ".bga"

@@ -26,7 +26,7 @@ def concepts() -> list[dict[str, Any]]:
 
 
 def _fields(card: dict[str, Any]) -> dict[str, str]:
-    from src.orchestrator.design_diversity import hue_family
+    from src.orchestrator.drafting.design_diversity import hue_family
 
     return {
         "hero": card["heroLayout"],
@@ -37,7 +37,7 @@ def _fields(card: dict[str, Any]) -> dict[str, str]:
 
 
 def _differs(card: dict[str, Any], picked: list[dict[str, Any]]) -> bool:
-    from src.orchestrator.design_diversity import shared_fields
+    from src.orchestrator.drafting.design_diversity import shared_fields
 
     if any(card["heroLayout"] == other["heroLayout"] for other in picked):
         return False

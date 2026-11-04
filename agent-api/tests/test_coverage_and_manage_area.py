@@ -10,7 +10,7 @@ from src.modules.shared.domain.frontend_spec import (
     validate_frontend_spec_data,
 )
 from src.orchestrator.checks.consistency import check_spec_pair
-from src.orchestrator.contract import build_contract
+from src.orchestrator.integration.contract import build_contract
 
 
 def _make_measured_case_backend() -> dict[str, Any]:

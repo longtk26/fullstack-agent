@@ -17,10 +17,10 @@ from pathlib import Path
 from typing import Any
 
 from .asset_registry import external_images_note
-from .frontend_codegen import generated_files
-from .frontend_renderer import library_files
+from .codegen import generated_files
+from .renderer import library_files
 
-TEMPLATES = Path(__file__).resolve().parents[2] / "templates"
+TEMPLATES = Path(__file__).resolve().parents[3] / "templates"
 BASE_DIR = TEMPLATES / "nextjs_base"
 OVERLAY_DIR = TEMPLATES / "nextjs_overlay"
 SCAFFOLD_INFO = ".bga/scaffold.json"

@@ -8,9 +8,9 @@ from pathlib import Path
 import pytest
 from generation_helpers import EXAMPLES, normalized
 
+from src.orchestrator.backend.planner import build_plan, planned_operations
 from src.orchestrator.checks.conformance import compare_contract
-from src.orchestrator.contract import build_contract, contract_operations, dump_contract, resolve
-from src.orchestrator.planner import build_plan, planned_operations
+from src.orchestrator.integration.contract import build_contract, contract_operations, dump_contract, resolve
 
 SNAPSHOTS = Path(__file__).parent / "fixtures" / "contracts"
 OPENAPI = Path(__file__).parent / "fixtures" / "openapi"
@@ -172,7 +172,7 @@ def test_conformance_reports_each_kind_of_drift(label, change, operation, messag
 
 def test_custom_operation_mock_plans():
     """Story 19.5: every custom operation gets a mock plan in x-bga.mock."""
-    from src.orchestrator.frontend_codegen import mock_operations
+    from src.orchestrator.frontend.codegen import mock_operations
 
     base_spec = normalized(EXAMPLES / "specs" / "two-entity.json")
     spec = copy.deepcopy(base_spec)
@@ -273,7 +273,7 @@ def test_a_custom_list_with_its_own_fields_is_a_list_operation():
     assert schema["type"] == "array" and set(schema["items"]["properties"]) == {"title", "late"}
     assert operation["x-bga"]["action"] == "list" and operation["x-bga"]["mock"] == "sample"
     assert len(operation["x-bga"]["sample"]) == 3, "the mock serves a list"
-    from src.orchestrator.frontend_codegen import api_unit_test
+    from src.orchestrator.frontend.codegen import api_unit_test
 
     test = api_unit_test(build_contract(spec))
     assert "const rows = await boardTasks();\n    expect(rows.length)" in test, "no page.total on a bare list"

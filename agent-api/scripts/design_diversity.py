@@ -35,10 +35,10 @@ from src.libs.database import db_session_manager
 from src.modules.shared.domain.frontend_spec.copy_rules import stock_copy
 from src.modules.shared.domain.frontend_spec.normalizer import iter_sections
 from src.modules.shared.infrastructure.models import SpecDraftModel, UserModel
-from src.orchestrator import design_diversity as dd
-from src.orchestrator.design_cards import compared_fields, composition_problems, layout_problems
-from src.orchestrator.design_direction import apply_direction, design_data, home_order, rank_products
-from src.orchestrator.drafting import DraftRunner
+from src.orchestrator.drafting import design_diversity as dd
+from src.orchestrator.drafting.design_cards import compared_fields, composition_problems, layout_problems
+from src.orchestrator.drafting.design_direction import apply_direction, design_data, home_order, rank_products
+from src.orchestrator.drafting.drafts import DraftRunner
 from src.orchestrator.store import JobStore
 
 from .design_check_fixture import failures

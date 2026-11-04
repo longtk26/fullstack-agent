@@ -17,7 +17,7 @@ from typing import Any
 
 from src.modules.shared.domain.backend_spec.naming import to_snake
 
-from .planner import build_plan
+from ..backend.planner import build_plan
 
 CONTRACT_VERSION = "1"
 OPENAPI_VERSION = "3.1.0"

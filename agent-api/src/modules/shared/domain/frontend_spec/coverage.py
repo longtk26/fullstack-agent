@@ -12,7 +12,7 @@ import re
 from typing import Any
 
 from src.modules.shared.domain.backend_spec.naming import to_snake
-from src.orchestrator.contract import contract_operations, resolve
+from src.orchestrator.integration.contract import contract_operations, resolve
 
 
 def _label(identifier: str) -> str:

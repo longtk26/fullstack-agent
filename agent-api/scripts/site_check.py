@@ -43,7 +43,7 @@ def default_routes(plan: dict[str, Any]) -> list[str]:
 
 def _contract(backend: dict[str, Any] | None, name: str) -> dict[str, Any] | None:
     from src.modules.shared.domain.backend_spec import validate_spec_data
-    from src.orchestrator.contract import build_contract
+    from src.orchestrator.integration.contract import build_contract
 
     checked = validate_spec_data(backend) if backend else None
     if checked is None or checked.normalized is None:
@@ -65,9 +65,9 @@ async def check_site(
     `default_routes`). The screenshots and `report.json` land in `shots`; returns the report, or None when the spec
     or the build failed (the reason is printed). `motion` adds the motion and no-JavaScript passes (Story 20.6)."""
     from src.modules.shared.domain.frontend_spec import validate_frontend_spec_data
-    from src.orchestrator.frontend_planner import plan_frontend
-    from src.orchestrator.frontend_scaffold import scaffold_frontend
-    from src.orchestrator.frontend_validation import FrontendValidationRequest, SandboxFrontendValidationRunner
+    from src.orchestrator.frontend.planner import plan_frontend
+    from src.orchestrator.frontend.scaffold import scaffold_frontend
+    from src.orchestrator.frontend.validation import FrontendValidationRequest, SandboxFrontendValidationRunner
     from src.sandbox import DockerSandboxProvider, docker_sandbox
 
     docker_sandbox.instance_id = lambda: DEV_INSTANCE

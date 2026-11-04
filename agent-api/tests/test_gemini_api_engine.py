@@ -14,7 +14,7 @@ from src.engines import EngineContext, EngineErrorReason, EngineRegistry, Engine
 from src.engines.gemini_api import GeminiApiEngine
 from src.libs.jsonpatch import PatchError, apply_patch
 from src.libs.redaction import Redactor
-from src.orchestrator.drafting import DraftRunner
+from src.orchestrator.drafting.drafts import DraftRunner
 from src.orchestrator.store import JobStore
 
 KEY = "AIzaSyTESTKEY0123456789abcdefghijk"

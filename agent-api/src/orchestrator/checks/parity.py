@@ -4,7 +4,7 @@ import ast
 from pathlib import Path
 from typing import Any
 
-from src.orchestrator.planner import planned_operations
+from src.orchestrator.backend.planner import planned_operations
 
 IGNORED_PATHS = {"/health"}
 

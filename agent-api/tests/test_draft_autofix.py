@@ -5,7 +5,7 @@ from pathlib import Path
 
 from src.engines.fake_engine import FakeEngine, FakeStep
 from src.modules.shared.domain.frontend_spec import autofix_frontend_spec, validate_frontend_spec_data
-from src.orchestrator.drafting import build_excerpt
+from src.orchestrator.drafting.drafts import build_excerpt
 
 REPO = Path(__file__).parents[2]
 EXAMPLES = REPO / "examples"

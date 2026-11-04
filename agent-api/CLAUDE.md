@@ -30,7 +30,7 @@ Agent-specific notes:
   (`model_calls`, `sandbox_execs`), since `/trace` and `/usage` are built from records, not from LangSmith.
 - Modes (Epic 12): `generations.mode` + `lanes`; graph per mode in `orchestrator/graph.py`; lane rules in
   `modules/shared/domain/generation_modes.py`. FrontendSpec lives in `modules/shared/domain/frontend_spec/`;
-  the API contract (`orchestrator/contract.py`) and its checks (`checks/conformance.py`, `checks/consistency.py`)
+  the API contract (`orchestrator/integration/contract.py`) and its checks (`checks/conformance.py`, `checks/consistency.py`)
   are pure functions with snapshot tests (`UPDATE_SNAPSHOTS=1`).
 - Frontend lane (Epic 13): `orchestrator/frontend_*.py` (planner, theme, codegen, scaffold, validation, nodes);
   base in `templates/nextjs_base` (regenerate with `make frontend-base`, never edit by hand), overlay in
@@ -44,7 +44,7 @@ Agent-specific notes:
 - Section renderer (Stories 17.1, 17.2, 17.4): built-in section content is typed (`frontend_spec/section_props.py`);
   a spec the library can render, static or dynamic (`plan["rendering"] == "renderer"`, else `rendererGaps` says
   why), is built without the engine; dynamic data sections read through the generated `bindings.ts`: overlay part `templates/nextjs_overlay/files/renderer` (only the sections a site uses) plus
-  `orchestrator/frontend_renderer.py` (site.json, registry, props types, thin route files). Sections can nest in
+  `orchestrator/frontend/renderer.py` (site.json, registry, props types, thin route files). Sections can nest in
   layout nodes (`children`): walk them with `iter_sections` / `walk_sections`, never `page["sections"]` alone.
 - Fonts and variants (Story 17.7): theme fonts in `frontend_spec/fonts.py` are `@fontsource` packages pinned in the
   base and imported by the generated `src/app/fonts.ts`; adding one means `make frontend-base` + `make runner-node`
@@ -53,16 +53,16 @@ Agent-specific notes:
   `.surface-inverse` token scope in `globals.css`. Library changes keep `templates/nextjs_overlay/DESIGN_CHECKLIST.md`
   (measure with `scripts/design-check.mjs`).
 - Custom components (Story 17.3): a rendered site's custom components (with a `propsSchema`) are scaffolded as
-  their library fallback (`plan["customComponents"]`), then `orchestrator/custom_components.py` generates each in a
+  their library fallback (`plan["customComponents"]`), then `orchestrator/frontend/custom_components.py` generates each in a
   scratch copy and its own sandbox (`for_job(..., part=...)`), or copies it from the component cache
-  (`component_cache` rows + `ARTIFACT_ROOT/cache/components/<key>/`, key in `component_cache.py`), and rewrites the
+  (`component_cache` rows + `ARTIFACT_ROOT/cache/components/<key>/`, key in `frontend/component_cache.py`), and rewrites the
   owned registry. Admin purge: `DELETE /api/v1/cache/components`.
-- Backend CRUD from templates (Story 17.6): `orchestrator/backend_codegen.py` writes models, entities, CRUD modules,
+- Backend CRUD from templates (Story 17.6): `orchestrator/backend/codegen.py` writes models, entities, CRUD modules,
   `src/routers.py` and the API tests from the plan (no engine); the sandbox's ruff formats them and they are recorded
   as owned (`scaffold.add_owned`). The engine only completes what `codegen_gaps` / `database_gaps` name (custom
   operations, rules, auth; one-to-one / many-to-many models), with the `complete_backend` prompt.
   `options.crudFromTemplates=false` restores the engine path (tests of the engine plumbing use it).
-- Backend completion (Story 18.13): `orchestrator/backend_completion.py`. `module_context` is the context pack the
+- Backend completion (Story 18.13): `orchestrator/backend/completion.py`. `module_context` is the context pack the
   `complete_backend@v5` prompt inlines (custom operations with their spec entry and contract operation, schemas
   resolved; the module's generated files; its entity and model; related entities and their repository ports; the
   exception helpers), and the prompt says not to read other files. `complete_modules` runs the modules at once, each
@@ -71,12 +71,12 @@ Agent-specific notes:
   runs in the project directly. Frontend `conventions` findings and type errors only in test files are warnings.
 - Requirement drafting (Stories 2.4, 12.4): `POST/GET /api/v1/spec-drafts` (`specs` module) stores a `spec_drafts` row
   and queues it on `bga:drafts:<engine>`; the worker's `_consume_drafts` (own slots, `DRAFT_CONCURRENCY`) runs
-  `orchestrator/drafting.py` in `<WORKSPACE_ROOT>/drafts/<id>/` (inputs in `.bga/`: schemas, an example from
+  `orchestrator/drafting/drafts.py` in `<WORKSPACE_ROOT>/drafts/<id>/` (inputs in `.bga/`: schemas, an example from
   `EXAMPLES_DIR`, the section catalogue), validates (+ pair check in dynamic mode), repairs with `repair_spec`, and ends
   SUCCEEDED / NEEDS_REVIEW / FAILED. Usage is kept on the draft (`usage`), not in `model_calls` (those belong to a
   generation); `/usage` reports it as `drafts`. A generation created with `draftId` stores `options.draftId`, and
   packaging writes `requirement.md` / `.txt`. Requirement checks: `modules/shared/domain/requirement.py`.
-- Pair fixes (dynamic drafts): the user never fixes the FrontendSpec ↔ BackendSpec pair. `orchestrator/pair_fixes.py`
+- Pair fixes (dynamic drafts): the user never fixes the FrontendSpec ↔ BackendSpec pair. `orchestrator/drafting/pair_fixes.py`
   `adapt_backend` (in `autofix_draft`, before every check) makes the BackendSpec follow the pages: a custom operation
   gets the request its form sends or the response its section reads (`type: "array"` for list sections, fields from
   the section or the operation's description), a list the filter / sort / search a page asks for, a create / update
@@ -97,15 +97,15 @@ Agent-specific notes:
   list) and derives the operations a BackendSpec needs (`derive_operations`). `frontend_renderer.tree_site` writes
   the classified tree into `site.json`; the overlay's `renderer/tree/` (copied only when `plan["trees"]`) renders it
   (`TreeRenderer.tsx`, data components in `tree-data.tsx`, `tree-metrics.tsx`, `tree-forms.tsx`). Drafting designs
-  each page with `draft_tree@v1` after the spec is valid (`orchestrator/tree_drafting.py`; `FRONTEND_TREES`), in
+  each page with `draft_tree@v1` after the spec is valid (`orchestrator/drafting/trees.py`; `FRONTEND_TREES`), in
   parallel on an API engine; a page whose tree fails keeps its sections. BackendSpec `type: "aggregate"` operations
-  are templated like CRUD (`planner.py`, `backend_codegen.py`, the contract and the mock compute them).
+  are templated like CRUD (`backend/planner.py`, `backend/codegen.py`, the contract and the mock compute them).
 - Design direction (Stories 12.6, 20.4, 20.9): the drafting engine writes three direction cards in `notes.json`
   (`design.cards`: concept, tone, hero layout, fonts, colours, key visual, forms, rhythm, `home` section ids, fit);
-  `orchestrator/design_cards.py` checks and fills them (bundled fonts, AA contrast, `design_tone` tokens), runs the
+  `orchestrator/drafting/design_cards.py` checks and fills them (bundled fonts, AA contrast, `design_tone` tokens), runs the
   difference test (`repair_direction` prompt, at most 2 rounds, then a code fix) and keeps the drafted home sections
   as `spec_drafts.design.pool`; drafting applies the best fit after the spec repairs (`finish_design`).
-  `orchestrator/design_direction.py` (UI UX Pro Max's vendored data, `make design-data`) is the floor: the category
+  `orchestrator/drafting/design_direction.py` (UI UX Pro Max's vendored data, `make design-data`) is the floor: the category
   default in the fact pack `.bga/design.md`, the palette for cards that miss contrast, the directions when the engine
   wrote no cards. `apply_direction` / `compose_home` are mirrored by the UI's `lib/design-direction.ts`
   (`tests/test_design_cards.py` runs both on the same cases with Node). Stock phrases in headings and buttons
@@ -113,25 +113,37 @@ Agent-specific notes:
 - Design diversity (Epic 20): hero `variant` has 8 layouts, list sections a `form`, pages a `rhythm`, and seven
   content sections joined the library (Steps, Timeline, Team, PriceList, Location, Comparison, Statement), all in
   `section_props.py` with theme tokens only. Optional theme tokens (`surface`, `colorArea`, `typography.headingWeight
-  / headingCase / tracking / ratio`) are drawn by `frontend_theme.py` (`heading` utility, `--hero-<step>` sizes
-  shrunk by `display_scale` for wide faces) and by `frontend_renderer.py` (`color_roles`, `alternate_backgrounds` in
-  `site.json`); `orchestrator/design_tone.py` maps a five-scale tone to them. Without the new fields a spec plans
+  / headingCase / tracking / ratio`) are drawn by `frontend/theme.py` (`heading` utility, `--hero-<step>` sizes
+  shrunk by `display_scale` for wide faces) and by `frontend/renderer.py` (`color_roles`, `alternate_backgrounds` in
+  `site.json`); `orchestrator/drafting/design_tone.py` maps a five-scale tone to them. Without the new fields a spec plans
   exactly as before and renders the same sizes and weights (`globals.css` gains the variables at today's values).
   Icons (20.5): items take `icon` (`lucide:` / `phosphor:` reference or `intent:` words), resolved to `theme.icons.set`
   when the site is generated (`frontend_spec/icons.py`, index `templates/nextjs_base/icon-index.json` from
   `scripts/icon-index.mjs`); `frontend_renderer.icons_ts` imports only the used icons; the library draws them with
-  `sections/Icon.tsx`. Motion (20.6): `theme.motion` (`feel`, `signature`) → `frontend_motion.py` (spring presets as
+  `sections/Icon.tsx`. Motion (20.6): `theme.motion` (`feel`, `signature`) → `frontend/motion.py` (spring presets as
   CSS `linear()`, rules under `html[data-motion="on"]`), `site.json` `motion`, `PageRenderer`'s inline script and
   `MotionRoot.tsx` (reveals). Dev tools: `make design-check-fixture` (`--motion`), `make design-diversity`
   (`docs/development/design-checks.md`).
 - Site images (Epic 15): asset sources and render modes in `frontend_spec/assets.py`; the registry
-  `src/assets/index.ts` (`asset_registry.py`) and the overlay's `components/assets/AssetImage.tsx`. `generate_assets`
-  (`frontend_assets.py`) draws all `source: "generate"` assets in one engine call in a scratch dir (cache in
-  `ARTIFACT_ROOT/asset-cache/`), `svg_assets.py` checks SVGs (`frontend:assets`, before build) and converts them to
+  `src/assets/index.ts` (`frontend/asset_registry.py`) and the overlay's `components/assets/AssetImage.tsx`. `generate_assets`
+  (`frontend/assets.py`) draws all `source: "generate"` assets in one engine call in a scratch dir (cache in
+  `ARTIFACT_ROOT/asset-cache/`), `frontend/svg_assets.py` checks SVGs (`frontend:assets`, before build) and converts them to
   components; failing drawings fall back to placeholders (`asset_fallbacks` → COMPLETED_WITH_WARNINGS). Uploads
   (`modules/uploads`) live under `UPLOAD_ROOT`, are copied to `public/assets/` by `scaffold_frontend`.
 - Test doubles (fake engine, golden two-entity project, static validator, fake CLIs, opt-in test flags) are listed in
   `docs/development/test-doubles.md`; add any new fake there and mark it at its definition.
+
+## Orchestrator layout
+
+`src/orchestrator/` (the generation workflow) is split by lane:
+
+| Folder | What |
+|---|---|
+| `orchestrator/` | workflow core: `graph.py`, `runner.py`, `state.py`, `context.py` (JobContext and the helpers nodes share), `store.py`, `tracing.py`, `workspace.py`, `worker_service.py`, `bootstrap.py`; `nodes.py` (the node table, `package_artifacts`), `autofix.py`, `packaging.py`, `previews.py`; `checks/` (pure checks both lanes use) |
+| `backend/` | `nodes.py` (validate_spec … repair_code), `planner.py`, `scaffold.py`, `codegen.py` (CRUD from templates), `completion.py` (engine completion), `migrations.py`, `validation.py` |
+| `frontend/` | `nodes.py`, `planner.py`, `scaffold.py`, `codegen.py`, `renderer.py`, `theme.py`, `motion.py`, `assets.py`, `asset_registry.py`, `svg_assets.py`, `custom_components.py`, `component_cache.py`, `context_pack.py`, `validation.py` |
+| `integration/` | `nodes.py` (validate_inputs, build_contract), `contract.py`, `integrate.py` (live switch and checks) |
+| `drafting/` | `drafts.py` (spec drafts), `trees.py` (designed pages), `pair_fixes.py`, `design_cards.py`, `design_direction.py`, `design_diversity.py`, `design_tone.py` |
 
 ## Architecture
 

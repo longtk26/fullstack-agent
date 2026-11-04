@@ -6,7 +6,7 @@ import re
 import pytest
 
 from src.modules.shared.domain.frontend_spec import FONTS, validate_frontend_spec_data
-from src.orchestrator.design_direction import (
+from src.orchestrator.drafting.design_direction import (
     DATA_DIR,
     apply_direction,
     contrast_failures,

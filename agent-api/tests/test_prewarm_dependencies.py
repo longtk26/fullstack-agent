@@ -17,10 +17,10 @@ from src.engines.fake_engine import FakeEngine, demo_scenario
 from src.libs.database import db_session_manager
 from src.modules.shared.domain.enums import GenerationMode
 from src.modules.shared.infrastructure.models import ComponentCacheModel
-from src.orchestrator.component_cache import drop_files
 from src.orchestrator.context import JobContext
-from src.orchestrator.custom_components import CustomComponents
-from src.orchestrator.frontend_scaffold import scaffold_frontend
+from src.orchestrator.frontend.component_cache import drop_files
+from src.orchestrator.frontend.custom_components import CustomComponents
+from src.orchestrator.frontend.scaffold import scaffold_frontend
 from src.sandbox import ExecResult, ISandbox, ISandboxProvider
 from tests.test_frontend_scaffold import inputs
 from workflow_helpers import runner_ctx

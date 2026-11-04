@@ -311,7 +311,7 @@ class PreviewService:
 
     async def recheck(self, generation_id: str, kind: str = "frontend") -> dict[str, Any]:
         """Story 14.2: repeats the backend readiness check and switches the frontend preview to live if healthy."""
-        from .integration import check_backend_ready
+        from .integration.integrate import check_backend_ready
 
         generation = self.store.generation(generation_id)
         contract_art = self.store.artifact_by_name(generation_id, "contract.json")

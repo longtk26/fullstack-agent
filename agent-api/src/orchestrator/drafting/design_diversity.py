@@ -17,7 +17,7 @@ from typing import Any
 from src.modules.shared.domain.frontend_spec import THEME_PRESETS
 from src.modules.shared.domain.frontend_spec.normalizer import iter_sections
 
-from .frontend_theme import _rgb
+from ..frontend.theme import _rgb
 
 VISUAL_FIELDS = ("hero", "headingFont", "hueFamily", "keyVisual")
 LAYOUT_NODES = frozenset({"Columns", "Stack", "Grid", "Tabs"})

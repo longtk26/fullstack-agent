@@ -19,7 +19,7 @@ from src.modules.generations.infrastructure.adapters import EventPublisher
 from src.modules.shared.domain.backend_spec import SpecIssue, ValidationReport
 from src.modules.shared.domain.requirement import RequirementError, check_requirement
 from src.modules.shared.infrastructure.models import ImageCallModel, SpecDraftModel, UploadModel
-from src.orchestrator.drafting import DraftRunner, check_draft, draw_images, read_notes, section_catalogue
+from src.orchestrator.drafting.drafts import DraftRunner, check_draft, draw_images, read_notes, section_catalogue
 from src.orchestrator.store import JobStore
 from src.orchestrator.worker_service import WorkerService
 from src.orchestrator.workspace import WorkspaceManager
@@ -188,7 +188,7 @@ def test_static_draft_writes_only_a_frontend_spec(client, user_headers, tmp_path
         assert work["prompt"] == work["alt"] and work["style"].startswith(chosen["style"])
         assert draft["assumptions"][-1]["message"] == "Drawn from their alt text instead of placeholders: work-2"
     from src.modules.shared.domain.frontend_spec import validate_frontend_spec_data
-    from src.orchestrator.frontend_planner import plan_frontend
+    from src.orchestrator.frontend.planner import plan_frontend
 
     plan = plan_frontend(validate_frontend_spec_data(draft["frontend_spec"]).normalized)
     assert plan["rendering"] == "renderer" and plan["rendererGaps"] == [], "still built with no engine call"

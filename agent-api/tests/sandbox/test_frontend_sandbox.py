@@ -11,9 +11,9 @@ import uuid
 import pytest
 
 from src.modules.shared.domain.frontend_spec import validate_frontend_spec_text
-from src.orchestrator.frontend_planner import plan_frontend
-from src.orchestrator.frontend_scaffold import scaffold_frontend
-from src.orchestrator.frontend_validation import FrontendValidationRequest, SandboxFrontendValidationRunner
+from src.orchestrator.frontend.planner import plan_frontend
+from src.orchestrator.frontend.scaffold import scaffold_frontend
+from src.orchestrator.frontend.validation import FrontendValidationRequest, SandboxFrontendValidationRunner
 from src.sandbox import DockerSandboxProvider
 from tests.generation_helpers import EXAMPLES, REPO
 
@@ -156,9 +156,9 @@ def test_dynamic_generation_switches_to_live_and_passes_live_smoke(client, user_
     from src.libs.queue import PreviewCommandBus
     from src.libs.redaction import Redactor
     from src.modules.generations.infrastructure.adapters import EventPublisher
+    from src.orchestrator.backend.validation import SandboxValidationRunner
     from src.orchestrator.previews import PreviewService
     from src.orchestrator.store import JobStore
-    from src.orchestrator.validation import SandboxValidationRunner
     from src.preview.docker_frontend_preview import DockerFrontendPreviewRuntime
     from src.preview.docker_preview import DockerPreviewRuntime
     from tests.workflow_helpers import TWO_ENTITY, generation, redis_client, runner_ctx
@@ -219,7 +219,7 @@ def test_custom_components_pass_isolated_checks_then_come_from_the_cache(client,
     from src.engines.fake_engine import FakeEngine, demo_scenario
     from src.libs.database import db_session_manager
     from src.modules.shared.infrastructure.models import ComponentCacheModel
-    from src.orchestrator.component_cache import drop_files
+    from src.orchestrator.frontend.component_cache import drop_files
     from tests.workflow_helpers import cli_invocations, generation, node_runs, run_job
 
     with Session(db_session_manager.engine) as session:
@@ -272,7 +272,7 @@ def test_drawn_and_uploaded_images_build_and_show_on_their_pages(tmp_path):
     from PIL import Image
 
     from src.engines.fake_engine import GOLDEN_ASSETS
-    from src.orchestrator.frontend_assets import convert_drawing, write_registry
+    from src.orchestrator.frontend.assets import convert_drawing, write_registry
 
     spec_data = json.loads((EXAMPLES / "frontend-specs" / "static-landing.json").read_text())
     spec_data["layout"]["header"]["logo"] = "asset:logo"
@@ -308,7 +308,7 @@ def test_endless_render_loop_component_fails_fast_in_checks_and_render_test():
     (< 30 s). When only the render test runs, it fails in < 60 s with the render loop message."""
     import time
 
-    from src.orchestrator.custom_components import (
+    from src.orchestrator.frontend.custom_components import (
         RENDER_TEST,
         TSCONFIG,
         CustomComponents,

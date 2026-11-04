@@ -10,9 +10,9 @@ import pytest
 from src.engines.fake_engine import GOLDEN_ASSETS, FakeEngine, FakeStep, demo_scenario
 from src.modules.shared.domain.frontend_spec import validate_frontend_spec_data
 from src.modules.shared.domain.frontend_spec.assets import lucide_icons
-from src.orchestrator.asset_registry import assets_ts
-from src.orchestrator.frontend_planner import plan_frontend
-from src.orchestrator.svg_assets import check_component, check_svg, svg_to_tsx
+from src.orchestrator.frontend.asset_registry import assets_ts
+from src.orchestrator.frontend.planner import plan_frontend
+from src.orchestrator.frontend.svg_assets import check_component, check_svg, svg_to_tsx
 from tests.generation_helpers import EXAMPLES
 from workflow_helpers import cli_invocations, events, node_runs, run_job
 
@@ -490,7 +490,7 @@ def test_photo_asset_validation_and_cap():
 
 
 def test_photo_asset_planner_and_registry():
-    from src.orchestrator.asset_registry import _effective_mode
+    from src.orchestrator.frontend.asset_registry import _effective_mode
 
     spec = copy.deepcopy(LANDING)
     spec["assets"].append(
@@ -537,7 +537,7 @@ def test_photo_asset_planner_and_registry():
 
 
 def test_check_assets_photo_warnings_and_validation(tmp_path):
-    from src.orchestrator.frontend_assets import assets_check
+    from src.orchestrator.frontend.assets import assets_check
 
     plan = {
         "assets": [

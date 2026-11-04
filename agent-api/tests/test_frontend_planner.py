@@ -8,15 +8,15 @@ import pytest
 from generation_helpers import EXAMPLES, normalized
 
 from src.modules.shared.domain.frontend_spec import validate_frontend_spec_text
-from src.orchestrator.contract import build_contract
-from src.orchestrator.frontend_planner import (
+from src.orchestrator.frontend.planner import (
     dump_frontend_plan,
     operation_function,
     plan_frontend,
     primitive_closure,
     route_file,
 )
-from src.orchestrator.frontend_theme import build_theme, contrast, globals_css
+from src.orchestrator.frontend.theme import build_theme, contrast, globals_css
+from src.orchestrator.integration.contract import build_contract
 
 SNAPSHOTS = Path(__file__).parent / "fixtures" / "frontend-plans"
 PAIRS = {"static-landing": None, "shop-dynamic": "shop", "project-tracker-dynamic": "two-entity"}

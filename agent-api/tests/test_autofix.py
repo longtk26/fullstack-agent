@@ -7,9 +7,9 @@ import pytest
 
 from src.engines.fake_engine import FakeEngine, FakeStep, demo_scenario
 from src.orchestrator.autofix import autofix, fixable_files
-from src.orchestrator.frontend_scaffold import changed_owned as frontend_changed_owned
-from src.orchestrator.frontend_scaffold import scaffold_frontend
-from src.orchestrator.scaffold import changed_owned, record_owned, scaffold_project
+from src.orchestrator.backend.scaffold import changed_owned, record_owned, scaffold_project
+from src.orchestrator.frontend.scaffold import changed_owned as frontend_changed_owned
+from src.orchestrator.frontend.scaffold import scaffold_frontend
 from src.orchestrator.workspace import WorkspaceManager
 from src.sandbox import ExecResult, ISandbox
 from tests.generation_helpers import TEMPLATE

@@ -15,7 +15,7 @@ from src.modules.generations.infrastructure.adapters import EventPublisher
 from src.modules.shared.domain.enums import GenerationStatus, SpecDraftStatus
 from src.modules.shared.domain.generation_modes import close_lanes
 
-from .drafting import DraftRunner
+from .drafting.drafts import DraftRunner
 from .previews import PreviewService
 from .runner import JobRunner
 from .store import JobStore

@@ -3,14 +3,14 @@
 import os
 from pathlib import Path
 
-from src.orchestrator.component_cache import sample_props
-from src.orchestrator.context_pack import (
+from src.orchestrator.frontend.component_cache import sample_props
+from src.orchestrator.frontend.context_pack import (
     MAX_PACK_BYTES,
     component_context,
     extract_exports,
 )
-from src.orchestrator.frontend_renderer import section_props
-from src.orchestrator.frontend_scaffold import scaffold_frontend
+from src.orchestrator.frontend.renderer import section_props
+from src.orchestrator.frontend.scaffold import scaffold_frontend
 from tests.test_frontend_scaffold import inputs
 
 FIXTURES = Path(__file__).parent / "fixtures" / "context-packs"
@@ -62,7 +62,7 @@ def test_context_pack_size_warning_when_large(tmp_path, monkeypatch):
 
     warnings: list[str] = []
     monkeypatch.setattr(
-        "src.orchestrator.context_pack.logger.warning",
+        "src.orchestrator.frontend.context_pack.logger.warning",
         lambda msg, *args, **kw: warnings.append(msg % args if args else msg),
     )
     pack = component_context(tmp_path, component, sample)

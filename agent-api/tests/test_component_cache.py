@@ -13,7 +13,7 @@ from src.configs import config
 from src.engines.fake_engine import FakeEngine, FakeStep, demo_scenario
 from src.libs.database import db_session_manager
 from src.modules.shared.infrastructure.models import ComponentCacheModel
-from src.orchestrator.component_cache import (
+from src.orchestrator.frontend.component_cache import (
     cached_file,
     closest_section,
     component_file,
@@ -23,7 +23,7 @@ from src.orchestrator.component_cache import (
     operations_digest,
     sample_props,
 )
-from src.orchestrator.frontend_validation import CheckResult, StaticFrontendValidationRunner, _outcome
+from src.orchestrator.frontend.validation import CheckResult, StaticFrontendValidationRunner, _outcome
 from src.sandbox import ExecResult, ISandbox, ISandboxProvider
 from workflow_helpers import cli_invocations, events, generation, node_runs, run_job
 
@@ -162,7 +162,7 @@ def test_the_key_covers_the_operations_and_journeys_a_site_gives_the_component()
 
 
 def test_component_cache_key_changes_with_prompt_version(monkeypatch):
-    from src.orchestrator import component_cache
+    from src.orchestrator.frontend import component_cache
 
     component = {"name": "ProductGrid", "description": "Cards with prices"}
     key_v2 = component_key(component, "lock", "1")

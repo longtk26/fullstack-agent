@@ -4,7 +4,7 @@ import os
 import pytest
 
 from src.modules.shared.domain.frontend_site.importer import import_frontend_site
-from src.orchestrator.planner import build_plan, dump_plan, handler_name, planned_operations
+from src.orchestrator.backend.planner import build_plan, dump_plan, handler_name, planned_operations
 from tests.generation_helpers import EXAMPLES, normalized, two_entity_plan
 
 SNAPSHOTS = EXAMPLES.parent / "agent-api" / "tests" / "fixtures" / "plans"

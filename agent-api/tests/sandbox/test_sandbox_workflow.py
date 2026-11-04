@@ -8,7 +8,7 @@ import pytest
 
 from src.engines import EngineContext, PromptLibrary
 from src.engines.registry import engine_skills
-from src.orchestrator.validation import SandboxValidationRunner
+from src.orchestrator.backend.validation import SandboxValidationRunner
 from src.sandbox import DockerSandboxProvider
 from tests.generation_helpers import EXAMPLES, REPO
 from tests.test_scoped_lists import scoped_spec

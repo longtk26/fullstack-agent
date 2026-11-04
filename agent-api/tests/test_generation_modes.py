@@ -8,7 +8,7 @@ import pytest
 from src.engines.fake_engine import FakeEngine, demo_scenario
 from src.modules.shared.domain.enums import GenerationMode, GenerationStatus
 from src.modules.shared.domain.generation_modes import close_lanes, overall_status
-from src.orchestrator.contract import build_contract, dump_contract
+from src.orchestrator.integration.contract import build_contract, dump_contract
 from src.orchestrator.store import JobStore
 from workflow_helpers import TWO_ENTITY, cli_invocations, events, generation, node_runs, run_job
 

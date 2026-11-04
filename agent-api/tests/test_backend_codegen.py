@@ -11,7 +11,7 @@ from sqlmodel import SQLModel
 
 from src.engines.fake_engine import FakeEngine, demo_scenario
 from src.modules.shared.domain.backend_spec import validate_spec_text
-from src.orchestrator.backend_codegen import (
+from src.orchestrator.backend.codegen import (
     codegen_gaps,
     database_files,
     database_gaps,
@@ -19,8 +19,8 @@ from src.orchestrator.backend_codegen import (
     module_tests,
     routers_file,
 )
-from src.orchestrator.planner import build_plan
-from src.orchestrator.scaffold import add_owned, changed_owned
+from src.orchestrator.backend.planner import build_plan
+from src.orchestrator.backend.scaffold import add_owned, changed_owned
 from workflow_helpers import cli_invocations, events, generation, node_runs, run_job, submit
 
 SNAPSHOTS = Path(__file__).parent / "fixtures" / "backend-codegen"

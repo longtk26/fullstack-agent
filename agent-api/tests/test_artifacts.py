@@ -7,9 +7,9 @@ import pytest
 
 from src.engines import EngineContext, PromptLibrary
 from src.engines.fake_engine import DEMO_SCENARIO, FakeEngine, FakeStep
+from src.orchestrator.backend.validation import StaticValidationRunner
 from src.orchestrator.context import JobContext
 from src.orchestrator.nodes import write_artifacts
-from src.orchestrator.validation import StaticValidationRunner
 from workflow_helpers import completed_generation, run_job, runner_ctx, submit
 
 pytestmark = pytest.mark.usefixtures("clean_redis")

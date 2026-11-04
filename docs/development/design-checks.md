@@ -43,7 +43,7 @@ after changing a section, a variant or the theme CSS.
 Drafts the golden requirements in `examples/requirements/diversity/` (static mode, and the manifest's `dynamic` ones
 in dynamic mode; through the worker's `DraftRunner`, rows deleted afterwards; AI photos off, LangSmith off) and
 measures how different the designs are
-(`agent-api/src/orchestrator/design_diversity.py`): the four visual fields of each direction (hero layout, heading
+(`agent-api/src/orchestrator/drafting/design_diversity.py`): the four visual fields of each direction (hero layout, heading
 font, hue family, key visual), the difference test, distinct combinations across five drafts of one brief, the
 distance between similar businesses, the category's default home order, section frequency, home-composition
 similarity, repeated headings and CTA labels, stock phrases left (Story 20.9), and draft time. Since Story 20.4 the

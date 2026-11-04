@@ -11,13 +11,13 @@ from src.preview.docker_frontend_preview import DockerFrontendPreviewRuntime
 from src.preview.docker_preview import DockerPreviewRuntime
 from src.sandbox import DockerSandboxProvider
 
+from .backend.validation import SandboxValidationRunner, StaticValidationRunner
 from .checkpointer import postgres_checkpointer
-from .drafting import DraftRunner
-from .frontend_validation import SandboxFrontendValidationRunner, StaticFrontendValidationRunner
+from .drafting.drafts import DraftRunner
+from .frontend.validation import SandboxFrontendValidationRunner, StaticFrontendValidationRunner
 from .previews import PreviewClient, PreviewService
 from .runner import JobRunner
 from .store import JobStore
-from .validation import SandboxValidationRunner, StaticValidationRunner
 from .worker_service import WorkerService, default_worker_id
 from .workspace import WorkspaceManager
 

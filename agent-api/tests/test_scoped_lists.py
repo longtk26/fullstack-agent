@@ -7,11 +7,11 @@ import json
 from generation_helpers import EXAMPLES
 
 from src.modules.shared.domain.backend_spec import validate_spec_text
-from src.orchestrator.backend_codegen import module_files, module_tests
-from src.orchestrator.contract import build_contract
-from src.orchestrator.frontend_codegen import types_ts
-from src.orchestrator.planner import build_plan
-from src.orchestrator.validation import CheckResult, ValidationOutcome, generator_bug_files
+from src.orchestrator.backend.codegen import module_files, module_tests
+from src.orchestrator.backend.planner import build_plan
+from src.orchestrator.backend.validation import CheckResult, ValidationOutcome, generator_bug_files
+from src.orchestrator.frontend.codegen import types_ts
+from src.orchestrator.integration.contract import build_contract
 
 SCOPED = {
     "operationId": "task.listForProject",

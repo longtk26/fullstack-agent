@@ -27,8 +27,8 @@ from typing import Any
 from src.configs import config, get_logger
 from src.engines.prompts import RenderedPrompt
 
-from .context import JobContext
-from .contract import contract_operations, resolve
+from ..context import JobContext
+from ..integration.contract import contract_operations, resolve
 
 logger = get_logger(__name__)
 

@@ -337,7 +337,7 @@ Deterministic code generation produces:
 3. **Automated Test Suites:**
    - Integration tests (`tests/modules/<module>/test_<entity>_api.py`) verifying all status codes, error paths, and response structures.
 
-> **Deterministic Generation vs LLM Boundary:** Both the **Use Case layer** and the **Persistence Repository layer** for all standard CRUD operations are generated 100% deterministically by Python code templates in [`backend_codegen.py`](agent-api/src/orchestrator/backend_codegen.py), **not by an AI model**. The generated code is a pure function of `BackendSpec` and the architecture plan, producing byte-identical code in milliseconds with zero LLM API cost. The AI coding engine (Claude Code or Antigravity) is only invoked when `codegen_gaps()` detects non-standard business logic, custom calculation rules, or during the self-repair loop.
+> **Deterministic Generation vs LLM Boundary:** Both the **Use Case layer** and the **Persistence Repository layer** for all standard CRUD operations are generated 100% deterministically by Python code templates in [`backend_codegen.py`](agent-api/src/orchestrator/backend/codegen.py), **not by an AI model**. The generated code is a pure function of `BackendSpec` and the architecture plan, producing byte-identical code in milliseconds with zero LLM API cost. The AI coding engine (Claude Code or Antigravity) is only invoked when `codegen_gaps()` detects non-standard business logic, custom calculation rules, or during the self-repair loop.
 
 ### 6.2 Frontend Codegen & Renderer (`frontend_codegen.py`, `frontend_renderer.py`)
 Deterministic code generation produces:

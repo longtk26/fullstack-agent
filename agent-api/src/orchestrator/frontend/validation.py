@@ -24,10 +24,10 @@ from src.configs import config
 from src.modules.shared.domain.frontend_spec import iter_sections
 from src.sandbox import ExecResult, ISandbox
 
-from .checks.frontend_conventions import check_frontend_conventions
-from .checks.parsers import junit_failures, last_lines
-from .frontend_assets import assets_check
-from .validation import CheckResult, ValidationOutcome, build_digest_for, implicated, traced_check
+from ..backend.validation import CheckResult, ValidationOutcome, build_digest_for, implicated, traced_check
+from ..checks.frontend_conventions import check_frontend_conventions
+from ..checks.parsers import junit_failures, last_lines
+from .assets import assets_check
 
 # `assets` (Story 15.3) runs before the build: a drawing that falls back must not be built.
 CHECKS = ("install", "typecheck", "lint", "conventions", "assets", "build", "routes", "tests", "journeys")

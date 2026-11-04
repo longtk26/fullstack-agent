@@ -24,7 +24,7 @@ from typing import Any
 
 from src.modules.shared.domain.backend_spec.naming import py_name, to_snake
 
-from .contract import _request_columns, _required
+from ..integration.contract import _request_columns, _required
 
 ENTITIES_PKG = "src/modules/shared/domain/entities"
 MODELS_PKG = "src/modules/shared/infrastructure/models"

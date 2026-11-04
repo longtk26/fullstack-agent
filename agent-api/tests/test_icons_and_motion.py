@@ -9,11 +9,11 @@ import pytest
 from src.engines.fake_design import with_icon_intents
 from src.modules.shared.domain.frontend_spec import validate_frontend_spec_data
 from src.modules.shared.domain.frontend_spec.icons import closest_icon, icon_index, kebab, resolve_icon
-from src.orchestrator.custom_components import ICON_PACKAGE
-from src.orchestrator.design_cards import Card, fill_card, home_pool, signature
-from src.orchestrator.design_direction import directions
-from src.orchestrator.design_tone import icon_style, motion_feel
-from src.orchestrator.frontend_motion import (
+from src.orchestrator.drafting.design_cards import Card, fill_card, home_pool, signature
+from src.orchestrator.drafting.design_direction import directions
+from src.orchestrator.drafting.design_tone import icon_style, motion_feel
+from src.orchestrator.frontend.custom_components import ICON_PACKAGE
+from src.orchestrator.frontend.motion import (
     FEELS,
     MARK_OVERSHOOT,
     SURFACE_OVERSHOOT,
@@ -21,9 +21,9 @@ from src.orchestrator.frontend_motion import (
     linear_easing,
     motion_css,
 )
-from src.orchestrator.frontend_planner import plan_frontend
-from src.orchestrator.frontend_renderer import ICONS_FILE, SITE_FILE, renderer_files
-from src.orchestrator.frontend_theme import build_theme, globals_css
+from src.orchestrator.frontend.planner import plan_frontend
+from src.orchestrator.frontend.renderer import ICONS_FILE, SITE_FILE, renderer_files
+from src.orchestrator.frontend.theme import build_theme, globals_css
 from tests.generation_helpers import EXAMPLES
 
 LANDING = json.loads((EXAMPLES / "frontend-specs" / "static-landing.json").read_text())

@@ -22,9 +22,9 @@ from src.modules.shared.infrastructure.models import (
     GenerationModel,
     NodeRunModel,
 )
+from src.orchestrator.backend.validation import StaticValidationRunner
 from src.orchestrator.runner import JobRunner
 from src.orchestrator.store import JobStore
-from src.orchestrator.validation import StaticValidationRunner
 from src.orchestrator.workspace import WorkspaceManager
 
 TWO_ENTITY = json.loads((Path(__file__).parents[2] / "examples" / "specs" / "two-entity.json").read_text())

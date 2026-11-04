@@ -14,7 +14,7 @@ from typing import Any
 
 from src.modules.shared.domain.backend_spec import Severity, SpecIssue
 from src.modules.shared.domain.frontend_spec import FrontendIssueCode, page_id, route_params
-from src.orchestrator.contract import build_contract, contract_operations, resolve
+from src.orchestrator.integration.contract import build_contract, contract_operations, resolve
 
 C = FrontendIssueCode
 _VARIABLE = re.compile(r"^\$(route|query|record)\.[A-Za-z][A-Za-z0-9_]*$")

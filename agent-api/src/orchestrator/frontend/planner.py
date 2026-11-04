@@ -17,12 +17,12 @@ from src.modules.shared.domain.frontend_spec import BUILTIN_SECTIONS, all_trees,
 from src.modules.shared.domain.frontend_spec.assets import aspect_ratio, render_mode
 from src.modules.shared.domain.frontend_spec.trees import TREE_SHADCN
 
-from .contract import contract_operations, resolve
-from .frontend_renderer import custom_components, library_primitives, renderer_gaps
-from .frontend_theme import build_theme
+from ..integration.contract import contract_operations, resolve
+from .renderer import custom_components, library_primitives, renderer_gaps
+from .theme import build_theme
 
 FRONTEND_PLAN_VERSION = "1"
-BASE_DIR = Path(__file__).resolve().parents[2] / "templates" / "nextjs_base"
+BASE_DIR = Path(__file__).resolve().parents[3] / "templates" / "nextjs_base"
 SHELL_FILE = "src/components/layout/SiteShell.tsx"
 ALWAYS_PRIMITIVES = ("button", "skeleton", "sonner", "separator")
 FORM_PRIMITIVES = {"string": "input", "text": "textarea", "enum": "select", "boolean": "checkbox"}

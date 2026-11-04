@@ -26,15 +26,15 @@ from src.modules.shared.domain.entities import ValidationRunEntity
 from src.modules.shared.domain.enums import GenerationMode, LaneStatus, PreviewStatus
 from src.modules.shared.domain.frontend_spec import iter_sections
 
-from .checks.conformance import _admits, _types, compare_contract
-from .checks.parity import compare_openapi
-from .checks.parsers import junit_failures, last_lines
-from .context import JobContext
+from ..backend.validation import CheckResult, ValidationOutcome, traced_check, write_report
+from ..checks.conformance import _admits, _types, compare_contract
+from ..checks.parity import compare_openapi
+from ..checks.parsers import junit_failures, last_lines
+from ..context import JobContext
+from ..packaging import ArtifactWriter, build_contract_seed, build_seed, build_source_zip
+from ..previews import KINDS, wait_settled
+from ..state import GenerationState, Outcome
 from .contract import contract_operations, resolve
-from .packaging import ArtifactWriter, build_contract_seed, build_seed, build_source_zip
-from .previews import KINDS, wait_settled
-from .state import GenerationState, Outcome
-from .validation import CheckResult, ValidationOutcome, traced_check, write_report
 
 CHECK_PREFIX = "integration:"
 JUNIT_PATH = "test-results/e2e-junit.xml"

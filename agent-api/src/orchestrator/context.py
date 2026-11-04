@@ -1,4 +1,5 @@
 import asyncio
+import json
 import re
 import uuid
 from contextlib import asynccontextmanager
@@ -26,9 +27,9 @@ from src.modules.shared.domain.enums import GenerationMode, GenerationStatus, La
 from src.sandbox import ExecResult, ISandbox, ISandboxProvider
 
 from . import tracing
+from .backend.validation import IValidationRunner
 from .state import NODE_LANE, lane_status_for, status_for
 from .store import JobStore
-from .validation import IValidationRunner
 from .workspace import JobWorkspace, WorkspaceManager
 
 logger = get_logger(__name__)
@@ -580,3 +581,22 @@ class RecordingSandbox(ISandbox):
             end_time=ended,
         )
         return result
+
+
+# -- helpers the nodes share ----------------------------------------------------------------------------------------
+
+CONTRACT_REF = ".bga/contract.json"
+
+
+def read_json(ctx: JobContext, ref: str) -> dict[str, Any]:
+    return json.loads(ctx.project_path(ref).read_text())
+
+
+def write_json(path, data) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+
+
+def contract_copy(ctx: JobContext):
+    """The canonical contract, outside the project (engines cannot edit it)."""
+    return ctx.workspace.spec_dir / "contract.json"

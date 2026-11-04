@@ -25,10 +25,10 @@ from src.modules.shared.domain.frontend_spec.section_props import (
     Surface,
     TestimonialsForm,
 )
-from src.orchestrator.frontend_codegen import generated_files
-from src.orchestrator.frontend_planner import plan_frontend
-from src.orchestrator.frontend_scaffold import BASE_DIR, OVERLAY_DIR
-from src.orchestrator.frontend_theme import OFF_BLACK, OFF_WHITE, build_theme, fonts_ts, globals_css, luminance
+from src.orchestrator.frontend.codegen import generated_files
+from src.orchestrator.frontend.planner import plan_frontend
+from src.orchestrator.frontend.scaffold import BASE_DIR, OVERLAY_DIR
+from src.orchestrator.frontend.theme import OFF_BLACK, OFF_WHITE, build_theme, fonts_ts, globals_css, luminance
 from src.sandbox.docker_sandbox import store_volume
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -246,7 +246,7 @@ def test_hero_images_must_be_assets_or_links():
 
 
 def _site(spec: dict) -> dict:
-    from src.orchestrator.frontend_renderer import site_json
+    from src.orchestrator.frontend.renderer import site_json
 
     normalized = validate_frontend_spec_data(spec).normalized
     return json.loads(site_json(plan_frontend(normalized), normalized))
@@ -300,7 +300,7 @@ def test_new_sections_check_their_content():
 
 
 def test_new_sections_are_rendered_and_copied_only_when_used():
-    from src.orchestrator.frontend_renderer import RENDERED, library_sections
+    from src.orchestrator.frontend.renderer import RENDERED, library_sections
 
     new = {"Steps", "Timeline", "Team", "PriceList", "Location", "Comparison", "Statement"}
     assert new <= RENDERED

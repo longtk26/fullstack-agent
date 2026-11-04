@@ -23,9 +23,9 @@ from typing import Any
 from src.libs.search import Bm25, stem
 from src.modules.shared.domain.frontend_spec import FONTS, THEME_PRESETS, font_category, iter_sections
 
-from .frontend_theme import build_theme, contrast, luminance, mix, on
+from ..frontend.theme import build_theme, contrast, luminance, mix, on
 
-DATA_DIR = Path(__file__).resolve().parents[2] / "design_data" / "ui-ux-pro-max"
+DATA_DIR = Path(__file__).resolve().parents[3] / "design_data" / "ui-ux-pro-max"
 DIRECTIONS = 3
 # Another product type is an alternative only when it scores at least half of the best match on two or more terms.
 RELATED = 0.5

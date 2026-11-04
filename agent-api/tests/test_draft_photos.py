@@ -18,14 +18,14 @@ from src.modules.shared.domain.frontend_spec import validate_frontend_spec_data
 from src.modules.shared.domain.frontend_spec.issues import FrontendIssueCode
 from src.modules.shared.infrastructure.models import SpecDraftModel, UploadModel
 from src.modules.uploads.infrastructure.persistence import UploadRepository
+from src.orchestrator.backend.scaffold import scaffold_project
 from src.orchestrator.checks.consistency import check_spec_pair
-from src.orchestrator.design_direction import (
+from src.orchestrator.drafting.design_direction import (
     PHOTO_STYLES_BY_PRESET,
     apply_direction,
     direction,
 )
-from src.orchestrator.drafting import DraftRunner, draw_images
-from src.orchestrator.scaffold import scaffold_project
+from src.orchestrator.drafting.drafts import DraftRunner, draw_images
 from src.orchestrator.store import JobStore
 
 REPO = Path(__file__).parents[2]

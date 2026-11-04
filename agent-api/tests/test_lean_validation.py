@@ -5,16 +5,16 @@ import json
 from test_backend_codegen import with_custom_operation
 
 from src.modules.shared.domain.backend_spec import validate_spec_text
-from src.orchestrator.checks.smoke import custom_operations, judge, rule_answer, sample_value, smoke_calls
-from src.orchestrator.contract import build_contract
-from src.orchestrator.planner import build_plan
-from src.orchestrator.validation import (
+from src.orchestrator.backend.planner import build_plan
+from src.orchestrator.backend.validation import (
     CheckResult,
     ValidationOutcome,
     build_digest,
     conventions_check,
     generator_bug_files,
 )
+from src.orchestrator.checks.smoke import custom_operations, judge, rule_answer, sample_value, smoke_calls
+from src.orchestrator.integration.contract import build_contract
 
 
 def _pair() -> tuple[dict, dict]:

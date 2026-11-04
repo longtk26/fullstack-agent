@@ -6,11 +6,11 @@ import os
 from pathlib import Path
 
 from src.modules.shared.domain.frontend_spec import frontend_spec_json_schema, validate_frontend_spec_data
-from src.orchestrator.component_cache import component_file
-from src.orchestrator.frontend_codegen import generated_files
-from src.orchestrator.frontend_planner import plan_frontend
-from src.orchestrator.frontend_renderer import REGISTRY_FILE, RENDERED, registry_ts, renderer_gaps, section_props_ts
-from src.orchestrator.frontend_scaffold import OVERLAY_DIR, OWNED_INFO, scaffold_frontend
+from src.orchestrator.frontend.codegen import generated_files
+from src.orchestrator.frontend.component_cache import component_file
+from src.orchestrator.frontend.planner import plan_frontend
+from src.orchestrator.frontend.renderer import REGISTRY_FILE, RENDERED, registry_ts, renderer_gaps, section_props_ts
+from src.orchestrator.frontend.scaffold import OVERLAY_DIR, OWNED_INFO, scaffold_frontend
 from tests.generation_helpers import EXAMPLES
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -201,7 +201,7 @@ def test_custom_components_are_registered_with_their_fallback_until_resolved(tmp
 
 
 def test_a_designed_page_is_planned_bound_and_rendered_by_the_tree_renderer():
-    from src.orchestrator.frontend_renderer import TREE_DIR, icons_ts, library_files, site_data, used_sections
+    from src.orchestrator.frontend.renderer import TREE_DIR, icons_ts, library_files, site_data, used_sections
 
     plan = planned(LIBRARY)
     assert plan["trees"] is True and plan["rendering"] == "renderer"

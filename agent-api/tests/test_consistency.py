@@ -193,7 +193,7 @@ def test_stats_data_consistency():
 
 def test_uncovered_operations_warning_and_manage_area():
     from src.modules.shared.domain.frontend_spec import add_manage_area
-    from src.orchestrator.contract import build_contract
+    from src.orchestrator.integration.contract import build_contract
 
     backend_spec = normalized(EXAMPLES / "specs" / "two-entity.json")
     contract = build_contract(backend_spec)

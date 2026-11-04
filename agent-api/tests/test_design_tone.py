@@ -7,10 +7,10 @@ from pathlib import Path
 import pytest
 
 from src.modules.shared.domain.frontend_spec import validate_frontend_spec_data
-from src.orchestrator.design_tone import apply_tone, normalize_tone, tone_tokens
-from src.orchestrator.frontend_planner import plan_frontend
-from src.orchestrator.frontend_renderer import color_roles, site_json
-from src.orchestrator.frontend_theme import build_theme, globals_css
+from src.orchestrator.drafting.design_tone import apply_tone, normalize_tone, tone_tokens
+from src.orchestrator.frontend.planner import plan_frontend
+from src.orchestrator.frontend.renderer import color_roles, site_json
+from src.orchestrator.frontend.theme import build_theme, globals_css
 
 EXAMPLES = Path(__file__).parents[2] / "examples"
 LANDING = json.loads((EXAMPLES / "frontend-specs" / "static-landing.json").read_text())
@@ -132,7 +132,7 @@ def test_color_area_reaches_site_json():
 
 
 def test_wide_faces_and_capitals_shrink_the_hero_sizes():
-    from src.orchestrator.frontend_theme import display_scale, hero_vars
+    from src.orchestrator.frontend.theme import display_scale, hero_vars
 
     assert display_scale("Inter", {}) == 1.0 and display_scale("Playfair Display", {"tracking": "tight"}) == 1.0
     assert 0.85 < display_scale("Montserrat", {}) < 0.95

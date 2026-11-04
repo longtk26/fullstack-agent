@@ -11,7 +11,7 @@ from typing import Any
 from src.modules.shared.domain.frontend_spec import THEME_PRESETS, font_category, font_imports
 from src.modules.shared.domain.frontend_spec.fonts import font_width
 
-from .frontend_motion import motion_css, motion_vars
+from .motion import motion_css, motion_vars
 
 _HEX = re.compile(r"^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})([0-9a-fA-F]{2})?$")
 RADIUS = {"none": "0rem", "sm": "0.375rem", "md": "0.625rem", "lg": "0.875rem", "full": "1.25rem"}

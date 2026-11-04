@@ -5,8 +5,8 @@ from pathlib import Path
 
 from src.engines.fake_engine import GOLDEN
 from src.modules.shared.domain.backend_spec import validate_spec_text
-from src.orchestrator.planner import build_plan
-from src.orchestrator.scaffold import record_owned, scaffold_project
+from src.orchestrator.backend.planner import build_plan
+from src.orchestrator.backend.scaffold import record_owned, scaffold_project
 
 REPO = Path(__file__).parents[2]
 EXAMPLES = REPO / "examples"

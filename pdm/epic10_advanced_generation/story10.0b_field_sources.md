@@ -16,7 +16,7 @@ field.
 
 ## Steps
 
-1. **`x-bga.source` on every request property** in the contract (`orchestrator/contract.py`), written by the planner:
+1. **`x-bga.source` on every request property** in the contract (`orchestrator/integration/contract.py`), written by the planner:
 
    | Source | When | Frontend |
    |---|---|---|

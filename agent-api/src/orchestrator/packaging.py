@@ -30,8 +30,8 @@ from src.modules.shared.domain.entities import (
 )
 from src.modules.shared.domain.telemetry import ExecutionRecords, rollup
 
+from .backend.validation import CHECKS
 from .checks.parity import IGNORED_PATHS, compare_openapi
-from .validation import CHECKS
 
 MANIFEST_VERSION = "1.0"
 REPORT_VERSION = "1.1"  # 1.1: usage rollups (wall/engine/sandbox time, model calls, cost by source, per node/model)

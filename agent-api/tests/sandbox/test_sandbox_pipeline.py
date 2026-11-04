@@ -10,9 +10,9 @@ from pathlib import Path
 
 import pytest
 
-from src.orchestrator.planner import build_plan
-from src.orchestrator.scaffold import record_owned, scaffold_project
-from src.orchestrator.validation import SandboxValidationRunner, ValidationRequest
+from src.orchestrator.backend.planner import build_plan
+from src.orchestrator.backend.scaffold import record_owned, scaffold_project
+from src.orchestrator.backend.validation import SandboxValidationRunner, ValidationRequest
 from src.sandbox import DockerSandboxProvider
 from tests.generation_helpers import REPO, TEMPLATE, golden_project, two_entity_plan
 
@@ -149,8 +149,8 @@ def test_autofix_clears_import_order_and_formatting_before_lint(shared_dir):
 def test_backend_generated_from_templates_passes_every_check(shared_dir, name):
     """Story 17.6: models, CRUD modules and their tests written from the plan, no engine: every check passes,
     including the generated tests and the OpenAPI conformance with the contract."""
-    from src.orchestrator.backend_codegen import database_files, module_files, module_tests, routers_file
-    from src.orchestrator.contract import build_contract
+    from src.orchestrator.backend.codegen import database_files, module_files, module_tests, routers_file
+    from src.orchestrator.integration.contract import build_contract
     from tests.generation_helpers import EXAMPLES, normalized
 
     spec = normalized(EXAMPLES / "specs" / f"{name}.json")

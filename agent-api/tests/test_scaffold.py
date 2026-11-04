@@ -2,7 +2,7 @@ import shutil
 
 import pytest
 
-from src.orchestrator.scaffold import (
+from src.orchestrator.backend.scaffold import (
     OWNED_INFO,
     TemplateDrift,
     changed_owned,

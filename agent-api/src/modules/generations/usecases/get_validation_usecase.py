@@ -5,7 +5,7 @@ from fastapi import Depends
 from src.modules.generations.ports.output import IExecutionRecordRepoDep
 from src.modules.generations.usecases.get_generation_usecase import GetGenerationUsecaseDep
 from src.modules.shared.domain.entities import UserEntity
-from src.orchestrator.validation import CHECKS
+from src.orchestrator.backend.validation import CHECKS
 
 
 class GetValidationUsecase:

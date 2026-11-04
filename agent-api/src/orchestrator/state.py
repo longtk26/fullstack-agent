@@ -164,3 +164,7 @@ class FrontendLaneOutput(TypedDict, total=False):
     frontend_error: str | None
     outcome: str | None
     error_summary: str | None
+
+
+# `async (state, ctx) -> (state update, step summary)`
+NodeResult = tuple[dict[str, Any], dict[str, Any]]

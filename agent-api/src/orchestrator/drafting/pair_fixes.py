@@ -18,7 +18,7 @@ from src.modules.shared.domain.backend_spec import Severity, SpecIssue, validate
 from src.modules.shared.domain.backend_spec.naming import to_camel
 from src.modules.shared.domain.frontend_spec import validate_frontend_spec_data
 
-from .checks.consistency import check_spec_pair
+from ..checks.consistency import check_spec_pair
 
 logger = logging.getLogger(__name__)
 

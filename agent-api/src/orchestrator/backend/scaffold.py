@@ -10,7 +10,7 @@ import shutil
 from pathlib import Path
 from typing import Any
 
-OVERLAY_DIR = Path(__file__).resolve().parents[2] / "templates" / "fastapi_overlay"
+OVERLAY_DIR = Path(__file__).resolve().parents[3] / "templates" / "fastapi_overlay"
 PLACEHOLDER = "{{PROJECT_NAME}}"
 DOCKER_FILES = ("Dockerfile", "docker-entrypoint.sh", "docker-compose.yml", ".dockerignore")
 # Generator-owned: the engine must not change them (checked by the conventions check).

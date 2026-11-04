@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from src.orchestrator import design_diversity as dd
+from src.orchestrator.drafting import design_diversity as dd
 
 EXAMPLES = Path(__file__).parents[2] / "examples"
 LANDING = json.loads((EXAMPLES / "frontend-specs" / "static-landing.json").read_text())

@@ -8,10 +8,10 @@ from generation_helpers import EXAMPLES, normalized
 
 from src.modules.shared.domain.backend_spec import validate_spec_data
 from src.modules.shared.domain.frontend_spec.tree_bindings import aggregate_id, bind_tree, derive_operations
-from src.orchestrator.backend_codegen import codegen_gaps, module_files, module_tests
-from src.orchestrator.contract import build_contract, contract_operations
-from src.orchestrator.frontend_codegen import mock_operations
-from src.orchestrator.planner import build_plan
+from src.orchestrator.backend.codegen import codegen_gaps, module_files, module_tests
+from src.orchestrator.backend.planner import build_plan
+from src.orchestrator.frontend.codegen import mock_operations
+from src.orchestrator.integration.contract import build_contract, contract_operations
 
 TWO_ENTITY = json.loads((EXAMPLES / "specs" / "two-entity.json").read_text())
 

@@ -10,10 +10,9 @@ from generation_helpers import EXAMPLES, engine_path, normalized
 from src.engines.fake_engine import GOLDEN_FRONTENDS
 from src.modules.shared.domain.frontend_spec import validate_frontend_spec_text
 from src.orchestrator.checks.frontend_conventions import check_frontend_conventions
-from src.orchestrator.contract import build_contract
-from src.orchestrator.frontend_codegen import generated_files, type_name
-from src.orchestrator.frontend_planner import plan_frontend
-from src.orchestrator.frontend_scaffold import (
+from src.orchestrator.frontend.codegen import generated_files, type_name
+from src.orchestrator.frontend.planner import plan_frontend
+from src.orchestrator.frontend.scaffold import (
     BASE_DIR,
     OVERLAY_DIR,
     FrontendTemplateDrift,
@@ -22,11 +21,12 @@ from src.orchestrator.frontend_scaffold import (
     load_manifest,
     scaffold_frontend,
 )
-from src.orchestrator.frontend_validation import (
+from src.orchestrator.frontend.validation import (
     eslint_failures,
     routes_check,
     typescript_errors,
 )
+from src.orchestrator.integration.contract import build_contract
 
 TRACKER = "project-tracker-dynamic"
 LANDING = "static-landing"

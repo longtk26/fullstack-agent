@@ -30,11 +30,11 @@ from pydantic.alias_generators import to_camel
 from src.modules.shared.domain.frontend_spec import FONTS, SECTION_PROPS, closest_font, font_category
 from src.modules.shared.domain.frontend_spec.copy_rules import phrase_list
 
+from ..frontend.motion import FEELS, SIGNATURES
+from ..frontend.theme import _hex, _rgb, contrast, luminance, mix, on
 from .design_direction import FORM_SECTIONS, HOME_ROUTE, PHOTO_STYLES_BY_PRESET, contrast_failures, with_brand
 from .design_diversity import VISUAL_FIELDS, difference_problems, hue_family, off_default, shared_fields
 from .design_tone import SCALES, apply_tone, icon_style, motion_feel, normalize_tone
-from .frontend_motion import FEELS, SIGNATURES
-from .frontend_theme import _hex, _rgb, contrast, luminance, mix, on
 
 DIRECTIONS = 3
 MAX_SEED = 1_000_000

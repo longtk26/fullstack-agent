@@ -2,10 +2,10 @@ import json
 import os
 from pathlib import Path
 
-from src.orchestrator.contract import build_contract
-from src.orchestrator.frontend_codegen import generated_files, journeys_spec
-from src.orchestrator.frontend_planner import plan_frontend
-from src.orchestrator.planner import build_plan
+from src.orchestrator.backend.planner import build_plan
+from src.orchestrator.frontend.codegen import generated_files, journeys_spec
+from src.orchestrator.frontend.planner import plan_frontend
+from src.orchestrator.integration.contract import build_contract
 from tests.generation_helpers import normalized
 
 REPO = Path(__file__).resolve().parents[2]

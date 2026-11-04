@@ -83,14 +83,14 @@ print(json.dumps(answers))
 
 def custom_operations(plan: dict[str, Any]) -> list[dict[str, Any]]:
     """The planned operations the templates did not write (custom ones; aggregates are templated, and checked too)."""
-    from ..backend_codegen import is_crud
+    from ..backend.codegen import is_crud
 
     return [op for module in plan.get("modules", []) for op in module.get("operations", []) if not is_crud(op)]
 
 
 def sample_value(contract: dict[str, Any], schema: Any, record: dict[str, Any] | None = None, depth: int = 0) -> Any:
     """A value the schema admits, taking fields from `record` (a fixture) where their names match."""
-    from ..contract import resolve
+    from ..integration.contract import resolve
 
     schema = resolve(contract, schema) if isinstance(schema, dict) else {}
     if depth > 5 or not isinstance(schema, dict):
@@ -140,8 +140,8 @@ def smoke_calls(contract: dict[str, Any], plan: dict[str, Any]) -> tuple[list[di
     """(calls, skipped): one call per custom operation, path parameters from the first fixture of its entity, a
     request body built from its request schema and that fixture. Operations behind auth, or whose path cannot be
     filled, are skipped (named, so the result says so)."""
-    from ..contract import contract_operations, resolve
-    from ..integration import _resolve_operation_path
+    from ..integration.contract import contract_operations, resolve
+    from ..integration.integrate import _resolve_operation_path
 
     operations = contract_operations(contract)
     fixtures = (contract.get("x-bga") or {}).get("fixtures") or {}
@@ -181,8 +181,8 @@ def smoke_calls(contract: dict[str, Any], plan: dict[str, Any]) -> tuple[list[di
 
 def judge(contract: dict[str, Any], calls: list[dict[str, Any]], answers: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Failures (operation, request, response) of the answers: the planned status, then the response schema."""
-    from ..contract import contract_operations, resolve
-    from ..integration import validate_value_against_schema
+    from ..integration.contract import contract_operations, resolve
+    from ..integration.integrate import validate_value_against_schema
 
     operations = contract_operations(contract)
     problems: list[dict[str, Any]] = []

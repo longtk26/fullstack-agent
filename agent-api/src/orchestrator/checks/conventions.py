@@ -7,7 +7,7 @@ import ast
 from pathlib import Path
 from typing import Any
 
-from src.orchestrator.scaffold import changed_owned
+from src.orchestrator.backend.scaffold import changed_owned
 
 ENTITIES_DIR = "src/modules/shared/domain/entities"
 MODELS_DIR = "src/modules/shared/infrastructure/models"

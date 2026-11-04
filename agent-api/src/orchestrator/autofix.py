@@ -19,9 +19,9 @@ from typing import Literal
 from src.sandbox import ISandbox
 
 from . import tracing
+from .backend.validation import SKIP_DIRS as BACKEND_SKIP_DIRS
 from .checks.frontend_conventions import SKIP_DIRS as FRONTEND_SKIP_DIRS
 from .context import JobContext
-from .validation import SKIP_DIRS as BACKEND_SKIP_DIRS
 from .workspace import JobWorkspace, WorkspaceManager
 
 Repo = Literal["project", "frontend"]

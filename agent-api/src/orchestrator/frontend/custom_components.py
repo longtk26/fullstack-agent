@@ -27,7 +27,9 @@ from src.modules.shared.domain.entities import ComponentCacheEntity
 from src.modules.shared.domain.frontend_spec import iter_sections
 from src.sandbox import ISandbox
 
-from .checks.frontend_conventions import file_violations
+from ..checks.frontend_conventions import file_violations
+from ..context import EngineFailure, JobContext, RecordingSandbox
+from ..integration.contract import contract_operations
 from .component_cache import (
     PROMPT_VERSION,
     cached_file,
@@ -39,11 +41,9 @@ from .component_cache import (
     sample_props,
     store_file,
 )
-from .context import EngineFailure, JobContext, RecordingSandbox
 from .context_pack import component_context
-from .contract import contract_operations
-from .frontend_renderer import REGISTRY_FILE, custom_declarations, registry_ts, section_props
-from .frontend_scaffold import update_owned
+from .renderer import REGISTRY_FILE, custom_declarations, registry_ts, section_props
+from .scaffold import update_owned
 
 logger = get_logger(__name__)
 ICON_PACKAGE = re.compile(r"""from\s+["'](lucide-react|@phosphor-icons/react)""")

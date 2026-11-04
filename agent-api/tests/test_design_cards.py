@@ -13,7 +13,7 @@ import pytest
 from src.engines.fake_design import concepts, fake_cards
 from src.modules.shared.domain.frontend_spec import FONTS, validate_frontend_spec_data
 from src.modules.shared.domain.frontend_spec.copy_rules import stock_phrase
-from src.orchestrator.design_cards import (
+from src.orchestrator.drafting.design_cards import (
     HERO_LAYOUTS,
     Card,
     best_fit,
@@ -27,9 +27,9 @@ from src.orchestrator.design_cards import (
     problems,
     read_cards,
 )
-from src.orchestrator.design_direction import apply_direction, contrast_failures, directions
-from src.orchestrator.design_diversity import hue_family
-from src.orchestrator.drafting import FRONTEND_FILE, NOTES_FILE, settle_directions
+from src.orchestrator.drafting.design_direction import apply_direction, contrast_failures, directions
+from src.orchestrator.drafting.design_diversity import hue_family
+from src.orchestrator.drafting.drafts import FRONTEND_FILE, NOTES_FILE, settle_directions
 from tests.generation_helpers import EXAMPLES
 
 REPO = Path(__file__).parents[2]

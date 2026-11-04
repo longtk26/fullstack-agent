@@ -11,7 +11,7 @@ may only return values the contract allows (an integer is a number; `null` only 
 
 from typing import Any
 
-from src.orchestrator.contract import contract_operations, resolve
+from src.orchestrator.integration.contract import contract_operations, resolve
 
 MAX_DEPTH = 4
 

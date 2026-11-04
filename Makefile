@@ -81,7 +81,7 @@ frontend-base:
 	  -v "$(CURDIR)/$(API_DIR)/templates/nextjs_base:/out" node:22-bookworm-slim sh /frontend-base.sh \
 	  "$$(cd $(API_DIR) && $(PY)/python -c 'from src.modules.shared.domain.frontend_spec.catalogue import SHADCN_PRIMITIVES as P; print(" ".join(sorted(P)))')" \
 	  "$$(cd $(API_DIR) && $(PY)/python -c 'from src.modules.shared.domain.frontend_spec.fonts import FONTS; print(" ".join(f.package for f in FONTS.values()))')"
-	cd $(API_DIR) && $(PY)/python -c 'import json; from src.orchestrator.frontend_scaffold import build_manifest, OVERLAY_DIR; \
+	cd $(API_DIR) && $(PY)/python -c 'import json; from src.orchestrator.frontend.scaffold import build_manifest, OVERLAY_DIR; \
 	  (OVERLAY_DIR / "overlay.json").write_text(json.dumps(build_manifest(), indent=2, sort_keys=True) + "\n")'
 
 # Only the icon index of the pinned base (Story 20.5; old Lucide names since 2026-11-04), without regenerating the base.

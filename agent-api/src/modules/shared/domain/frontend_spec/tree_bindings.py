@@ -35,7 +35,7 @@ def aggregate_id(collection: str, fn: str, field: str | None, group_by: str | No
 def _contract_ops(contract: Contract) -> dict[str, dict[str, Any]]:
     if not contract:
         return {}
-    from src.orchestrator.contract import contract_operations
+    from src.orchestrator.integration.contract import contract_operations
 
     return contract_operations(contract)
 

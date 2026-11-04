@@ -6,7 +6,7 @@ from fastapi import Depends
 from src.modules.shared.domain.backend_spec import Severity, SpecIssue, ValidationReport, validate_spec_data
 from src.modules.shared.domain.frontend_spec import FrontendIssueCode, validate_frontend_spec_data
 from src.orchestrator.checks.consistency import check_spec_pair
-from src.orchestrator.contract import build_contract
+from src.orchestrator.integration.contract import build_contract
 
 
 @dataclass
