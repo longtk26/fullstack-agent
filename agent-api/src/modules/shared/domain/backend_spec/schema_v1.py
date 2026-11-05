@@ -11,7 +11,19 @@ OPERATION_ID = r"^[a-z][a-zA-Z0-9]*(\.[a-zA-Z0-9]+)+$"
 API_PATH = r"^/[A-Za-z0-9_\-/{}.]*$"
 
 FieldType = Literal[
-    "uuid", "string", "text", "integer", "float", "decimal", "boolean", "date", "datetime", "enum", "json"
+    "uuid",
+    "string",
+    "text",
+    "integer",
+    "float",
+    "decimal",
+    "boolean",
+    "date",
+    "datetime",
+    "enum",
+    "json",
+    "file",
+    "image",  # Story 10.5: an uploaded object; the column holds its key
 ]
 HttpMethod = Literal["GET", "POST", "PUT", "PATCH", "DELETE"]
 CrudAction = Literal["create", "get", "list", "update", "delete"]
@@ -49,6 +61,9 @@ class FieldDef(SpecModel):
     min: float | None = None
     max: float | None = None
     description: str | None = None
+    # Story 10.5, `file` and `image`: allowed MIME types (`image/*` allowed) and the largest size in bytes
+    accept: list[str] | None = None
+    max_size: int | None = Field(default=None, ge=1)
 
 
 class IndexDef(SpecModel):

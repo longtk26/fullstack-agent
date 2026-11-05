@@ -37,6 +37,7 @@ import urllib.error
 import urllib.request
 
 PORT = 8766
+PNG_HEX = "89504e470d0a1a0a0000000d494844520000000100000001080600000000"
 plan = json.load(open(".bga/smoke.json", encoding="utf-8"))
 with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as handle:
     json.dump(plan["seed"], handle)
@@ -58,6 +59,13 @@ while time.monotonic() < deadline and proc.poll() is None:
             break
     except Exception:
         time.sleep(0.5)
+if plan.get("objects"):  # Story 10.5: the fixtures' files, so their keys exist (through the app's own storage)
+    sys.path.insert(0, ".")
+    from src.libs.storage import ensure_bucket, get_storage
+
+    ensure_bucket()
+    for item in plan["objects"]:
+        get_storage().put(item["key"], bytes.fromhex(PNG_HEX), item["contentType"])
 tokens = {}
 
 

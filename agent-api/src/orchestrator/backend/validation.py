@@ -400,7 +400,12 @@ class SandboxValidationRunner(IValidationRunner):
         project = request.project
         (project / SMOKE_FILE).write_text(
             json.dumps(
-                {"seed": build_contract_seed(contract, request.plan), "calls": calls, "login": smoke_login(contract)}
+                {
+                    "seed": build_contract_seed(contract, request.plan),
+                    "calls": calls,
+                    "login": smoke_login(contract),
+                    "objects": ((contract.get("x-bga") or {}).get("storage") or {}).get("objects", []),
+                }
             )
         )
         (project / SMOKE_SCRIPT_FILE).write_text(SMOKE_SCRIPT)

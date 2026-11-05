@@ -24,6 +24,7 @@ from sqlalchemy.engine import make_url
 
 from src.configs import config, get_logger
 
+from . import object_store
 from .port import ExecResult, ISandbox, ISandboxProvider, SandboxError, SandboxKind
 
 logger = get_logger(__name__)
@@ -144,6 +145,7 @@ class DockerSandbox(ISandbox):
         self.test_db_url = f"postgresql://{DB_USER}:{self.password}@{self.db_name}:5432/app_test"
         self._started = False
         self._env: dict[str, str] = {}
+        self._storage: dict[str, str] | None = None  # Story 10.5: the shared store's env, once attached
 
     # -- lifecycle ---------------------------------------------------------------------------------------------
 
@@ -189,6 +191,18 @@ class DockerSandbox(ISandbox):
 
     def _remove_all(self) -> None:
         remove_job_resources(self.client, {self.generation_id}, part=self.part)
+        if self._storage is not None:
+            object_store.remove_bucket(self.client, self._storage["STORAGE_BUCKET"])
+            self._storage = None
+
+    def _attach_storage(self) -> dict[str, str]:
+        """Story 10.5: a project with file fields reaches the shared store as `storage`, in its own bucket; tests
+        upload to presigned URLs from inside the job network, so the public endpoint is the internal one."""
+        if self._storage is None:
+            object_store.attach(self.client, self.network_name)
+            name = object_store.bucket("bga-sbx", self.generation_id)
+            self._storage = object_store.app_env(self.client, name, f"http://{object_store.ALIAS}:{object_store.PORT}")
+        return self._storage
 
     # -- database -----------------------------------------------------------------------------------------------
 
@@ -316,6 +330,8 @@ class DockerSandbox(ISandbox):
             if self.profile.database
             else {"HOME": "/tmp", "CI": "1", "NEXT_TELEMETRY_DISABLED": "1"}
         )
+        if self.profile.database and (self.project / object_store.MARKER).exists():
+            environment |= self._attach_storage()
         environment |= env or {}
         if (self.project / ".venv" / "bin" / "python").exists():
             environment["PATH"] = "/work/.venv/bin:/opt/venv/bin:/usr/local/bin:/usr/bin:/bin"
@@ -404,6 +420,7 @@ def remove_job_resources(client: docker.DockerClient, generation_ids: set[str], 
         for network in client.networks.list(filters=selector):
             if part is not None and (network.attrs.get("Labels") or {}).get(PART_LABEL, "backend") != part:
                 continue
+            object_store.detach(client, network.name)  # Story 10.5: the shared store may be connected
             try:
                 network.remove()
                 removed += 1

@@ -31,6 +31,7 @@ from docker.models.containers import Container
 
 from src.configs import config, get_logger
 from src.libs.redaction import Redactor, default_redactor
+from src.sandbox import object_store
 from src.sandbox.docker_sandbox import INSTANCE_LABEL, ensure_egress_network, instance_id
 
 from .port import IPreviewRuntime, PreviewError, PreviewHandle, PreviewRequest, PreviewState
@@ -132,6 +133,8 @@ class DockerPreviewRuntime(IPreviewRuntime):
         n = names(request.generation_id)
         build_log = self._ensure_image(request.generation_id, request.source_zip)
         self._ensure_network(request.generation_id)
+        if _has_storage(request.source_zip):  # Story 10.5: file fields
+            object_store.attach(self.client, n["network"])
         db = self._ensure_db(request.generation_id)
         app = self._get(n["app"])
         cors = request.options.get("corsOrigins") or config.preview_cors_origins
@@ -257,6 +260,9 @@ class DockerPreviewRuntime(IPreviewRuntime):
         }
         if request.seed is not None:
             environment["SEED_FILE"] = SEED_PATH
+        if _has_storage(request.source_zip):
+            bucket = object_store.bucket("bga-preview", request.generation_id)
+            environment |= object_store.app_env(self.client, bucket, object_store.public_endpoint())
         labels = {**_labels(request.generation_id, "app"), "bga.backend.cors": cors}
         ensure_egress_network(self.client)
         last_error: Exception | None = None
@@ -346,6 +352,7 @@ class DockerPreviewRuntime(IPreviewRuntime):
             self.client.volumes.get(n["volume"]).remove(force=True)
         except NotFound:
             pass
+        object_store.remove_bucket(self.client, object_store.bucket("bga-preview", generation_id), drop=False)
 
     async def remove(self, generation_id: str, keep_image: bool = False) -> None:
         await asyncio.to_thread(self._remove, generation_id, keep_image)
@@ -354,7 +361,9 @@ class DockerPreviewRuntime(IPreviewRuntime):
         n = names(generation_id)
         self._remove_container(n["app"])
         self._remove_container(n["db"])
+        object_store.remove_bucket(self.client, object_store.bucket("bga-preview", generation_id))
         for network in self.client.networks.list(names=[n["network"]]):
+            object_store.detach(self.client, network.name)
             try:
                 network.remove()
             except (NotFound, APIError):
@@ -451,6 +460,14 @@ class DockerPreviewRuntime(IPreviewRuntime):
             return code, doc, rest
 
         return await asyncio.to_thread(run_exec)
+
+
+def _has_storage(source_zip: Path) -> bool:
+    try:
+        with zipfile.ZipFile(source_zip) as archive:
+            return object_store.MARKER in archive.namelist()
+    except (OSError, zipfile.BadZipFile):
+        return False
 
 
 def _tar(name: str, data: bytes) -> bytes:

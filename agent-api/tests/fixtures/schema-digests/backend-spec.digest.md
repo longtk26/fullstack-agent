@@ -51,7 +51,7 @@ type Entity = {
 
 type FieldDef = {
   name: string;
-  type: "uuid" | "string" | "text" | "integer" | "float" | "decimal" | "boolean" | "date" | "datetime" | "enum" | "json";
+  type: "uuid" | "string" | "text" | "integer" | "float" | "decimal" | "boolean" | "date" | "datetime" | "enum" | "json" | "file" | "image";
   primary?: boolean;
   required?: boolean;
   nullable?: boolean | null;
@@ -63,6 +63,8 @@ type FieldDef = {
   min?: number | null;
   max?: number | null;
   description?: string | null;
+  accept?: string[] | null;
+  maxSize?: number | null;
 };
 
 type FrontendBinding = {

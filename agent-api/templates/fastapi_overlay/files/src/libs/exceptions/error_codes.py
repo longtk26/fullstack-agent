@@ -14,4 +14,8 @@ class ErrorCode(StrEnum):
     INVALID_TRANSITION = "INVALID_TRANSITION"
     RESOURCE_LOCKED = "RESOURCE_LOCKED"
     TOTAL_MISMATCH = "TOTAL_MISMATCH"
+    # uploads (Story 10.5): no object under the key, a type the field does not take, a file too large
+    FILE_NOT_FOUND = "FILE_NOT_FOUND"
+    FILE_TYPE_NOT_ALLOWED = "FILE_TYPE_NOT_ALLOWED"
+    FILE_TOO_LARGE = "FILE_TOO_LARGE"
     INTERNAL_ERROR = "INTERNAL_ERROR"

@@ -36,7 +36,13 @@ TYPE_MAP: dict[str, tuple[str, str]] = {
     "datetime": ("datetime.datetime", "DateTime(timezone=True)"),
     "enum": ("<enum>", "Enum"),
     "json": ("Any", "JSONB"),
+    # Story 10.5: an uploaded object's key (the planner makes these `string` columns that carry `file`)
+    "file": ("str", "VARCHAR(512)"),
+    "image": ("str", "VARCHAR(512)"),
 }
+IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"]
+MAX_FILE_SIZE = 10 * 1024 * 1024
+MAX_IMAGE_SIZE = 5 * 1024 * 1024
 
 
 def handler_name(operation_id: str, list_action: bool = False) -> str:
@@ -81,7 +87,16 @@ def _column(entity: dict[str, Any], field: dict[str, Any]) -> dict[str, Any]:
             "values": list(field.get("values") or []),
             "module": f"{ENTITIES_PKG}/{to_snake(entity['name'])}_entity.py",
         }
-    if field.get("maxLength") is not None:
+    if field["type"] in ("file", "image"):  # Story 10.5: a string column holding the object key
+        image = field["type"] == "image"
+        column |= {"type": "string", "maxLength": 512, "columnType": "VARCHAR(512)"}
+        column["file"] = {
+            "kind": field["type"],
+            "accept": list(field.get("accept") or (IMAGE_TYPES if image else [])),
+            "maxSize": field.get("maxSize") or (MAX_IMAGE_SIZE if image else MAX_FILE_SIZE),
+            "prefix": f"{to_snake(entity['name'])}/{attr}",  # every key of the field starts with it
+        }
+    if field.get("maxLength") is not None and "file" not in column:
         column["maxLength"] = field["maxLength"]
         column["columnType"] = f"VARCHAR({field['maxLength']})" if field["type"] == "string" else column_type
     for bound in ("min", "max"):
@@ -299,7 +314,10 @@ def _label_column(entity: dict[str, Any], model: dict[str, Any]) -> dict[str, An
         (
             column
             for column in model["columns"]
-            if column["type"] in ("string", "text") and not column["nullable"] and not column.get("foreignKey")
+            if column["type"] in ("string", "text")
+            and not column["nullable"]
+            and not column.get("foreignKey")
+            and "file" not in column  # an object key names nothing
         ),
         None,
     )

@@ -1518,6 +1518,9 @@ class _Tests:
             if column.get("foreignKey"):
                 parent = self._parent(column)
                 value = f"str({self.seed(parent)}().{_pk(parent)['attr']})"
+            elif column.get("file"):  # Story 10.5: a key the test bucket has, as an upload would leave
+                self.imports.add("tests.storage", "uploaded")
+                value = f'uploaded("{self.crud.entity}.{column["apiName"]}")'
             else:
                 value = self._json_literal(column)
             lines.append(f'        "{column["apiName"]}": {value},\n')

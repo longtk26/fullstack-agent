@@ -26,11 +26,19 @@ from .integrations import IntegrationStubsPlugin
 from .policies import PoliciesPlugin
 from .rate_limit import RateLimitPlugin
 from .rules import RulesPlugin
+from .storage import StoragePlugin
 
 # Every plugin the generator knows, by name. Tests add their own with `monkeypatch.setitem(REGISTRY, ...)`.
 REGISTRY: dict[str, Plugin] = {
     plugin.name: plugin
-    for plugin in (RateLimitPlugin(), AuthJwtPlugin(), PoliciesPlugin(), RulesPlugin(), IntegrationStubsPlugin())
+    for plugin in (
+        RateLimitPlugin(),
+        AuthJwtPlugin(),
+        PoliciesPlugin(),
+        RulesPlugin(),
+        StoragePlugin(),
+        IntegrationStubsPlugin(),
+    )
 }
 
 

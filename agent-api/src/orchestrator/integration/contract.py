@@ -235,12 +235,27 @@ def build_fixtures(spec: dict[str, Any], plan: dict[str, Any]) -> tuple[dict[str
                     row[column["apiName"]] = parent_rows[index % len(parent_rows)][pk]
                 else:
                     row[column["apiName"]] = None
+    for model in models:  # Story 10.5: a file field holds an object key under its prefix, per owner when there is one
+        owner = next((c["apiName"] for c in model["columns"] if c.get("source") == "currentUser"), None)
+        for column in (c for c in model["columns"] if c.get("file")):
+            extension = ".png" if column["file"]["kind"] == "image" else ".pdf"
+            for index, row in enumerate(records[model["entity"]]):
+                if column["apiName"] in seeds_given(seeds, model["entity"], index):
+                    continue
+                folder = row.get(owner) if owner else "shared"
+                row[column["apiName"]] = f"{column['file']['prefix']}/{folder}/seed/{index + 1}{extension}"
     for model in models:  # column order, so documents diff cleanly
         order = [column["apiName"] for column in model["columns"]]
         records[model["entity"]] = [
             {name: row[name] for name in order if name in row} for row in records[model["entity"]]
         ]
     return records, set(seeds)
+
+
+def seeds_given(seeds: dict[str, list[dict[str, Any]]], entity: str, index: int) -> set[str]:
+    """The fields the spec's own seed row gives (kept as they are)."""
+    rows = seeds.get(entity) or []
+    return set(rows[index]) if index < len(rows) else set()
 
 
 def _examples(value: Any, seeded: bool) -> dict[str, Any]:

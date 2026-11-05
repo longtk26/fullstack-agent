@@ -158,3 +158,26 @@ def test_a_backend_with_business_rules_passes_its_tests_and_scenarios(client, us
     finally:
         if not os.environ.get("BGA_KEEP_SANDBOX_DIRS"):
             shutil.rmtree(root, ignore_errors=True)
+
+
+@pytest.mark.parametrize("auth", [False, True], ids=["open", "signed-in"])
+def test_a_backend_with_file_fields_passes_its_tests_and_scenarios(client, user_headers, tmp_path, auth):
+    """Story 10.5: image and file fields against the shared local store: presign, upload and read in the template
+    tests, the upload checks, and the presign / not-uploaded scenarios, all in the real sandbox."""
+    from tests.test_storage import storage_spec
+
+    root = REPO / ".data" / "test-sandbox" / uuid.uuid4().hex[:10]
+    root.mkdir(parents=True)
+    try:
+        storage_spec(tmp_path, auth=auth)
+        spec = json.loads((tmp_path / "storage-spec.json").read_text())
+        generation_id = submit(client, user_headers, spec=spec, crudFromTemplates=True)
+        status = run_job(root, generation_id, validator=SandboxValidationRunner(), sandboxes=DockerSandboxProvider())
+
+        assert status in ("COMPLETED", "COMPLETED_WITH_WARNINGS"), generation(generation_id).error_summary
+        tests = [e for e in events(generation_id) if e.type == "validation.check" and e.payload["check"] == "tests"]
+        assert tests[-1].status == "passed", tests[-1].payload["summary"]
+        assert "scenario(s) answer as the contract says" in tests[-1].payload["summary"]
+    finally:
+        if not os.environ.get("BGA_KEEP_SANDBOX_DIRS"):
+            shutil.rmtree(root, ignore_errors=True)

@@ -261,7 +261,9 @@
             "date",
             "datetime",
             "enum",
-            "json"
+            "json",
+            "file",
+            "image"
           ],
           "title": "Type",
           "type": "string"
@@ -366,6 +368,34 @@
           ],
           "default": null,
           "title": "Description"
+        },
+        "accept": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Accept"
+        },
+        "maxSize": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxsize"
         }
       },
       "required": [

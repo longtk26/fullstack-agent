@@ -95,6 +95,10 @@ class Config(BaseSettings):
     sandbox_command_timeout_seconds: int = 300
     sandbox_output_bytes: int = 2_000_000
     sandbox_egress_network: str = "bga-sbx-egress"
+    # Story 10.5: one shared S3-compatible store (RustFS) for the sandboxes and previews of apps with file fields;
+    # MinIO's community images are no longer published. Bound to 127.0.0.1 only.
+    storage_image: str = "rustfs/rustfs:1.0.1"
+    storage_port: int = 9100
     # Frontend sandbox (Story 13.4): Node runner, no database; Next.js builds need more memory than pytest.
     frontend_sandbox_image: str = "bga-runner-node:1"
     frontend_sandbox_cpus: float = 2.0

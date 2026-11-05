@@ -1,0 +1,14 @@
+{
+  "name": "storage",
+  "version": "1",
+  "description": "File and image fields: an S3 object storage port and adapter (boto3), presigned uploads, upload checks in use cases, signed read URLs in responses.",
+  "requirements": [
+    "boto3==1.40.0"
+  ],
+  "owns": [
+    "src/libs/storage",
+    "src/modules/files",
+    "tests/storage.py",
+    "tests/modules/files"
+  ]
+}

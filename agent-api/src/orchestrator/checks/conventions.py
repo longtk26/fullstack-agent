@@ -98,18 +98,22 @@ def check_conventions(project: Path, plan: dict[str, Any]) -> list[dict[str, Any
 
     for module in plan.get("modules", []):
         # Planned files exist.
-        expected = [
-            module["port"]["file"],
-            module["port"]["implementationFile"],
-            module["router"]["file"],
-            *(usecase["file"] for usecase in module["usecases"]),
+        expected = [  # a plugin's module may have no repository (Story 10.5: `files`)
+            relative
+            for relative in (
+                module["port"].get("file"),
+                module["port"].get("implementationFile"),
+                module["router"]["file"],
+                *(usecase["file"] for usecase in module["usecases"]),
+            )
+            if relative
         ]
         for relative in expected:
             if not (project / relative).is_file():
                 violations.append(_violation(relative, 0, "planned_file", "planned file is missing"))
 
         # Repository exports its Dep alias.
-        impl = project / module["port"]["implementationFile"]
+        impl = project / (module["port"].get("implementationFile") or "-")
         tree = _parse(impl) if impl.is_file() else None
         if tree is not None and module["port"]["dep"] not in _assigned_names(tree):
             violations.append(_violation(_rel(project, impl), 0, "repo_dep", f"{module['port']['dep']} is not defined"))
