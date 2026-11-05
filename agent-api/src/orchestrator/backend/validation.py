@@ -427,14 +427,14 @@ class SandboxValidationRunner(IValidationRunner):
         if ruled:
             note += f"; answered by a business rule: {', '.join(ruled)}"
         scenarios = sum(1 for call in calls if call.get("expect"))
-        worker = sum(1 for call in calls if call.get("kind") == "worker")  # Story 10.6
+        worker = sum(1 for call in calls if call.get("kind") in ("worker", "mail"))  # Stories 10.6, 10.7
         custom = len(calls) - scenarios - worker
         counted = ", ".join(
             part
             for part in (
                 f"{custom} custom operation(s)" if custom else "",
                 f"{scenarios} scenario(s)" if scenarios else "",
-                "the job worker's run" if worker else "",
+                "the job worker's run" if worker else "",  # (and the inbox, with emails)
             )
             if part
         )

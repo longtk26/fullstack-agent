@@ -313,6 +313,10 @@ def build_manifest(
                 "roles": auth["roles"],
                 "demoUsers": auth["demoUsers"],
             }
+    if plan.get("emails") or plan.get("account"):  # Story 10.7: where the preview's emails land
+        from src.sandbox.mail_service import inbox_url
+
+        manifest["email"] = {"inbox": inbox_url(generation.id), "emails": [e["name"] for e in plan.get("emails", [])]}
     if spec.get("x-frontendBindings"):
         manifest["frontendBindings"] = spec["x-frontendBindings"]
     return manifest

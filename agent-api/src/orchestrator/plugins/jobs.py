@@ -139,7 +139,8 @@ class JobsPlugin(Plugin):
             + "".join(f"from . import {name}  # noqa: F401\n" for name in names)
         )
         for job in jobs:
-            files[job["file"]] = _handler_file(job)
+            if job["action"] in ("log", "custom"):  # other actions' handlers are their plugin's (email: 10.7)
+                files[job["file"]] = _handler_file(job)
         files["tests/modules/jobs/__init__.py"] = ""
         files["tests/modules/jobs/test_jobs.py"] = _test_file(jobs)
         return files

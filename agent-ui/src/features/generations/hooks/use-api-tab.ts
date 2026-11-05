@@ -59,6 +59,7 @@ export function useApiTab(detail: TGenerationDetail) {
       detail.artifacts.some((a) => a.name === "backend.zip"),
     hasOpenapi: Boolean(openapiArtifact),
     auth: manifest.data?.auth,
+    email: manifest.data?.email,
     document,
     loadingDocument: openapi.isLoading,
     logsOpen,

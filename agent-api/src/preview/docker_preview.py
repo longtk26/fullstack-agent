@@ -31,7 +31,7 @@ from docker.models.containers import Container
 
 from src.configs import config, get_logger
 from src.libs.redaction import Redactor, default_redactor
-from src.sandbox import object_store
+from src.sandbox import mail_service, object_store
 from src.sandbox.docker_sandbox import INSTANCE_LABEL, ensure_egress_network, instance_id
 
 from .port import IPreviewRuntime, PreviewError, PreviewHandle, PreviewRequest, PreviewState
@@ -136,6 +136,8 @@ class DockerPreviewRuntime(IPreviewRuntime):
         self._ensure_network(request.generation_id)
         if _has_storage(request.source_zip):  # Story 10.5: file fields
             object_store.attach(self.client, n["network"])
+        if _has(request.source_zip, mail_service.MARKER):  # Story 10.7: email
+            mail_service.attach(self.client, n["network"])
         db = self._ensure_db(request.generation_id)
         app = self._get(n["app"])
         cors = request.options.get("corsOrigins") or config.preview_cors_origins
@@ -291,6 +293,8 @@ class DockerPreviewRuntime(IPreviewRuntime):
         if _has_storage(request.source_zip):
             bucket = object_store.bucket("bga-preview", request.generation_id)
             environment |= object_store.app_env(self.client, bucket, object_store.public_endpoint())
+        if _has(request.source_zip, mail_service.MARKER):
+            environment |= mail_service.app_env(request.generation_id)
         labels = {**_labels(request.generation_id, "app"), "bga.backend.cors": cors}
         ensure_egress_network(self.client)
         last_error: Exception | None = None
@@ -398,6 +402,7 @@ class DockerPreviewRuntime(IPreviewRuntime):
         object_store.remove_bucket(self.client, object_store.bucket("bga-preview", generation_id))
         for network in self.client.networks.list(names=[n["network"]]):
             object_store.detach(self.client, network.name)
+            mail_service.detach(self.client, network.name)
             try:
                 network.remove()
             except (NotFound, APIError):

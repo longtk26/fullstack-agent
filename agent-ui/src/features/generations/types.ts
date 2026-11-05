@@ -241,6 +241,12 @@ export type TManifestAuth = {
   demoUsers?: { login: string; password: string; role: string }[];
 };
 
+/** Story 10.7: where a preview's emails land (the shared Mailpit, filtered to this generation). */
+export type TManifestEmail = {
+  inbox: string;
+  emails: string[];
+};
+
 export type TManifest = {
   manifestVersion: string;
   generationId: string;
@@ -256,6 +262,7 @@ export type TManifest = {
   contractProblems: { operation: string; message: string }[];
   env: { name: string; required: boolean; secret: boolean; description: string | null }[];
   auth?: TManifestAuth;
+  email?: TManifestEmail;
   modules: { name: string; entity: string; path: string }[];
   frontendBindings?: TFrontendBinding[];
   unresolved: { kind?: string; ref?: string; specPath?: string; message?: string; reason?: string }[];

@@ -146,6 +146,9 @@ class Auth(SpecModel):
     user_entity: str = "User"
     login_field: str = "email"
     roles: list[str] = []
+    # Story 10.7 (with emails): signed, expiring links to verify the address and to reset the password
+    email_verification: bool = False
+    password_reset: bool = False
 
 
 class Policy(SpecModel):
@@ -190,6 +193,17 @@ class BackgroundJob(SpecModel):
     description: str | None = None
 
 
+class Email(SpecModel):
+    """Story 10.7: an email sent through a job when its trigger fires. `to`: a literal address, `currentUser`, or a
+    path from the trigger's record (`task.project.ownerEmail`); `subject` and `body` take `{{path}}` placeholders."""
+
+    name: str = Field(pattern=IDENTIFIER)
+    trigger: str | JobTrigger
+    to: str = Field(min_length=1, max_length=255)
+    subject: str = Field(min_length=1, max_length=255)
+    body: str = Field(min_length=1)
+
+
 class Seed(SpecModel):
     entity: str
     records: list[dict[str, Any]]
@@ -217,5 +231,6 @@ class BackendSpecV1(SpecModel):
     rules: list[Rule] = []
     integrations: list[Integration] = []
     background_jobs: list[BackgroundJob] = []
+    emails: list[Email] = []
     seed: list[Seed] = []
     frontend_bindings: list[FrontendBinding] = Field(default=[], alias="x-frontendBindings")

@@ -1,0 +1,14 @@
+{
+  "name": "email",
+  "version": "1",
+  "description": "Emails from the spec sent through jobs: an email sender port with SMTP and console adapters, Jinja templates; optional email verification and password reset.",
+  "requirements": [
+    "jinja2==3.1.6"
+  ],
+  "owns": [
+    "src/libs/email",
+    "src/templates/emails",
+    "src/modules/account",
+    "tests/modules/email"
+  ]
+}

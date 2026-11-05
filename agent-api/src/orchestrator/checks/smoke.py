@@ -93,6 +93,19 @@ for call in plan["calls"]:
                               timeout=120)  # fmt: skip
         answers.append({"status": done.returncode, "body": (done.stdout + done.stderr)[-3000:]})
         continue
+    if call.get("kind") == "mail":  # Story 10.7: the emails those jobs sent reached the mail catcher
+        import os
+        from urllib.parse import quote
+
+        found = 0
+        try:
+            url = f"http://mailpit:8025/api/v1/search?query={quote('tag:' + os.environ.get('EMAIL_TAG', ''))}"
+            with urllib.request.urlopen(url, timeout=15) as response:
+                found = json.loads(response.read()).get("messages_count", 0)
+        except Exception as error:
+            print(f"mail check failed: {error}")
+        answers.append({"status": 200 if found else 404, "body": json.dumps({"messages": found})})
+        continue
     data = json.dumps(call["body"]).encode() if call.get("body") is not None else None
     headers = {"content-type": "application/json"} if data is not None else {}
     token = token_of(call.get("user")) if call.get("auth") and plan.get("login") else None
@@ -227,7 +240,20 @@ def smoke_calls(contract: dict[str, Any], plan: dict[str, Any]) -> tuple[list[di
         calls.append(call)
     if plan.get("jobs"):  # last: the worker runs what the calls before it enqueued (Story 10.6)
         calls.append({"operationId": "jobs.worker", "kind": "worker", "method": "RUN", "path": "src.worker --once"})
+    if expects_mail(plan):  # Story 10.7: and the emails it sent arrived
+        calls.append({"operationId": "email.inbox", "kind": "mail", "method": "GET", "path": "mailpit search"})
     return calls, skipped
+
+
+def expects_mail(plan: dict[str, Any]) -> bool:
+    """Story 10.7: an email whose trigger a scenario fires (a record is created) must be in the mail catcher."""
+    creates = {
+        op["operationId"] for m in plan.get("modules", []) for op in m["operations"] if op.get("action") == "create"
+    }
+    return any(
+        (email["trigger"].get("event") or "").endswith(".created") or email["trigger"].get("operation") in creates
+        for email in plan.get("emails") or []
+    )
 
 
 def smoke_login(contract: dict[str, Any]) -> dict[str, Any] | None:
@@ -285,6 +311,11 @@ def judge(contract: dict[str, Any], calls: list[dict[str, Any]], answers: list[d
     problems: list[dict[str, Any]] = []
     for call, answer in zip(calls, answers, strict=False):
         op_id = call["operationId"]
+        if call.get("kind") == "mail":
+            if answer.get("status") != 200:
+                problems.append({"operation": op_id, "message": "no email reached the mail catcher after the jobs ran",
+                                 "request": call["path"], "response": str(answer.get("body") or "")})  # fmt: skip
+            continue
         if call.get("kind") == "worker":  # Story 10.6: every job the calls enqueued ran
             if answer.get("status") != 0:
                 message = "the job worker failed (`python -m src.worker --once`)"

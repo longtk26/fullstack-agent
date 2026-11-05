@@ -22,6 +22,7 @@ from .base import (
     RouterParam,
     Setting,
 )
+from .email import EmailPlugin
 from .integrations import IntegrationStubsPlugin
 from .jobs import JobsPlugin
 from .policies import PoliciesPlugin
@@ -39,6 +40,7 @@ REGISTRY: dict[str, Plugin] = {
         RulesPlugin(),
         StoragePlugin(),
         JobsPlugin(),
+        EmailPlugin(),
         IntegrationStubsPlugin(),
     )
 }

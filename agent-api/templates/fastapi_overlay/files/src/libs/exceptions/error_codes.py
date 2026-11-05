@@ -18,4 +18,6 @@ class ErrorCode(StrEnum):
     FILE_NOT_FOUND = "FILE_NOT_FOUND"
     FILE_TYPE_NOT_ALLOWED = "FILE_TYPE_NOT_ALLOWED"
     FILE_TOO_LARGE = "FILE_TOO_LARGE"
+    # account links (Story 10.7): a password reset or verification token that is wrong, used or expired
+    INVALID_TOKEN = "INVALID_TOKEN"
     INTERNAL_ERROR = "INTERNAL_ERROR"

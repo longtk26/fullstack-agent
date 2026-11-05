@@ -99,6 +99,10 @@ class Config(BaseSettings):
     # MinIO's community images are no longer published. Bound to 127.0.0.1 only.
     storage_image: str = "rustfs/rustfs:1.0.1"
     storage_port: int = 9100
+    # Story 10.7: one shared Mailpit catching the emails of sandboxes and previews (bound to 127.0.0.1)
+    mail_image: str = "axllent/mailpit:v1.31.2"
+    mail_ui_port: int = 8125
+    mail_smtp_port: int = 1125
     # Frontend sandbox (Story 13.4): Node runner, no database; Next.js builds need more memory than pytest.
     frontend_sandbox_image: str = "bga-runner-node:1"
     frontend_sandbox_cpus: float = 2.0

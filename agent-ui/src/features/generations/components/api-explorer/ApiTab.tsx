@@ -11,6 +11,7 @@ import { ComingSoonPanel } from "../detail/ComingSoonPanel";
 import { ApiExplorer } from "./ApiExplorer";
 import { PreviewControlBar } from "./PreviewControlBar";
 import { PreviewLogsSheet } from "./PreviewLogsSheet";
+import { PreviewInbox } from "./PreviewInbox";
 import { PreviewSignIn } from "./PreviewSignIn";
 
 type ApiTabProps = {
@@ -54,6 +55,7 @@ export function ApiTab({ detail }: ApiTabProps) {
         </p>
       )}
       {tab.auth?.login && <PreviewSignIn auth={tab.auth} live={running} signIn={signIn} />}
+      {tab.email && <PreviewInbox email={tab.email} />}
       {tab.document ? (
         <ApiExplorer document={tab.document} serverUrl={serverUrl} token={signIn.token} onRequestSent={tab.touch} />
       ) : (

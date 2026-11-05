@@ -577,39 +577,101 @@ class _SemanticChecker:
                     f"Binding refers to unknown operation '{binding.operation_id}'",
                 )
 
-    def _check_jobs(self) -> None:
-        """Story 10.6: one trigger per job, naming an entity event, an operation or a cron schedule."""
+    def _trigger(self, trigger: Any, path: str) -> tuple[str, str] | None:
+        """Story 10.6: one of an entity event, an operation, a cron schedule; (kind, value) when it is valid."""
         events = {f"{name[:1].lower()}{name[1:]}" for name in self.entities}
-        op_ids = {op.operation_id for op in self.spec.operations}
+        if isinstance(trigger, str):
+            kind, _, value = trigger.partition(":")
+            given = {kind: value.strip()} if kind in ("cron", "event", "operation") and value else {}
+        else:
+            given = {key: value for key, value in trigger.model_dump().items() if value}
+        if len(given) != 1:
+            self._add(C.SCHEMA_VIOLATION, f"{path}/trigger", "A trigger needs exactly one of event, operation, cron")
+            return None
+        ((kind, value),) = given.items()
+        if kind == "event":
+            entity, _, name = value.partition(".")
+            if entity not in events or not re.fullmatch(r"[a-z][A-Za-z0-9]*", name):
+                self._add(C.SCHEMA_VIOLATION, f"{path}/trigger/event",
+                          f"'{value}' is not an event: <entity>.created|updated|deleted|<name>",
+                          hint=f"Entities: {', '.join(sorted(events))}")  # fmt: skip
+                return None
+        elif kind == "operation" and value not in {op.operation_id for op in self.spec.operations}:
+            self._add(C.UNKNOWN_FIELD_REF, f"{path}/trigger/operation", f"Unknown operation '{value}'")
+            return None
+        elif kind == "cron" and not re.fullmatch(r"(\S+\s+){4}\S+", value.strip()):
+            self._add(C.SCHEMA_VIOLATION, f"{path}/trigger/cron", f"'{value}' is not a five-field cron expression")
+            return None
+        return kind, value
+
+    def _check_jobs(self) -> None:
         seen: set[str] = set()
         for index, job in enumerate(self.spec.background_jobs):
             path = f"/backgroundJobs/{index}"
             if job.name in seen:
                 self._add(C.SCHEMA_VIOLATION, f"{path}/name", f"Job name '{job.name}' is used twice")
             seen.add(job.name)
-            trigger = job.trigger
-            if isinstance(trigger, str):
-                kind, _, value = trigger.partition(":")
-                given = {kind: value.strip()} if kind in ("cron", "event", "operation") and value else {}
-            else:
-                given = {key: value for key, value in trigger.model_dump().items() if value}
-            if len(given) != 1:
-                self._add(C.SCHEMA_VIOLATION, f"{path}/trigger", "A job needs exactly one of event, operation, cron")
+            self._trigger(job.trigger, path)
+
+    def _record_entity(self, kind: str, value: str) -> str | None:
+        """The entity whose record a trigger carries (an event's, an operation's); None for cron."""
+        if kind == "event":
+            name = value.partition(".")[0]
+            return next((entity for entity in self.entities if f"{entity[:1].lower()}{entity[1:]}" == name), None)
+        if kind == "operation":
+            return next((op.entity for op in self.spec.operations if op.operation_id == value), None)
+        return None
+
+    def _path_issue(self, root: str | None, path: str) -> str | None:
+        """Why a `record.ref.field` path does not resolve from the trigger's record (None: it does)."""
+        if root is None:
+            return "a scheduled email has no record: use a literal address and no placeholders"
+        parts = path.split(".")
+        expected = f"{root[:1].lower()}{root[1:]}"
+        if parts[0] != expected or len(parts) < 2:
+            return f"starts from the trigger's record, '{expected}.<field>'"
+        entity = root
+        for index, part in enumerate(parts[1:], start=1):
+            fields = self.fields[entity]
+            if index == len(parts) - 1:
+                return None if part in fields else f"'{entity}' has no field '{part}'"
+            parent = next((rel.from_ for rel in self.spec.relationships
+                           if rel.to == entity and rel.type != "many-to-many"
+                           and (rel.foreign_key or default_foreign_key(rel.from_)) == f"{part}Id"),
+                          None)  # fmt: skip
+            if parent is None:
+                return f"'{entity}' has no reference '{part}' (a foreign key '{part}Id')"
+            entity = parent
+        return None
+
+    def _check_emails(self) -> None:
+        """Story 10.7: a trigger, a recipient and placeholders that resolve from the trigger's record."""
+        names: set[str] = set()
+        for index, email in enumerate(self.spec.emails):
+            path = f"/emails/{index}"
+            if email.name in names:
+                self._add(C.SCHEMA_VIOLATION, f"{path}/name", f"Email name '{email.name}' is used twice")
+            names.add(email.name)
+            trigger = self._trigger(email.trigger, path)
+            if trigger is None:
                 continue
-            ((kind, value),) = given.items()
-            if kind == "event":
-                entity, _, name = value.partition(".")
-                if entity not in events or not re.fullmatch(r"[a-z][A-Za-z0-9]*", name):
-                    self._add(C.SCHEMA_VIOLATION, f"{path}/trigger/event",
-                              f"'{value}' is not an event: <entity>.created|updated|deleted|<name>",
-                              hint=f"Entities: {', '.join(sorted(events))}")  # fmt: skip
-            elif kind == "operation" and value not in op_ids:
-                self._add(C.UNKNOWN_FIELD_REF, f"{path}/trigger/operation", f"Unknown operation '{value}'")
-            elif kind == "cron" and not re.fullmatch(r"(\S+\s+){4}\S+", value.strip()):
-                self._add(C.SCHEMA_VIOLATION, f"{path}/trigger/cron", f"'{value}' is not a five-field cron expression")
+            root = self._record_entity(*trigger)
+            if email.to == "currentUser":  # Story 10.7: events carry the record, not who changed it (yet)
+                hint = "use the path to the user's address, e.g. 'booking.user.email'"
+                self._add(C.SCHEMA_VIOLATION, f"{path}/to", "'currentUser' is not supported yet", hint=hint)
+            elif "@" not in email.to or " " in email.to:
+                issue = self._path_issue(root, email.to)
+                if issue:
+                    self._add(C.UNKNOWN_FIELD_REF, f"{path}/to", f"'{email.to}' {issue}")
+            for key in ("subject", "body"):
+                for placeholder in re.findall(r"\{\{\s*([^}]+?)\s*\}\}", getattr(email, key)):
+                    issue = self._path_issue(root, placeholder)
+                    if issue:
+                        self._add(C.UNKNOWN_FIELD_REF, f"{path}/{key}", f"Placeholder '{placeholder}' {issue}")
 
     def _check_unsupported(self) -> None:
         self._check_jobs()
+        self._check_emails()
         for key, items in (("integrations", self.spec.integrations),):
             for index, item in enumerate(items):
                 self._add(

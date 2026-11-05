@@ -24,7 +24,7 @@ from sqlalchemy.engine import make_url
 
 from src.configs import config, get_logger
 
-from . import object_store
+from . import mail_service, object_store
 from .port import ExecResult, ISandbox, ISandboxProvider, SandboxError, SandboxKind
 
 logger = get_logger(__name__)
@@ -146,6 +146,7 @@ class DockerSandbox(ISandbox):
         self._started = False
         self._env: dict[str, str] = {}
         self._storage: dict[str, str] | None = None  # Story 10.5: the shared store's env, once attached
+        self._mail: dict[str, str] = {}  # Story 10.7: the shared mail catcher's env, once attached
 
     # -- lifecycle ---------------------------------------------------------------------------------------------
 
@@ -191,9 +192,17 @@ class DockerSandbox(ISandbox):
 
     def _remove_all(self) -> None:
         remove_job_resources(self.client, {self.generation_id}, part=self.part)
+        self._mail = {}
         if self._storage is not None:
             object_store.remove_bucket(self.client, self._storage["STORAGE_BUCKET"])
             self._storage = None
+
+    def _attach_mail(self) -> dict[str, str]:
+        """Story 10.7: a project that sends email reaches the shared Mailpit as `mailpit`, tagged with the job."""
+        if not self._mail:
+            mail_service.attach(self.client, self.network_name)
+            self._mail = mail_service.app_env(f"sandbox-{self.generation_id}")
+        return self._mail
 
     def _attach_storage(self) -> dict[str, str]:
         """Story 10.5: a project with file fields reaches the shared store as `storage`, in its own bucket; tests
@@ -332,6 +341,8 @@ class DockerSandbox(ISandbox):
         )
         if self.profile.database and (self.project / object_store.MARKER).exists():
             environment |= self._attach_storage()
+        if self.profile.database and (self.project / mail_service.MARKER).exists():
+            environment |= self._attach_mail()
         environment |= env or {}
         if (self.project / ".venv" / "bin" / "python").exists():
             environment["PATH"] = "/work/.venv/bin:/opt/venv/bin:/usr/local/bin:/usr/bin:/bin"
@@ -421,6 +432,7 @@ def remove_job_resources(client: docker.DockerClient, generation_ids: set[str], 
             if part is not None and (network.attrs.get("Labels") or {}).get(PART_LABEL, "backend") != part:
                 continue
             object_store.detach(client, network.name)  # Story 10.5: the shared store may be connected
+            mail_service.detach(client, network.name)  # Story 10.7: so may the mail catcher
             try:
                 network.remove()
                 removed += 1

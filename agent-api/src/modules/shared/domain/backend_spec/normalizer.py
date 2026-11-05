@@ -39,7 +39,7 @@ def normalize_spec(spec: BackendSpecV1) -> dict[str, Any]:
             operation.pagination = Pagination()
         elif operation.pagination is False:
             operation.pagination = None
-    for job in normalized.background_jobs:  # Story 10.6: `cron:0 2 * * *` → {"cron": "0 2 * * *"}
+    for job in [*normalized.background_jobs, *normalized.emails]:  # Story 10.6: `cron:0 2 * * *` → {"cron": …}
         if isinstance(job.trigger, str):
             kind, _, value = job.trigger.partition(":")
             if kind in ("cron", "event", "operation") and value:

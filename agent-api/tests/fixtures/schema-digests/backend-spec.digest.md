@@ -12,6 +12,7 @@ type BackendSpec = {
   rules?: Rule[];
   integrations?: Integration[];
   backgroundJobs?: BackgroundJob[];
+  emails?: Email[];
   seed?: Seed[];
   x-frontendBindings?: FrontendBinding[];
 };
@@ -31,6 +32,8 @@ type Auth = {
   userEntity?: string;
   loginField?: string;
   roles?: string[];
+  emailVerification?: boolean;
+  passwordReset?: boolean;
 };
 
 type BackgroundJob = {
@@ -39,6 +42,15 @@ type BackgroundJob = {
   action?: "log" | "custom";
   maxAttempts?: number;
   description?: string | null;
+};
+
+// Story 10.7: an email sent through a job when its trigger fires.
+type Email = {
+  name: string;
+  trigger: string | JobTrigger;
+  to: string;
+  subject: string;
+  body: string;
 };
 
 type Entity = {

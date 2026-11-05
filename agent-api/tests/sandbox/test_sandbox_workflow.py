@@ -202,3 +202,25 @@ def test_a_backend_with_background_jobs_passes_its_tests_and_scenarios(client, u
     finally:
         if not os.environ.get("BGA_KEEP_SANDBOX_DIRS"):
             shutil.rmtree(root, ignore_errors=True)
+
+
+@pytest.mark.parametrize("account", [False, True], ids=["emails", "with-account-emails"])
+def test_a_backend_that_sends_email_passes_its_tests_and_finds_its_email(client, user_headers, tmp_path, account):
+    """Story 10.7: an email job per trigger, rendered templates, and the smoke check's email in the shared Mailpit;
+    with auth, the password reset and email verification links."""
+    from tests.test_email import email_spec
+
+    root = REPO / ".data" / "test-sandbox" / uuid.uuid4().hex[:10]
+    root.mkdir(parents=True)
+    try:
+        email_spec(tmp_path, account=account)
+        spec = json.loads((tmp_path / "email-spec.json").read_text())
+        generation_id = submit(client, user_headers, spec=spec, crudFromTemplates=True)
+        status = run_job(root, generation_id, validator=SandboxValidationRunner(), sandboxes=DockerSandboxProvider())
+
+        assert status in ("COMPLETED", "COMPLETED_WITH_WARNINGS"), generation(generation_id).error_summary
+        tests = [e for e in events(generation_id) if e.type == "validation.check" and e.payload["check"] == "tests"]
+        assert tests[-1].status == "passed", tests[-1].payload["summary"]
+    finally:
+        if not os.environ.get("BGA_KEEP_SANDBOX_DIRS"):
+            shutil.rmtree(root, ignore_errors=True)

@@ -93,6 +93,9 @@ Agent-specific notes:
 - Jobs (Story 10.6): the `jobs` plugin's queue is PostgreSQL (`src/libs/jobs`, `python -m src.worker [--once]`); CRUD
   use cases emit subscribed events in the request's transaction; previews run `bga-preview-worker-<gen>`; the smoke
   check runs the worker once after its calls. Plugin tables: `plan.pluginModels` / `plan.pluginTables`.
+- Email (Story 10.7): `emails[]` become jobs (`email<Name>`) rendering Jinja templates; `src/libs/email` (SMTP or
+  console); account links (reset, verification) in the plugin's `account` module. Sandboxes and previews send to one
+  shared Mailpit (`src/sandbox/mail_service.py`, UI 127.0.0.1:8125), tagged per generation.
 - The integration contract (Story 10.0b): the backend decides, a frontend only reads. Request properties carry
   `x-bga.source` (a foreign key: `reference` with `x-bga.ref`); record responses carry a `{id, label}` summary per
   parent and `allowedActions` (the planner's `label`, `references`, `recordActions`); operations list

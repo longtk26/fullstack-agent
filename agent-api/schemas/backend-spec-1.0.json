@@ -109,6 +109,16 @@
           },
           "title": "Roles",
           "type": "array"
+        },
+        "emailVerification": {
+          "default": false,
+          "title": "Emailverification",
+          "type": "boolean"
+        },
+        "passwordReset": {
+          "default": false,
+          "title": "Passwordreset",
+          "type": "boolean"
         }
       },
       "required": [
@@ -170,6 +180,54 @@
         "trigger"
       ],
       "title": "BackgroundJob",
+      "type": "object"
+    },
+    "Email": {
+      "additionalProperties": false,
+      "description": "Story 10.7: an email sent through a job when its trigger fires. `to`: a literal address, `currentUser`, or a\npath from the trigger's record (`task.project.ownerEmail`); `subject` and `body` take `{{path}}` placeholders.",
+      "properties": {
+        "name": {
+          "pattern": "^[A-Za-z][A-Za-z0-9_]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "trigger": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/JobTrigger"
+            }
+          ],
+          "title": "Trigger"
+        },
+        "to": {
+          "maxLength": 255,
+          "minLength": 1,
+          "title": "To",
+          "type": "string"
+        },
+        "subject": {
+          "maxLength": 255,
+          "minLength": 1,
+          "title": "Subject",
+          "type": "string"
+        },
+        "body": {
+          "minLength": 1,
+          "title": "Body",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "trigger",
+        "to",
+        "subject",
+        "body"
+      ],
+      "title": "Email",
       "type": "object"
     },
     "Entity": {
@@ -1229,6 +1287,14 @@
         "$ref": "#/$defs/BackgroundJob"
       },
       "title": "Backgroundjobs",
+      "type": "array"
+    },
+    "emails": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Email"
+      },
+      "title": "Emails",
       "type": "array"
     },
     "seed": {
