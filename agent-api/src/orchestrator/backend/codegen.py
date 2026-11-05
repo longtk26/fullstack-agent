@@ -68,9 +68,16 @@ def codegen_gaps(module: dict[str, Any]) -> list[str]:
         where = op["operationId"]
         if not is_crud(op) and op.get("type") != "aggregate":  # Epic 21: aggregates are templated too
             gaps.append(f"{where}: custom operation")
-        if op.get("rules"):
+        if engine_rules(op):  # Story 10.4: the rules plugin writes the predefined kinds
             gaps.append(f"{where}: business rules")
     return gaps
+
+
+def engine_rules(op: dict[str, Any]) -> list[str]:
+    """The operation's rules the engine implements: those no plugin templated (custom rules; every rule without
+    the rules plugin)."""
+    done = {*(op.get("templatedRules") or []), *(op.get("skippedRules") or [])}  # skipped: ambiguous, not built
+    return [rule for rule in op.get("rules") or [] if rule not in done]
 
 
 # -- helpers -----------------------------------------------------------------------------------------------------------
@@ -469,6 +476,9 @@ class _Module:
                 methods.append(
                     f"    def {method}(self) -> {self._aggregate_returns(self.aggregates[method])}:\n        pass"
                 )
+        for extra in self._repository_methods():  # Story 10.4: what a plugin's pre-checks ask the repository
+            self._imports(imports, extra.port_imports)
+            methods.append(f"    def {extra.signature}:\n        pass")
         body = "\n\n".join(f"    @abstractmethod\n{method}" for method in methods)
         return FUTURE + imports.render() + f"\n\nclass {self.module['port']['interface']}(ABC):\n{body}\n"
 
@@ -563,6 +573,11 @@ class _Module:
         for method in port["methods"]:  # Epic 21: aggregate queries
             if method in self.aggregates:
                 methods.append(self._aggregate_repository_method(self.aggregates[method], imports))
+        for extra in self._repository_methods():  # Story 10.4
+            self._imports(imports, (*extra.port_imports, *extra.imports))
+            methods.append(
+                f"    def {extra.signature}:\n" + "".join(f"        {line}\n" for line in extra.body).rstrip("\n")
+            )
         if writes:
             imports.add("sqlalchemy.exc", "IntegrityError").add("src.libs.exceptions", "ConflictException")
             label = _label(self.model)
@@ -847,16 +862,34 @@ class _Module:
             signature += ", references: References | None = None"
             refs = "        refs = references or {}\n"
         narrowing = ""
-        if checks:  # Story 10.3: what this caller may do to the record
+        if checks:  # Story 10.3: what this caller may do to the record; 10.4: what its state allows
+            conditions: dict[str, list[str]] = {}
             for check in checks:
                 self._imports(imports, check.imports)
-            user = checks[0].user_annotation
-            signature += f", user: {user} | None = None"
-            entries.append('"allowed_actions": allowed_actions(entity, user)')
-            lines = "".join(f'        "{check.action}": {check.condition},\n' for check in checks)
+                conditions.setdefault(check.action, []).append(check.condition)
+            user = next((check.user_annotation for check in checks if check.user_annotation), None)
+            lines = ""
+            for action, parts in conditions.items():
+                parts = [f"({part})" if " or " in part and len(parts) > 1 else part for part in parts]
+                joined = " and ".join(parts)
+                line = f'        "{action}": {joined},\n'
+                if len(line) > 121:
+                    joined = "\n            and ".join(parts)
+                    line = f'        "{action}": (\n            {joined}\n        ),\n'
+                lines += line
+            if user:
+                signature += f", user: {user} | None = None"
+                entries.append('"allowed_actions": allowed_actions(entity, user)')
+                head = f"def allowed_actions(entity: {self.entity_class}, user: {user} | None) -> list[str]:\n"
+                doc = (
+                    '    """The actions the operations\' policies let `user` take on the record (None: a visitor)."""\n'
+                )
+            else:
+                entries.append('"allowed_actions": allowed_actions(entity)')
+                head = f"def allowed_actions(entity: {self.entity_class}) -> list[str]:\n"
+                doc = '    """What the rules let anyone do to the record in its state."""\n'
             narrowing = (
-                f"\n\ndef allowed_actions(entity: {self.entity_class}, user: {user} | None) -> list[str]:\n"
-                '    """The actions the operations\' policies let `user` take on the record (None: a visitor)."""\n'
+                f"\n\n{head}{doc}"
                 f"    checks = {{\n{lines}    }}\n"
                 "    return [action for action in ALLOWED_ACTIONS if checks.get(action, True)]\n"
             )
@@ -1000,6 +1033,9 @@ class _Module:
         names = ["self", "filters: dict[str, Any]", *re.split(r", (?=\w+: )", params)]
         return "".join(f"        {name},\n" for name in names)
 
+    def _repository_methods(self) -> list[Any]:
+        return [item for plugin in self.plugins for item in plugin.repository_methods(self.plan, self.module)]
+
     def _response_fields(self) -> list[Any]:
         return [item for plugin in self.plugins for item in plugin.response_fields(self.plan, self.module)]
 
@@ -1008,7 +1044,7 @@ class _Module:
 
     def _caller(self, op: dict[str, Any]) -> str:
         """`, user=<param>` when the record's `allowedActions` depend on the caller and the use case has one."""
-        checks = self._action_checks()
+        checks = [check for check in self._action_checks() if check.user_annotation]
         names = {param.name for param in self._router_params(op) if param.usecase_annotation}
         return f", user={checks[0].user_param}" if checks and checks[0].user_param in names else ""
 
@@ -1197,6 +1233,8 @@ class _Module:
                     decorator_args.append(f"status_code={op['status']}")
             if responses:
                 decorator_args.append(f"responses={{{responses}}}")
+            if op.get("notes"):  # Story 10.4: what the route does not do (an ambiguous rule), in its OpenAPI
+                decorator_args.append(f"description={json.dumps(' '.join(op['notes']), ensure_ascii=False)}")
             params: list[str] = []
             columns = {column["attr"]: column for column in self.model["columns"]}
             scope = {flt["param"]: columns[flt["attr"]] for flt in op.get("filters", []) if flt.get("in") == "path"}
@@ -1647,6 +1685,8 @@ class _Tests:
     def _update_change(self, op: dict[str, Any]) -> tuple[str, str, str] | None:
         """(apiName, new value expression, expected response expression) for the PATCH happy path."""
         columns = [c for c in self.crud.request_columns(op) if not c.get("foreignKey")]
+        # Story 10.4: a field a rule checks (a state, a total) changes in the rule's own tests
+        columns = [c for c in columns if not c.get("ruled")] + [c for c in columns if c.get("ruled")]
         for column in columns:
             fixed = self._fixed(column, 1)
             if fixed is not None and fixed[1] is not None:
@@ -1825,12 +1865,9 @@ class _Tests:
                 continue
             if op is None or not is_crud(op):
                 continue
-            text = self.plugin_case(test, op)  # whole, with its own sign-in
-            if text is None:
-                text = self.case(test, op)
-                text = self.with_prelude(text, op) if text else None
+            text = self.plugin_case(test, op) or self.case(test, op)
             if text:
-                cases.append(text)
+                cases.append(self.with_prelude(text, op))
         pk = self.crud.pk
         missing = (
             "str(uuid.uuid4())" if pk["type"] == "uuid" else ("999999999" if pk["type"] == "integer" else '"missing"')

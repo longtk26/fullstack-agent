@@ -30,6 +30,21 @@ def _policies(spec: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return {policy["name"]: policy for policy in spec.get("policies", [])}
 
 
+def _owner_only(spec: dict[str, Any], op: dict[str, Any]) -> list[dict[str, Any]]:
+    """The `ownerOnly` rules an operation names (Story 10.4: they are ownership, as a policy says it)."""
+    rules = {rule["id"]: rule for rule in spec.get("rules", []) if rule.get("kind") == "ownerOnly"}
+    return [rules[rule_id] for rule_id in op.get("rules") or [] if rule_id in rules]
+
+
+def _owned_by(spec: dict[str, Any], op: dict[str, Any]) -> dict[str, Any] | None:
+    """`{ownerField, bypassRoles, denyStatus}` of the operation's ownership policy or `ownerOnly` rule."""
+    policy = _policies(spec).get(op.get("policy") or "")
+    if policy and policy["type"] == "ownership":
+        return policy
+    rules = _owner_only(spec, op)
+    return dict(rules[0]["params"]) if rules else None
+
+
 def _args(values: list[str]) -> str:
     return ", ".join(f'"{value}"' for value in values)
 
@@ -63,13 +78,39 @@ def _policed(module: dict[str, Any]) -> bool:
 
 
 def _record_op(module: dict[str, Any], action: str) -> dict[str, Any] | None:
-    """The operation behind a record action (`update`, `delete`, or a custom write's operationId)."""
+    """The operation behind a record action (`update`, `delete`, a custom write's operationId; a rule's
+    `transition:<STATE>` is an update, 10.4)."""
+    action = "update" if action.startswith("transition:") else action
     return next((op for op in module["operations"] if action in (op.get("action"), op["operationId"])), None)
 
 
 def _own_param(path: str) -> str | None:
     names = re.findall(r"\{(\w+)\}", path)
     return names[-1] if names else None
+
+
+def scenario_user(
+    contract: dict[str, Any], plan: dict[str, Any], op: dict[str, Any], record: dict | None
+) -> str | None:
+    """The demo user a scenario of `op` on `record` runs as (another plugin's, Story 10.4): one with the role the
+    operation needs, the record's owner, or a bypass role; None: the default demo user."""
+    auth = plan.get("auth")
+    if not auth:
+        return None
+    demo = auth["demoUsers"]
+    if _roles(op) and demo and demo[0]["role"] not in _roles(op):
+        return next((u["login"] for u in demo if u["role"] in _roles(op)), None)
+    ownership = _ownership(op)
+    if not ownership or record is None:
+        return None
+    user_model = next(m for m in plan["models"] if m.get("entity") == auth["userEntity"])
+    user_pk = next(column["apiName"] for column in user_model["columns"] if column["primaryKey"])
+    users = contract["x-bga"]["fixtures"].get(auth["userEntity"]) or []
+    login_of = {row.get(user_pk): row.get(auth["loginField"]) for row in users}
+    owner = login_of.get(record.get(ownership["field"]))
+    if owner:
+        return owner if owner != demo[0]["login"] else None
+    return next((u["login"] for u in demo if u["role"] in ownership["bypassRoles"]), None)
 
 
 def _test(op: dict[str, Any], case: str, expect: int, description: str) -> dict[str, Any]:
@@ -88,19 +129,18 @@ class PoliciesPlugin(Plugin):
 
     def applies(self, spec: dict[str, Any]) -> bool:
         return (spec.get("auth") or {}).get("type") == "jwt" and any(
-            op.get("policy") for op in spec.get("operations", [])
+            op.get("policy") or _owner_only(spec, op) for op in spec.get("operations", [])
         )
 
     # -- the spec and the plan ------------------------------------------------------------------------------------
 
     def extend_spec(self, spec: dict[str, Any]) -> None:
         auth = _auth(spec)
-        policies = _policies(spec)
         owned: dict[str, str] = {}  # entity → owner field
         bypass: set[str] = set()
         for op in spec.get("operations", []):
-            policy = policies.get(op.get("policy") or "")
-            if policy and policy["type"] == "ownership" and op.get("entity"):
+            policy = _owned_by(spec, op)
+            if policy and op.get("entity"):
                 owned.setdefault(op["entity"], policy["ownerField"])
                 bypass |= set(policy.get("bypassRoles") or [])
         relationships = spec.setdefault("relationships", [])
@@ -135,6 +175,7 @@ class PoliciesPlugin(Plugin):
 
     def plan(self, plan: dict[str, Any], spec: dict[str, Any]) -> None:
         policies = _policies(spec)
+        spec_ops = {op["operationId"]: op for op in spec.get("operations", [])}
         models = {model["entity"]: model for model in plan["models"] if model.get("entity")}
         roles = plan["auth"]["roles"]
         for module in plan["modules"]:
@@ -144,14 +185,19 @@ class PoliciesPlugin(Plugin):
             by_api = {column["apiName"]: column for column in model["columns"]}
             owner = None
             for op in module["operations"]:
+                spec_op = spec_ops.get(op["operationId"], {})
                 policy = policies.get((op.get("auth") or {}).get("policy") or "")
-                if policy is None:
-                    continue
-                if policy["type"] == "role":
+                if policy is not None and policy["type"] == "role":
                     op["auth"]["roles"] = list(policy["roles"])
                     op["errors"].append({"status": 403, "exception": "ForbiddenException", "code": "FORBIDDEN"})
                     if op.get("action") and set(roles) - set(policy["roles"]):
                         module["tests"].append(_test(op, "missing_role", 403, "a role the policy does not name"))
+                owner_only = _owner_only(spec, spec_op)
+                if owner_only:  # Story 10.4: `ownerOnly` rules are this plugin's
+                    op["auth"] = {**(op.get("auth") or {"policy": None}), "auth": "jwt"}
+                    op["templatedRules"] = [*op.get("templatedRules", []), *(rule["id"] for rule in owner_only)]
+                policy = _owned_by(spec, spec_op)
+                if policy is None:
                     continue
                 owner = by_api[policy["ownerField"]]
                 deny = policy.get("denyStatus") or 404
@@ -218,7 +264,7 @@ class PoliciesPlugin(Plugin):
                 xbga["policy"] = {"name": name, "type": policies[name]["type"]} | (
                     {key: ownership[source] for key, source in (("ownerField", "field"), ("bypassRoles", "bypassRoles"),
                                                                 ("deny", "deny"))}
-                    if ownership
+                    if policies[name]["type"] == "ownership" and ownership
                     else {"roles": _roles(op)}
                 )  # fmt: skip
             for error in xbga.get("errors", []):
@@ -258,11 +304,12 @@ class PoliciesPlugin(Plugin):
             rules = {}
             for action in info.get("allowedActions", []):
                 op = _record_op(module, action)
-                if op is not None and _roles(op):
-                    rules[action] = {"roles": _roles(op)}
-                elif op is not None and _ownership(op):
-                    ownership = _ownership(op)
-                    rules[action] = {"ownerField": ownership["field"], "bypassRoles": ownership["bypassRoles"]}
+                rule: dict[str, Any] = {"roles": _roles(op)} if op is not None and _roles(op) else {}
+                if op is not None and _ownership(op):
+                    ownership = _ownership(op) or {}
+                    rule |= {"ownerField": ownership["field"], "bypassRoles": ownership["bypassRoles"]}
+                if rule:
+                    rules[action] = rule
             if rules:
                 info["actionPolicies"] = rules
             owner = next((op["ownerSource"] for op in module["operations"] if op.get("ownerSource")), None)
@@ -384,15 +431,17 @@ class PoliciesPlugin(Plugin):
         for action in module.get("recordActions") or []:
             op = _record_op(module, action)
             ownership = _ownership(op) if op else None
+            parts = []
             if op is not None and _roles(op):
-                condition = f"user is not None and user.role in {_tuple(_roles(op))}"
-            elif ownership:
-                condition = f"entity.{ownership['attr']} == user.{pk}"
+                parts.append(f"user.role in {_tuple(_roles(op))}")
+            if ownership:
+                owns = f"entity.{ownership['attr']} == user.{pk}"
                 if ownership["bypassRoles"]:
-                    condition = f"({condition} or user.role in {_tuple(ownership['bypassRoles'])})"
-                condition = f"user is not None and {condition}"
-            else:
+                    owns = f"({owns} or user.role in {_tuple(ownership['bypassRoles'])})"
+                parts.append(owns)
+            if not parts:
                 continue
+            condition = " and ".join(["user is not None", *parts])
             checks.append(ActionCheck(action, condition, user, imports=((ENTITIES, (user,)),)))
         return checks
 

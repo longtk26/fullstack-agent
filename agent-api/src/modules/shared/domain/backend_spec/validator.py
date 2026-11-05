@@ -12,7 +12,7 @@ from .issues import Severity, SpecIssue, SpecIssueCode, ValidationReport
 from .naming import table_name, to_snake
 from .normalizer import default_foreign_key, normalize_spec, owning_entity
 from .registry import SPEC_MODELS
-from .schema_v1 import BackendSpecV1, Entity, FieldDef, Operation
+from .schema_v1 import BackendSpecV1, Entity, FieldDef, Operation, Rule
 
 C = SpecIssueCode
 _PATH_PARAM = re.compile(r"\{([^}]+)\}")
@@ -444,6 +444,7 @@ class _SemanticChecker:
             if rule.kind == "custom":
                 if not rule.description:
                     self._add(C.RULE_PARAMS_INVALID, f"{path}/description", "Custom rules need a 'description'")
+                self._check_custom_rule(rule, fields, path)
                 continue
             if rule.kind == "ownerOnly":
                 if self.spec.auth is None:
@@ -468,8 +469,46 @@ class _SemanticChecker:
                         f"{path}/params/states",
                         "'immutableAfter' needs an enum 'field' and 'states' drawn from its values",
                     )
-            elif rule.kind == "sumEquals" and field.type not in ("integer", "float", "decimal"):
-                self._add(C.RULE_PARAMS_INVALID, f"{path}/params/field", "'sumEquals' needs a numeric 'field'")
+            elif rule.kind == "sumEquals":
+                self._check_sum_rule(rule, field, path)
+
+    def _check_custom_rule(self, rule: Rule, fields: dict[str, FieldDef], path: str) -> None:
+        """Story 10.4: what a custom rule answers (`code`, `status`, `field`), all optional."""
+        params = rule.params
+        if "field" in params and params["field"] not in fields:
+            self._add(C.UNKNOWN_FIELD_REF, f"{path}/params/field", f"'{rule.entity}' has no field '{params['field']}'")
+        if "status" in params and params["status"] not in (400, 403, 404, 409, 422):
+            self._add(C.RULE_PARAMS_INVALID, f"{path}/params/status", "A rule answers 400, 403, 404, 409 or 422")
+        code = params.get("code")
+        if code is not None and not (isinstance(code, str) and re.fullmatch(r"[A-Z][A-Z0-9_]*", code)):
+            self._add(C.RULE_PARAMS_INVALID, f"{path}/params/code", "A rule's code is UPPER_SNAKE_CASE")
+
+    def _check_sum_rule(self, rule: Rule, field: FieldDef, path: str) -> None:
+        """Story 10.4: `field` equals the sum of `itemField` (times `quantityField`) over the `items` entity's rows
+        that reference the record."""
+        params = rule.params
+        if field.type not in ("integer", "float", "decimal"):
+            self._add(C.RULE_PARAMS_INVALID, f"{path}/params/field", "'sumEquals' needs a numeric 'field'")
+        items = self.entities.get(params.get("items")) if isinstance(params.get("items"), str) else None
+        if items is None:
+            self._add(C.UNKNOWN_ENTITY_REF, f"{path}/params/items", "'sumEquals' needs the 'items' entity it adds up")
+            return
+        if not any(rel.from_ == rule.entity and rel.to == items.name and rel.type != "many-to-many"
+                   for rel in self.spec.relationships):  # fmt: skip
+            self._add(
+                C.RULE_PARAMS_INVALID,
+                f"{path}/params/items",
+                f"'{items.name}' needs a relationship from '{rule.entity}' (its rows reference the record)",
+            )
+        for key in ("itemField", "quantityField"):
+            name = params.get(key)
+            if name is None and key == "quantityField":
+                continue
+            item_field = self.fields[items.name].get(name) if isinstance(name, str) else None
+            if item_field is None or item_field.type not in ("integer", "float", "decimal"):
+                self._add(
+                    C.RULE_PARAMS_INVALID, f"{path}/params/{key}", f"'{key}' needs a numeric field of '{items.name}'"
+                )
 
     def _check_transition(self, field: FieldDef, transitions: Any, path: str) -> None:
         values = set(field.values or [])

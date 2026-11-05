@@ -10,4 +10,8 @@ class ErrorCode(StrEnum):
     VALIDATION_ERROR = "VALIDATION_ERROR"
     REFERENCE_NOT_FOUND = "REFERENCE_NOT_FOUND"
     RATE_LIMITED = "RATE_LIMITED"
+    # business rules (Story 10.4): a refused state change, an edit of a locked record, a total that does not add up
+    INVALID_TRANSITION = "INVALID_TRANSITION"
+    RESOURCE_LOCKED = "RESOURCE_LOCKED"
+    TOTAL_MISMATCH = "TOTAL_MISMATCH"
     INTERNAL_ERROR = "INTERNAL_ERROR"

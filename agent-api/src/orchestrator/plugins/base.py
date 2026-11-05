@@ -82,8 +82,19 @@ class ActionCheck:
 
     action: str
     condition: str
-    user_annotation: str
+    user_annotation: str | None = None  # None: the condition reads the record only (a rule's state, 10.4)
     user_param: str = "current_user"
+    imports: tuple[Import, ...] = ()
+
+
+@dataclass(frozen=True)
+class RepositoryMethod:
+    """A repository method a plugin's pre-checks call (Story 10.4: the sum of a record's items): the signature after
+    `def` (`sum_items(self, order_id: uuid.UUID) -> Decimal`), the implementation's body lines, and imports."""
+
+    signature: str
+    body: tuple[str, ...]
+    port_imports: tuple[Import, ...] = ()
     imports: tuple[Import, ...] = ()
 
 
@@ -211,6 +222,9 @@ class Plugin:
         return None
 
     def action_checks(self, plan: dict[str, Any], module: dict[str, Any]) -> list[ActionCheck]:
+        return []
+
+    def repository_methods(self, plan: dict[str, Any], module: dict[str, Any]) -> list[RepositoryMethod]:
         return []
 
     # -- what it tells -------------------------------------------------------------------------------------------------

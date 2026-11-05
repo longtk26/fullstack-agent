@@ -174,8 +174,32 @@ def operations_from_openapi(document: dict[str, Any], plan: dict[str, Any]) -> l
             }
             if (plan_op.get("auth") or {}).get("policy"):
                 entry["policy"] = plan_op["auth"]["policy"]
+            if plan_op.get("rules"):  # Story 10.4: the rules the operation enforces
+                entry["rules"] = list(plan_op["rules"])
             operations.append({k: v for k, v in entry.items() if v is not None})
     return sorted(operations, key=lambda op: (op["path"], op["method"]))
+
+
+def _rules_manifest(spec: dict[str, Any], plan: dict[str, Any]) -> list[dict[str, Any]]:
+    """Each spec rule: its kind, the operations that enforce it and who implements it (templates, the engine, or
+    nobody: ambiguous or named by no operation)."""
+    out = []
+    for rule in spec.get("rules", []):
+        ops = [
+            op
+            for module in plan.get("modules", [])
+            for op in module["operations"]
+            if rule["id"] in (op.get("rules") or [])
+        ]
+        if any(rule["id"] in (op.get("templatedRules") or []) for op in ops):
+            implementation = "template"
+        elif any(rule["id"] in (op.get("skippedRules") or []) for op in ops) or not ops:
+            implementation = "none"
+        else:
+            implementation = "engine"
+        out.append({"id": rule["id"], "kind": rule["kind"], "operations": sorted(op["operationId"] for op in ops),
+                    "implementation": implementation})  # fmt: skip
+    return out
 
 
 def operations_from_plan(plan: dict[str, Any]) -> list[dict[str, Any]]:
@@ -271,6 +295,7 @@ def build_manifest(
         ],
         "unresolved": plan.get("unresolved", []),
         "plugins": plan.get("plugins", []),  # Story 10.1
+        "rules": _rules_manifest(spec, plan),  # Story 10.4
         "assumptions": spec.get("x-assumptions", []),
     }
     if spec.get("auth"):

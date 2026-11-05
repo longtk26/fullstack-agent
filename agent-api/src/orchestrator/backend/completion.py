@@ -30,6 +30,7 @@ from src.modules.shared.domain.backend_spec.naming import to_snake
 
 from ..context import JobContext
 from ..integration.contract import contract_operations, resolve
+from .codegen import engine_rules
 
 logger = get_logger(__name__)
 
@@ -85,7 +86,7 @@ def _gap_operations(module: dict[str, Any]) -> list[dict[str, Any]]:
     return [
         op
         for op in module["operations"]
-        if (op.get("type") not in ("crud", "aggregate")) or op.get("rules") or op.get("auth")
+        if (op.get("type") not in ("crud", "aggregate")) or engine_rules(op)  # auth, policies: plugins (10.2, 10.3)
     ]
 
 
@@ -162,8 +163,9 @@ def module_context(
     rules = {rule["id"]: rule for rule in spec.get("rules", []) if "id" in rule}
     for op in _gap_operations(module):
         entry: dict[str, Any] = {"plan": op, "spec": by_id.get(op["operationId"])}
-        rule_ids = (by_id.get(op["operationId"]) or {}).get("rules", [])
-        named = [rules[rule_id] for rule_id in rule_ids if rule_id in rules]
+        answers = {rule["id"]: rule for rule in op.get("customRules") or []}  # Story 10.4: the code it raises
+        named = [rules[rule_id] | {"answer": answers[rule_id]} if rule_id in answers else rules[rule_id]
+                 for rule_id in engine_rules(op) if rule_id in rules]  # fmt: skip
         if named:
             entry["rules"] = named
         contract_op = _contract_operation(contract, op["operationId"])

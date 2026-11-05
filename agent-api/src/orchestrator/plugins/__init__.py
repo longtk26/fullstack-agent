@@ -17,6 +17,7 @@ from .base import (
     Import,
     Plugin,
     RepositoryFilter,
+    RepositoryMethod,
     ResponseField,
     RouterParam,
     Setting,
@@ -24,10 +25,12 @@ from .base import (
 from .integrations import IntegrationStubsPlugin
 from .policies import PoliciesPlugin
 from .rate_limit import RateLimitPlugin
+from .rules import RulesPlugin
 
 # Every plugin the generator knows, by name. Tests add their own with `monkeypatch.setitem(REGISTRY, ...)`.
 REGISTRY: dict[str, Plugin] = {
-    plugin.name: plugin for plugin in (RateLimitPlugin(), AuthJwtPlugin(), PoliciesPlugin(), IntegrationStubsPlugin())
+    plugin.name: plugin
+    for plugin in (RateLimitPlugin(), AuthJwtPlugin(), PoliciesPlugin(), RulesPlugin(), IntegrationStubsPlugin())
 }
 
 
@@ -96,6 +99,7 @@ __all__ = [
     "Plugin",
     "PluginError",
     "RepositoryFilter",
+    "RepositoryMethod",
     "ResponseField",
     "RouterParam",
     "Setting",

@@ -279,6 +279,10 @@ def judge(contract: dict[str, Any], calls: list[dict[str, Any]], answers: list[d
         if call.get("expect"):  # a scenario: exactly this status and error code (Story 10.0b)
             want = call["expect"]
             got = answer.get("status")
+            # Story 10.4: a custom rule may refuse what a success scenario sends; its own answer is also right
+            for other in want.get("or") or []:
+                if got == other["status"] and _error_code(text) == other.get("code"):
+                    want = other
             code = _error_code(text) if want.get("code") else None
             if got != want["status"] or code != want.get("code"):
                 expected_text = " ".join(str(part) for part in (want["status"], want.get("code")) if part)

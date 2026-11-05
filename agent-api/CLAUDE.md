@@ -82,6 +82,10 @@ Agent-specific notes:
   `demo12345`) and its own `auth` module; `policies` adds role checks on routes (`require_roles`), ownership in use
   cases and lists, the owner from the signed-in user (`x-bga.source: currentUser`) and `allowedActions` per user.
   Contract scenarios may name the demo user they run as (`scenario.user`); seeds go in parents-first.
+- Business rules (Story 10.4): the `rules` plugin writes `transition`, `immutableAfter` and `sumEquals` from one plan
+  definition per rule (`op.ruleChecks`; catalog in `src/libs/rules/catalog.py`); `ownerOnly` is the policies
+  plugin's; `custom` rules are the engine's (`op.customRules`: the code it raises), ambiguous ones are skipped
+  (`op.skippedRules`). `codegen.engine_rules(op)` is what is left for the engine.
 - The integration contract (Story 10.0b): the backend decides, a frontend only reads. Request properties carry
   `x-bga.source` (a foreign key: `reference` with `x-bga.ref`); record responses carry a `{id, label}` summary per
   parent and `allowedActions` (the planner's `label`, `references`, `recordActions`); operations list

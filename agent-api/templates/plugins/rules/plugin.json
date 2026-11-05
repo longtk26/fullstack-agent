@@ -1,0 +1,9 @@
+{
+  "name": "rules",
+  "version": "1",
+  "description": "Declarative business rules (transition, immutableAfter, sumEquals) checked in use cases; error codes and fields for custom rules the engine implements.",
+  "requirements": [],
+  "owns": [
+    "src/libs/rules"
+  ]
+}
