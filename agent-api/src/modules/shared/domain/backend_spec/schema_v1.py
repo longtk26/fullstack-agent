@@ -226,6 +226,20 @@ class Webhooks(SpecModel):
     incoming: list[WebhookSource] = []
 
 
+class Payments(SpecModel):
+    """Story 10.9: one entity is paid for. The amount is the record's (`amountField`, or the field of a `sumEquals`
+    rule on it), never the client's; `statusField` moves to `paidStatus` (or `failedStatus`) when the provider says."""
+
+    provider: Literal["fake"] = "fake"
+    entity: str
+    amount_field: str | None = None
+    currency: str | None = Field(default=None, pattern=r"^[A-Z]{3}$")
+    currency_field: str | None = None
+    status_field: str
+    paid_status: str
+    failed_status: str | None = None
+
+
 class Seed(SpecModel):
     entity: str
     records: list[dict[str, Any]]
@@ -255,5 +269,6 @@ class BackendSpecV1(SpecModel):
     background_jobs: list[BackgroundJob] = []
     emails: list[Email] = []
     webhooks: Webhooks | None = None
+    payments: Payments | None = None
     seed: list[Seed] = []
     frontend_bindings: list[FrontendBinding] = Field(default=[], alias="x-frontendBindings")

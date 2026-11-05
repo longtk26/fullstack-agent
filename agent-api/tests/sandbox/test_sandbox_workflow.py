@@ -246,3 +246,26 @@ def test_a_backend_with_webhooks_passes_its_tests_and_delivers_a_signed_webhook(
     finally:
         if not os.environ.get("BGA_KEEP_SANDBOX_DIRS"):
             shutil.rmtree(root, ignore_errors=True)
+
+
+@pytest.mark.parametrize("variant", ["open", "signed-in-with-transition"])
+def test_a_backend_with_payments_passes_its_tests_and_pays_a_seeded_record(client, user_headers, tmp_path, variant):
+    """Story 10.9: checkout from the record's amount, the fake page's pay / fail / cancel through the signed webhook
+    path, settling by the worker, and the smoke check paying a seeded record."""
+    from tests.test_payments import payments_spec
+
+    root = REPO / ".data" / "test-sandbox" / uuid.uuid4().hex[:10]
+    root.mkdir(parents=True)
+    try:
+        signed_in = variant != "open"
+        payments_spec(tmp_path, auth=signed_in, transition=signed_in)
+        spec = json.loads((tmp_path / "payments-spec.json").read_text())
+        generation_id = submit(client, user_headers, spec=spec, crudFromTemplates=True)
+        status = run_job(root, generation_id, validator=SandboxValidationRunner(), sandboxes=DockerSandboxProvider())
+
+        assert status in ("COMPLETED", "COMPLETED_WITH_WARNINGS"), generation(generation_id).error_summary
+        tests = [e for e in events(generation_id) if e.type == "validation.check" and e.payload["check"] == "tests"]
+        assert tests[-1].status == "passed", tests[-1].payload["summary"]
+    finally:
+        if not os.environ.get("BGA_KEEP_SANDBOX_DIRS"):
+            shutil.rmtree(root, ignore_errors=True)

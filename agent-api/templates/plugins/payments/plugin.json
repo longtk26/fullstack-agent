@@ -1,0 +1,11 @@
+{
+  "name": "payments",
+  "version": "1",
+  "description": "Payments for one entity: a payment provider port with a fake adapter (a checkout page that pays, fails or cancels through the signed webhook path), a payments table, the record's status kept in step.",
+  "requirements": [],
+  "owns": [
+    "src/libs/payments",
+    "src/modules/payments",
+    "src/jobs/webhook_in_payments.py"
+  ]
+}

@@ -688,10 +688,41 @@ class _SemanticChecker:
             if source.action == "custom" and not source.description:
                 self._add(C.SCHEMA_VIOLATION, f"{path}/description", "A custom handler needs a description")
 
+    def _check_payments(self) -> None:
+        """Story 10.9: an entity with a numeric amount, a currency, and an enum status with the paid (failed) state."""
+        payments = self.spec.payments
+        if payments is None:
+            return
+        entity = self._entity_ref(payments.entity, "/payments/entity")
+        if entity is None:
+            return
+        fields = self.fields[entity.name]
+        amount = payments.amount_field or next(
+            (str(r.params.get("field")) for r in self.spec.rules if r.kind == "sumEquals" and r.entity == entity.name),
+            None,
+        )
+        if amount is None or amount not in fields or fields[amount].type not in ("integer", "float", "decimal"):
+            self._add(C.RULE_PARAMS_INVALID, "/payments/amountField",
+                      f"'{entity.name}' needs a numeric amount field (or a sumEquals rule)")  # fmt: skip
+        if bool(payments.currency) == bool(payments.currency_field):
+            self._add(C.SCHEMA_VIOLATION, "/payments/currency", "Give 'currency' or 'currencyField', one of them")
+        elif payments.currency_field and payments.currency_field not in fields:
+            self._add(
+                C.UNKNOWN_FIELD_REF, "/payments/currencyField", f"'{entity.name}' has no '{payments.currency_field}'"
+            )
+        status = fields.get(payments.status_field)
+        if status is None or status.type != "enum":
+            self._add(C.RULE_PARAMS_INVALID, "/payments/statusField", f"'{payments.status_field}' is not an enum field")
+            return
+        for key, value in (("paidStatus", payments.paid_status), ("failedStatus", payments.failed_status)):
+            if value is not None and value not in (status.values or []):
+                self._add(C.RULE_PARAMS_INVALID, f"/payments/{key}", f"'{value}' is not a value of '{status.name}'")
+
     def _check_unsupported(self) -> None:
         self._check_jobs()
         self._check_emails()
         self._check_webhooks()
+        self._check_payments()
         for key, items in (("integrations", self.spec.integrations),):
             for index, item in enumerate(items):
                 self._add(

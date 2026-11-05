@@ -14,6 +14,7 @@ type BackendSpec = {
   backgroundJobs?: BackgroundJob[];
   emails?: Email[];
   webhooks?: Webhooks | null;
+  payments?: Payments | null;
   seed?: Seed[];
   x-frontendBindings?: FrontendBinding[];
 };
@@ -140,6 +141,18 @@ type PayloadSchema = {
   fields?: string[] | null;
   properties?: FieldDef[] | null;
   type?: "object" | "array" | null;
+};
+
+// Story 10.9: one entity is paid for.
+type Payments = {
+  provider?: string;
+  entity: string;
+  amountField?: string | null;
+  currency?: string | null;
+  currencyField?: string | null;
+  statusField: string;
+  paidStatus: string;
+  failedStatus?: string | null;
 };
 
 type Policy = {

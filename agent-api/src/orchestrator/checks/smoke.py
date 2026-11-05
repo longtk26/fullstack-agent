@@ -22,6 +22,13 @@ SAMPLE_UUID = "00000000-0000-4000-8000-000000000001"
 # What a business rule answers a guessed request with (`409` slot taken, `404` unknown id, `400` bad reference): the
 # operation is wired and answers; only the request was not one its rules accept.
 RULE_ANSWERS = (400, 404, 409)
+# Steps of the smoke script that are not one operation's call (Stories 10.8, 10.9), by kind
+STEPS = {
+    "webhook_subscribe": "webhooks: subscribing and pinging",
+    "webhook_check": "webhooks: a signed delivery",
+    "payment_pay": "payments: checking out and paying on the fake page",
+    "payment_check": "payments: settling the payment as paid",
+}
 
 # Runs in the sandbox from /work: seeds the migrated database, serves the app as `startup_check.py` does, makes each
 # call once and prints the answers after the marker. It judges nothing; the worker does.
@@ -134,6 +141,20 @@ for call in plan["calls"]:
             hook["secret"] = created["secret"]
             status, text = send("POST", f"/webhooks/subscriptions/{created['id']}/ping", None, call.get("user"))
         answers.append({"status": status, "body": text[-2000:]})
+        continue
+    if call.get("kind") == "payment_pay":  # Story 10.9: check out a seeded record and pay on the fake page
+        status, text = send("POST", call["path"], {}, call.get("user"))
+        if status == 201:
+            started = json.loads(text)
+            hook["payment"] = started["paymentId"]
+            session_id = started["checkoutUrl"].rsplit("/", 1)[1]
+            status, text = send("POST", f"/payments/fake/checkout/{session_id}/pay", None, call.get("user"))
+        answers.append({"status": status, "body": text[-2000:]})
+        continue
+    if call.get("kind") == "payment_check":  # the worker settled it
+        status, text = send("GET", f"/payments/{hook.get('payment')}", None, call.get("user"))
+        paid = status == 200 and json.loads(text).get("status") == "paid"
+        answers.append({"status": 200 if paid else 0, "body": text[-1000:]})
         continue
     if call.get("kind") == "webhook_check":  # the worker delivered it, signed with the subscription's secret
         import hashlib
@@ -302,8 +323,16 @@ def smoke_calls(contract: dict[str, Any], plan: dict[str, Any]) -> tuple[list[di
         calls.append({"operationId": "webhooks.subscribe", "kind": "webhook_subscribe", "method": "POST",
                       "path": "/webhooks/subscriptions", "event": webhooks["outgoing"][0], "auth": True,
                       **({"user": admin} if webhooks.get("access") == "role" and admin else {})})  # fmt: skip
+    payable = ((contract.get("x-bga") or {}).get("payments") or {}).get("payable")
+    if plan.get("payments") and payable is not None:  # Story 10.9: a seeded record paid on the fake page
+        path = plan["payments"]["path"].replace("{recordId}", quote(str(payable), safe=""))
+        calls.append({"operationId": "payments.checkout", "kind": "payment_pay", "method": "POST", "path": path,
+                      "auth": True})  # fmt: skip
     if plan.get("jobs"):  # last: the worker runs what the calls before it enqueued (Story 10.6)
         calls.append({"operationId": "jobs.worker", "kind": "worker", "method": "RUN", "path": "src.worker --once"})
+    if plan.get("payments") and payable is not None:
+        calls.append({"operationId": "payments.get", "kind": "payment_check", "method": "GET", "path": "/payments/<id>",
+                      "auth": True})  # fmt: skip
     if webhooks.get("outgoing"):
         calls.append({"operationId": "webhooks.delivery", "kind": "webhook_check", "method": "RECEIVE",
                       "path": "http://127.0.0.1:8767/hook"})  # fmt: skip
@@ -378,11 +407,11 @@ def judge(contract: dict[str, Any], calls: list[dict[str, Any]], answers: list[d
     problems: list[dict[str, Any]] = []
     for call, answer in zip(calls, answers, strict=False):
         op_id = call["operationId"]
-        if call.get("kind") in ("webhook_subscribe", "webhook_check"):  # Story 10.8
+        if call.get("kind") in STEPS:  # Stories 10.8, 10.9
             if not str(answer.get("status")).startswith("2"):
-                what = "subscribing and pinging" if call["kind"] == "webhook_subscribe" else "a signed delivery"
-                problems.append({"operation": op_id, "message": f"webhooks: {what} failed", "request": call["path"],
-                                 "response": str(answer.get("body") or "")[-600:]})  # fmt: skip
+                body = str(answer.get("body") or "")[-600:]
+                message = f"{STEPS[call['kind']]} failed"
+                problems.append({"operation": op_id, "message": message, "request": call["path"], "response": body})
             continue
         if call.get("kind") == "mail":
             if answer.get("status") != 200:

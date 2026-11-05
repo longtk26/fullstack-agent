@@ -23,4 +23,7 @@ class ErrorCode(StrEnum):
     # webhooks (Story 10.8): an incoming signature that is missing, wrong or too old; a URL inside a private network
     INVALID_SIGNATURE = "INVALID_SIGNATURE"
     UNSAFE_TARGET = "UNSAFE_TARGET"
+    # payments (Story 10.9): a second checkout of a paid record; an amount that is not above zero
+    ALREADY_PAID = "ALREADY_PAID"
+    NOTHING_TO_PAY = "NOTHING_TO_PAY"
     INTERNAL_ERROR = "INTERNAL_ERROR"

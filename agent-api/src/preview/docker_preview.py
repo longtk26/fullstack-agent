@@ -297,6 +297,8 @@ class DockerPreviewRuntime(IPreviewRuntime):
             environment |= mail_service.app_env(request.generation_id)
         if _has(request.source_zip, "src/libs/webhooks/__init__.py"):
             environment["WEBHOOK_ALLOW_PRIVATE"] = "true"  # Story 10.8: local receivers, in previews only
+        if _has(request.source_zip, "src/libs/payments/__init__.py"):
+            environment["PAYMENT_WEBHOOK_SECRET"] = secret(request.generation_id, "payments")  # Story 10.9
         labels = {**_labels(request.generation_id, "app"), "bga.backend.cors": cors}
         ensure_egress_network(self.client)
         last_error: Exception | None = None

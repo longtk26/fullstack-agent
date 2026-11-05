@@ -147,6 +147,7 @@ class DockerSandbox(ISandbox):
         self._env: dict[str, str] = {}
         self._storage: dict[str, str] | None = None  # Story 10.5: the shared store's env, once attached
         self._mail: dict[str, str] = {}  # Story 10.7: the shared mail catcher's env, once attached
+        self._payment_secret = secrets.token_hex(24)  # Story 10.9: one per job, as for JWT
 
     # -- lifecycle ---------------------------------------------------------------------------------------------
 
@@ -345,6 +346,8 @@ class DockerSandbox(ISandbox):
             environment |= self._attach_mail()
         if self.profile.database and (self.project / "src/libs/webhooks").is_dir():
             environment["WEBHOOK_ALLOW_PRIVATE"] = "true"  # Story 10.8: the smoke check's receiver is local
+        if self.profile.database and (self.project / "src/libs/payments").is_dir():
+            environment["PAYMENT_WEBHOOK_SECRET"] = self._payment_secret  # Story 10.9: the fake provider signs
         environment |= env or {}
         if (self.project / ".venv" / "bin" / "python").exists():
             environment["PATH"] = "/work/.venv/bin:/opt/venv/bin:/usr/local/bin:/usr/bin:/bin"

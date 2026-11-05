@@ -920,6 +920,86 @@
       "title": "PayloadSchema",
       "type": "object"
     },
+    "Payments": {
+      "additionalProperties": false,
+      "description": "Story 10.9: one entity is paid for. The amount is the record's (`amountField`, or the field of a `sumEquals`\nrule on it), never the client's; `statusField` moves to `paidStatus` (or `failedStatus`) when the provider says.",
+      "properties": {
+        "provider": {
+          "const": "fake",
+          "default": "fake",
+          "title": "Provider",
+          "type": "string"
+        },
+        "entity": {
+          "title": "Entity",
+          "type": "string"
+        },
+        "amountField": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Amountfield"
+        },
+        "currency": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Z]{3}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Currency"
+        },
+        "currencyField": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Currencyfield"
+        },
+        "statusField": {
+          "title": "Statusfield",
+          "type": "string"
+        },
+        "paidStatus": {
+          "title": "Paidstatus",
+          "type": "string"
+        },
+        "failedStatus": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Failedstatus"
+        }
+      },
+      "required": [
+        "entity",
+        "statusField",
+        "paidStatus"
+      ],
+      "title": "Payments",
+      "type": "object"
+    },
     "Policy": {
       "additionalProperties": false,
       "properties": {
@@ -1398,6 +1478,17 @@
       "anyOf": [
         {
           "$ref": "#/$defs/Webhooks"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "payments": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Payments"
         },
         {
           "type": "null"
