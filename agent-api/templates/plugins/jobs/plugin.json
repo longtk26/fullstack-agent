@@ -1,0 +1,13 @@
+{
+  "name": "jobs",
+  "version": "1",
+  "description": "Background jobs and events: a transactional job queue in PostgreSQL, a worker (python -m src.worker), retries, cron schedules; entity events from use cases.",
+  "requirements": [
+    "croniter==6.0.0"
+  ],
+  "owns": [
+    "src/libs/jobs",
+    "src/worker.py",
+    "tests/modules/jobs"
+  ]
+}

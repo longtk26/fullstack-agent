@@ -64,7 +64,7 @@ def test_collects_all_semantic_errors_in_one_pass():
 
 def test_warnings_do_not_invalidate():
     spec = _load(FIXTURES / "valid_base.json")
-    spec["backgroundJobs"] = [{"name": "nightlyReport", "trigger": "cron:0 2 * * *"}]
+    spec["integrations"] = [{"name": "crm"}]
 
     report = validate_spec_data(spec).report
 

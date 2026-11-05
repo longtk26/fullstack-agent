@@ -35,7 +35,9 @@ type Auth = {
 
 type BackgroundJob = {
   name: string;
-  trigger: string | Record<string, unknown>;
+  trigger: string | JobTrigger;
+  action?: "log" | "custom";
+  maxAttempts?: number;
   description?: string | null;
 };
 
@@ -85,6 +87,13 @@ type Integration = {
   name: string;
   description?: string | null;
   config?: Record<string, unknown>;
+};
+
+// Story 10.6: exactly one of an event (`task.created`, `<entity>.<custom>`), an operation id, a cron expression.
+type JobTrigger = {
+  event?: string | null;
+  operation?: string | null;
+  cron?: string | null;
 };
 
 type Operation = {

@@ -88,6 +88,11 @@ def token_of(user):
 
 answers = []
 for call in plan["calls"]:
+    if call.get("kind") == "worker":  # Story 10.6: the jobs the calls enqueued, run once
+        done = subprocess.run([sys.executable, "-m", "src.worker", "--once"], capture_output=True, text=True,
+                              timeout=120)  # fmt: skip
+        answers.append({"status": done.returncode, "body": (done.stdout + done.stderr)[-3000:]})
+        continue
     data = json.dumps(call["body"]).encode() if call.get("body") is not None else None
     headers = {"content-type": "application/json"} if data is not None else {}
     token = token_of(call.get("user")) if call.get("auth") and plan.get("login") else None
@@ -220,6 +225,8 @@ def smoke_calls(contract: dict[str, Any], plan: dict[str, Any]) -> tuple[list[di
         if operation.get("security"):
             call["auth"] = True
         calls.append(call)
+    if plan.get("jobs"):  # last: the worker runs what the calls before it enqueued (Story 10.6)
+        calls.append({"operationId": "jobs.worker", "kind": "worker", "method": "RUN", "path": "src.worker --once"})
     return calls, skipped
 
 
@@ -278,6 +285,12 @@ def judge(contract: dict[str, Any], calls: list[dict[str, Any]], answers: list[d
     problems: list[dict[str, Any]] = []
     for call, answer in zip(calls, answers, strict=False):
         op_id = call["operationId"]
+        if call.get("kind") == "worker":  # Story 10.6: every job the calls enqueued ran
+            if answer.get("status") != 0:
+                message = "the job worker failed (`python -m src.worker --once`)"
+                body = str(answer.get("body") or "")[-600:]
+                problems.append({"operation": op_id, "message": message, "request": call["path"], "response": body})
+            continue
         responses = operations[op_id]["operation"].get("responses") or {}
         expected = next((code for code in sorted(responses) if code.startswith("2")), "200")
         request = f"{call['method']} {call['path']}" + (

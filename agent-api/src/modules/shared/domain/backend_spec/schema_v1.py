@@ -172,9 +172,21 @@ class Integration(SpecModel):
     config: dict[str, Any] = {}
 
 
+class JobTrigger(SpecModel):
+    """Story 10.6: exactly one of an event (`task.created`, `<entity>.<custom>`), an operation id, a cron expression."""
+
+    event: str | None = None
+    operation: str | None = None
+    cron: str | None = None
+
+
 class BackgroundJob(SpecModel):
     name: str = Field(pattern=IDENTIFIER)
-    trigger: str | dict[str, Any]
+    # also `cron:<expr>`, `event:<name>`, `operation:<id>` (normalized to the object)
+    trigger: str | JobTrigger
+    # Story 10.6: `log` writes the event to the log (built in); `custom`: the engine writes the handler
+    action: Literal["log", "custom"] = "custom"
+    max_attempts: int = Field(default=5, ge=1, le=20)
     description: str | None = None
 
 

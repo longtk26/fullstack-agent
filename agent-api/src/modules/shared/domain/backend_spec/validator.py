@@ -577,8 +577,40 @@ class _SemanticChecker:
                     f"Binding refers to unknown operation '{binding.operation_id}'",
                 )
 
+    def _check_jobs(self) -> None:
+        """Story 10.6: one trigger per job, naming an entity event, an operation or a cron schedule."""
+        events = {f"{name[:1].lower()}{name[1:]}" for name in self.entities}
+        op_ids = {op.operation_id for op in self.spec.operations}
+        seen: set[str] = set()
+        for index, job in enumerate(self.spec.background_jobs):
+            path = f"/backgroundJobs/{index}"
+            if job.name in seen:
+                self._add(C.SCHEMA_VIOLATION, f"{path}/name", f"Job name '{job.name}' is used twice")
+            seen.add(job.name)
+            trigger = job.trigger
+            if isinstance(trigger, str):
+                kind, _, value = trigger.partition(":")
+                given = {kind: value.strip()} if kind in ("cron", "event", "operation") and value else {}
+            else:
+                given = {key: value for key, value in trigger.model_dump().items() if value}
+            if len(given) != 1:
+                self._add(C.SCHEMA_VIOLATION, f"{path}/trigger", "A job needs exactly one of event, operation, cron")
+                continue
+            ((kind, value),) = given.items()
+            if kind == "event":
+                entity, _, name = value.partition(".")
+                if entity not in events or not re.fullmatch(r"[a-z][A-Za-z0-9]*", name):
+                    self._add(C.SCHEMA_VIOLATION, f"{path}/trigger/event",
+                              f"'{value}' is not an event: <entity>.created|updated|deleted|<name>",
+                              hint=f"Entities: {', '.join(sorted(events))}")  # fmt: skip
+            elif kind == "operation" and value not in op_ids:
+                self._add(C.UNKNOWN_FIELD_REF, f"{path}/trigger/operation", f"Unknown operation '{value}'")
+            elif kind == "cron" and not re.fullmatch(r"(\S+\s+){4}\S+", value.strip()):
+                self._add(C.SCHEMA_VIOLATION, f"{path}/trigger/cron", f"'{value}' is not a five-field cron expression")
+
     def _check_unsupported(self) -> None:
-        for key, items in (("integrations", self.spec.integrations), ("backgroundJobs", self.spec.background_jobs)):
+        self._check_jobs()
+        for key, items in (("integrations", self.spec.integrations),):
             for index, item in enumerate(items):
                 self._add(
                     C.UNSUPPORTED_FEATURE,

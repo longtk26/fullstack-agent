@@ -1,7 +1,7 @@
 from typing import Any
 
 from .naming import table_name, to_camel, to_kebab
-from .schema_v1 import BackendSpecV1, Entity, Operation, Pagination
+from .schema_v1 import BackendSpecV1, Entity, JobTrigger, Operation, Pagination
 
 
 def default_foreign_key(parent_entity: str) -> str:
@@ -39,4 +39,9 @@ def normalize_spec(spec: BackendSpecV1) -> dict[str, Any]:
             operation.pagination = Pagination()
         elif operation.pagination is False:
             operation.pagination = None
+    for job in normalized.background_jobs:  # Story 10.6: `cron:0 2 * * *` → {"cron": "0 2 * * *"}
+        if isinstance(job.trigger, str):
+            kind, _, value = job.trigger.partition(":")
+            if kind in ("cron", "event", "operation") and value:
+                job.trigger = JobTrigger(**{kind: value.strip()})
     return normalized.model_dump(by_alias=True, mode="json", exclude_none=True)

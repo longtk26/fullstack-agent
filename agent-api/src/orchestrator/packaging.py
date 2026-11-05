@@ -296,6 +296,10 @@ def build_manifest(
         "unresolved": plan.get("unresolved", []),
         "plugins": plan.get("plugins", []),  # Story 10.1
         "rules": _rules_manifest(spec, plan),  # Story 10.4
+        "jobs": [  # Story 10.6: kinds, triggers, schedules
+            {key: job[key] for key in ("name", "trigger", "action", "maxAttempts") if key in job}
+            for job in plan.get("jobs", [])
+        ],
         "assumptions": spec.get("x-assumptions", []),
     }
     if spec.get("auth"):

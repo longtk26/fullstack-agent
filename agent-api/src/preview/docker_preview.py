@@ -56,6 +56,7 @@ def names(generation_id: str) -> dict[str, str]:
         "image": f"bga-gen-{slug}:latest",
         "network": f"bga-preview-net-{slug}",
         "app": f"bga-preview-{slug}",
+        "worker": f"bga-preview-worker-{slug}",  # Story 10.6: the job worker, from the app's image
         "db": f"bga-preview-db-{slug}",
         "volume": f"bga-preview-db-{slug}",
     }
@@ -152,6 +153,8 @@ class DockerPreviewRuntime(IPreviewRuntime):
                 app.remove(force=True)  # its port was taken meanwhile: recreate on a free one
                 app = self._create_app(request)
         self._wait_healthy(request.generation_id, app)
+        if _has(request.source_zip, WORKER_MARKER):  # after the app migrated the database
+            self._ensure_worker(request, app)
         app.reload()
         return PreviewHandle(
             container_id=app.id, db_container_id=db.id, host_port=_host_port(app) or 0, build_log=build_log
@@ -248,6 +251,31 @@ class DockerPreviewRuntime(IPreviewRuntime):
             time.sleep(0.5)
         raise PreviewError("preview PostgreSQL did not become ready", self._tail(db))
 
+    def _ensure_worker(self, request: PreviewRequest, app: Container) -> None:
+        """Story 10.6: `bga-preview-worker-<gen>` runs `python -m src.worker` with the app's environment."""
+        n = names(request.generation_id)
+        worker = self._get(n["worker"])
+        if worker is not None and worker.attrs.get("Config", {}).get("Env") != app.attrs.get("Config", {}).get("Env"):
+            worker.remove(force=True)  # the app was recreated with other settings
+            worker = None
+        if worker is None:
+            worker = self.client.containers.create(
+                n["image"],
+                ["worker"],
+                name=n["worker"],
+                network=n["network"],
+                labels=_labels(request.generation_id, "worker"),
+                environment=app.attrs["Config"]["Env"],
+                restart_policy={"Name": "unless-stopped"},
+                nano_cpus=int(config.preview_cpus * 1e9 / 2),
+                mem_limit=_memory_bytes(config.preview_memory),
+                pids_limit=256,
+                cap_drop=["ALL"],
+                security_opt=["no-new-privileges"],
+            )
+        if worker.status != "running":
+            worker.start()
+
     def _create_app(self, request: PreviewRequest) -> Container:
         n = names(request.generation_id)
         cors = request.options.get("corsOrigins") or config.preview_cors_origins
@@ -322,13 +350,17 @@ class DockerPreviewRuntime(IPreviewRuntime):
 
     def _stop(self, generation_id: str) -> None:
         n = names(generation_id)
-        for name in (n["app"], n["db"]):
+        for name in (n["worker"], n["app"], n["db"]):
             container = self._get(name)
             if container is not None and container.status == "running":
                 container.stop(timeout=10)
 
     async def remove_app(self, generation_id: str) -> None:
-        await asyncio.to_thread(self._remove_container, names(generation_id)["app"])
+        def run() -> None:
+            self._remove_container(names(generation_id)["worker"])
+            self._remove_container(names(generation_id)["app"])
+
+        await asyncio.to_thread(run)
 
     def _remove_container(self, name: str) -> None:
         container = self._get(name)
@@ -344,9 +376,10 @@ class DockerPreviewRuntime(IPreviewRuntime):
 
     def _drop_database(self, generation_id: str) -> None:
         n = names(generation_id)
-        app = self._get(n["app"])
-        if app is not None and app.status == "running":
-            app.stop(timeout=10)
+        for name in (n["worker"], n["app"]):
+            container = self._get(name)
+            if container is not None and container.status == "running":
+                container.stop(timeout=10)
         self._remove_container(n["db"])
         try:
             self.client.volumes.get(n["volume"]).remove(force=True)
@@ -359,6 +392,7 @@ class DockerPreviewRuntime(IPreviewRuntime):
 
     def _remove(self, generation_id: str, keep_image: bool) -> None:
         n = names(generation_id)
+        self._remove_container(n["worker"])
         self._remove_container(n["app"])
         self._remove_container(n["db"])
         object_store.remove_bucket(self.client, object_store.bucket("bga-preview", generation_id))
@@ -385,8 +419,14 @@ class DockerPreviewRuntime(IPreviewRuntime):
             app = self._get(names(generation_id)["app"])
             if app is None:
                 return []
-            text = app.logs(tail=tail, timestamps=True).decode(errors="replace")
-            return self._redactor(generation_id).redact(text).splitlines()
+            lines = app.logs(tail=tail, timestamps=True).decode(errors="replace").splitlines()
+            worker = self._get(names(generation_id)["worker"])
+            if worker is not None:  # Story 10.6: the worker's lines next to the backend's, in time order
+                for line in worker.logs(tail=tail, timestamps=True).decode(errors="replace").splitlines():
+                    stamp, _, rest = line.partition(" ")
+                    lines.append(f"{stamp} [worker] {rest}")
+                lines = sorted(lines, key=lambda line: line.partition(" ")[0])[-tail:]
+            return self._redactor(generation_id).redact("\n".join(lines)).splitlines()
 
         return await asyncio.to_thread(run)
 
@@ -462,12 +502,19 @@ class DockerPreviewRuntime(IPreviewRuntime):
         return await asyncio.to_thread(run_exec)
 
 
-def _has_storage(source_zip: Path) -> bool:
+WORKER_MARKER = "src/worker.py"
+
+
+def _has(source_zip: Path, member: str) -> bool:
     try:
         with zipfile.ZipFile(source_zip) as archive:
-            return object_store.MARKER in archive.namelist()
+            return member in archive.namelist()
     except (OSError, zipfile.BadZipFile):
         return False
+
+
+def _has_storage(source_zip: Path) -> bool:
+    return _has(source_zip, object_store.MARKER)
 
 
 def _tar(name: str, data: bytes) -> bytes:

@@ -131,11 +131,26 @@
               "type": "string"
             },
             {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/$defs/JobTrigger"
             }
           ],
           "title": "Trigger"
+        },
+        "action": {
+          "default": "custom",
+          "enum": [
+            "log",
+            "custom"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "maxAttempts": {
+          "default": 5,
+          "maximum": 20,
+          "minimum": 1,
+          "title": "Maxattempts",
+          "type": "integer"
         },
         "description": {
           "anyOf": [
@@ -507,6 +522,50 @@
         "name"
       ],
       "title": "Integration",
+      "type": "object"
+    },
+    "JobTrigger": {
+      "additionalProperties": false,
+      "description": "Story 10.6: exactly one of an event (`task.created`, `<entity>.<custom>`), an operation id, a cron expression.",
+      "properties": {
+        "event": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Event"
+        },
+        "operation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Operation"
+        },
+        "cron": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cron"
+        }
+      },
+      "title": "JobTrigger",
       "type": "object"
     },
     "Operation": {

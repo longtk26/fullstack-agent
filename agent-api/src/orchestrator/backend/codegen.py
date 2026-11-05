@@ -70,6 +70,7 @@ def codegen_gaps(module: dict[str, Any]) -> list[str]:
             gaps.append(f"{where}: custom operation")
         if engine_rules(op):  # Story 10.4: the rules plugin writes the predefined kinds
             gaps.append(f"{where}: business rules")
+    gaps += [f"job {name}: custom handler" for name in module.get("customJobs") or []]  # Story 10.6
     return gaps
 
 
@@ -340,8 +341,11 @@ def database_files(plan: dict[str, Any]) -> dict[str, str]:
         files[SUMMARIES_FILE] = summaries
     classes = sorted(name for _, name in model_exports)
     registry = Imports().add("src.modules.shared.infrastructure.models", *classes).render()
+    # Story 10.6: a plugin's own tables (the job queue) are discovered the same way
+    extra = "".join(f"import {module}  # noqa: F401\n" for module in plan.get("pluginModels") or [])
     files["src/modules/__init__.py"] = (
         '"""Imports every ORM model so Alembic autogenerate discovers it (fastapi-skills pillar 4)."""\n\n'
+        + extra
         + registry
         + "\n"
         + _exports(classes)

@@ -90,6 +90,9 @@ Agent-specific notes:
   `src/libs/storage`, `POST /files/presign`, upload checks and `<field>Url`. Sandboxes and previews of such projects
   share one local S3-compatible store (`src/sandbox/object_store.py`, RustFS `bga-storage` on 127.0.0.1:9100), one
   bucket each, joined to their network as `storage`.
+- Jobs (Story 10.6): the `jobs` plugin's queue is PostgreSQL (`src/libs/jobs`, `python -m src.worker [--once]`); CRUD
+  use cases emit subscribed events in the request's transaction; previews run `bga-preview-worker-<gen>`; the smoke
+  check runs the worker once after its calls. Plugin tables: `plan.pluginModels` / `plan.pluginTables`.
 - The integration contract (Story 10.0b): the backend decides, a frontend only reads. Request properties carry
   `x-bga.source` (a foreign key: `reference` with `x-bga.ref`); record responses carry a `{id, label}` summary per
   parent and `allowedActions` (the planner's `label`, `references`, `recordActions`); operations list

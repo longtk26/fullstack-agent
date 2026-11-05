@@ -90,7 +90,7 @@ def compare_schema(plan: dict[str, Any], schema: dict[str, Any]) -> list[dict[st
                 problem(model["table"], f"enum type {enum['dbName']} missing")
             elif labels != enum["values"]:
                 problem(model["table"], f"enum {enum['dbName']} has {labels}, expected {enum['values']}")
-    planned_tables = {m["table"] for m in plan.get("models", [])}
+    planned_tables = {m["table"] for m in plan.get("models", [])} | set(plan.get("pluginTables") or [])  # 10.6
     for extra in sorted(set(tables) - planned_tables):
         problem(extra, "table is not in the plan")
     return problems
