@@ -12,7 +12,7 @@ from .issues import Severity, SpecIssue, SpecIssueCode, ValidationReport
 from .naming import table_name, to_snake
 from .normalizer import default_foreign_key, normalize_spec, owning_entity
 from .registry import SPEC_MODELS
-from .schema_v1 import BackendSpecV1, Entity, FieldDef, Operation, Rule
+from .schema_v1 import BackendSpecV1, Entity, FieldDef, JobTrigger, Operation, Rule
 
 C = SpecIssueCode
 _PATH_PARAM = re.compile(r"\{([^}]+)\}")
@@ -669,9 +669,29 @@ class _SemanticChecker:
                     if issue:
                         self._add(C.UNKNOWN_FIELD_REF, f"{path}/{key}", f"Placeholder '{placeholder}' {issue}")
 
+    def _check_webhooks(self) -> None:
+        """Story 10.8: outgoing events are events (10.6); incoming sources are unique, their event types names."""
+        webhooks = self.spec.webhooks
+        if webhooks is None:
+            return
+        for index, event in enumerate(webhooks.outgoing.events if webhooks.outgoing else []):
+            self._trigger(JobTrigger(event=event), f"/webhooks/outgoing/events/{index}")
+        sources: set[str] = set()
+        for index, source in enumerate(webhooks.incoming):
+            path = f"/webhooks/incoming/{index}"
+            if source.source in sources or source.source in ("subscriptions", "deliveries"):
+                self._add(C.SCHEMA_VIOLATION, f"{path}/source", f"Source '{source.source}' is taken")
+            sources.add(source.source)
+            for e_index, event in enumerate(source.events):
+                if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_.:-]*", event):
+                    self._add(C.SCHEMA_VIOLATION, f"{path}/events/{e_index}", f"'{event}' is not an event type")
+            if source.action == "custom" and not source.description:
+                self._add(C.SCHEMA_VIOLATION, f"{path}/description", "A custom handler needs a description")
+
     def _check_unsupported(self) -> None:
         self._check_jobs()
         self._check_emails()
+        self._check_webhooks()
         for key, items in (("integrations", self.spec.integrations),):
             for index, item in enumerate(items):
                 self._add(

@@ -427,7 +427,7 @@ class SandboxValidationRunner(IValidationRunner):
         if ruled:
             note += f"; answered by a business rule: {', '.join(ruled)}"
         scenarios = sum(1 for call in calls if call.get("expect"))
-        worker = sum(1 for call in calls if call.get("kind") in ("worker", "mail"))  # Stories 10.6, 10.7
+        worker = sum(1 for call in calls if call.get("kind"))  # the worker's run, its email and webhook (10.6–10.8)
         custom = len(calls) - scenarios - worker
         counted = ", ".join(
             part

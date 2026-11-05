@@ -1207,6 +1207,103 @@
       ],
       "title": "Stack",
       "type": "object"
+    },
+    "WebhookSource": {
+      "additionalProperties": false,
+      "description": "Story 10.8: a system that posts signed events to `POST /webhooks/<source>`; each event type it sends is a job\n(`log`, built in, or `custom`, the engine's).",
+      "properties": {
+        "source": {
+          "pattern": "^[A-Za-z][A-Za-z0-9_]*$",
+          "title": "Source",
+          "type": "string"
+        },
+        "secretEnv": {
+          "pattern": "^[A-Z][A-Z0-9_]*$",
+          "title": "Secretenv",
+          "type": "string"
+        },
+        "events": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Events",
+          "type": "array"
+        },
+        "action": {
+          "default": "log",
+          "enum": [
+            "log",
+            "custom"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        }
+      },
+      "required": [
+        "source",
+        "secretEnv",
+        "events"
+      ],
+      "title": "WebhookSource",
+      "type": "object"
+    },
+    "Webhooks": {
+      "additionalProperties": false,
+      "properties": {
+        "outgoing": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WebhooksOutgoing"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "incoming": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/WebhookSource"
+          },
+          "title": "Incoming",
+          "type": "array"
+        }
+      },
+      "title": "Webhooks",
+      "type": "object"
+    },
+    "WebhooksOutgoing": {
+      "additionalProperties": false,
+      "description": "Story 10.8: the events (10.6 names) other systems may subscribe to.",
+      "properties": {
+        "events": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Events",
+          "type": "array"
+        }
+      },
+      "required": [
+        "events"
+      ],
+      "title": "WebhooksOutgoing",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -1296,6 +1393,17 @@
       },
       "title": "Emails",
       "type": "array"
+    },
+    "webhooks": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Webhooks"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "seed": {
       "default": [],

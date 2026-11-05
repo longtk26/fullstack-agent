@@ -204,6 +204,28 @@ class Email(SpecModel):
     body: str = Field(min_length=1)
 
 
+class WebhooksOutgoing(SpecModel):
+    """Story 10.8: the events (10.6 names) other systems may subscribe to."""
+
+    events: list[str] = Field(min_length=1)
+
+
+class WebhookSource(SpecModel):
+    """Story 10.8: a system that posts signed events to `POST /webhooks/<source>`; each event type it sends is a job
+    (`log`, built in, or `custom`, the engine's)."""
+
+    source: str = Field(pattern=IDENTIFIER)
+    secret_env: str = Field(pattern=r"^[A-Z][A-Z0-9_]*$")
+    events: list[str] = Field(min_length=1)
+    action: Literal["log", "custom"] = "log"
+    description: str | None = None
+
+
+class Webhooks(SpecModel):
+    outgoing: WebhooksOutgoing | None = None
+    incoming: list[WebhookSource] = []
+
+
 class Seed(SpecModel):
     entity: str
     records: list[dict[str, Any]]
@@ -232,5 +254,6 @@ class BackendSpecV1(SpecModel):
     integrations: list[Integration] = []
     background_jobs: list[BackgroundJob] = []
     emails: list[Email] = []
+    webhooks: Webhooks | None = None
     seed: list[Seed] = []
     frontend_bindings: list[FrontendBinding] = Field(default=[], alias="x-frontendBindings")

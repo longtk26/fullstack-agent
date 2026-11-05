@@ -86,8 +86,66 @@ def token_of(user):
     return tokens[user]
 
 
+hook = {}  # Story 10.8: a receiver in this process, the subscription's secret, what it got
+
+
+def receive_webhooks():
+    import http.server
+    import threading
+
+    got = []
+
+    class Receiver(http.server.BaseHTTPRequestHandler):
+        def do_POST(self):
+            got.append((self.headers.get("X-Webhook-Signature"), self.rfile.read(int(self.headers["Content-Length"]))))
+            self.send_response(204)
+            self.end_headers()
+
+        def log_message(self, *args):
+            pass
+
+    server = http.server.HTTPServer(("127.0.0.1", 8767), Receiver)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return got
+
+
+def send(method, path, body=None, user=None):
+    headers = {"content-type": "application/json"}
+    token = token_of(user) if plan.get("login") else None
+    if token:
+        headers["authorization"] = f"Bearer {token}"
+    request = urllib.request.Request(base + path, data=json.dumps(body).encode() if body is not None else None,
+                                     headers=headers, method=method)  # fmt: skip
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:
+            return response.status, response.read().decode("utf-8", "replace")
+    except urllib.error.HTTPError as error:
+        return error.code, error.read().decode("utf-8", "replace")
+
+
 answers = []
 for call in plan["calls"]:
+    if call.get("kind") == "webhook_subscribe":  # Story 10.8: subscribe a receiver here, and ping it
+        hook["got"] = receive_webhooks()
+        wanted = {"url": "http://127.0.0.1:8767/hook", "events": [call["event"]]}
+        status, text = send("POST", "/webhooks/subscriptions", wanted, call.get("user"))
+        if status == 201:
+            created = json.loads(text)
+            hook["secret"] = created["secret"]
+            status, text = send("POST", f"/webhooks/subscriptions/{created['id']}/ping", None, call.get("user"))
+        answers.append({"status": status, "body": text[-2000:]})
+        continue
+    if call.get("kind") == "webhook_check":  # the worker delivered it, signed with the subscription's secret
+        import hashlib
+        import hmac
+
+        ok = False
+        for header, body in hook.get("got", []):
+            parts = dict(part.split("=", 1) for part in (header or "").split(",") if "=" in part)
+            expected = hmac.new(hook.get("secret", "").encode(), f"{parts.get('t')}.".encode() + body, hashlib.sha256)
+            ok = ok or hmac.compare_digest(expected.hexdigest(), parts.get("v1", ""))
+        answers.append({"status": 200 if ok else 0, "body": json.dumps({"received": len(hook.get("got", []))})})
+        continue
     if call.get("kind") == "worker":  # Story 10.6: the jobs the calls enqueued, run once
         done = subprocess.run([sys.executable, "-m", "src.worker", "--once"], capture_output=True, text=True,
                               timeout=120)  # fmt: skip
@@ -238,8 +296,17 @@ def smoke_calls(contract: dict[str, Any], plan: dict[str, Any]) -> tuple[list[di
         if operation.get("security"):
             call["auth"] = True
         calls.append(call)
+    webhooks = plan.get("webhooks") or {}
+    if webhooks.get("outgoing"):  # Story 10.8: a subscription the worker delivers a signed ping to
+        admin = next((u["login"] for u in (plan.get("auth") or {}).get("demoUsers", []) if u["role"] == "admin"), None)
+        calls.append({"operationId": "webhooks.subscribe", "kind": "webhook_subscribe", "method": "POST",
+                      "path": "/webhooks/subscriptions", "event": webhooks["outgoing"][0], "auth": True,
+                      **({"user": admin} if webhooks.get("access") == "role" and admin else {})})  # fmt: skip
     if plan.get("jobs"):  # last: the worker runs what the calls before it enqueued (Story 10.6)
         calls.append({"operationId": "jobs.worker", "kind": "worker", "method": "RUN", "path": "src.worker --once"})
+    if webhooks.get("outgoing"):
+        calls.append({"operationId": "webhooks.delivery", "kind": "webhook_check", "method": "RECEIVE",
+                      "path": "http://127.0.0.1:8767/hook"})  # fmt: skip
     if expects_mail(plan):  # Story 10.7: and the emails it sent arrived
         calls.append({"operationId": "email.inbox", "kind": "mail", "method": "GET", "path": "mailpit search"})
     return calls, skipped
@@ -311,6 +378,12 @@ def judge(contract: dict[str, Any], calls: list[dict[str, Any]], answers: list[d
     problems: list[dict[str, Any]] = []
     for call, answer in zip(calls, answers, strict=False):
         op_id = call["operationId"]
+        if call.get("kind") in ("webhook_subscribe", "webhook_check"):  # Story 10.8
+            if not str(answer.get("status")).startswith("2"):
+                what = "subscribing and pinging" if call["kind"] == "webhook_subscribe" else "a signed delivery"
+                problems.append({"operation": op_id, "message": f"webhooks: {what} failed", "request": call["path"],
+                                 "response": str(answer.get("body") or "")[-600:]})  # fmt: skip
+            continue
         if call.get("kind") == "mail":
             if answer.get("status") != 200:
                 problems.append({"operation": op_id, "message": "no email reached the mail catcher after the jobs ran",

@@ -133,7 +133,7 @@ class JobsPlugin(Plugin):
         files = super().files(plan)
         jobs = planned_jobs(plan or {})
         files["src/worker.py"] = _worker_file(plan)
-        names = [job["handler"] for job in jobs]
+        names = list(dict.fromkeys(job["handler"] for job in jobs))  # one module may hold several jobs (10.8)
         files["src/jobs/__init__.py"] = (
             '"""The app\'s job handlers (Story 10.6): importing this package registers them."""\n\n'
             + "".join(f"from . import {name}  # noqa: F401\n" for name in names)

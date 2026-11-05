@@ -20,4 +20,7 @@ class ErrorCode(StrEnum):
     FILE_TOO_LARGE = "FILE_TOO_LARGE"
     # account links (Story 10.7): a password reset or verification token that is wrong, used or expired
     INVALID_TOKEN = "INVALID_TOKEN"
+    # webhooks (Story 10.8): an incoming signature that is missing, wrong or too old; a URL inside a private network
+    INVALID_SIGNATURE = "INVALID_SIGNATURE"
+    UNSAFE_TARGET = "UNSAFE_TARGET"
     INTERNAL_ERROR = "INTERNAL_ERROR"

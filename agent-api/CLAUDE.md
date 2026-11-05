@@ -96,6 +96,9 @@ Agent-specific notes:
 - Email (Story 10.7): `emails[]` become jobs (`email<Name>`) rendering Jinja templates; `src/libs/email` (SMTP or
   console); account links (reset, verification) in the plugin's `account` module. Sandboxes and previews send to one
   shared Mailpit (`src/sandbox/mail_service.py`, UI 127.0.0.1:8125), tagged per generation.
+- Webhooks (Story 10.8): outgoing events fan out to signed deliveries (jobs, SSRF guard); incoming
+  `POST /webhooks/<source>` checks the signature and is idempotent by event id. Sandboxes and previews set
+  `WEBHOOK_ALLOW_PRIVATE=true`; the smoke check delivers to a receiver inside the sandbox.
 - The integration contract (Story 10.0b): the backend decides, a frontend only reads. Request properties carry
   `x-bga.source` (a foreign key: `reference` with `x-bga.ref`); record responses carry a `{id, label}` summary per
   parent and `allowedActions` (the planner's `label`, `references`, `recordActions`); operations list

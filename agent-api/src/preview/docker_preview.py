@@ -295,6 +295,8 @@ class DockerPreviewRuntime(IPreviewRuntime):
             environment |= object_store.app_env(self.client, bucket, object_store.public_endpoint())
         if _has(request.source_zip, mail_service.MARKER):
             environment |= mail_service.app_env(request.generation_id)
+        if _has(request.source_zip, "src/libs/webhooks/__init__.py"):
+            environment["WEBHOOK_ALLOW_PRIVATE"] = "true"  # Story 10.8: local receivers, in previews only
         labels = {**_labels(request.generation_id, "app"), "bga.backend.cors": cors}
         ensure_egress_network(self.client)
         last_error: Exception | None = None

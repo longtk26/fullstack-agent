@@ -29,6 +29,7 @@ from .policies import PoliciesPlugin
 from .rate_limit import RateLimitPlugin
 from .rules import RulesPlugin
 from .storage import StoragePlugin
+from .webhooks import WebhooksPlugin
 
 # Every plugin the generator knows, by name. Tests add their own with `monkeypatch.setitem(REGISTRY, ...)`.
 REGISTRY: dict[str, Plugin] = {
@@ -41,6 +42,7 @@ REGISTRY: dict[str, Plugin] = {
         StoragePlugin(),
         JobsPlugin(),
         EmailPlugin(),
+        WebhooksPlugin(),
         IntegrationStubsPlugin(),
     )
 }

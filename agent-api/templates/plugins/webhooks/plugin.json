@@ -1,0 +1,11 @@
+{
+  "name": "webhooks",
+  "version": "1",
+  "description": "Outgoing webhooks (subscriptions, signed deliveries as jobs, SSRF guard) and incoming ones (signature, timestamp window, idempotent by event id).",
+  "requirements": [],
+  "owns": [
+    "src/libs/webhooks",
+    "src/modules/webhooks",
+    "tests/modules/webhooks"
+  ]
+}

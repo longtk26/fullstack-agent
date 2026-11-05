@@ -343,6 +343,8 @@ class DockerSandbox(ISandbox):
             environment |= self._attach_storage()
         if self.profile.database and (self.project / mail_service.MARKER).exists():
             environment |= self._attach_mail()
+        if self.profile.database and (self.project / "src/libs/webhooks").is_dir():
+            environment["WEBHOOK_ALLOW_PRIVATE"] = "true"  # Story 10.8: the smoke check's receiver is local
         environment |= env or {}
         if (self.project / ".venv" / "bin" / "python").exists():
             environment["PATH"] = "/work/.venv/bin:/opt/venv/bin:/usr/local/bin:/usr/bin:/bin"

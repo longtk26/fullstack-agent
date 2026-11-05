@@ -13,6 +13,7 @@ type BackendSpec = {
   integrations?: Integration[];
   backgroundJobs?: BackgroundJob[];
   emails?: Email[];
+  webhooks?: Webhooks | null;
   seed?: Seed[];
   x-frontendBindings?: FrontendBinding[];
 };
@@ -184,4 +185,23 @@ type Stack = {
   database: string;
   orm: "sqlalchemy" | "sqlmodel";
   migration: string;
+};
+
+// Story 10.8: a system that posts signed events to `POST /webhooks/<source>`; each event type it sends is a job (`log`, built in, or `custom`, the engine's).
+type WebhookSource = {
+  source: string;
+  secretEnv: string;
+  events: string[];
+  action?: "log" | "custom";
+  description?: string | null;
+};
+
+type Webhooks = {
+  outgoing?: WebhooksOutgoing | null;
+  incoming?: WebhookSource[];
+};
+
+// Story 10.8: the events (10.6 names) other systems may subscribe to.
+type WebhooksOutgoing = {
+  events: string[];
 };
