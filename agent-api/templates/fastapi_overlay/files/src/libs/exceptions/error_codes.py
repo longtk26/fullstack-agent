@@ -26,4 +26,8 @@ class ErrorCode(StrEnum):
     # payments (Story 10.9): a second checkout of a paid record; an amount that is not above zero
     ALREADY_PAID = "ALREADY_PAID"
     NOTHING_TO_PAY = "NOTHING_TO_PAY"
+    # concurrency rules (Story 10.10): a full parent, an overlapping range, a duplicate combination
+    CAPACITY_REACHED = "CAPACITY_REACHED"
+    OVERLAP = "OVERLAP"
+    DUPLICATE = "DUPLICATE"
     INTERNAL_ERROR = "INTERNAL_ERROR"

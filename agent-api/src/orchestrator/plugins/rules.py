@@ -17,6 +17,7 @@ from typing import Any
 
 from src.modules.shared.domain.backend_spec.naming import pluralize, to_snake
 
+from . import concurrency
 from .base import ActionCheck, CaseContext, Code, Plugin, RepositoryMethod
 
 TEMPLATED = ("immutableAfter", "transition", "sumEquals")  # also the order of the checks in a use case
@@ -75,7 +76,7 @@ class RulesPlugin(Plugin):
 
     def applies(self, spec: dict[str, Any]) -> bool:
         rules = _rules(spec)
-        return any(
+        return any(rule["kind"] in concurrency.KINDS for rule in rules.values()) or any(
             rules.get(rule_id, {}).get("kind") not in (None, "ownerOnly")
             for op in spec.get("operations", [])
             for rule_id in op.get("rules") or []
@@ -96,7 +97,7 @@ class RulesPlugin(Plugin):
             for op in module["operations"]:
                 for rule_id in (spec_ops.get(op["operationId"]) or {}).get("rules") or []:
                     rule = rules.get(rule_id)
-                    if rule is None or rule["kind"] == "ownerOnly":
+                    if rule is None or rule["kind"] in ("ownerOnly", *concurrency.KINDS):
                         continue
                     entry = status.setdefault(rule_id, {"operations": [], "kind": rule["kind"]})
                     entry["operations"].append(op["operationId"])
@@ -104,6 +105,17 @@ class RulesPlugin(Plugin):
                         self._custom(op, rule, by_api, entry)
                     else:
                         self._templated(plan, module, model, op, rule, by_api, entry)
+        for rule in rules.values():  # Story 10.10: data invariants, on the entity's writes whoever names them
+            if rule["kind"] not in concurrency.KINDS:
+                continue
+            module = next(
+                (m for m in plan["modules"] if m.get("entity") == rule["entity"] and not m.get("plugin")), None
+            )
+            if module is None:
+                continue
+            concurrency.plan_rule(plan, rule, module, models[rule["entity"]])
+            ops = [op["operationId"] for op in module["operations"] if rule["id"] in (op.get("templatedRules") or [])]
+            status[rule["id"]] = {"operations": ops, "kind": rule["kind"]}
         unresolved = [entry for entry in plan["unresolved"] if entry["kind"] != "rules" or entry["ref"] not in status]
         for rule_id, entry in status.items():
             if entry.get("skipped"):
@@ -223,6 +235,7 @@ class RulesPlugin(Plugin):
         from ..integration.contract import contract_operations
 
         meta = contract["x-bga"]
+        concurrency.adjust_fixtures(contract, plan)  # before any scenario reads them
         planned = {op["operationId"]: (module, op) for module in plan["modules"] for op in module["operations"]}
         described: dict[str, dict[str, Any]] = {}
         for op_id, entry in contract_operations(contract).items():
@@ -276,6 +289,22 @@ class RulesPlugin(Plugin):
                 *(op.get("skippedRules") or []),
             }:
                 described[rule_id]["operations"].append(op_id)
+            for rule in concurrency.rules_of(op):  # Story 10.10
+                entry = {
+                    "status": 409,
+                    "code": rule["code"],
+                    "message": rule["message"],
+                    "rule": rule["id"],
+                    "fields": rule["fields"],
+                }
+                errors[:] = [e for e in errors if not (e["code"] == rule["code"] and "rule" not in e)]
+                if entry not in errors:
+                    errors.append(entry)
+                described.setdefault(rule["id"], {"operations": [], "implementation": "template", "status": 409,
+                                                  "code": rule["code"], "fields": rule["fields"]})  # fmt: skip
+                described[rule["id"]]["operations"].append(op_id)
+            if concurrency.rules_of(op) and op.get("action") == "create" and xbga.get("scenarios"):
+                concurrency.contract_scenarios(contract, plan, module, op, xbga["scenarios"])
             if _checks(op) and xbga.get("scenarios") is not None:
                 self._scenarios(contract, plan, module, op, entry["path"], xbga["scenarios"])
         rules = []
@@ -402,8 +431,12 @@ class RulesPlugin(Plugin):
         return files
 
     def prechecks(self, plan, module, op, record) -> list[Code]:
-        if module.get("plugin") or record is None:
+        if module.get("plugin"):
             return []
+        if record is None:  # Story 10.10: a create checks its parent's capacity
+            lines = concurrency.capacity_precheck(module, op) if op.get("action") == "create" else []
+            imports = (("src.libs.exceptions", ("ConflictException", "ErrorCode")),)
+            return [Code(tuple(lines), imports)] if lines else []
         snake = to_snake(module["entity"])
         lines, names = [], []
         for check in _checks(op):
@@ -426,6 +459,12 @@ class RulesPlugin(Plugin):
         id_imports = (("uuid", ()),) if pk["pythonType"] == "uuid.UUID" else ()
         out, seen = [], set()
         for op in module["operations"]:
+            for rule in concurrency.rules_of(op, "capacity"):  # Story 10.10: the count under the parent's lock
+                if rule["method"] in seen:
+                    continue
+                seen.add(rule["method"])
+                signature, body, imports = concurrency.capacity_method(plan, rule)
+                out.append(RepositoryMethod(signature, body, tuple(imports), ()))
             for check in _checks(op, "sumEquals"):
                 if check["method"] in seen:
                     continue
@@ -474,6 +513,9 @@ class RulesPlugin(Plugin):
 
     def test_case(self, plan, module, op, test, ctx: CaseContext) -> Code | None:
         case = test["case"]
+        if case == "rule_concurrent" and not module.get("plugin"):  # Story 10.10
+            lines, imports = concurrency.concurrent_test(plan, module, op, test, ctx.seed_for)
+            return Code(lines, imports)
         if module.get("plugin") or not case.startswith("rule_") or ctx.record_path is None:
             return None
         from ..backend.codegen import _member

@@ -851,7 +851,7 @@ class DraftRunner:
         if inline:
             context |= inline_inputs(work, context)
         frontend = mode != GenerationMode.BACKEND
-        purpose, version = ("draft_frontend_spec", "v10") if frontend else ("draft_spec", "v4")
+        purpose, version = ("draft_frontend_spec", "v10") if frontend else ("draft_spec", "v5")
         max_repairs = config.draft_repair_attempts_frontend if frontend else config.draft_repair_attempts_backend
         calls: list[dict[str, Any]] = []
         trace = tracing.GenerationTrace.open(

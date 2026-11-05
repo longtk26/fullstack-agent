@@ -454,6 +454,9 @@ class _SemanticChecker:
                     self._add(C.RULE_PARAMS_INVALID, f"{path}/description", "Custom rules need a 'description'")
                 self._check_custom_rule(rule, fields, path)
                 continue
+            if rule.kind in ("capacity", "noOverlap", "uniqueTogether"):
+                self._check_concurrency_rule(rule, fields, path)
+                continue
             if rule.kind == "ownerOnly":
                 if self.spec.auth is None:
                     self._add(C.AUTH_NOT_CONFIGURED, f"{path}/kind", "ownerOnly rules need top-level 'auth'")
@@ -479,6 +482,59 @@ class _SemanticChecker:
                     )
             elif rule.kind == "sumEquals":
                 self._check_sum_rule(rule, field, path)
+
+    def _check_where(self, where: Any, fields: dict[str, FieldDef], path: str) -> None:
+        """Story 10.10: which records count — `{field: value}`, `{field: {"ne"|"in"|"notIn": …}}`."""
+        if where is None:
+            return
+        if not isinstance(where, dict):
+            self._add(C.RULE_PARAMS_INVALID, f"{path}/params/where", "'where' maps fields to values or conditions")
+            return
+        for name, condition in where.items():
+            field = fields.get(name)
+            if field is None:
+                self._add(C.UNKNOWN_FIELD_REF, f"{path}/params/where/{name}", f"No field '{name}'")
+                continue
+            if isinstance(condition, dict):
+                if len(condition) != 1 or next(iter(condition)) not in ("ne", "in", "notIn"):
+                    self._add(C.RULE_PARAMS_INVALID, f"{path}/params/where/{name}", "Use one of ne, in, notIn")
+                    continue
+                condition = next(iter(condition.values()))
+            values = condition if isinstance(condition, list) else [condition]
+            if field.type == "enum" and not set(map(str, values)) <= set(field.values or []):
+                self._add(C.RULE_PARAMS_INVALID, f"{path}/params/where/{name}", f"Values of '{name}': {field.values}")
+
+    def _check_concurrency_rule(self, rule: Rule, fields: dict[str, FieldDef], path: str) -> None:
+        """Story 10.10: capacity (a parent's limit on its children), noOverlap (time ranges), uniqueTogether."""
+        params = rule.params
+        self._check_where(params.get("where"), fields, path)
+        if rule.kind == "capacity":
+            parent_fk = params.get("parent")
+            rel = next((r for r in self.spec.relationships if r.to == rule.entity and r.type != "many-to-many"
+                        and (r.foreign_key or default_foreign_key(r.from_)) == parent_fk), None)  # fmt: skip
+            if rel is None:
+                self._add(C.RULE_PARAMS_INVALID, f"{path}/params/parent", "'parent' is a foreign key of the entity")
+                return
+            limit = self.fields[rel.from_].get(params.get("capacityField") or "")
+            if limit is None or limit.type != "integer":
+                self._add(C.RULE_PARAMS_INVALID, f"{path}/params/capacityField",
+                          f"'capacityField' is an integer field of '{rel.from_}'")  # fmt: skip
+        elif rule.kind == "noOverlap":
+            for key in ("start", "end"):
+                field = fields.get(params.get(key) or "")
+                if field is None or field.type not in ("date", "datetime"):
+                    self._add(C.RULE_PARAMS_INVALID, f"{path}/params/{key}", f"'{key}' is a date or datetime field")
+            for index, name in enumerate(params.get("scope") or []):
+                if name not in fields:
+                    self._add(C.UNKNOWN_FIELD_REF, f"{path}/params/scope/{index}", f"No field '{name}'")
+        else:
+            names = params.get("fields")
+            if not isinstance(names, list) or len(names) < 2:
+                self._add(C.RULE_PARAMS_INVALID, f"{path}/params/fields", "'uniqueTogether' needs two fields or more")
+                return
+            for index, name in enumerate(names):
+                if name not in fields:
+                    self._add(C.UNKNOWN_FIELD_REF, f"{path}/params/fields/{index}", f"No field '{name}'")
 
     def _check_custom_rule(self, rule: Rule, fields: dict[str, FieldDef], path: str) -> None:
         """Story 10.4: what a custom rule answers (`code`, `status`, `field`), all optional."""

@@ -1193,7 +1193,10 @@
             "immutableAfter",
             "ownerOnly",
             "sumEquals",
-            "custom"
+            "custom",
+            "capacity",
+            "noOverlap",
+            "uniqueTogether"
           ],
           "title": "Kind",
           "type": "string"

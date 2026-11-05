@@ -101,6 +101,9 @@ Agent-specific notes:
   `WEBHOOK_ALLOW_PRIVATE=true`; the smoke check delivers to a receiver inside the sandbox.
 - Payments (Story 10.9): checkout from the record's amount; the fake provider's page posts signed events to the app's
   own `/webhooks/payments`; a job settles the payment and the record's status; `pay` in `allowedActions` until paid.
+- Concurrency rules (Story 10.10, `plugins/concurrency.py`): capacity locks the parent row; noOverlap is an exclusion
+  constraint (btree_gist from `env.py`); uniqueTogether a (partial) unique index. Models take `tableArgs` and
+  `constraintErrors` (mapped by constraint name in the repository).
 - The integration contract (Story 10.0b): the backend decides, a frontend only reads. Request properties carry
   `x-bga.source` (a foreign key: `reference` with `x-bga.ref`); record responses carry a `{id, label}` summary per
   parent and `allowedActions` (the planner's `label`, `references`, `recordActions`); operations list

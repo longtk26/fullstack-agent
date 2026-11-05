@@ -70,9 +70,10 @@ def compare_schema(plan: dict[str, Any], schema: dict[str, Any]) -> list[dict[st
                     model["table"],
                     f"foreign key {fk['column']} → {fk['references']} ON DELETE {fk['onDelete']} missing or different",
                 )
-        unique_sets = {tuple(sorted(u)) for u in table["uniques"]}
-        unique_sets |= {tuple(sorted(i["columns"])) for i in table["indexes"] if i["unique"]}
-        index_sets = {tuple(sorted(i["columns"])) for i in table["indexes"]}
+        # an expression index (Story 10.10's exclusion constraints) reflects some columns as None
+        unique_sets = {tuple(sorted(c for c in u if c)) for u in table["uniques"]}
+        unique_sets |= {tuple(sorted(c for c in i["columns"] if c)) for i in table["indexes"] if i["unique"]}
+        index_sets = {tuple(sorted(c for c in i["columns"] if c)) for i in table["indexes"]}
         for column in model["columns"]:
             if column["unique"] and not column["primaryKey"] and (column["attr"],) not in unique_sets:
                 problem(model["table"], f"column {column['attr']} should be unique")

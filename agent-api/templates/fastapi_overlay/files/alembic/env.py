@@ -2,6 +2,7 @@ from logging.config import fileConfig
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
+from sqlalchemy.dialects.postgresql import ExcludeConstraint
 from sqlmodel import SQLModel
 
 import src.modules  # noqa: F401  (imports every ORM model for autogenerate)
@@ -15,6 +16,15 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 target_metadata = SQLModel.metadata
+
+
+def _needs_btree_gist() -> bool:
+    """Story 10.10: an exclusion constraint that mixes `=` on a column with `&&` on a range needs btree_gist."""
+    return any(
+        isinstance(constraint, ExcludeConstraint)
+        for table in target_metadata.tables.values()
+        for constraint in table.constraints
+    )
 
 
 def run_migrations_offline() -> None:
@@ -38,6 +48,8 @@ def run_migrations_online() -> None:
     with connectable.connect() as connection:
         context.configure(connection=connection, target_metadata=target_metadata, compare_type=True)
         with context.begin_transaction():
+            if _needs_btree_gist():
+                connection.exec_driver_sql("CREATE EXTENSION IF NOT EXISTS btree_gist")
             context.run_migrations()
 
 

@@ -27,7 +27,16 @@ FieldType = Literal[
 ]
 HttpMethod = Literal["GET", "POST", "PUT", "PATCH", "DELETE"]
 CrudAction = Literal["create", "get", "list", "update", "delete"]
-RuleKind = Literal["transition", "immutableAfter", "ownerOnly", "sumEquals", "custom"]
+RuleKind = Literal[
+    "transition",
+    "immutableAfter",
+    "ownerOnly",
+    "sumEquals",
+    "custom",
+    "capacity",
+    "noOverlap",
+    "uniqueTogether",  # Story 10.10: what concurrent requests must not break
+]
 
 
 class SpecModel(BaseModel):

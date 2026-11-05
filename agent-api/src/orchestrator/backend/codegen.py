@@ -271,6 +271,10 @@ def _table_args(model: dict[str, Any], imports: Imports) -> tuple[set[str], str]
         imports.add("sqlalchemy", "UniqueConstraint")
         columns = ", ".join(f'"{column}"' for column in group)
         args.append(f'UniqueConstraint({columns}, name="uq_{model["table"]}_{"_".join(group)}")')
+    for extra in model.get("tableArgs", []):  # Story 10.10: a rule's constraint (exclusion, partial unique index)
+        for module, names in extra["imports"]:
+            imports.add(module, *names)
+        args.append(extra["code"])
     if not args:
         return single, ""
     return single, "    __table_args__ = (\n" + "".join(f"        {arg},\n" for arg in args) + "    )\n"
@@ -609,11 +613,22 @@ class _Module:
                     f'                        "The {label} is still referenced by other records"\n'
                     "                    ) from exc\n" + missing
                 )
+            named = ""
+            if self.model.get("constraintErrors"):  # Story 10.10: a rule's constraint answers its own code
+                imports.add("src.libs.exceptions", "ErrorCode")
+                named = (
+                    '            diag = getattr(exc.orig, "diag", None)\n'
+                    '            rule = CONSTRAINT_ERRORS.get(getattr(diag, "constraint_name", None) or "")\n'
+                    "            if rule is not None:\n"
+                    '                details = {"fields": rule["fields"]}\n'
+                    '                raise ConflictException(rule["message"], rule["code"], details=details) from exc\n'
+                )
             methods.append(
                 "    def __flush(self, deleting: bool = False) -> None:\n"
                 "        try:\n"
                 "            self.session.flush()\n"
                 "        except IntegrityError as exc:\n"
+                + named
                 + fk_branch
                 + (
                     f"            raise ConflictException({conflict}) from exc"
@@ -635,6 +650,17 @@ class _Module:
             if "== FOREIGN_KEY_VIOLATION" in "".join(methods)
             else ""
         )
+        if self.model.get("constraintErrors"):
+            entries = "".join(
+                f'    "{name}": {{"code": ErrorCode.{rule["code"]}, "message": {json.dumps(rule["message"])}, '
+                f'"fields": {json.dumps(rule["fields"])}}},\n'
+                for name, rule in self.model["constraintErrors"].items()
+            )
+            constant += (
+                "# Story 10.10: the rules' constraints, by name\n"
+                f"CONSTRAINT_ERRORS: dict[str, dict[str, Any]] = {{\n{entries}}}\n"
+            )
+            imports.add("typing", "Any")
         return (
             FUTURE + imports.render() + constant + f"\n\nclass {port['implementation']}({port['interface']}):\n"
             "    def __init__(self, session: SessionDep):\n"

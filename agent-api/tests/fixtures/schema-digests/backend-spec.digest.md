@@ -182,7 +182,7 @@ type Relationship = {
 
 type Rule = {
   id: string;
-  kind: "transition" | "immutableAfter" | "ownerOnly" | "sumEquals" | "custom";
+  kind: "transition" | "immutableAfter" | "ownerOnly" | "sumEquals" | "custom" | "capacity" | "noOverlap" | "uniqueTogether";
   entity: string;
   params?: Record<string, unknown>;
   description?: string | null;
