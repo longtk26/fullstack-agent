@@ -28,6 +28,9 @@ and lets me pick a related record by its name; lists and details show related re
 3. **Readable references**: `AppList` and `AppDetail` show the parent summary (`deck.name`) as a link to the parent's
    detail, never the id; MSW mocks and fixtures carry the same summaries (from the contract's examples).
 4. **`FE_FIELD_SOURCE`** (pair check, 10.0b) runs on app specs too; the planner (22.3) only writes forms it passes.
+   With the picker in place it becomes an error (10.0b made it a warning while forms had no picker).
+5. **A list for every referenced parent:** when `x-bga.ref.listOperation` is `null`, the draft's pair fixes add the
+   parent's `list` operation to the BackendSpec (deferred from 10.0b, step 4).
 
 ## Acceptance criteria
 

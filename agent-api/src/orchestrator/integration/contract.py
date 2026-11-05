@@ -7,6 +7,11 @@ synthesized from the field types. The same spec always gives a byte-identical do
 
 `x-bga.fixtures` holds one record set per entity (ids and foreign keys consistent across entities); the frontend
 mock layer (Epic 13) serves exactly these records.
+
+Story 10.0b, the integration contract: a frontend reads what it needs and implements no rule. Each request property
+says where its value comes from (`x-bga.source`; a foreign key also `x-bga.ref`: the parent, its list and detail
+operations, its label field); record responses carry a `{id, label}` summary per parent and `allowedActions`; each
+operation lists its errors (`x-bga.errors`); `x-bga.entities` is the same per entity, for the mocks.
 """
 
 import hashlib
@@ -23,6 +28,7 @@ CONTRACT_VERSION = "1"
 OPENAPI_VERSION = "3.1.0"
 EXAMPLE_NAMESPACE = uuid.UUID("6f1c2b8e-7d3a-4f0e-9c55-12b0e5a7c0de")
 SYNTHESIZED_RECORDS = 3
+UNKNOWN_ID = "00000000-0000-4000-8000-0000000000ff"  # Story 10.0b scenarios: an id no fixture has
 ERROR_SCHEMA = "#/components/schemas/ErrorResponse"
 _PATH_PARAM = re.compile(r"\{([^}]+)\}")
 
@@ -98,6 +104,37 @@ def _properties_columns(properties: list[dict[str, Any]]) -> list[dict[str, Any]
 
 def _required(column: dict[str, Any]) -> bool:
     return not column.get("nullable") and not column.get("default")
+
+
+def _fresh(column: dict[str, Any], value: Any) -> Any:
+    """A value for a unique column that no fixture has (Story 10.0b's create scenario)."""
+    if column["type"] in ("integer", "float", "decimal"):
+        return 900001 if column["type"] == "integer" else 900001.5
+    if isinstance(value, str) and "@" in value:
+        return "scenario@example.com"
+    if isinstance(value, str):
+        text = f"Scenario {value}"
+        return text[: column["maxLength"]] if column.get("maxLength") else text
+    return value
+
+
+def summary_name(entity: str) -> str:
+    return f"{entity}Summary"
+
+
+def present(record: dict[str, Any], model: dict[str, Any], by_entity: dict[str, list[dict[str, Any]]],
+            actions: list[str]) -> dict[str, Any]:  # fmt: skip
+    """A fixture row as the API answers it: plus a `{id, label}` summary per reference and `allowedActions`."""
+    out = dict(record)
+    for reference in model.get("references", []):
+        value = record.get(reference["field"])
+        parents = by_entity.get(reference["entity"]) or []
+        parent = next((row for row in parents if row.get(reference["primaryKeyField"]) == value), None)
+        out[reference["apiName"]] = (
+            None if value is None else {"id": value, "label": (parent or {}).get(reference["labelField"])}
+        )
+    out["allowedActions"] = list(actions)
+    return out
 
 
 # -- examples ----------------------------------------------------------------------------------------------------
@@ -340,14 +377,65 @@ class _Builder:
         self.models = {model["entity"]: model for model in plan["models"] if model.get("entity")}
         self.spec_ops = {op["operationId"]: op for op in spec.get("operations", [])}
         self.fixtures, self.seeded = build_fixtures(spec, plan)
+        # Story 10.0b: entities whose response DTO the templates write carry summaries and `allowedActions`
+        self.modules = {module["entity"]: module for module in plan["modules"]}
+        self.presented = {
+            module["entity"]
+            for module in plan["modules"]
+            if {"create", "get", "list", "update"} & {op.get("action") for op in module["operations"]}
+        }
+
+    def actions(self, entity: str) -> list[str]:
+        return list((self.modules.get(entity) or {}).get("recordActions") or [])
+
+    def example(self, entity: str, record: dict[str, Any]) -> dict[str, Any]:
+        """A fixture row as the API answers it (10.0b), for entities the templates present."""
+        if entity not in self.presented:
+            return record
+        return present(record, self.models[entity], self.fixtures, self.actions(entity))
+
+    def operation_ids(self, entity: str, action: str) -> str | None:
+        module = self.modules.get(entity) or {}
+        return next((op["operationId"] for op in module.get("operations", []) if op.get("action") == action), None)
+
+    def reference_of(self, column: dict[str, Any]) -> dict[str, Any] | None:
+        fk = column.get("foreignKey")
+        if not fk:
+            return None
+        table = fk["references"].partition(".")[0]
+        parent = next((model for model in self.models.values() if model["table"] == table), None)
+        if parent is None:
+            return None
+        return {
+            "entity": parent["entity"],
+            "listOperation": self.operation_ids(parent["entity"], "list"),
+            "detailOperation": self.operation_ids(parent["entity"], "get"),
+            "labelField": (parent.get("label") or {}).get("apiName"),
+        }
 
     def entity_schema(self, entity: str) -> str:
         name = f"{entity}Response"
         if name not in self.schemas:
-            columns = self.models[entity]["columns"]
+            model = self.models[entity]
+            properties = {column["apiName"]: field_schema(column) for column in model["columns"]}
+            if entity in self.presented:
+                for reference in model.get("references", []):
+                    ref = {"$ref": self.summary_schema(reference["entity"])}
+                    properties[reference["apiName"]] = {"anyOf": [ref, {"type": "null"}]}
+                actions = {"type": "string"}
+                if self.actions(entity):
+                    actions["enum"] = self.actions(entity)
+                properties["allowedActions"] = {"type": "array", "items": actions}
+            self.schemas[name] = _object(properties, list(properties))
+        return f"#/components/schemas/{name}"
+
+    def summary_schema(self, entity: str) -> str:
+        name = summary_name(entity)
+        if name not in self.schemas:
+            model = self.models[entity]
+            primary = next(column for column in model["columns"] if column["primaryKey"])
             self.schemas[name] = _object(
-                {column["apiName"]: field_schema(column) for column in columns},
-                [column["apiName"] for column in columns],
+                {"id": field_schema(primary, nullable=False), "label": {"type": ["string", "null"]}}, ["id", "label"]
             )
         return f"#/components/schemas/{name}"
 
@@ -358,6 +446,8 @@ class _Builder:
             default = (column.get("default") or {}).get("value")
             if default is not None:
                 schema["default"] = default
+            reference = self.reference_of(column)
+            schema["x-bga"] = {"source": "reference", "ref": reference} if reference else {"source": "input"}
             properties[column["apiName"]] = schema
         required = [] if partial else [column["apiName"] for column in columns if _required(column)]
         self.schemas[name] = _object(properties, required)
@@ -475,7 +565,8 @@ class _Builder:
                 ["items", "total", "limit", "offset"],
             )
             limit = (op.get("pagination") or {}).get("defaultLimit", len(records))
-            example = {"items": records[:limit], "total": len(records), "limit": limit, "offset": 0}
+            items = [self.example(entity, record) for record in records[:limit]]
+            example = {"items": items, "total": len(records), "limit": limit, "offset": 0}
             responses[status] = {
                 "description": f"Page of {entity} records",
                 "content": {
@@ -491,7 +582,8 @@ class _Builder:
                 schema = {"type": "array", "items": {"$ref": self.entity_schema(response_entity)}}
                 body: dict[str, Any] = {"schema": schema}
                 if self.fixtures.get(response_entity):
-                    body["examples"] = _examples(self.fixtures[response_entity], response_entity in self.seeded)
+                    rows = [self.example(response_entity, row) for row in self.fixtures[response_entity]]
+                    body["examples"] = _examples(rows, response_entity in self.seeded)
                 responses[status] = {
                     "description": f"List of {response_entity} records",
                     "content": {"application/json": body},
@@ -506,7 +598,8 @@ class _Builder:
             if response_entity in self.models:
                 body = {"schema": {"$ref": self.entity_schema(response_entity)}}
                 if self.fixtures.get(response_entity):
-                    body["examples"] = _examples(self.fixtures[response_entity][0], response_entity in self.seeded)
+                    row = self.example(response_entity, self.fixtures[response_entity][0])
+                    body["examples"] = _examples(row, response_entity in self.seeded)
                 responses[status] = {"description": f"The {response_entity}", "content": {"application/json": body}}
             elif (spec_op.get("response") or {}).get("properties"):
                 columns = _properties_columns(spec_op["response"]["properties"])
@@ -523,7 +616,107 @@ class _Builder:
                 responses[status]["content"]["application/json"]["examples"] = _examples(sample, False)
         responses.update(_error_responses(op))
         operation["responses"] = responses
+        if op.get("errors"):
+            operation["x-bga"]["errors"] = self.errors(op, model)
+        scenarios = self.scenarios(op, model, request_columns or [])
+        if scenarios:
+            operation["x-bga"]["scenarios"] = scenarios
         return operation
+
+    def scenarios(
+        self, op: dict[str, Any], model: dict[str, Any] | None, request_columns: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Story 10.0b: calls with the answer they must get, from the fixtures (the seeded database): the success, an
+        unknown id, a missing required field, a duplicate unique value, an unknown reference. Validation runs them
+        against the backend; the mocks and the live app answer them the same way (Epic 22)."""
+        action = op.get("action")
+        records = self.fixtures.get((model or {}).get("entity") or "") or []
+        if model is None or action is None or not records:
+            return []
+        primary = next(column for column in model["columns"] if column["primaryKey"])
+        first = records[0]
+        names = _PATH_PARAM.findall(op["path"])
+        own = names[-1] if action in ("get", "update", "delete") and names else None
+        params: dict[str, Any] = {}
+        for name in names:
+            if name == own:
+                params[name] = first[primary["apiName"]]
+            elif name in first:
+                params[name] = first[name]
+            else:
+                return []  # a path this record set cannot fill
+        unknown = {**params, own: UNKNOWN_ID if primary["type"] == "uuid" else 999999} if own else None
+        unique = [column for column in model["columns"] if column["unique"] and not column["primaryKey"]]
+        out: list[dict[str, Any]] = []
+
+        def add(name: str, expect: int, code: str | None = None, path: dict | None = None, body: Any = None) -> None:
+            scenario: dict[str, Any] = {"name": name, "params": path if path is not None else params}
+            if body is not None:
+                scenario["body"] = body
+            scenario["expect"] = {"status": expect, **({"code": code} if code else {})}
+            out.append(scenario)
+
+        if action in ("list", "get"):
+            add("success", op["status"])
+        if own:
+            add("unknown id", 404, "NOT_FOUND", unknown, {} if action == "update" else None)
+        if action == "create":
+            body = {c["apiName"]: first[c["apiName"]] for c in request_columns if c["apiName"] in first}
+            for column in unique:  # fresh values, so the success is not a duplicate of the seed
+                if column["apiName"] in body:
+                    body[column["apiName"]] = _fresh(column, body[column["apiName"]])
+            add("success", op["status"], body=body)
+            required = next((column for column in request_columns if _required(column)), None)
+            if required is not None:
+                missing = {key: value for key, value in body.items() if key != required["apiName"]}
+                add("missing required field", 422, "VALIDATION_ERROR", body=missing)
+            for column in unique:
+                if column["apiName"] in body:
+                    duplicate = {**body, column["apiName"]: first[column["apiName"]]}
+                    add(f"duplicate {column['apiName']}", 409, "CONFLICT", body=duplicate)
+            for column in request_columns:
+                if column.get("foreignKey") and column["type"] == "uuid" and column["apiName"] in body:
+                    dangling = {**body, column["apiName"]: UNKNOWN_ID}
+                    add(f"unknown {column['apiName']}", 400, "REFERENCE_NOT_FOUND", body=dangling)
+        if action == "update":
+            plain = next(
+                (c for c in request_columns if not c["unique"] and not c.get("foreignKey") and c["apiName"] in first),
+                None,
+            )
+            add("success", op["status"], body={plain["apiName"]: first[plain["apiName"]]} if plain else {})
+            if unique and len(records) > 1:
+                column = unique[0]
+                duplicate = {column["apiName"]: records[1][column["apiName"]]}
+                add(f"duplicate {column['apiName']}", 409, "CONFLICT", body=duplicate)
+        return out
+
+    def errors(self, op: dict[str, Any], model: dict[str, Any] | None) -> list[dict[str, Any]]:
+        """Story 10.0b: what the operation answers besides success, with the fields a frontend marks."""
+        from ..backend.codegen import conflict_message
+
+        entity = (model or {}).get("entity") or "Record"
+        columns = (model or {}).get("columns") or []
+        out = []
+        for error in op["errors"]:
+            fields: list[str] = []
+            if error["code"] == "CONFLICT":
+                fields = [column["apiName"] for column in columns if column["unique"] and not column["primaryKey"]]
+                message = conflict_message(model) if model else "The record conflicts with an existing record"
+            elif error["code"] == "REFERENCE_NOT_FOUND":
+                fields = [column["apiName"] for column in columns if column.get("foreignKey")]
+                message = "A referenced record does not exist"
+            elif error["code"] == "NOT_FOUND":
+                message = f"{entity} not found"
+            elif error["code"] == "VALIDATION_ERROR":
+                message = "Some values are not valid (each one in `details`, by field)"
+            else:
+                message = error["code"].replace("_", " ").capitalize()
+            entry = {"status": error["status"], "code": error["code"], "message": message}
+            if fields:
+                entry["fields"] = fields
+            if entry not in out:
+                out.append(entry)
+        return out
 
     def build(self) -> dict[str, Any]:
         paths: dict[str, dict[str, Any]] = {}
@@ -545,8 +738,25 @@ class _Builder:
                 "planVersion": self.plan["planVersion"],
                 "specSha256": hashlib.sha256(canonical.encode()).hexdigest(),
                 "fixtures": self.fixtures,
+                "entities": self.entities(),
             },
         }
+
+    def entities(self) -> dict[str, Any]:
+        """Story 10.0b: per presented entity, what the mocks add to a record: summaries and `allowedActions`."""
+        out = {}
+        for entity in sorted(self.presented):
+            model = self.models[entity]
+            out[entity] = {
+                "primaryKey": next(column["apiName"] for column in model["columns"] if column["primaryKey"]),
+                "labelField": (model.get("label") or {}).get("apiName"),
+                "references": [
+                    {key: reference[key] for key in ("field", "apiName", "entity", "labelField")}
+                    for reference in model.get("references", [])
+                ],
+                "allowedActions": self.actions(entity),
+            }
+        return out
 
 
 def build_contract(spec: dict[str, Any], plan: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -556,6 +766,25 @@ def build_contract(spec: dict[str, Any], plan: dict[str, Any] | None = None) -> 
 
 def dump_contract(contract: dict[str, Any]) -> str:
     return json.dumps(contract, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
+
+
+def presented_record(contract: dict[str, Any], entity: str | None, record: dict[str, Any]) -> dict[str, Any]:
+    """A fixture row as the API answers it, from the contract alone (`x-bga.entities`, Story 10.0b): what the mocks
+    and a live backend return for that record."""
+    meta = contract.get("x-bga") or {}
+    info = (meta.get("entities") or {}).get(entity or "")
+    if info is None:
+        return dict(record)
+    fixtures = meta.get("fixtures") or {}
+    out = dict(record)
+    for reference in info["references"]:
+        value = record.get(reference["field"])
+        key = ((meta.get("entities") or {}).get(reference["entity"]) or {}).get("primaryKey", "id")
+        parent = next((row for row in fixtures.get(reference["entity"]) or [] if row.get(key) == value), None)
+        label = (parent or {}).get(reference["labelField"]) if reference["labelField"] else None
+        out[reference["apiName"]] = None if value is None else {"id": value, "label": label}
+    out["allowedActions"] = list(info["allowedActions"])
+    return out
 
 
 def contract_operations(contract: dict[str, Any]) -> dict[str, dict[str, Any]]:

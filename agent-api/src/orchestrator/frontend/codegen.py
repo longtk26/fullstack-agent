@@ -15,6 +15,7 @@ Generated files (generator-owned; the engine imports them and never edits them):
     src/lib/api/queries.ts       one useQuery / useMutation hook per operation
     src/mocks/fixtures.json      the contract's example records (the mock database)
     src/mocks/operations.json    how the generic MSW handlers serve each operation
+    src/mocks/entities.json      what the mocks add to a record: parents' summaries, allowedActions (10.0b)
     tests/unit/api.test.ts       every list/get operation answers from the mocks
 
 Types are emitted by us rather than openapi-typescript: the skill wants named `T`-prefixed types, and the output
@@ -66,6 +67,8 @@ def ts_type(schema: Any, indent: str = "") -> str:
         return "unknown"
     if "$ref" in schema:
         return type_name(schema["$ref"].rsplit("/", 1)[-1])
+    if schema.get("anyOf"):  # a nullable reference (a parent's summary, Story 10.0b)
+        return " | ".join(dict.fromkeys(ts_type(option, indent) for option in schema["anyOf"]))
     kinds = schema.get("type")
     kinds = kinds if isinstance(kinds, list) else [kinds] if kinds else []
     if "enum" in schema:
@@ -1193,6 +1196,11 @@ def generated_files(plan: dict[str, Any], spec: dict[str, Any], contract: dict[s
             )
             + "\n",
             "src/mocks/operations.json": json.dumps(mock_operations(contract), indent=2, ensure_ascii=False) + "\n",
+            # Story 10.0b: what the mocks add to a record (parents' summaries, allowedActions), as the backend does
+            "src/mocks/entities.json": json.dumps(
+                (contract.get("x-bga") or {}).get("entities") or {}, indent=2, ensure_ascii=False
+            )
+            + "\n",
             "tests/unit/api.test.ts": api_unit_test(contract),
         }
     return dict(sorted(files.items()))

@@ -28,6 +28,9 @@ from ..integration.contract import _request_columns, _required
 
 ENTITIES_PKG = "src/modules/shared/domain/entities"
 MODELS_PKG = "src/modules/shared/infrastructure/models"
+# Story 10.0b: the `{id, label}` summaries a record shows its parents as, shared by every module
+SUMMARIES_FILE = "src/modules/shared/presenter/summaries.py"
+SUMMARIES_PKG = "src.modules.shared.presenter.summaries"
 CRUD_ACTIONS = ("create", "get", "list", "update", "delete")
 RESERVED = {"usecase", "q", "sort", "limit", "offset", "body", "id"}
 FOREIGN_KEY_VIOLATION = "23503"
@@ -186,6 +189,14 @@ def _label(model: dict[str, Any]) -> str:
 
 
 # -- database ----------------------------------------------------------------------------------------------------------
+
+
+def conflict_message(model: dict[str, Any]) -> str:
+    """The message of a unique-field 409 (the repository's `ConflictException`, the contract's `x-bga.errors`)."""
+    unique = [column["apiName"] for column in model["columns"] if column["unique"] and not column["primaryKey"]]
+    if unique:
+        return f"A {_label(model)} with this {' / '.join(unique)} already exists"
+    return f"The {_label(model)} conflicts with an existing record"
 
 
 def entity_file(model: dict[str, Any]) -> str:
@@ -353,6 +364,10 @@ def database_files(plan: dict[str, Any]) -> dict[str, str]:
         model_exports.append((model["file"].rsplit("/", 1)[1].removesuffix(".py"), model["class"]))
     files[f"{ENTITIES_PKG}/__init__.py"] = _package(entity_exports)
     files[f"{MODELS_PKG}/__init__.py"] = _package(model_exports)
+    summaries = summaries_file(plan)
+    if summaries:
+        files["src/modules/shared/presenter/__init__.py"] = ""
+        files[SUMMARIES_FILE] = summaries
     classes = sorted(name for _, name in model_exports)
     registry = Imports().add("src.modules.shared.infrastructure.models", *classes).render()
     files["src/modules/__init__.py"] = (
@@ -362,6 +377,35 @@ def database_files(plan: dict[str, Any]) -> dict[str, str]:
         + _exports(classes)
     )
     return files
+
+
+def summary_dto(entity: str) -> str:
+    return f"{entity}SummaryDto"
+
+
+def summaries_file(plan: dict[str, Any]) -> str:
+    """Story 10.0b: one `{id, label}` DTO per referenced entity, and the `References` a repository returns."""
+    by_entity = _entity_by_name(plan)
+    parents = sorted({ref["entity"] for model in plan["models"] for ref in model.get("references") or []})
+    if not parents:
+        return ""
+    imports = Imports().add("typing", "Any").add("pydantic", "BaseModel", "ConfigDict")
+    imports.add("pydantic.alias_generators", "to_camel")
+    classes = []
+    for entity in parents:
+        pk = _type(_pk(by_entity[entity]), imports, response=True)
+        classes.append(
+            f"class {summary_dto(entity)}(BaseModel):\n"
+            f'    """A {entity} as the records that refer to it show it."""\n\n'
+            "    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)\n\n"
+            f"    id: {pk}\n    label: str | None\n"
+        )
+    return (
+        '"""Summaries of referenced records (Story 10.0b): `{id, label}`, so a client shows a name, never an id."""\n\n'
+        + imports.render()
+        + "\n# Labels of referenced records by reference name and id, as a repository's `references()` returns them\n"
+        "References = dict[str, dict[Any, str | None]]\n\n\n" + "\n\n".join(classes)
+    )
 
 
 def _package(exports: list[tuple[str, str]]) -> str:
@@ -403,6 +447,8 @@ class _Module:
         # Epic 21: aggregate operations, by their handler (also their repository method)
         self.aggregates = {op["handler"]: op for op in module["operations"] if op.get("type") == "aggregate"}
         self.has_fk = any(column.get("foreignKey") for column in self.model["columns"])
+        # Story 10.0b: parents shown as summaries, when the repository loads their labels
+        self.references = (self.model.get("references") or []) if "references" in module["port"]["methods"] else []
         self.unique = [column for column in self.model["columns"] if column["unique"] and not column["primaryKey"]]
 
     @property
@@ -446,6 +492,12 @@ class _Module:
                 methods.append(f"    def update(self, {self.var}: {entity}) -> {entity}:\n        pass")
             elif method == "delete":
                 methods.append(f"    def delete(self, {self.snake}_id: {pk}) -> None:\n        pass")
+            elif method == "references":
+                imports.add(SUMMARIES_PKG, "References")
+                methods.append(
+                    f"    def references(self, records: list[{entity}]) -> References:\n"
+                    '        """Labels of the records these refer to, one query per reference (Story 10.0b)."""'
+                )
             elif method in self.aggregates:
                 methods.append(
                     f"    def {method}(self) -> {self._aggregate_returns(self.aggregates[method])}:\n        pass"
@@ -535,23 +587,27 @@ class _Module:
                 "            self.session.delete(model)\n"
                 "            self.__flush(deleting=True)"
             )
+        if "references" in port["methods"]:
+            methods.append(self._references_method(imports))
         for method in port["methods"]:  # Epic 21: aggregate queries
             if method in self.aggregates:
                 methods.append(self._aggregate_repository_method(self.aggregates[method], imports))
         if writes:
             imports.add("sqlalchemy.exc", "IntegrityError").add("src.libs.exceptions", "ConflictException")
             label = _label(self.model)
-            if self.unique:
-                fields = " / ".join(column["apiName"] for column in self.unique)
-                conflict = f'"A {label} with this {fields} already exists"'
-            else:
-                conflict = f'"The {label} conflicts with an existing record"'
+            conflict = f'"{conflict_message(self.model)}"'
+            if self.unique:  # Story 10.0b: the fields a client marks
+                names = ", ".join(f'"{column["apiName"]}"' for column in self.unique)
+                conflict += f', details={{"fields": [{names}]}}'
             fk_branch = ""
             if self.has_fk or "delete" in port["methods"]:
                 imports.add("src.libs.exceptions", "BadRequestException", "ErrorCode")
+                fks = ", ".join(f'"{c["apiName"]}"' for c in self.model["columns"] if c.get("foreignKey"))
+                fk_details = f', details={{"fields": [{fks}]}}' if fks else ""
                 missing = (
                     "                raise BadRequestException(\n"
-                    '                    "A referenced record does not exist", ErrorCode.REFERENCE_NOT_FOUND\n'
+                    '                    "A referenced record does not exist",\n'
+                    f"                    ErrorCode.REFERENCE_NOT_FOUND{fk_details},\n"
                     "                ) from exc\n"
                 )
                 fk_branch = (
@@ -567,7 +623,11 @@ class _Module:
                 "            self.session.flush()\n"
                 "        except IntegrityError as exc:\n"
                 + fk_branch
-                + f"            raise ConflictException({conflict}) from exc"
+                + (
+                    f"            raise ConflictException({conflict}) from exc"
+                    if len(f"            raise ConflictException({conflict}) from exc") <= 120
+                    else f"            raise ConflictException(\n                {conflict}\n            ) from exc"
+                )
             )
         methods.append(
             f"    def __to_entity(self, model: {model}) -> {entity}:\n"
@@ -590,6 +650,32 @@ class _Module:
             + "\n\n".join(methods)
             + f"\n\n\n{port['dep']} = Annotated[{port['interface']}, Depends({port['implementation']})]\n"
         )
+
+    def _references_method(self, imports: Imports) -> str:
+        """Story 10.0b: one `IN` query per reference for a page of records; labels as strings."""
+        imports.add(SUMMARIES_PKG, "References").add("sqlmodel", "col", "select")
+        lines = [
+            f"    def references(self, records: list[{self.entity_class}]) -> References:",
+            "        found: References = {}",
+        ]
+        for reference in self.references:
+            parent = reference["model"]
+            imports.add(MODELS_PKG.replace("/", "."), parent)
+            ids = f"{reference['attr']}_ids"
+            pk, label = f"{parent}.{reference['primaryKey']}", f"{parent}.{reference['labelAttr']}"
+            lines += [
+                f"        {ids} = {{record.{reference['column']} for record in records"
+                f" if record.{reference['column']} is not None}}",
+                f'        found["{reference["attr"]}"] = {{}}',
+                f"        if {ids}:",
+                f"            query = select(col({pk}), col({label})).where(col({pk}).in_({ids}))",
+                f'            found["{reference["attr"]}"] = {{',
+                "                key: None if label is None else str(label)"
+                " for key, label in self.session.exec(query).all()",
+                "            }",
+            ]
+        lines.append("        return found")
+        return "\n".join(lines)
 
     # -- aggregates (Epic 21) ------------------------------------------------------------------------------------
 
@@ -740,32 +826,58 @@ class _Module:
         imports.add(ENTITIES_PKG.replace("/", "."), self.entity_class)
         self._dto_imports(self.model["columns"], imports)
         fields = []
-        decimals = []
+        entries = ["**entity.model_dump()"]
         for column in self.model["columns"]:
             annotation = _type(column, imports, response=True)
             if column["type"] == "decimal":
-                decimals.append(column)
+                attr = column["attr"]
+                entries.append(
+                    f'"{attr}": float(entity.{attr})'
+                    if not column["nullable"]
+                    else f'"{attr}": None if entity.{attr} is None else float(entity.{attr})'
+                )
             fields.append(f"    {column['attr']}: {annotation}{' | None' if column['nullable'] else ''}")
-        if decimals:
-            conversions = ", ".join(
-                f'"{c["attr"]}": float(entity.{c["attr"]})'
-                if not c["nullable"]
-                else f'"{c["attr"]}": None if entity.{c["attr"]} is None else float(entity.{c["attr"]})'
-                for c in decimals
-            )
-            value = f"{{**entity.model_dump(), {conversions}}}"
-        else:
-            value = "entity.model_dump()"
+        # Story 10.0b: parents as `{id, label}` summaries, and what can be done to the record
+        for reference in self.references:
+            imports.add(SUMMARIES_PKG, summary_dto(reference["entity"]))
+            annotation = f"{summary_dto(reference['entity'])} | None"
+            if reference["attr"] != to_snake(reference["apiName"]):  # a Python keyword (`class_`): keep the API name
+                imports.add("pydantic", "Field")
+                annotation += f' = Field(alias="{reference["apiName"]}")'
+            fields.append(f"    {reference['attr']}: {annotation}")
+            fk = f"entity.{reference['column']}"
+            summary = f'{{"id": {fk}, "label": refs.get("{reference["attr"]}", {{}}).get({fk})}}'
+            if reference["nullable"]:
+                summary = f"None if {fk} is None else {summary}"
+            entries.append(f'"{reference["attr"]}": {summary}')
+        fields.append("    allowed_actions: list[str]")
+        entries.append('"allowed_actions": list(ALLOWED_ACTIONS)')
+        signature = f"cls, entity: {self.entity_class}"
+        refs = ""
+        if self.references:
+            imports.add(SUMMARIES_PKG, "References")
+            signature += ", references: References | None = None"
+            refs = "        refs = references or {}\n"
+        value = "{" + ", ".join(entries) + "}"
         line = f"        return cls.model_validate({value})"
         if len(line) > 120:
-            line = f"        return cls.model_validate(\n            {value}\n        )"
+            line = (
+                "        return cls.model_validate(\n            {\n"
+                + "".join(f"                {entry},\n" for entry in entries)
+                + "            }\n        )"
+            )
+        actions = ", ".join(f'"{action}"' for action in self.module.get("recordActions") or [])
+        actions = f"({actions},)" if len(self.module.get("recordActions") or []) == 1 else f"({actions})"
+        header = f'    def from_entity({signature}) -> "{self.response_dto}":'
+        if len(header) > 120:
+            header = f'    def from_entity(\n        {signature}\n    ) -> "{self.response_dto}":'
         return (
-            imports.render() + f"\n\nclass {self.response_dto}(BaseModel):\n"
+            imports.render() + "\n# What can be done to a record (Story 10.0b); plugins narrow it by user and state\n"
+            f"ALLOWED_ACTIONS: tuple[str, ...] = {actions}\n" + f"\n\nclass {self.response_dto}(BaseModel):\n"
             "    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)\n\n"
             + "\n".join(fields)
             + "\n\n    @classmethod\n"
-            f'    def from_entity(cls, entity: {self.entity_class}) -> "{self.response_dto}":\n'
-            f"{line}\n"
+            f"{header}\n{refs}{line}\n"
         )
 
     def list_dto(self, op: dict[str, Any]) -> str:
@@ -823,6 +935,12 @@ class _Module:
             f"{op['usecaseDep']} = Annotated[{op['usecase']}, Depends({op['usecase']})]\n"
         )
 
+    def _present(self, var: str) -> str:
+        """The response for one record; with references, their labels loaded too (Story 10.0b)."""
+        if not self.references:
+            return f"{self.response_dto}.from_entity({var})"
+        return f"{self.response_dto}.from_entity({var}, self.{self.repo_var}.references([{var}]))"
+
     def _raise_not_found(self) -> str:
         return (
             f'            raise NotFoundException("{self.entity} not found", details={{"id": str({self.snake}_id)}})\n'
@@ -845,7 +963,7 @@ class _Module:
                 body = (
                     f"        {self.var} = {repo}.create(dto.to_entity())\n"
                     f'        logger.info("{_label(self.model)} created", {log_id})\n'
-                    f"        return {self.response_dto}.from_entity({self.var})"
+                    f"        return {self._present(self.var)}"
                 )
                 text = self._usecase(op, imports, f", dto: {op['requestDto']}", body, self.response_dto)
             elif action == "get":
@@ -853,7 +971,7 @@ class _Module:
                 body = (
                     f"        {self.var} = {repo}.find_by_id({self.snake}_id)\n"
                     + self._not_found(self.var)
-                    + f"        return {self.response_dto}.from_entity({self.var})"
+                    + f"        return {self._present(self.var)}"
                 )
                 text = self._usecase(op, imports, f", {self.snake}_id: {pk}", body, self.response_dto)
             elif action == "update":
@@ -863,7 +981,7 @@ class _Module:
                     + self._not_found("current")
                     + f"        {self.var} = {repo}.update(dto.to_entity(current))\n"
                     f'        logger.info("{_label(self.model)} updated", {log_id})\n'
-                    f"        return {self.response_dto}.from_entity({self.var})"
+                    f"        return {self._present(self.var)}"
                 )
                 signature = f", {self.snake}_id: {pk}, dto: {op['requestDto']}"
                 text = self._usecase(op, imports, signature, body, self.response_dto)
@@ -923,8 +1041,10 @@ class _Module:
                 else "        order = None\n"
             )
             + f"        {plural}, total = self.{self.repo_var}.list(filters, {q_arg}order, limit, offset)\n"
-            f"        return {op['responseDto']}(\n"
-            f"            items=[{self.response_dto}.from_entity(item) for item in {plural}],\n"
+            + (f"        references = self.{self.repo_var}.references({plural})\n" if self.references else "")
+            + f"        return {op['responseDto']}(\n"
+            f"            items=[{self.response_dto}.from_entity(item{', references' if self.references else ''})"
+            f" for item in {plural}],\n"
             "            total=total,\n            limit=limit,\n            offset=offset,\n        )"
         )
         text = self._usecase(op, imports, signature, body, op["responseDto"])
@@ -1338,6 +1458,10 @@ class _Tests:
                     f'    response = client.post("{op["path"]}", json=payload)\n\n'
                     "    assert response.status_code == 409\n"
                     '    assert response.json()["error"]["code"] == "CONFLICT"\n'
+                    # Story 10.0b: the fields a client marks
+                    + '    assert response.json()["error"]["details"]["fields"] == '
+                    + json.dumps([column["apiName"] for column in self.crud.unique])
+                    + "\n"
                 )
             if case == "bad_reference":
                 fks = [c["apiName"] for c in self.crud.request_columns(op) if c.get("foreignKey")]

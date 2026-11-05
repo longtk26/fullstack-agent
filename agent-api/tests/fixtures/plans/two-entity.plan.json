@@ -87,7 +87,12 @@
       "file": "src/modules/shared/infrastructure/models/project_model.py",
       "foreignKeys": [],
       "indexes": [],
+      "label": {
+        "apiName": "name",
+        "attr": "name"
+      },
       "primaryKey": "id",
+      "references": [],
       "relationships": [
         {
           "annotation": "list[\"TaskModel\"]",
@@ -228,7 +233,26 @@
         }
       ],
       "indexes": [],
+      "label": {
+        "apiName": "title",
+        "attr": "title"
+      },
       "primaryKey": "id",
+      "references": [
+        {
+          "apiName": "project",
+          "attr": "project",
+          "column": "project_id",
+          "entity": "Project",
+          "field": "projectId",
+          "labelAttr": "name",
+          "labelField": "name",
+          "model": "ProjectModel",
+          "nullable": false,
+          "primaryKey": "id",
+          "primaryKeyField": "id"
+        }
+      ],
       "relationships": [
         {
           "annotation": "\"ProjectModel\"",
@@ -412,6 +436,10 @@
           "delete"
         ]
       },
+      "recordActions": [
+        "update",
+        "delete"
+      ],
       "router": {
         "file": "src/modules/projects/presenter/router.py",
         "prefix": "",
@@ -774,9 +802,14 @@
           "find_by_id",
           "list",
           "update",
-          "delete"
+          "delete",
+          "references"
         ]
       },
+      "recordActions": [
+        "update",
+        "delete"
+      ],
       "router": {
         "file": "src/modules/tasks/presenter/router.py",
         "prefix": "",

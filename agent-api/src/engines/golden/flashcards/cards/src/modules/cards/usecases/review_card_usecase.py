@@ -74,7 +74,7 @@ class ReviewCardUsecase:
         )
         self.review_log_repo.create(log)
 
-        return CardResponseDto.from_entity(updated)
+        return CardResponseDto.from_entity(updated, self.card_repo.references([updated]))
 
 
 ReviewCardUsecaseDep = Annotated[ReviewCardUsecase, Depends(ReviewCardUsecase)]

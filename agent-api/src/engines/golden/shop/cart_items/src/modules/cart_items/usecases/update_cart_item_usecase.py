@@ -23,7 +23,7 @@ class UpdateCartItemUsecase:
             raise NotFoundException("Cart item not found", details={"id": str(cart_item_id)})
         cart_item = self.cart_item_repo.update(dto.to_entity(current))
         logger.info("cart_item updated", extra={"cart_item_id": str(cart_item_id)})
-        return CartItemResponseDto.from_entity(cart_item)
+        return CartItemResponseDto.from_entity(cart_item, self.cart_item_repo.references([cart_item]))
 
 
 UpdateCartItemUsecaseDep = Annotated[UpdateCartItemUsecase, Depends(UpdateCartItemUsecase)]

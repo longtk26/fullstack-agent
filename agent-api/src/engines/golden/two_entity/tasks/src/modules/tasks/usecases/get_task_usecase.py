@@ -16,7 +16,7 @@ class GetTaskUsecase:
         task = self.task_repo.find_by_id(task_id)
         if task is None:
             raise NotFoundException("Task not found", details={"id": str(task_id)})
-        return TaskResponseDto.from_entity(task)
+        return TaskResponseDto.from_entity(task, self.task_repo.references([task]))
 
 
 GetTaskUsecaseDep = Annotated[GetTaskUsecase, Depends(GetTaskUsecase)]

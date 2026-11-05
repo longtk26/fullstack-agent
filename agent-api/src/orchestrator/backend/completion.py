@@ -26,6 +26,7 @@ from typing import Any
 
 from src.configs import config, get_logger
 from src.engines.prompts import RenderedPrompt
+from src.modules.shared.domain.backend_spec.naming import to_snake
 
 from ..context import JobContext
 from ..integration.contract import contract_operations, resolve
@@ -56,9 +57,9 @@ def _read(project: Path, relative: str) -> str | None:
 
 
 def _inline(document: dict[str, Any], schema: Any, depth: int = 0) -> Any:
-    """The schema with every local `$ref` replaced by what it points at (cycles stop at depth 8)."""
+    """The schema with every local `$ref` replaced by what it points at (cycles stop at depth 16)."""
     schema = resolve(document, schema)
-    if depth > 8:
+    if depth > 16:
         return schema
     if isinstance(schema, dict):
         return {key: _inline(document, value, depth + 1) for key, value in schema.items()}
@@ -173,8 +174,16 @@ def module_context(
     sections.append("## Operations to complete\n\n" + "\n".join(operations))
 
     files = _module_files(project, module, generated)
+    present = ""
+    if "references" in module["port"]["methods"]:  # Story 10.0b: records show their parents by name
+        dto, repo = f"{module['entity']}ResponseDto", f"self.{to_snake(module['entity'])}_repo"
+        present = (
+            f"Return records as `{dto}.from_entity(record, {repo}.references([record]))` (a list: load the "
+            f"references once, `{repo}.references(records)`), so each response carries its parents' labels.\n\n"
+        )
     sections.append(
         "## This module's generated files\n\nEdit these and add new use case and DTO files next to them.\n\n"
+        + present
         + "\n".join(_fence(relative, text) for relative, text in sorted(files.items()))
     )
 

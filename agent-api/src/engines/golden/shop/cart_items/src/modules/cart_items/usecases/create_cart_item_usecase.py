@@ -18,7 +18,7 @@ class CreateCartItemUsecase:
     async def execute(self, dto: CreateCartItemRequestDto) -> CartItemResponseDto:
         cart_item = self.cart_item_repo.create(dto.to_entity())
         logger.info("cart_item created", extra={"cart_item_id": str(cart_item.id)})
-        return CartItemResponseDto.from_entity(cart_item)
+        return CartItemResponseDto.from_entity(cart_item, self.cart_item_repo.references([cart_item]))
 
 
 CreateCartItemUsecaseDep = Annotated[CreateCartItemUsecase, Depends(CreateCartItemUsecase)]

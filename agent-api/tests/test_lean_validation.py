@@ -14,7 +14,13 @@ from src.orchestrator.backend.validation import (
     generator_bug_files,
 )
 from src.orchestrator.checks.smoke import custom_operations, judge, rule_answer, sample_value, smoke_calls
-from src.orchestrator.integration.contract import build_contract
+from src.orchestrator.integration.contract import build_contract, presented_record
+
+
+def _custom(contract, plan):
+    """The calls of the custom operations only (since Story 10.0b, the contract's scenarios run first)."""
+    calls, skipped = smoke_calls(contract, plan)
+    return [call for call in calls if "expect" not in call], skipped
 
 
 def _pair() -> tuple[dict, dict]:
@@ -27,7 +33,7 @@ def _pair() -> tuple[dict, dict]:
 def test_one_smoke_call_per_custom_operation_with_its_path_from_the_fixtures():
     contract, plan = _pair()
     assert [op["operationId"] for op in custom_operations(plan)] == ["task.complete"]
-    calls, skipped = smoke_calls(contract, plan)
+    calls, skipped = _custom(contract, plan)
     task = contract["x-bga"]["fixtures"]["Task"][0]
     assert calls == [{"operationId": "task.complete", "method": "POST", "path": f"/tasks/{task['id']}/complete",
                       "body": None}]  # fmt: skip
@@ -36,8 +42,8 @@ def test_one_smoke_call_per_custom_operation_with_its_path_from_the_fixtures():
 
 def test_the_answers_must_have_the_planned_status_and_the_contract_shape():
     contract, plan = _pair()
-    calls, _ = smoke_calls(contract, plan)
-    task = contract["x-bga"]["fixtures"]["Task"][0]
+    calls, _ = _custom(contract, plan)
+    task = presented_record(contract, "Task", contract["x-bga"]["fixtures"]["Task"][0])
     status = int(
         next(code for code in contract["paths"]["/tasks/{id}/complete"]["post"]["responses"] if code[0] == "2")
     )
@@ -55,7 +61,7 @@ def test_a_business_rule_answering_the_guessed_request_is_not_a_failure():
     """gen_01M6JQ7F280RY8FJY21JJZDDDS: `booking.create` answered 409 (the seeded slot was booked) and
     `booking.cancel` 404; the app was right both times."""
     contract, plan = _pair()
-    calls, _ = smoke_calls(contract, plan)
+    calls, _ = _custom(contract, plan)
     conflict = {"status": 409, "body": json.dumps({"error": {"code": "CONFLICT", "message": "taken"}})}
     assert rule_answer(conflict) and judge(contract, calls, [conflict]) == []
     for answer in (
@@ -76,10 +82,10 @@ def test_smoke_bodies_take_seeded_ids_and_a_create_takes_fresh_references():
     }
     body = {"content": {"application/json": {"schema": {"$ref": "#/components/schemas/Ref"}}}}
     contract["paths"]["/tasks/{id}/complete"]["post"]["requestBody"] = body
-    [call], _ = smoke_calls(contract, plan)
+    [call], _ = _custom(contract, plan)
     assert call["body"] == {"taskId": task["id"], "projectId": task["projectId"]}, "the operation's own record first"
     contract["paths"]["/tasks/bulk"] = {"post": contract["paths"].pop("/tasks/{id}/complete")["post"]}
-    [call], _ = smoke_calls(contract, plan)
+    [call], _ = _custom(contract, plan)
     assert call["path"] == "/tasks/bulk"
     assert call["body"]["projectId"] == project["id"], "a create gets the first seeded project, not the task's"
 

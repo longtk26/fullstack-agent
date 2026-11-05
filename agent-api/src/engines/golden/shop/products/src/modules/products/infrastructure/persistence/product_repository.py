@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import uuid
 from typing import Annotated
 
@@ -8,7 +10,8 @@ from sqlmodel import col, func, select
 from src.libs.database.session import SessionDep
 from src.modules.products.ports.output.product_repository import IProductRepository
 from src.modules.shared.domain.entities import ProductEntity
-from src.modules.shared.infrastructure.models import ProductModel
+from src.modules.shared.infrastructure.models import CategoryModel, ProductModel
+from src.modules.shared.presenter.summaries import References
 
 
 class ProductRepository(IProductRepository):
@@ -46,6 +49,19 @@ class ProductRepository(IProductRepository):
             query = query.order_by(col(ProductModel.created_at), col(ProductModel.id))
         models = self.session.exec(query.offset(offset).limit(limit)).all()
         return [self.__to_entity(model) for model in models], total
+
+    def references(self, records: list[ProductEntity]) -> References:
+        found: References = {}
+        category_ids = {record.category_id for record in records if record.category_id is not None}
+        found["category"] = {}
+        if category_ids:
+            query = select(col(CategoryModel.id), col(CategoryModel.name)).where(
+                col(CategoryModel.id).in_(category_ids)
+            )
+            found["category"] = {
+                key: None if label is None else str(label) for key, label in self.session.exec(query).all()
+            }
+        return found
 
     def __to_entity(self, model: ProductModel) -> ProductEntity:
         return ProductEntity.model_validate(model.model_dump())

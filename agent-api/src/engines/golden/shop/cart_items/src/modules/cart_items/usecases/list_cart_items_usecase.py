@@ -15,8 +15,9 @@ class ListCartItemsUsecase:
     async def execute(self, sort: str | None, limit: int, offset: int) -> ListCartItemsResponseDto:
         order = (SORT_FIELDS[sort.lstrip("-")], sort.startswith("-")) if sort else None
         cart_items, total = self.cart_item_repo.list(order, limit, offset)
+        references = self.cart_item_repo.references(cart_items)
         return ListCartItemsResponseDto(
-            items=[CartItemResponseDto.from_entity(item) for item in cart_items],
+            items=[CartItemResponseDto.from_entity(item, references) for item in cart_items],
             total=total,
             limit=limit,
             offset=offset,

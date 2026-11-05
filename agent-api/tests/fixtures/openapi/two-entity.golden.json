@@ -730,6 +730,13 @@
             "type": "string",
             "format": "date-time",
             "title": "Createdat"
+          },
+          "allowedActions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Allowedactions"
           }
         },
         "type": "object",
@@ -737,9 +744,37 @@
           "id",
           "name",
           "description",
-          "createdAt"
+          "createdAt",
+          "allowedActions"
         ],
         "title": "ProjectResponseDto"
+      },
+      "ProjectSummaryDto": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label"
+        ],
+        "title": "ProjectSummaryDto",
+        "description": "A Project as the records that refer to it show it."
       },
       "TaskResponseDto": {
         "properties": {
@@ -789,6 +824,23 @@
               }
             ],
             "title": "Duedate"
+          },
+          "project": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProjectSummaryDto"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "allowedActions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Allowedactions"
           }
         },
         "type": "object",
@@ -798,7 +850,9 @@
           "title",
           "status",
           "priority",
-          "dueDate"
+          "dueDate",
+          "project",
+          "allowedActions"
         ],
         "title": "TaskResponseDto"
       },

@@ -64,6 +64,9 @@ class Entity(SpecModel):
     fields: list[FieldDef] = Field(min_length=1)
     indexes: list[IndexDef] = []
     unique_constraints: list[list[str]] = []
+    # Story 10.0b: the field that names a record (a picker's label, a parent's summary); default: the first of
+    # `name`, `title`, `label`, `email`, else the first required string field.
+    display_field: str | None = Field(default=None, pattern=IDENTIFIER)
 
 
 class Relationship(SpecModel):

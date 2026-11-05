@@ -207,7 +207,8 @@ def test_uncovered_operations_warning_and_manage_area():
     # After add_manage_area: all operations are covered
     managed_spec, notes = add_manage_area(frontend, contract)
     assert notes == []  # two-entity has no sign-in operations
-    all_issues = check_spec_pair(managed_spec, backend_spec)
+    # Story 10.0b: forms that ask for a project's id stay a warning until the app kit's picker (Story 22.6)
+    all_issues = [i for i in check_spec_pair(managed_spec, backend_spec) if i.code != "FE_FIELD_SOURCE"]
     assert all_issues == []
 
     # Idempotence: running add_manage_area again produces identical spec

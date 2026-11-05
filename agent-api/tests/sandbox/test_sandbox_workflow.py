@@ -66,7 +66,8 @@ def test_custom_operations_answer_the_smoke_calls(client, user_headers):
         assert status in ("COMPLETED", "COMPLETED_WITH_WARNINGS"), generation(generation_id).error_summary
         tests = [e for e in events(generation_id) if e.type == "validation.check" and e.payload["check"] == "tests"]
         assert tests[-1].status == "passed", tests[-1].payload["summary"]
-        assert "3 custom operation(s) answer as the contract says" in tests[-1].payload["summary"]
+        assert "3 custom operation(s), " in tests[-1].payload["summary"]
+        assert "scenario(s) answer as the contract says" in tests[-1].payload["summary"]
         assert "generate_tests" not in {r.node for r in node_runs(generation_id)}
     finally:
         if not os.environ.get("BGA_KEEP_SANDBOX_DIRS"):

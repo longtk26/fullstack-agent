@@ -67,6 +67,7 @@ def test_the_pack_carries_operations_files_and_related_ports(tmp_path):
     assert "from src.modules.review_logs.ports.output import IReviewLogRepoDep" in pack
     assert "### `src/modules/decks/ports/output/deck_repository.py`" in pack
     assert "class ConflictException" in pack
+    assert "`CardResponseDto.from_entity(record, self.card_repo.references([record]))`" in pack  # Story 10.0b
     assert "tests/modules" not in pack  # the engine writes no tests
 
 

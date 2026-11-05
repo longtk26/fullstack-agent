@@ -202,6 +202,9 @@ class _SemanticChecker:
                 self._field_refs(entity, index.fields, f"{path}/indexes/{i_index}/fields")
             for u_index, constraint in enumerate(entity.unique_constraints):
                 self._field_refs(entity, constraint, f"{path}/uniqueConstraints/{u_index}")
+            if entity.display_field is not None and entity.display_field not in self.fields[entity.name]:
+                message = f"Entity '{entity.name}' has no field '{entity.display_field}'"
+                self._add(C.UNKNOWN_FIELD_REF, f"{path}/displayField", message)
 
     def _table(self, entity: Entity) -> str:
         return entity.table or table_name(entity.name)

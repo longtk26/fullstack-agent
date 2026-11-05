@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 import uuid
 from abc import ABC, abstractmethod
 from typing import Any
 
 from src.modules.shared.domain.entities import TaskEntity
+from src.modules.shared.presenter.summaries import References
 
 
 class ITaskRepository(ABC):
@@ -27,3 +30,7 @@ class ITaskRepository(ABC):
     @abstractmethod
     def delete(self, task_id: uuid.UUID) -> None:
         pass
+
+    @abstractmethod
+    def references(self, records: list[TaskEntity]) -> References:
+        """Labels of the records these refer to, one query per reference (Story 10.0b)."""

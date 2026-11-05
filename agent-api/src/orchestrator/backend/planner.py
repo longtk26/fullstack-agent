@@ -18,6 +18,8 @@ ENTITIES_PKG = "src/modules/shared/domain/entities"
 MODELS_PKG = "src/modules/shared/infrastructure/models"
 WRITE_ACTIONS = {"create", "update", "delete"}
 CRUD_STATUS = {"create": 201, "get": 200, "list": 200, "update": 200, "delete": 204}
+# Story 10.0b: the field that names a record, when the spec names none (then: the first required string field)
+LABEL_FIELDS = ("name", "title", "label", "email")
 
 # spec field type → (python type, column type as SQLAlchemy/SQLModel spells it)
 TYPE_MAP: dict[str, tuple[str, str]] = {
@@ -285,6 +287,72 @@ def _models(spec: dict[str, Any]) -> list[dict[str, Any]]:
     return models
 
 
+def _label_column(entity: dict[str, Any], model: dict[str, Any]) -> dict[str, Any] | None:
+    """Story 10.0b: the column that names a record (`displayField`, else a usual name, else a required string)."""
+    by_api = {column["apiName"]: column for column in model["columns"]}
+    if entity.get("displayField") in by_api:
+        return by_api[entity["displayField"]]
+    named = next((by_api[name] for name in LABEL_FIELDS if name in by_api), None)
+    return named or next(
+        (
+            column
+            for column in model["columns"]
+            if column["type"] in ("string", "text") and not column["nullable"] and not column.get("foreignKey")
+        ),
+        None,
+    )
+
+
+def _references(models: list[dict[str, Any]]) -> None:
+    """Story 10.0b: each foreign key to a parent with a label becomes a reference, shown in responses as a summary
+    `{id, label}` under the key without its `Id` (`deckId` → `deck`)."""
+    by_table = {model["table"]: model for model in models if model.get("entity")}
+    for model in models:
+        if not model.get("entity"):
+            continue
+        taken = {column["apiName"] for column in model["columns"]}
+        references = []
+        for column in model["columns"]:
+            fk = column.get("foreignKey")
+            parent = by_table.get(fk["references"].partition(".")[0]) if fk else None
+            if parent is None or parent.get("label") is None:
+                continue
+            api = column["apiName"].removesuffix("Id") if column["apiName"].endswith("Id") else ""
+            if not api or api in taken:
+                api = f"{column['apiName']}Ref"
+            taken.add(api)
+            references.append(
+                {
+                    "column": column["attr"],
+                    "field": column["apiName"],
+                    "apiName": api,
+                    "attr": py_name(to_snake(api)),
+                    "entity": parent["entity"],
+                    "model": parent["class"],
+                    "primaryKey": parent["primaryKey"],
+                    "primaryKeyField": next(c["apiName"] for c in parent["columns"] if c["primaryKey"]),
+                    "labelAttr": parent["label"]["attr"],
+                    "labelField": parent["label"]["apiName"],
+                    "nullable": column["nullable"],
+                }
+            )
+        model["references"] = references
+
+
+def record_actions(module: dict[str, Any], model: dict[str, Any]) -> list[str]:
+    """Story 10.0b: what can be done to one record (`allowedActions`): update, delete, and the custom writes on one
+    record (a path parameter that is the record's id: `POST /cards/{cardId}/review`)."""
+    entity = module["entity"]
+    own_ids = {"id", model["primaryKey"], to_snake(model["primaryKey"]), f"{entity[:1].lower()}{entity[1:]}Id"}
+    actions = []
+    for op in module["operations"]:
+        if op.get("action") in ("update", "delete"):
+            actions.append(op["action"])
+        elif op["type"] == "custom" and op["method"] != "GET" and own_ids & set(re.findall(r"\{(\w+)\}", op["path"])):
+            actions.append(op["operationId"])
+    return list(dict.fromkeys(actions))
+
+
 def _operation(op: dict[str, Any], model: dict[str, Any] | None) -> dict[str, Any]:
     action = op.get("action") if op["type"] == "crud" else None
     handler = handler_name(op["operationId"], list_action=action == "list")
@@ -437,6 +505,10 @@ def build_plan(spec: dict[str, Any]) -> dict[str, Any]:
     """`spec` is the normalized BackendSpec (validate_spec_text(...).normalized)."""
     models = _models(spec)
     by_entity = {m["entity"]: m for m in models if m["entity"]}
+    for entity in spec.get("entities", []):
+        label = _label_column(entity, by_entity[entity["name"]])
+        by_entity[entity["name"]]["label"] = {"attr": label["attr"], "apiName": label["apiName"]} if label else None
+    _references(models)
     modules, unresolved = [], []
     for entity in spec.get("entities", []):
         model = by_entity[entity["name"]]
@@ -479,8 +551,12 @@ def build_plan(spec: dict[str, Any]) -> dict[str, Any]:
                 "tag": name,
             },
             "operations": ops,
+            "recordActions": [],
             "testFile": f"tests/modules/{name}/test_{entity_snake}_api.py",
         }
+        module["recordActions"] = record_actions(module, model)
+        if model.get("references") and {"create", "get", "list", "update"} & {op.get("action") for op in ops}:
+            module["port"]["methods"].append("references")  # Story 10.0b: parents' labels for the responses
         module["tests"] = _tests(module, model)
         modules.append(module)
     for op in spec.get("operations", []):

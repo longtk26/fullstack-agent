@@ -46,6 +46,7 @@ type Entity = {
   fields: FieldDef[];
   indexes?: IndexDef[];
   uniqueConstraints?: string[][];
+  displayField?: string | null;
 };
 
 type FieldDef = {

@@ -14,10 +14,16 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "x-bga": {
+              "source": "input"
+            }
           },
           "title": {
-            "type": "string"
+            "type": "string",
+            "x-bga": {
+              "source": "input"
+            }
           }
         },
         "required": [
@@ -77,6 +83,12 @@
       },
       "TaskResponse": {
         "properties": {
+          "allowedActions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "id": {
             "format": "uuid",
             "type": "string"
@@ -100,7 +112,8 @@
         "required": [
           "id",
           "title",
-          "status"
+          "status",
+          "allowedActions"
         ],
         "type": "object"
       }
@@ -148,16 +161,19 @@
                     "value": {
                       "items": [
                         {
+                          "allowedActions": [],
                           "id": "567c4d88-fa22-5bb3-b951-f34ef70b9636",
                           "status": "TODO",
                           "title": "Task title 1"
                         },
                         {
+                          "allowedActions": [],
                           "id": "33041fe8-1fc9-562e-bc1c-b6923bd7fb9e",
                           "status": "IN_PROGRESS",
                           "title": "Task title 2"
                         },
                         {
+                          "allowedActions": [],
                           "id": "4073cd57-4cbf-592d-941f-054239fd71ac",
                           "status": "DONE",
                           "title": "Task title 3"
@@ -184,7 +200,16 @@
         "x-bga": {
           "action": "list",
           "entity": "Task",
-          "module": "tasks"
+          "module": "tasks",
+          "scenarios": [
+            {
+              "expect": {
+                "status": 200
+              },
+              "name": "success",
+              "params": {}
+            }
+          ]
         }
       },
       "post": {
@@ -214,6 +239,7 @@
                 "examples": {
                   "synthesized": {
                     "value": {
+                      "allowedActions": [],
                       "id": "567c4d88-fa22-5bb3-b951-f34ef70b9636",
                       "status": "TODO",
                       "title": "Task title 1"
@@ -245,13 +271,52 @@
         "x-bga": {
           "action": "create",
           "entity": "Task",
-          "module": "tasks"
+          "errors": [
+            {
+              "code": "VALIDATION_ERROR",
+              "message": "Some values are not valid (each one in `details`, by field)",
+              "status": 422
+            }
+          ],
+          "module": "tasks",
+          "scenarios": [
+            {
+              "body": {
+                "status": "TODO",
+                "title": "Task title 1"
+              },
+              "expect": {
+                "status": 201
+              },
+              "name": "success",
+              "params": {}
+            },
+            {
+              "body": {
+                "status": "TODO"
+              },
+              "expect": {
+                "code": "VALIDATION_ERROR",
+                "status": 422
+              },
+              "name": "missing required field",
+              "params": {}
+            }
+          ]
         }
       }
     }
   },
   "x-bga": {
     "contractVersion": "1",
+    "entities": {
+      "Task": {
+        "allowedActions": [],
+        "labelField": "title",
+        "primaryKey": "id",
+        "references": []
+      }
+    },
     "fixtures": {
       "Task": [
         {

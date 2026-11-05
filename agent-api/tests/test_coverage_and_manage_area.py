@@ -372,7 +372,8 @@ def test_coverage_and_manage_area_measured_case():
     managed_fe_val = validate_frontend_spec_data(managed)
     assert managed_fe_val.report.valid, managed_fe_val.report.errors
 
-    managed_issues = check_spec_pair(managed, backend)
+    # Story 10.0b: forms that ask for a deck's id stay a warning until the app kit's picker (Story 22.6)
+    managed_issues = [i for i in check_spec_pair(managed, backend) if i.code != "FE_FIELD_SOURCE"]
     # The only issue remaining should be the FE_OPERATION_UNUSED warning for deck.purge (needs sign-in)
     assert len(managed_issues) == 1
     assert managed_issues[0].code == "FE_OPERATION_UNUSED"

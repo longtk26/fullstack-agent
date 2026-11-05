@@ -20,7 +20,7 @@ from src.libs.queue import PreviewCommandBus
 from src.libs.redaction import Redactor
 from src.modules.generations.infrastructure.adapters import EventPublisher
 from src.orchestrator.backend.validation import CheckResult, ValidationOutcome, ValidationRequest
-from src.orchestrator.integration.contract import build_contract, dump_contract
+from src.orchestrator.integration.contract import build_contract, dump_contract, presented_record
 from src.orchestrator.previews import PreviewClient, PreviewService
 from src.orchestrator.store import JobStore
 from src.sandbox import ExecResult, ISandbox, ISandboxProvider
@@ -92,7 +92,7 @@ def _configure_healthy_backend(runtime: FakePreviewRuntime, contract: dict[str, 
             meta = op.get("x-bga") or {}
             entity = meta.get("entity")
             action = meta.get("action")
-            records = list(fixtures.get(entity) or [])
+            records = [presented_record(contract, entity, row) for row in fixtures.get(entity) or []]
             first = records[0] if records else {"id": "00000000-0000-4000-8000-000000000001"}
             concrete_path = path
             for param in op.get("parameters") or []:

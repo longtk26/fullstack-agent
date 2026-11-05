@@ -16,7 +16,7 @@ class GetProductUsecase:
         product = self.product_repo.find_by_id(product_id)
         if product is None:
             raise NotFoundException("Product not found", details={"id": str(product_id)})
-        return ProductResponseDto.from_entity(product)
+        return ProductResponseDto.from_entity(product, self.product_repo.references([product]))
 
 
 GetProductUsecaseDep = Annotated[GetProductUsecase, Depends(GetProductUsecase)]

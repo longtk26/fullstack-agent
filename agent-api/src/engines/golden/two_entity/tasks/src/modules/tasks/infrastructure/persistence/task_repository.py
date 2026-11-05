@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import uuid
 from typing import Annotated, Any
 
@@ -8,7 +10,8 @@ from sqlmodel import col, func, select
 from src.libs.database.session import SessionDep
 from src.libs.exceptions import BadRequestException, ConflictException, ErrorCode
 from src.modules.shared.domain.entities import TaskEntity
-from src.modules.shared.infrastructure.models import TaskModel
+from src.modules.shared.infrastructure.models import ProjectModel, TaskModel
+from src.modules.shared.presenter.summaries import References
 from src.modules.tasks.ports.output.task_repository import ITaskRepository
 
 FOREIGN_KEY_VIOLATION = "23503"
@@ -54,6 +57,17 @@ class TaskRepository(ITaskRepository):
         if model is not None:
             self.session.delete(model)
             self.session.flush()
+
+    def references(self, records: list[TaskEntity]) -> References:
+        found: References = {}
+        project_ids = {record.project_id for record in records if record.project_id is not None}
+        found["project"] = {}
+        if project_ids:
+            query = select(col(ProjectModel.id), col(ProjectModel.name)).where(col(ProjectModel.id).in_(project_ids))
+            found["project"] = {
+                key: None if label is None else str(label) for key, label in self.session.exec(query).all()
+            }
+        return found
 
     def __flush(self) -> None:
         try:

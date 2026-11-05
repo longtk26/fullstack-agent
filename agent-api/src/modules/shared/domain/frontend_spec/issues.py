@@ -48,5 +48,7 @@ class FrontendIssueCode(StrEnum):
     CONTRACT_METHOD_MISMATCH = "CONTRACT_METHOD_MISMATCH"
     CONTRACT_PARAM_MISMATCH = "CONTRACT_PARAM_MISMATCH"
     CONTRACT_FIELD_MISSING = "CONTRACT_FIELD_MISSING"
+    # Story 10.0b: a form field whose value the user cannot know (a record's id)
+    FE_FIELD_SOURCE = "FE_FIELD_SOURCE"
     CONTRACT_FIELD_TYPE_MISMATCH = "CONTRACT_FIELD_TYPE_MISMATCH"
     CONTRACT_SHAPE_MISMATCH = "CONTRACT_SHAPE_MISMATCH"  # a list section bound to an operation returning one record

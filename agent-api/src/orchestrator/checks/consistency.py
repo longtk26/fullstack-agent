@@ -471,6 +471,7 @@ class _Checker:
                 self.form_field(
                     operation_id, field, resolve(self.contract, contract_field), name in required, field_path
                 )
+                self.field_source(operation_id, field, contract_field, field_path)
             for name in sorted(required - collected):
                 self.add(
                     C.CONTRACT_FIELD_MISSING,
@@ -479,6 +480,22 @@ class _Checker:
                     backend_path=self.field_pointer(operation_id, name),
                     hint="Add a field (hidden with a fixed or $route value if the user should not type it)",
                 )
+
+    def field_source(self, operation_id: str, field: dict, contract_field: dict, path: str) -> None:
+        """Story 10.0b: a visible field for a reference asks the user to type a record's id (`x-bga.source`)."""
+        meta = contract_field.get("x-bga") or {}
+        if meta.get("source") != "reference" or field.get("hidden") or field.get("value") is not None:
+            return
+        entity = (meta.get("ref") or {}).get("entity") or "record"
+        self.add(
+            C.FE_FIELD_SOURCE,
+            path,
+            f"Form field '{field['name']}' asks the user to type a {entity} id",
+            backend_path=self.field_pointer(operation_id, field["name"]),
+            hint=f'Show the form on the {entity}\'s page and take it from the route (hidden, value "$route.id"); '
+            "a picker by name comes with the app kit (Story 22.6)",
+            warning=True,
+        )
 
     def form_field(self, operation_id: str, field: dict, schema: dict, required: bool, path: str) -> None:
         kind, form_format = FORM_TYPES[field.get("type", "string")]
@@ -780,6 +797,59 @@ def _form_routes(pages: list[Any]) -> dict[str, set[str]]:
     return routes
 
 
+def _form_route_values(pages: list[Any]) -> dict[str, list[dict[str, str]]]:
+    """Form id → per page showing it, what its route gives: `{operationId: "$route.<p>"}` for each section bound
+    to one record by a route parameter (`deck.get` with `{"id": "$route.id"}`), plus `{"$<p>": ...}` per parameter."""
+    values: dict[str, list[dict[str, str]]] = {}
+    for page in pages:
+        if not isinstance(page, dict):
+            continue
+        given = {f"${name}": f"$route.{name}" for name in route_params(page.get("route") or "")}
+        forms = []
+        for section, _ in _sections(page.get("sections") or [], ""):
+            if not isinstance(section, dict):
+                continue
+            data = section.get("data") if isinstance(section.get("data"), dict) else {}
+            route_values = [
+                v for v in (data.get("params") or {}).values() if isinstance(v, str) and v.startswith("$route.")
+            ]
+            if data.get("operationId") and len(route_values) == 1:
+                given[data["operationId"]] = route_values[0]
+            if isinstance(section.get("form"), str):
+                forms.append(section["form"])
+        for form_id in forms:
+            values.setdefault(form_id, []).append(given)
+    return values
+
+
+def _route_sources(
+    form: dict[str, Any], f_idx: int, props: dict[str, Any], pages: list[dict[str, str]], notes: list[dict[str, Any]]
+) -> None:
+    """Story 10.0b: a visible reference field on a page that already shows the parent (its detail bound to a route
+    parameter, or a route parameter of the field's name) is hidden and takes that parameter."""
+    if not pages:
+        return
+    for fld_idx, field in enumerate(form.get("fields") or []):
+        if not isinstance(field, dict) or field.get("hidden") or field.get("value") is not None:
+            continue
+        meta = (props.get(field.get("name")) or {}).get("x-bga") or {}
+        if meta.get("source") != "reference":
+            continue
+        detail = (meta.get("ref") or {}).get("detailOperation")
+        found = {page.get(detail or "") or page.get(f"${field['name']}") for page in pages}
+        if len(found) != 1 or None in found:
+            continue  # not every page showing the form knows the parent
+        value = found.pop()
+        field["hidden"], field["value"] = True, value
+        notes.append(
+            _note(
+                f"/forms/{f_idx}/fields/{fld_idx}",
+                f"Field '{field['name']}' of form '{form.get('id')}' now takes the {meta['ref']['entity']} from the "
+                f"page ({value}) instead of asking for its id.",
+            )
+        )
+
+
 def reconcile_spec_pair(
     frontend: dict[str, Any], backend: dict[str, Any]
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
@@ -811,6 +881,7 @@ def reconcile_spec_pair(
     notes: list[dict[str, Any]] = []
     pages = frontend.get("pages") if isinstance(frontend.get("pages"), list) else []
     form_routes = _form_routes(pages)
+    form_values = _form_route_values(pages)
 
     # 1. Forms
     forms = frontend.get("forms")
@@ -867,6 +938,7 @@ def reconcile_spec_pair(
                                     )
                         form["fields"] = valid_fields
 
+                    _route_sources(form, f_idx, props, form_values.get(form.get("id"), []), notes)
                     existing_names = {f.get("name") for f in form.get("fields") or [] if isinstance(f, dict)}
                     for req_name in sorted(required - existing_names):
                         prop_schema = resolve(contract, props.get(req_name) or {})

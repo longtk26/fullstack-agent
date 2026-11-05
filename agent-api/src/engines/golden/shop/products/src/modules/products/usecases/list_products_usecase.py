@@ -23,8 +23,9 @@ class ListProductsUsecase:
     ) -> ListProductsResponseDto:
         order = (SORT_FIELDS[sort.lstrip("-")], sort.startswith("-")) if sort else None
         products, total = self.product_repo.list(category_id, q, order, limit, offset)
+        references = self.product_repo.references(products)
         return ListProductsResponseDto(
-            items=[ProductResponseDto.from_entity(product) for product in products],
+            items=[ProductResponseDto.from_entity(product, references) for product in products],
             total=total,
             limit=limit,
             offset=offset,

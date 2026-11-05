@@ -27,8 +27,12 @@ class ListTasksUsecase:
         filters = {key: value for key, value in candidates.items() if value is not None}
         order = (SORT_FIELDS[sort.lstrip("-")], sort.startswith("-")) if sort else None
         tasks, total = self.task_repo.list(filters, order, limit, offset)
+        references = self.task_repo.references(tasks)
         return ListTasksResponseDto(
-            items=[TaskResponseDto.from_entity(task) for task in tasks], total=total, limit=limit, offset=offset
+            items=[TaskResponseDto.from_entity(task, references) for task in tasks],
+            total=total,
+            limit=limit,
+            offset=offset,
         )
 
 

@@ -23,7 +23,7 @@ class UpdateTaskUsecase:
             raise NotFoundException("Task not found", details={"id": str(task_id)})
         task = self.task_repo.update(dto.to_entity(current))
         logger.info("task updated", extra={"task_id": str(task_id)})
-        return TaskResponseDto.from_entity(task)
+        return TaskResponseDto.from_entity(task, self.task_repo.references([task]))
 
 
 UpdateTaskUsecaseDep = Annotated[UpdateTaskUsecase, Depends(UpdateTaskUsecase)]

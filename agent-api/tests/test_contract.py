@@ -119,11 +119,20 @@ def test_synthesized_examples_respect_types_and_bounds():
 # -- conformance -------------------------------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("source", ["golden", "engine"])
-def test_generated_two_entity_apps_conform(source):
-    """Real exports: the golden project (fake engine) and an engine-generated backend of the same spec."""
-    document = json.loads((OPENAPI / f"two-entity.{source}.json").read_text())
+def test_the_golden_two_entity_app_conforms():
+    """A real export of the golden project (the fake engine's engine path)."""
+    document = json.loads((OPENAPI / "two-entity.golden.json").read_text())
     assert compare_contract(contract("two-entity"), document) == []
+
+
+def test_an_app_without_the_integration_fields_is_caught():
+    """A real export of an engine-generated backend from before Story 10.0b: conformance names exactly what it
+    lacks (the parents' summaries and `allowedActions`), so validation sends it to repair."""
+    document = json.loads((OPENAPI / "two-entity.engine.json").read_text())
+    problems = compare_contract(contract("two-entity"), document)
+    missing = {problem["message"].split(": ")[0].rsplit(".", 1)[-1] for problem in problems}
+    assert missing == {"allowedActions", "project"}
+    assert all("missing (the contract requires it)" in problem["message"] for problem in problems)
 
 
 def _golden() -> dict:

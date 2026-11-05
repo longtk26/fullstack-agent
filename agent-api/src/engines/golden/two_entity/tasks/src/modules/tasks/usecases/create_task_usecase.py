@@ -18,7 +18,7 @@ class CreateTaskUsecase:
     async def execute(self, dto: CreateTaskRequestDto) -> TaskResponseDto:
         task = self.task_repo.create(dto.to_entity())
         logger.info("task created", extra={"task_id": str(task.id), "project_id": str(task.project_id)})
-        return TaskResponseDto.from_entity(task)
+        return TaskResponseDto.from_entity(task, self.task_repo.references([task]))
 
 
 CreateTaskUsecaseDep = Annotated[CreateTaskUsecase, Depends(CreateTaskUsecase)]

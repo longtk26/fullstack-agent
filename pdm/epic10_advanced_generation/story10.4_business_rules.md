@@ -34,8 +34,9 @@ Contract:
 - [ ] One definition per rule in the plan; codegen writes from it the use-case check, the `allowedActions` entries
       (`transition:<STATE>` for the allowed next states; no `update` or `delete` on a locked record), the MSW
       behaviour and the scenarios (an allowed and a refused transition, an edit of a locked record).
-- [ ] Every rule's code is in `x-bga.errors` with its field; `kind=custom` rules too (code and field from the
-      planner), so the app shows them on the field
+- [ ] Every rule's code is in `x-bga.errors` with its field; `kind=custom` rules too: the planner gives each one an
+      error code and a field, and the engine's note says to raise exactly that code (moved here from 10.0b), so the
+      app shows them on the field
       ([22.7](../epic22_dynamic_app_frontend/story22.7_plugin_frontends.md)).
 - [ ] `x-bga.rules` still describes the rules, for documentation and the try-it explorer; frontends act on
       `allowedActions`, not on it.

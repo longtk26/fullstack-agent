@@ -1,5 +1,6 @@
 import { http, HttpResponse, type HttpHandler } from "msw";
 import { MOCK_API_BASE } from "@/lib/api/client";
+import entities from "./entities.json";
 import fixtures from "./fixtures.json";
 import operations from "./operations.json";
 
@@ -27,6 +28,16 @@ type TMockOperation = {
 
 type TRecord = Record<string, unknown>;
 
+/** Story 10.0b: what the API adds to a stored record (`x-bga.entities` of the contract). */
+type TEntityInfo = {
+  primaryKey: string;
+  labelField: string | null;
+  references: { field: string; apiName: string; entity: string; labelField: string | null }[];
+  allowedActions: string[];
+};
+
+const presentation = entities as Record<string, TEntityInfo>;
+
 const seed = fixtures as Record<string, TRecord[]>;
 let store: Record<string, TRecord[]> = structuredClone(seed);
 
@@ -38,6 +49,20 @@ function records(entity: string | null): TRecord[] {
   if (!entity) return [];
   store[entity] ??= [];
   return store[entity];
+}
+
+/** A record as the API answers it: each parent as `{id, label}`, and what can be done to it (Story 10.0b). */
+function present(entity: string | null, record: TRecord): TRecord {
+  const info = entity ? presentation[entity] : undefined;
+  if (!info) return record;
+  const out: TRecord = { ...record, allowedActions: [...info.allowedActions] };
+  for (const ref of info.references) {
+    const id = record[ref.field];
+    const key = presentation[ref.entity]?.primaryKey ?? "id";
+    const parent = records(ref.entity).find((item) => String(item[key]) === String(id));
+    out[ref.apiName] = id === null || id === undefined ? null : { id, label: parent && ref.labelField ? (parent[ref.labelField] ?? null) : null };
+  }
+  return out;
 }
 
 function notFound(entity: string | null) {
@@ -91,7 +116,7 @@ function list(op: TMockOperation, url: URL, params: Record<string, unknown> = {}
   }
   const limit = Math.min(Number(url.searchParams.get("limit") ?? op.defaultLimit) || op.defaultLimit, op.maxLimit);
   const offset = Number(url.searchParams.get("offset") ?? 0) || 0;
-  const paged = items.slice(offset, offset + limit);
+  const paged = items.slice(offset, offset + limit).map((item) => present(op.entity, item));
   if (op.envelope === false) {
     return HttpResponse.json(paged);
   }
@@ -155,18 +180,21 @@ function handler(op: TMockOperation): HttpHandler {
       return HttpResponse.json(rows.length ? rows.map((row) => ({ ...first, ...row })) : sample);
     }
     if (op.action === "list" || op.mock === "records") return list(op, url, op.action === "list" ? params : {});
-    if (op.action === "get" || op.mock === "record") return find() ? HttpResponse.json(find()) : notFound(op.entity);
+    if (op.action === "get" || op.mock === "record") {
+      const found = find();
+      return found ? HttpResponse.json(present(op.entity, found)) : notFound(op.entity);
+    }
     if (op.action === "create" || op.mock === "create") {
       const body = ((await request.json().catch(() => ({}))) || {}) as TRecord;
       const created = { [op.primaryKey]: newId(op.entity, op.primaryKey), createdAt: new Date().toISOString(), ...body };
       records(op.entity).push(created);
-      return HttpResponse.json(created, { status: op.status });
+      return HttpResponse.json(present(op.entity, created), { status: op.status });
     }
     if (op.action === "update") {
       const current = find();
       if (!current) return notFound(op.entity);
       Object.assign(current, (await request.json()) as TRecord);
-      return HttpResponse.json(current);
+      return HttpResponse.json(present(op.entity, current));
     }
     if (op.mock === "merge") {
       const current = find();
@@ -177,7 +205,7 @@ function handler(op: TMockOperation): HttpHandler {
           current[k] = v;
         }
       }
-      return HttpResponse.json(current, { status: op.status });
+      return HttpResponse.json(present(op.entity, current), { status: op.status });
     }
     if (op.mock === "sample") {
       if (op.status === 204) return new HttpResponse(null, { status: 204 });

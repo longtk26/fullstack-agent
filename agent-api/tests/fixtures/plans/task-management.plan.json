@@ -95,7 +95,12 @@
       "file": "src/modules/shared/infrastructure/models/task_model.py",
       "foreignKeys": [],
       "indexes": [],
+      "label": {
+        "apiName": "title",
+        "attr": "title"
+      },
       "primaryKey": "id",
+      "references": [],
       "relationships": [],
       "table": "tasks",
       "uniqueConstraints": []
@@ -171,6 +176,7 @@
           "list"
         ]
       },
+      "recordActions": [],
       "router": {
         "file": "src/modules/tasks/presenter/router.py",
         "prefix": "",

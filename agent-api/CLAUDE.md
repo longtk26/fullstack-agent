@@ -69,6 +69,12 @@ Agent-specific notes:
   in a scratch copy (`<workspace>/scratch/module-<name>`), merges their changes in plan order, and reruns a module in
   the project when it changed a file an earlier module changed differently. One module, or `ENGINE_CONCURRENCY=1`,
   runs in the project directly. Frontend `conventions` findings and type errors only in test files are warnings.
+- The integration contract (Story 10.0b): the backend decides, a frontend only reads. Request properties carry
+  `x-bga.source` (a foreign key: `reference` with `x-bga.ref`); record responses carry a `{id, label}` summary per
+  parent and `allowedActions` (the planner's `label`, `references`, `recordActions`); operations list
+  `x-bga.errors` and `x-bga.scenarios`; `x-bga.entities` tells the MSW handlers to present records the same way
+  (`presented_record` does it from the contract). The smoke check runs every scenario against the backend, so a new
+  rule or plugin adds its scenarios and its `allowedActions` entries in the same place as its backend code.
 - Requirement drafting (Stories 2.4, 12.4): `POST/GET /api/v1/spec-drafts` (`specs` module) stores a `spec_drafts` row
   and queues it on `bga:drafts:<engine>`; the worker's `_consume_drafts` (own slots, `DRAFT_CONCURRENCY`) runs
   `orchestrator/drafting/drafts.py` in `<WORKSPACE_ROOT>/drafts/<id>/` (inputs in `.bga/`: schemas, an example from

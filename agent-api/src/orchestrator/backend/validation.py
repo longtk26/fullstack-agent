@@ -380,7 +380,8 @@ class SandboxValidationRunner(IValidationRunner):
         return result
 
     async def _smoke(self, request: ValidationRequest) -> CheckResult | None:
-        """Story 18.11: each custom operation called once against the seeded database (none: nothing to call)."""
+        """Story 18.11: each custom operation called once against the seeded database, and since Story 10.0b every
+        contract scenario with the status and code it must get (none: nothing to call)."""
         from ..packaging import build_contract_seed
 
         contract = request.smoke_contract
@@ -405,14 +406,24 @@ class SandboxValidationRunner(IValidationRunner):
         ruled = [
             f"{call['operationId']} {answer['status']}"
             for call, answer in zip(calls, answers, strict=False)
-            if rule_answer(answer)
+            if rule_answer(answer) and not call.get("expect")  # a scenario's error is the answer it asked for
         ]
         if ruled:
             note += f"; answered by a business rule: {', '.join(ruled)}"
+        scenarios = sum(1 for call in calls if call.get("expect"))
+        custom = len(calls) - scenarios
+        counted = ", ".join(
+            part
+            for part in (
+                f"{custom} custom operation(s)" if custom else "",
+                f"{scenarios} scenario(s)" if scenarios else "",
+            )
+            if part
+        )
         summary = (
-            f"{len(problems)} of {len(calls)} custom operation(s) answered wrongly"
+            f"{len(problems)} of {len(calls)} smoke call(s) answered wrongly ({counted})"
             if problems
-            else f"{len(calls)} custom operation(s) answer as the contract says"
+            else f"{counted} answer as the contract says"
         ) + note
         return self._result("tests", not problems, summary, run if problems else None, details=problems)
 

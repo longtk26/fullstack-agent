@@ -7,11 +7,17 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "x-bga": {
+              "source": "input"
+            }
           },
           "name": {
             "maxLength": 120,
-            "type": "string"
+            "type": "string",
+            "x-bga": {
+              "source": "input"
+            }
           }
         },
         "required": [
@@ -26,7 +32,10 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "x-bga": {
+              "source": "input"
+            }
           },
           "priority": {
             "default": 3,
@@ -35,11 +44,23 @@
             "type": [
               "integer",
               "null"
-            ]
+            ],
+            "x-bga": {
+              "source": "input"
+            }
           },
           "projectId": {
             "format": "uuid",
-            "type": "string"
+            "type": "string",
+            "x-bga": {
+              "ref": {
+                "detailOperation": "project.get",
+                "entity": "Project",
+                "labelField": "name",
+                "listOperation": "project.list"
+              },
+              "source": "reference"
+            }
           },
           "status": {
             "default": "TODO",
@@ -52,11 +73,17 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "x-bga": {
+              "source": "input"
+            }
           },
           "title": {
             "maxLength": 200,
-            "type": "string"
+            "type": "string",
+            "x-bga": {
+              "source": "input"
+            }
           }
         },
         "required": [
@@ -143,6 +170,16 @@
       },
       "ProjectResponse": {
         "properties": {
+          "allowedActions": {
+            "items": {
+              "enum": [
+                "update",
+                "delete"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
           "createdAt": {
             "format": "date-time",
             "type": "string"
@@ -166,12 +203,42 @@
           "id",
           "name",
           "description",
-          "createdAt"
+          "createdAt",
+          "allowedActions"
+        ],
+        "type": "object"
+      },
+      "ProjectSummary": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "label"
         ],
         "type": "object"
       },
       "TaskResponse": {
         "properties": {
+          "allowedActions": {
+            "items": {
+              "enum": [
+                "update",
+                "delete"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
           "dueDate": {
             "format": "date",
             "type": [
@@ -189,6 +256,16 @@
             "type": [
               "integer",
               "null"
+            ]
+          },
+          "project": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProjectSummary"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "projectId": {
@@ -218,7 +295,9 @@
           "title",
           "status",
           "priority",
-          "dueDate"
+          "dueDate",
+          "project",
+          "allowedActions"
         ],
         "type": "object"
       },
@@ -228,11 +307,17 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "x-bga": {
+              "source": "input"
+            }
           },
           "name": {
             "maxLength": 120,
-            "type": "string"
+            "type": "string",
+            "x-bga": {
+              "source": "input"
+            }
           }
         },
         "type": "object"
@@ -244,7 +329,10 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "x-bga": {
+              "source": "input"
+            }
           },
           "priority": {
             "default": 3,
@@ -253,11 +341,23 @@
             "type": [
               "integer",
               "null"
-            ]
+            ],
+            "x-bga": {
+              "source": "input"
+            }
           },
           "projectId": {
             "format": "uuid",
-            "type": "string"
+            "type": "string",
+            "x-bga": {
+              "ref": {
+                "detailOperation": "project.get",
+                "entity": "Project",
+                "labelField": "name",
+                "listOperation": "project.list"
+              },
+              "source": "reference"
+            }
           },
           "status": {
             "default": "TODO",
@@ -270,11 +370,17 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "x-bga": {
+              "source": "input"
+            }
           },
           "title": {
             "maxLength": 200,
-            "type": "string"
+            "type": "string",
+            "x-bga": {
+              "source": "input"
+            }
           }
         },
         "type": "object"
@@ -337,18 +443,30 @@
                     "value": {
                       "items": [
                         {
+                          "allowedActions": [
+                            "update",
+                            "delete"
+                          ],
                           "createdAt": "2026-01-01T09:00:00Z",
                           "description": "Example description of Project 1.",
                           "id": "a3650faa-1ee8-5ee1-a1f1-7bab10838956",
                           "name": "Project name 1"
                         },
                         {
+                          "allowedActions": [
+                            "update",
+                            "delete"
+                          ],
                           "createdAt": "2026-01-02T09:00:00Z",
                           "description": "Example description of Project 2.",
                           "id": "35dba4a1-f1f8-54f0-bed1-d9eba9d9d30f",
                           "name": "Project name 2"
                         },
                         {
+                          "allowedActions": [
+                            "update",
+                            "delete"
+                          ],
                           "createdAt": "2026-01-03T09:00:00Z",
                           "description": "Example description of Project 3.",
                           "id": "edf347ae-6beb-5d58-b894-0a897c345322",
@@ -386,7 +504,23 @@
         "x-bga": {
           "action": "list",
           "entity": "Project",
-          "module": "projects"
+          "errors": [
+            {
+              "code": "VALIDATION_ERROR",
+              "message": "Some values are not valid (each one in `details`, by field)",
+              "status": 422
+            }
+          ],
+          "module": "projects",
+          "scenarios": [
+            {
+              "expect": {
+                "status": 200
+              },
+              "name": "success",
+              "params": {}
+            }
+          ]
         }
       },
       "post": {
@@ -416,6 +550,10 @@
                 "examples": {
                   "synthesized": {
                     "value": {
+                      "allowedActions": [
+                        "update",
+                        "delete"
+                      ],
                       "createdAt": "2026-01-01T09:00:00Z",
                       "description": "Example description of Project 1.",
                       "id": "a3650faa-1ee8-5ee1-a1f1-7bab10838956",
@@ -458,7 +596,58 @@
         "x-bga": {
           "action": "create",
           "entity": "Project",
-          "module": "projects"
+          "errors": [
+            {
+              "code": "VALIDATION_ERROR",
+              "message": "Some values are not valid (each one in `details`, by field)",
+              "status": 422
+            },
+            {
+              "code": "CONFLICT",
+              "fields": [
+                "name"
+              ],
+              "message": "A project with this name already exists",
+              "status": 409
+            }
+          ],
+          "module": "projects",
+          "scenarios": [
+            {
+              "body": {
+                "description": "Example description of Project 1.",
+                "name": "Scenario Project name 1"
+              },
+              "expect": {
+                "status": 201
+              },
+              "name": "success",
+              "params": {}
+            },
+            {
+              "body": {
+                "description": "Example description of Project 1."
+              },
+              "expect": {
+                "code": "VALIDATION_ERROR",
+                "status": 422
+              },
+              "name": "missing required field",
+              "params": {}
+            },
+            {
+              "body": {
+                "description": "Example description of Project 1.",
+                "name": "Project name 1"
+              },
+              "expect": {
+                "code": "CONFLICT",
+                "status": 409
+              },
+              "name": "duplicate name",
+              "params": {}
+            }
+          ]
         }
       }
     },
@@ -498,7 +687,26 @@
         "x-bga": {
           "action": "delete",
           "entity": "Project",
-          "module": "projects"
+          "errors": [
+            {
+              "code": "NOT_FOUND",
+              "message": "Project not found",
+              "status": 404
+            }
+          ],
+          "module": "projects",
+          "scenarios": [
+            {
+              "expect": {
+                "code": "NOT_FOUND",
+                "status": 404
+              },
+              "name": "unknown id",
+              "params": {
+                "id": "00000000-0000-4000-8000-0000000000ff"
+              }
+            }
+          ]
         }
       },
       "get": {
@@ -521,6 +729,10 @@
                 "examples": {
                   "synthesized": {
                     "value": {
+                      "allowedActions": [
+                        "update",
+                        "delete"
+                      ],
                       "createdAt": "2026-01-01T09:00:00Z",
                       "description": "Example description of Project 1.",
                       "id": "a3650faa-1ee8-5ee1-a1f1-7bab10838956",
@@ -553,7 +765,35 @@
         "x-bga": {
           "action": "get",
           "entity": "Project",
-          "module": "projects"
+          "errors": [
+            {
+              "code": "NOT_FOUND",
+              "message": "Project not found",
+              "status": 404
+            }
+          ],
+          "module": "projects",
+          "scenarios": [
+            {
+              "expect": {
+                "status": 200
+              },
+              "name": "success",
+              "params": {
+                "id": "a3650faa-1ee8-5ee1-a1f1-7bab10838956"
+              }
+            },
+            {
+              "expect": {
+                "code": "NOT_FOUND",
+                "status": 404
+              },
+              "name": "unknown id",
+              "params": {
+                "id": "00000000-0000-4000-8000-0000000000ff"
+              }
+            }
+          ]
         }
       },
       "patch": {
@@ -594,6 +834,10 @@
                 "examples": {
                   "synthesized": {
                     "value": {
+                      "allowedActions": [
+                        "update",
+                        "delete"
+                      ],
                       "createdAt": "2026-01-01T09:00:00Z",
                       "description": "Example description of Project 1.",
                       "id": "a3650faa-1ee8-5ee1-a1f1-7bab10838956",
@@ -646,7 +890,65 @@
         "x-bga": {
           "action": "update",
           "entity": "Project",
-          "module": "projects"
+          "errors": [
+            {
+              "code": "NOT_FOUND",
+              "message": "Project not found",
+              "status": 404
+            },
+            {
+              "code": "VALIDATION_ERROR",
+              "message": "Some values are not valid (each one in `details`, by field)",
+              "status": 422
+            },
+            {
+              "code": "CONFLICT",
+              "fields": [
+                "name"
+              ],
+              "message": "A project with this name already exists",
+              "status": 409
+            }
+          ],
+          "module": "projects",
+          "scenarios": [
+            {
+              "body": {},
+              "expect": {
+                "code": "NOT_FOUND",
+                "status": 404
+              },
+              "name": "unknown id",
+              "params": {
+                "id": "00000000-0000-4000-8000-0000000000ff"
+              }
+            },
+            {
+              "body": {
+                "description": "Example description of Project 1."
+              },
+              "expect": {
+                "status": 200
+              },
+              "name": "success",
+              "params": {
+                "id": "a3650faa-1ee8-5ee1-a1f1-7bab10838956"
+              }
+            },
+            {
+              "body": {
+                "name": "Project name 2"
+              },
+              "expect": {
+                "code": "CONFLICT",
+                "status": 409
+              },
+              "name": "duplicate name",
+              "params": {
+                "id": "a3650faa-1ee8-5ee1-a1f1-7bab10838956"
+              }
+            }
+          ]
         }
       }
     },
@@ -721,25 +1023,49 @@
                     "value": {
                       "items": [
                         {
+                          "allowedActions": [
+                            "update",
+                            "delete"
+                          ],
                           "dueDate": "2026-01-01",
                           "id": "4317d1d8-2a48-53da-8a05-b180ae7652c9",
                           "priority": 3,
+                          "project": {
+                            "id": "a3650faa-1ee8-5ee1-a1f1-7bab10838956",
+                            "label": "Project name 1"
+                          },
                           "projectId": "a3650faa-1ee8-5ee1-a1f1-7bab10838956",
                           "status": "TODO",
                           "title": "Task title 1"
                         },
                         {
+                          "allowedActions": [
+                            "update",
+                            "delete"
+                          ],
                           "dueDate": "2026-01-02",
                           "id": "c05c494a-de8e-54ee-b35a-743397bad0fc",
                           "priority": 3,
+                          "project": {
+                            "id": "35dba4a1-f1f8-54f0-bed1-d9eba9d9d30f",
+                            "label": "Project name 2"
+                          },
                           "projectId": "35dba4a1-f1f8-54f0-bed1-d9eba9d9d30f",
                           "status": "IN_PROGRESS",
                           "title": "Task title 2"
                         },
                         {
+                          "allowedActions": [
+                            "update",
+                            "delete"
+                          ],
                           "dueDate": "2026-01-03",
                           "id": "ab73b69b-09ad-5a0f-91ac-33aa09a6230a",
                           "priority": 3,
+                          "project": {
+                            "id": "edf347ae-6beb-5d58-b894-0a897c345322",
+                            "label": "Project name 3"
+                          },
                           "projectId": "edf347ae-6beb-5d58-b894-0a897c345322",
                           "status": "DONE",
                           "title": "Task title 3"
@@ -776,7 +1102,23 @@
         "x-bga": {
           "action": "list",
           "entity": "Task",
-          "module": "tasks"
+          "errors": [
+            {
+              "code": "VALIDATION_ERROR",
+              "message": "Some values are not valid (each one in `details`, by field)",
+              "status": 422
+            }
+          ],
+          "module": "tasks",
+          "scenarios": [
+            {
+              "expect": {
+                "status": 200
+              },
+              "name": "success",
+              "params": {}
+            }
+          ]
         }
       },
       "post": {
@@ -809,9 +1151,17 @@
                 "examples": {
                   "synthesized": {
                     "value": {
+                      "allowedActions": [
+                        "update",
+                        "delete"
+                      ],
                       "dueDate": "2026-01-01",
                       "id": "4317d1d8-2a48-53da-8a05-b180ae7652c9",
                       "priority": 3,
+                      "project": {
+                        "id": "a3650faa-1ee8-5ee1-a1f1-7bab10838956",
+                        "label": "Project name 1"
+                      },
                       "projectId": "a3650faa-1ee8-5ee1-a1f1-7bab10838956",
                       "status": "TODO",
                       "title": "Task title 1"
@@ -853,7 +1203,67 @@
         "x-bga": {
           "action": "create",
           "entity": "Task",
-          "module": "tasks"
+          "errors": [
+            {
+              "code": "VALIDATION_ERROR",
+              "message": "Some values are not valid (each one in `details`, by field)",
+              "status": 422
+            },
+            {
+              "code": "REFERENCE_NOT_FOUND",
+              "fields": [
+                "projectId"
+              ],
+              "message": "A referenced record does not exist",
+              "status": 400
+            }
+          ],
+          "module": "tasks",
+          "scenarios": [
+            {
+              "body": {
+                "dueDate": "2026-01-01",
+                "priority": 3,
+                "projectId": "a3650faa-1ee8-5ee1-a1f1-7bab10838956",
+                "status": "TODO",
+                "title": "Task title 1"
+              },
+              "expect": {
+                "status": 201
+              },
+              "name": "success",
+              "params": {}
+            },
+            {
+              "body": {
+                "dueDate": "2026-01-01",
+                "priority": 3,
+                "status": "TODO",
+                "title": "Task title 1"
+              },
+              "expect": {
+                "code": "VALIDATION_ERROR",
+                "status": 422
+              },
+              "name": "missing required field",
+              "params": {}
+            },
+            {
+              "body": {
+                "dueDate": "2026-01-01",
+                "priority": 3,
+                "projectId": "00000000-0000-4000-8000-0000000000ff",
+                "status": "TODO",
+                "title": "Task title 1"
+              },
+              "expect": {
+                "code": "REFERENCE_NOT_FOUND",
+                "status": 400
+              },
+              "name": "unknown projectId",
+              "params": {}
+            }
+          ]
         }
       }
     },
@@ -893,7 +1303,26 @@
         "x-bga": {
           "action": "delete",
           "entity": "Task",
-          "module": "tasks"
+          "errors": [
+            {
+              "code": "NOT_FOUND",
+              "message": "Task not found",
+              "status": 404
+            }
+          ],
+          "module": "tasks",
+          "scenarios": [
+            {
+              "expect": {
+                "code": "NOT_FOUND",
+                "status": 404
+              },
+              "name": "unknown id",
+              "params": {
+                "id": "00000000-0000-4000-8000-0000000000ff"
+              }
+            }
+          ]
         }
       },
       "get": {
@@ -916,9 +1345,17 @@
                 "examples": {
                   "synthesized": {
                     "value": {
+                      "allowedActions": [
+                        "update",
+                        "delete"
+                      ],
                       "dueDate": "2026-01-01",
                       "id": "4317d1d8-2a48-53da-8a05-b180ae7652c9",
                       "priority": 3,
+                      "project": {
+                        "id": "a3650faa-1ee8-5ee1-a1f1-7bab10838956",
+                        "label": "Project name 1"
+                      },
                       "projectId": "a3650faa-1ee8-5ee1-a1f1-7bab10838956",
                       "status": "TODO",
                       "title": "Task title 1"
@@ -950,7 +1387,35 @@
         "x-bga": {
           "action": "get",
           "entity": "Task",
-          "module": "tasks"
+          "errors": [
+            {
+              "code": "NOT_FOUND",
+              "message": "Task not found",
+              "status": 404
+            }
+          ],
+          "module": "tasks",
+          "scenarios": [
+            {
+              "expect": {
+                "status": 200
+              },
+              "name": "success",
+              "params": {
+                "id": "4317d1d8-2a48-53da-8a05-b180ae7652c9"
+              }
+            },
+            {
+              "expect": {
+                "code": "NOT_FOUND",
+                "status": 404
+              },
+              "name": "unknown id",
+              "params": {
+                "id": "00000000-0000-4000-8000-0000000000ff"
+              }
+            }
+          ]
         }
       },
       "patch": {
@@ -994,9 +1459,17 @@
                 "examples": {
                   "synthesized": {
                     "value": {
+                      "allowedActions": [
+                        "update",
+                        "delete"
+                      ],
                       "dueDate": "2026-01-01",
                       "id": "4317d1d8-2a48-53da-8a05-b180ae7652c9",
                       "priority": 3,
+                      "project": {
+                        "id": "a3650faa-1ee8-5ee1-a1f1-7bab10838956",
+                        "label": "Project name 1"
+                      },
                       "projectId": "a3650faa-1ee8-5ee1-a1f1-7bab10838956",
                       "status": "TODO",
                       "title": "Task title 1"
@@ -1048,13 +1521,85 @@
         "x-bga": {
           "action": "update",
           "entity": "Task",
-          "module": "tasks"
+          "errors": [
+            {
+              "code": "NOT_FOUND",
+              "message": "Task not found",
+              "status": 404
+            },
+            {
+              "code": "VALIDATION_ERROR",
+              "message": "Some values are not valid (each one in `details`, by field)",
+              "status": 422
+            },
+            {
+              "code": "REFERENCE_NOT_FOUND",
+              "fields": [
+                "projectId"
+              ],
+              "message": "A referenced record does not exist",
+              "status": 400
+            }
+          ],
+          "module": "tasks",
+          "scenarios": [
+            {
+              "body": {},
+              "expect": {
+                "code": "NOT_FOUND",
+                "status": 404
+              },
+              "name": "unknown id",
+              "params": {
+                "id": "00000000-0000-4000-8000-0000000000ff"
+              }
+            },
+            {
+              "body": {
+                "title": "Task title 1"
+              },
+              "expect": {
+                "status": 200
+              },
+              "name": "success",
+              "params": {
+                "id": "4317d1d8-2a48-53da-8a05-b180ae7652c9"
+              }
+            }
+          ]
         }
       }
     }
   },
   "x-bga": {
     "contractVersion": "1",
+    "entities": {
+      "Project": {
+        "allowedActions": [
+          "update",
+          "delete"
+        ],
+        "labelField": "name",
+        "primaryKey": "id",
+        "references": []
+      },
+      "Task": {
+        "allowedActions": [
+          "update",
+          "delete"
+        ],
+        "labelField": "title",
+        "primaryKey": "id",
+        "references": [
+          {
+            "apiName": "project",
+            "entity": "Project",
+            "field": "projectId",
+            "labelField": "name"
+          }
+        ]
+      }
+    },
     "fixtures": {
       "Project": [
         {

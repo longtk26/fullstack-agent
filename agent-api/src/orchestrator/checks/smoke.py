@@ -2,10 +2,14 @@
 every operation the templates did not write once, against a database seeded with the contract's fixtures, and
 requires its planned status and a body that matches the contract's response schema. Pure functions plus the script
 the sandbox runs (`SMOKE_SCRIPT`, written to `.bga/smoke.py`); the validator compares the answers.
+
+Story 10.0b adds the contract's scenarios (`x-bga.scenarios`): calls with the exact status and error code they must
+get, for every operation, so the backend is proven to answer as the mocks and a frontend expect.
 """
 
 import json
 from typing import Any
+from urllib.parse import quote
 
 from .conformance import _types
 
@@ -150,7 +154,7 @@ def smoke_calls(contract: dict[str, Any], plan: dict[str, Any]) -> tuple[list[di
         for name, rows in fixtures.items()
         if rows and isinstance(rows[0], dict) and "id" in rows[0]
     }
-    calls, skipped = [], []
+    calls, skipped = scenario_calls(contract)
     for op in custom_operations(plan):
         entry = operations.get(op["operationId"])
         if entry is None:
@@ -179,6 +183,43 @@ def smoke_calls(contract: dict[str, Any], plan: dict[str, Any]) -> tuple[list[di
     return calls, skipped
 
 
+def scenario_calls(contract: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Story 10.0b: one call per contract scenario, with what it must answer; operations behind auth are skipped."""
+    from ..integration.contract import contract_operations
+
+    calls, skipped = [], []
+    for op_id, entry in contract_operations(contract).items():
+        operation = entry["operation"]
+        scenarios = (operation.get("x-bga") or {}).get("scenarios") or []
+        if scenarios and operation.get("security"):
+            skipped.append({"operation": op_id, "reason": "needs auth"})
+            continue
+        for scenario in scenarios:
+            path = entry["path"]
+            for name, value in scenario["params"].items():
+                path = path.replace(f"{{{name}}}", quote(str(value), safe=""))
+            calls.append(
+                {
+                    "operationId": op_id,
+                    "method": entry["method"],
+                    "path": path,
+                    "body": scenario.get("body"),
+                    "scenario": scenario["name"],
+                    "expect": scenario["expect"],
+                }
+            )
+    return calls, skipped
+
+
+def _error_code(text: str) -> str | None:
+    try:
+        body = json.loads(text)
+    except json.JSONDecodeError:
+        return None
+    error = body.get("error") if isinstance(body, dict) else None
+    return error.get("code") if isinstance(error, dict) else None
+
+
 def judge(contract: dict[str, Any], calls: list[dict[str, Any]], answers: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Failures (operation, request, response) of the answers: the planned status, then the response schema."""
     from ..integration.contract import contract_operations, resolve
@@ -194,9 +235,28 @@ def judge(contract: dict[str, Any], calls: list[dict[str, Any]], answers: list[d
             f" {json.dumps(call['body'])[:300]}" if call.get("body") else ""
         )
         text = str(answer.get("body") or "")
-        if rule_answer(answer):
+        if call.get("expect"):  # a scenario: exactly this status and error code (Story 10.0b)
+            want = call["expect"]
+            got = answer.get("status")
+            code = _error_code(text) if want.get("code") else None
+            if got != want["status"] or code != want.get("code"):
+                expected_text = " ".join(str(part) for part in (want["status"], want.get("code")) if part)
+                got_text = " ".join(str(part) for part in (got or "no response", code) if part)
+                problems.append(
+                    {
+                        "operation": op_id,
+                        "message": f"{op_id} ({call['scenario']}): expected {expected_text}, got {got_text}",
+                        "request": request,
+                        "response": text[:600],
+                    }
+                )
+                continue
+            if not str(want["status"]).startswith("2"):
+                continue
+            expected = str(want["status"])
+        elif rule_answer(answer):
             continue
-        if answer.get("status") != int(expected):
+        elif answer.get("status") != int(expected):
             problems.append(
                 {
                     "operation": op_id,

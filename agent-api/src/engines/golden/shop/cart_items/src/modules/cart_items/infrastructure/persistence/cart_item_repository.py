@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import uuid
 from typing import Annotated
 
@@ -9,7 +11,8 @@ from src.libs.database.session import SessionDep
 from src.libs.exceptions import BadRequestException, ConflictException, ErrorCode
 from src.modules.cart_items.ports.output.cart_item_repository import ICartItemRepository
 from src.modules.shared.domain.entities import CartItemEntity
-from src.modules.shared.infrastructure.models import CartItemModel
+from src.modules.shared.infrastructure.models import CartItemModel, ProductModel
+from src.modules.shared.presenter.summaries import References
 
 FOREIGN_KEY_VIOLATION = "23503"
 
@@ -51,6 +54,17 @@ class CartItemRepository(ICartItemRepository):
         if model is not None:
             self.session.delete(model)
             self.session.flush()
+
+    def references(self, records: list[CartItemEntity]) -> References:
+        found: References = {}
+        product_ids = {record.product_id for record in records if record.product_id is not None}
+        found["product"] = {}
+        if product_ids:
+            query = select(col(ProductModel.id), col(ProductModel.name)).where(col(ProductModel.id).in_(product_ids))
+            found["product"] = {
+                key: None if label is None else str(label) for key, label in self.session.exec(query).all()
+            }
+        return found
 
     def __flush(self) -> None:
         try:
