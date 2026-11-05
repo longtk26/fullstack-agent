@@ -28,7 +28,7 @@ def golden_project(root: Path) -> Path:
     """Template + overlay + the golden two-entity implementation (what the fake engine produces, repaired)."""
     project = root / "project"
     project.mkdir(parents=True)
-    scaffold_project(TEMPLATE, project, "Project Tracker")
+    scaffold_project(TEMPLATE, project, "Project Tracker", plan=two_entity_plan())
     record_owned(project)
     for part in GOLDEN_PARTS:
         shutil.copytree(GOLDEN / part, project, dirs_exist_ok=True, ignore=shutil.ignore_patterns("__pycache__"))

@@ -1,0 +1,7 @@
+{
+  "name": "integration-stubs",
+  "version": "1",
+  "description": "An output port and a stub adapter (NotImplementedError) for each spec integration no plugin covers.",
+  "requirements": [],
+  "owns": []
+}

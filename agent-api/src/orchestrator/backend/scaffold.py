@@ -73,7 +73,11 @@ def scaffold_project(
     generate_dockerfile: bool = True,
     overlay: Path = OVERLAY_DIR,
     seed_assets_note: str = "",
+    plan: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    """Template + overlay, then the plugins of `plan` (Story 10.1; no plan: the ones every project has)."""
+    from ..plugins.app import apply_plugins
+
     problems = check_template(template, overlay)
     if problems:
         raise TemplateDrift(problems)
@@ -111,6 +115,7 @@ def scaffold_project(
             content = content.replace(b"{{SEED_ASSETS_NOTE}}", replacement.encode())
         target.write_bytes(content)
         target.chmod(source.stat().st_mode & 0o777)
+    apply_plugins(project, plan)
     if not generate_dockerfile:
         for relative in DOCKER_FILES:
             (project / relative).unlink(missing_ok=True)
@@ -120,6 +125,8 @@ def scaffold_project(
         "overlayVersion": manifest["version"],
         "generateDockerfile": generate_dockerfile,
     }
+    if plan is not None and plan.get("plugins"):
+        info["plugins"] = plan["plugins"]
     info_path = project / SCAFFOLD_INFO
     info_path.parent.mkdir(parents=True, exist_ok=True)
     info_path.write_text(json.dumps(info, indent=2) + "\n")

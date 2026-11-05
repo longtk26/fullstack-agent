@@ -243,6 +243,12 @@
     }
   ],
   "planVersion": "1",
+  "plugins": [
+    {
+      "name": "rate-limit",
+      "version": "1"
+    }
+  ],
   "project": {
     "name": "Task Management",
     "slug": "task-management"

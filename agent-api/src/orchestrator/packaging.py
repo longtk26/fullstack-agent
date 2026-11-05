@@ -270,6 +270,7 @@ def build_manifest(
             for m in plan.get("modules", [])
         ],
         "unresolved": plan.get("unresolved", []),
+        "plugins": plan.get("plugins", []),  # Story 10.1
         "assumptions": spec.get("x-assumptions", []),
     }
     if spec.get("auth"):

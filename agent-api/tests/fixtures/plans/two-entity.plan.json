@@ -1017,6 +1017,12 @@
     }
   ],
   "planVersion": "1",
+  "plugins": [
+    {
+      "name": "rate-limit",
+      "version": "1"
+    }
+  ],
   "project": {
     "name": "Project Tracker",
     "slug": "project-tracker"

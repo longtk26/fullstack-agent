@@ -32,8 +32,6 @@
     "src/libs/exceptions/handlers.py",
     "src/libs/middlewares/__init__.py",
     "src/libs/middlewares/access_log.py",
-    "src/libs/rate_limit/__init__.py",
-    "src/libs/rate_limit/limiter.py",
     "tests/conftest.py",
     "tests/test_health.py"
   ],

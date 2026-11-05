@@ -6,7 +6,7 @@ class Config(BaseSettings):
     port: int = 8000
     db_url: str
     cors_origins: str = "*"  # comma-separated
-    rate_limit_default: str = "120/minute"
+    # {{PLUGIN_SETTINGS}}
     log_level: str = "INFO"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")

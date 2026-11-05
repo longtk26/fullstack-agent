@@ -19,12 +19,14 @@ Output is a pure function of (spec, plan): byte-identical between runs. The sand
 import json
 import keyword
 import re
-import sys
 from typing import Any
 
 from src.modules.shared.domain.backend_spec.naming import py_name, to_snake
 
 from ..integration.contract import _request_columns, _required
+from ..plugins import plan_plugins
+from ..plugins.base import Code, Import
+from .pysource import Imports
 
 ENTITIES_PKG = "src/modules/shared/domain/entities"
 MODELS_PKG = "src/modules/shared/infrastructure/models"
@@ -72,45 +74,6 @@ def codegen_gaps(module: dict[str, Any]) -> list[str]:
 
 
 # -- helpers -----------------------------------------------------------------------------------------------------------
-
-
-class Imports:
-    """`import x` / `from a import b` lines in isort order: stdlib, third party, first party (src)."""
-
-    def __init__(self) -> None:
-        self.modules: set[str] = set()
-        self.names: dict[str, set[str]] = {}
-
-    def add(self, module: str, *names: str) -> "Imports":
-        if names:
-            self.names.setdefault(module, set()).update(names)
-        else:
-            self.modules.add(module)
-        return self
-
-    def render(self) -> str:
-        groups: list[list[str]] = [[], [], []]
-        for module in self.modules:
-            groups[self._group(module)].append((f"import {module}", module))
-        for module, names in self.names.items():
-            ordered = sorted(names, key=lambda name: (not name.isupper() or len(name) == 1, name.lower(), name))
-            line = f"from {module} import {', '.join(ordered)}"
-            if len(line) > 120:
-                line = f"from {module} import (\n" + "".join(f"    {name},\n" for name in ordered) + ")"
-            groups[self._group(module)].append((line, module))
-        blocks = []
-        for group in groups:
-            lines = [line for line, _ in sorted(group, key=lambda item: (item[0].startswith("from "), item[1]))]
-            if lines:
-                blocks.append("\n".join(lines))
-        return "\n\n".join(blocks) + "\n" if blocks else ""
-
-    @staticmethod
-    def _group(module: str) -> int:
-        root = module.split()[0].split(".")[0]
-        if root in sys.stdlib_module_names:
-            return 0
-        return 2 if root in ("src", "tests") or module.startswith(".") else 1
 
 
 def _py(value: Any) -> str:
@@ -447,6 +410,8 @@ class _Module:
         # Epic 21: aggregate operations, by their handler (also their repository method)
         self.aggregates = {op["handler"]: op for op in module["operations"] if op.get("type") == "aggregate"}
         self.has_fk = any(column.get("foreignKey") for column in self.model["columns"])
+        # Story 10.1: the plugins' hook contributions (none: the code is exactly what it is without plugins)
+        self.plugins = plan_plugins(plan)
         # Story 10.0b: parents shown as summaries, when the repository loads their labels
         self.references = (self.model.get("references") or []) if "references" in module["port"]["methods"] else []
         self.unique = [column for column in self.model["columns"] if column["unique"] and not column["primaryKey"]]
@@ -481,10 +446,11 @@ class _Module:
             elif method == "list":
                 imports.add("typing", "Any")
                 q = "q: str | None, " if self.search() else ""
+                scoped = self._scope_params(imports)
                 methods.append(
                     "    def list(\n"
                     f"        self, filters: dict[str, Any], {q}sort: tuple[str, bool] | None, "
-                    "limit: int, offset: int\n"
+                    f"limit: int, offset: int{scoped}\n"
                     f"    ) -> tuple[list[{entity}], int]:\n"
                     '        """One page and the total count; `filters` are equality matches on entity attributes."""'
                 )
@@ -551,14 +517,20 @@ class _Module:
                     "            query = query.where(\n                or_(\n"
                     f"{matches}                )\n            )\n"
                 )
+            scope = "".join(
+                f"        if {item.param} is not None:\n"
+                f"            query = query.where({item.condition.format(model=model)})\n"
+                for item in self._repository_filters()
+            )
             methods.append(
                 "    def list(\n"
                 f"        self, filters: dict[str, Any], {q_param}sort: tuple[str, bool] | None, "
-                "limit: int, offset: int\n"
+                f"limit: int, offset: int{self._scope_params(imports)}\n"
                 f"    ) -> tuple[list[{entity}], int]:\n"
                 f"        query = select({model})\n"
                 "        for attribute, value in filters.items():\n"
                 f"            query = query.where(col(getattr({model}, attribute)) == value)\n"
+                + scope
                 + q_block
                 + "        total = self.session.exec(select(func.count()).select_from(query.subquery())).one()\n"
                 "        if sort:\n"
@@ -850,6 +822,10 @@ class _Module:
             if reference["nullable"]:
                 summary = f"None if {fk} is None else {summary}"
             entries.append(f'"{reference["attr"]}": {summary}')
+        for item in self._response_fields():  # Story 10.1: what plugins add to a record
+            self._imports(imports, item.imports)
+            fields.append(f"    {item.attr}: {item.annotation}")
+            entries.append(f'"{item.attr}": {item.value}')
         fields.append("    allowed_actions: list[str]")
         entries.append('"allowed_actions": list(ALLOWED_ACTIONS)')
         signature = f"cls, entity: {self.entity_class}"
@@ -935,6 +911,54 @@ class _Module:
             f"{op['usecaseDep']} = Annotated[{op['usecase']}, Depends({op['usecase']})]\n"
         )
 
+    # -- plugin hooks (Story 10.1) --------------------------------------------------------------------------------
+
+    @staticmethod
+    def _imports(imports: Imports, wanted: tuple[Import, ...]) -> None:
+        for module, names in wanted:
+            imports.add(module, *names)
+
+    def _router_params(self, op: dict[str, Any]) -> list[Any]:
+        return [param for plugin in self.plugins for param in plugin.router_params(self.plan, self.module, op)]
+
+    def _usecase_params(self, op: dict[str, Any], imports: Imports) -> list[tuple[str, str]]:
+        """(name, annotation) of what the router passes the use case (after its own arguments)."""
+        out = []
+        for param in self._router_params(op):
+            if param.usecase_annotation:
+                self._imports(imports, param.usecase_imports)
+                out.append((param.name, param.usecase_annotation))
+        return out
+
+    def _code(self, codes: list[Code], imports: Imports) -> str:
+        lines = []
+        for code in codes:
+            self._imports(imports, code.imports)
+            lines += [f"        {line}" if line else "" for line in code.lines]
+        return "".join(f"{line}\n" for line in lines)
+
+    def _prechecks(self, op: dict[str, Any], record: str | None, imports: Imports) -> str:
+        codes = [code for plugin in self.plugins for code in plugin.prechecks(self.plan, self.module, op, record)]
+        return self._code(codes, imports)
+
+    def _events(self, op: dict[str, Any], record: str, imports: Imports) -> str:
+        codes = [code for plugin in self.plugins for code in plugin.events(self.plan, self.module, op, record)]
+        return self._code(codes, imports)
+
+    def _repository_filters(self) -> list[Any]:
+        return [item for plugin in self.plugins for item in plugin.repository_filters(self.plan, self.module)]
+
+    def _scope_params(self, imports: Imports) -> str:
+        """The repository `list`'s extra parameters, one per plugin filter (Story 10.1)."""
+        out = ""
+        for item in self._repository_filters():
+            self._imports(imports, item.imports)
+            out += f", {item.param}: {item.annotation} = None"
+        return out
+
+    def _response_fields(self) -> list[Any]:
+        return [item for plugin in self.plugins for item in plugin.response_fields(self.plan, self.module)]
+
     def _present(self, var: str) -> str:
         """The response for one record; with references, their labels loaded too (Story 10.0b)."""
         if not self.references:
@@ -958,43 +982,56 @@ class _Module:
             action = op["action"]
             imports = Imports()
             pk = self._pk_imports(imports) if action in ("get", "update", "delete") else ""
+            extra = "".join(f", {name}: {annotation}" for name, annotation in self._usecase_params(op, imports))
             if action == "create":
                 imports.add(dtos, op["requestDto"], self.response_dto)
                 body = (
-                    f"        {self.var} = {repo}.create(dto.to_entity())\n"
-                    f'        logger.info("{_label(self.model)} created", {log_id})\n'
+                    self._prechecks(op, None, imports)
+                    + f"        {self.var} = {repo}.create(dto.to_entity())\n"
+                    + self._events(op, self.var, imports)
+                    + f'        logger.info("{_label(self.model)} created", {log_id})\n'
                     f"        return {self._present(self.var)}"
                 )
-                text = self._usecase(op, imports, f", dto: {op['requestDto']}", body, self.response_dto)
+                text = self._usecase(op, imports, f", dto: {op['requestDto']}{extra}", body, self.response_dto)
             elif action == "get":
                 imports.add(dtos, self.response_dto).add("src.libs.exceptions", "NotFoundException")
                 body = (
                     f"        {self.var} = {repo}.find_by_id({self.snake}_id)\n"
                     + self._not_found(self.var)
+                    + self._prechecks(op, self.var, imports)
                     + f"        return {self._present(self.var)}"
                 )
-                text = self._usecase(op, imports, f", {self.snake}_id: {pk}", body, self.response_dto)
+                text = self._usecase(op, imports, f", {self.snake}_id: {pk}{extra}", body, self.response_dto)
             elif action == "update":
                 imports.add(dtos, op["requestDto"], self.response_dto).add("src.libs.exceptions", "NotFoundException")
                 body = (
                     f"        current = {repo}.find_by_id({self.snake}_id)\n"
                     + self._not_found("current")
+                    + self._prechecks(op, "current", imports)
                     + f"        {self.var} = {repo}.update(dto.to_entity(current))\n"
-                    f'        logger.info("{_label(self.model)} updated", {log_id})\n'
+                    + self._events(op, self.var, imports)
+                    + f'        logger.info("{_label(self.model)} updated", {log_id})\n'
                     f"        return {self._present(self.var)}"
                 )
-                signature = f", {self.snake}_id: {pk}, dto: {op['requestDto']}"
+                signature = f", {self.snake}_id: {pk}, dto: {op['requestDto']}{extra}"
                 text = self._usecase(op, imports, signature, body, self.response_dto)
             elif action == "delete":
                 imports.add("src.libs.exceptions", "NotFoundException")
+                prechecks, events = self._prechecks(op, "existing", imports), self._events(op, "existing", imports)
+                load = (  # the record, when a plugin checks it or emits it
+                    f"        existing = {repo}.find_by_id({self.snake}_id)\n" + self._not_found("existing")
+                    if prechecks or events
+                    else f"        if {repo}.find_by_id({self.snake}_id) is None:\n" + self._raise_not_found()
+                )
                 body = (
-                    f"        if {repo}.find_by_id({self.snake}_id) is None:\n"
-                    + self._raise_not_found()
+                    load
+                    + prechecks
                     + f"        {repo}.delete({self.snake}_id)\n"
-                    f'        logger.info("{_label(self.model)} deleted", '
+                    + events
+                    + f'        logger.info("{_label(self.model)} deleted", '
                     f'extra={{"{self.snake}_id": str({self.snake}_id)}})'
                 )
-                text = self._usecase(op, imports, f", {self.snake}_id: {pk}", body, "None")
+                text = self._usecase(op, imports, f", {self.snake}_id: {pk}{extra}", body, "None")
             else:
                 text = self._list_usecase(op, imports)
             files[f"{self.dir}/usecases/{op['usecaseFile']}"] = text
@@ -1027,20 +1064,27 @@ class _Module:
         search = bool(op.get("search"))
         if search:
             signature += ",\n        q: str | None"
-        signature += ",\n        sort: str | None,\n        limit: int,\n        offset: int,\n    "
+        signature += ",\n        sort: str | None,\n        limit: int,\n        offset: int,"
+        passed = self._usecase_params(op, imports)
+        signature += "".join(f"\n        {name}: {annotation}," for name, annotation in passed)
+        signature += "\n    "
+        filters = self._repository_filters()
+        for item in filters:
+            self._imports(imports, item.imports)
+        scoped = "".join(f", {item.param}={item.value}" for item in filters)
         sort_fields = ", ".join(f'"{item["param"]}": "{item["attr"]}"' for item in op.get("sort", []))
         candidates = ", ".join(f'"{flt["attr"]}": {variable}' for variable, _, flt in params)
         q_arg = ("q, " if search else "None, ") if self.search() else ""
         plural = to_snake(self.name)
         body = (
-            f"        candidates = {{{candidates}}}\n"
+            self._prechecks(op, None, imports) + f"        candidates = {{{candidates}}}\n"
             "        filters = {key: value for key, value in candidates.items() if value is not None}\n"
             + (
                 '        order = (SORT_FIELDS[sort.lstrip("-")], sort.startswith("-")) if sort else None\n'
                 if op.get("sort")
                 else "        order = None\n"
             )
-            + f"        {plural}, total = self.{self.repo_var}.list(filters, {q_arg}order, limit, offset)\n"
+            + f"        {plural}, total = self.{self.repo_var}.list(filters, {q_arg}order, limit, offset{scoped})\n"
             + (f"        references = self.{self.repo_var}.references({plural})\n" if self.references else "")
             + f"        return {op['responseDto']}(\n"
             f"            items=[{self.response_dto}.from_entity(item{', references' if self.references else ''})"
@@ -1112,6 +1156,13 @@ class _Module:
                 imports.add("fastapi", "Query")
                 list_params, args = self._list_params(op, imports)
                 params += list_params
+            # Story 10.1: the plugins' dependencies (a list's go before its query parameters, which have defaults)
+            for index, param in enumerate(self._router_params(op)):
+                self._imports(imports, param.imports)
+                text = f"{param.name}: {param.annotation}"
+                params.insert(1 + index, text) if action == "list" else params.append(text)
+                if param.usecase_annotation:
+                    args.append(param.name)
             call = f"usecase.execute({', '.join(args)})"
             statement = f"    await {call}" if action == "delete" else f"    return await {call}"
             decorator = f"@{variable}.{op['method'].lower()}({', '.join(decorator_args)})"

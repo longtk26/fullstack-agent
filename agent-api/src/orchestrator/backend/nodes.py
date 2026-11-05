@@ -86,7 +86,7 @@ async def plan_architecture(state: GenerationState, ctx: JobContext) -> NodeResu
     return {"plan_ref": ".bga/plan.json"}, summary
 
 
-async def _scaffold(state: GenerationState, ctx: JobContext, project_name: str) -> None:
+async def _scaffold(state: GenerationState, ctx: JobContext, project_name: str, plan: dict[str, Any]) -> None:
     """Template + overlay, formatted once, owned files recorded, committed as `node:scaffold` (Story 5.2)."""
     project = ctx.workspace.project
     if (project / SCAFFOLD_INFO).exists():
@@ -131,6 +131,7 @@ async def _scaffold(state: GenerationState, ctx: JobContext, project_name: str) 
         project_name,
         bool(state["options"].get("generateDockerfile", True)),
         seed_assets_note=seed_assets_note,
+        plan=plan,
     )
     sandbox = await ctx.sandbox()
     if sandbox is not None:
@@ -188,7 +189,7 @@ async def _write_generated(ctx: JobContext, files: dict[str, str], owned: list[s
 async def generate_database(state: GenerationState, ctx: JobContext) -> NodeResult:
     spec = read_json(ctx, state["spec_ref"])
     plan = read_json(ctx, state["plan_ref"])
-    await _scaffold(state, ctx, spec["project"]["name"])
+    await _scaffold(state, ctx, spec["project"]["name"], plan)
     gaps = database_gaps(plan) if _templates(state) else ["crudFromTemplates=false"]
     if not gaps:
         files = database_files(plan)

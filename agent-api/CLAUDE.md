@@ -69,6 +69,14 @@ Agent-specific notes:
   in a scratch copy (`<workspace>/scratch/module-<name>`), merges their changes in plan order, and reruns a module in
   the project when it changed a file an earlier module changed differently. One module, or `ENGINE_CONCURRENCY=1`,
   runs in the project directly. Frontend `conventions` findings and type errors only in test files are warnings.
+- Backend plugins (Story 10.1): `orchestrator/plugins/` (registry, `base.py` contribution types, `app.py`) and
+  `templates/plugins/<name>/` (`plugin.json`, `backend/files/**`). The planner records `plan["plugins"]` (dependencies
+  first); `scaffold_project(..., plan=)` writes the plugins' files, renders `src/main.py` from the app-startup hook and
+  fills the `# {{PLUGIN_SETTINGS}}` line of the overlay's `config.py`, `.env.ex` and `requirements.txt` (with no plan:
+  the plugins every project has, i.e. the rate limiter). Codegen calls the module hooks (router params, use-case
+  pre-checks and events, repository filters, response fields); none contributing leaves the code byte-identical.
+  Integrations without a plugin get a port and a stub adapter (`integration-stubs`). The sandbox's baked venv matches
+  the base `requirements.txt` exactly, so a plugin library outside the base costs a venv install per project.
 - The integration contract (Story 10.0b): the backend decides, a frontend only reads. Request properties carry
   `x-bga.source` (a foreign key: `reference` with `x-bga.ref`); record responses carry a `{id, label}` summary per
   parent and `allowedActions` (the planner's `label`, `references`, `recordActions`); operations list

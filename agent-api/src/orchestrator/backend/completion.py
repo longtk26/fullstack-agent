@@ -206,6 +206,16 @@ def module_context(
     if shared:
         sections.append("## Entities, models and the ports of related modules (read only)\n\n" + "\n".join(shared))
 
+    # Story 10.1: what the plugins already wrote, so the engine calls their APIs instead of writing its own
+    from ..plugins import plan_plugins
+
+    notes = [note for plugin in plan_plugins(plan) if (note := plugin.engine_note(plan))]
+    if notes:
+        sections.append(
+            "## Already in this project (read only)\n\nDo not edit `src/main.py`, `src/configs/` or `src/libs/`.\n\n"
+            + "\n".join(f"- {note}" for note in notes)
+        )
+
     libs = [_fence(relative, text) for relative in LIBS if (text := _read(project, relative)) is not None]
     if libs:
         sections.append(

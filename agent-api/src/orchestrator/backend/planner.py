@@ -13,6 +13,8 @@ from typing import Any
 
 from src.modules.shared.domain.backend_spec.naming import pluralize, py_name, to_pascal, to_snake
 
+from ..plugins import active_plugins
+
 PLAN_VERSION = "1"
 ENTITIES_PKG = "src/modules/shared/domain/entities"
 MODELS_PKG = "src/modules/shared/infrastructure/models"
@@ -580,7 +582,7 @@ def build_plan(spec: dict[str, Any]) -> dict[str, Any]:
     if spec.get("auth"):
         unresolved.append({"kind": "auth", "ref": "auth", "message": "JWT auth arrives with Epic 10"})
 
-    return {
+    plan = {
         "planVersion": PLAN_VERSION,
         "project": {"name": spec["project"]["name"], "slug": spec["project"].get("slug")},
         "architecture": "fastapi-skills-hexagonal",
@@ -603,6 +605,12 @@ def build_plan(spec: dict[str, Any]) -> dict[str, Any]:
         "tests": [test for module in modules for test in module["tests"]],
         "unresolved": unresolved,
     }
+    # Story 10.1: the plugins this spec turns on, in order; each adds to the plan what it needs
+    plugins = active_plugins(spec)
+    plan["plugins"] = [plugin.manifest() for plugin in plugins]
+    for plugin in plugins:
+        plugin.plan(plan, spec)
+    return plan
 
 
 def dump_plan(plan: dict[str, Any]) -> str:

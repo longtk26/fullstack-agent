@@ -1,0 +1,7 @@
+{
+  "name": "rate-limit",
+  "version": "1",
+  "description": "Every route limited per client address by SlowAPI; stricter limits per route with @limiter.limit(...).",
+  "requirements": ["slowapi==0.1.9"],
+  "owns": ["src/libs/rate_limit"]
+}

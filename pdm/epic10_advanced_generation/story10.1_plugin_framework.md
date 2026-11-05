@@ -30,11 +30,11 @@ APIs the project already has.
 
 ## Acceptance criteria
 
-- [ ] A plugin is added by a `templates/plugins/<name>/` folder and one class, with no change elsewhere in codegen.
-- [ ] The six hook points exist and are covered by tests; plugin files are owned and checked by `conventions`.
-- [ ] The context pack lists the active plugins' APIs.
-- [ ] Integrations without a plugin produce the stub and an `unresolved` entry.
-- [ ] Moving the rate limiter into a plugin changes no generated file (snapshots unchanged).
+- [x] A plugin is added by a `templates/plugins/<name>/` folder and one class, with no change elsewhere in codegen.
+- [x] The six hook points exist and are covered by tests; plugin files are owned and checked by `conventions`.
+- [x] The context pack lists the active plugins' APIs.
+- [x] Integrations without a plugin produce the stub and an `unresolved` entry.
+- [x] Moving the rate limiter into a plugin changes no generated file (snapshots unchanged).
 
 ## Verify
 
@@ -43,4 +43,55 @@ engine; both pass validation as before.
 
 ## Status
 
-**Planned (2026-11-04).**
+**Done (2026-11-05)** on `feat/epic10-backend-plugins`, under the user's review.
+
+- **Framework** (`orchestrator/plugins/`): `base.py` (the `Plugin` class and the contribution types `RouterParam`,
+  `Code`, `RepositoryFilter`, `ResponseField`, `AppStartup`, `Setting`), the registry with dependency order
+  (`ordered`; a cycle or a missing plugin is a `PluginError`, raised by the planner), `active_plugins(spec)`,
+  `plan_plugins(plan)`. The planner records `plan["plugins"]` (`{name, version}`, also in the manifest and
+  `.bga/scaffold.json`) and lets each plugin add to the plan.
+- **Scaffold** (`plugins/app.py`, called by `scaffold_project(..., plan=)`): the plugins' `backend/files`, `src/main.py`
+  rendered from the app-startup hook (imports, setup before CORS, exception handlers, lifespan lines), their settings
+  in place of the overlay's `# {{PLUGIN_SETTINGS}}` line of `config.py` and in `.env.ex`, their requirements. Without
+  a plan: the plugins every project has, so every caller of `scaffold_project` still gets a working app.
+- **Hook points in codegen**: router parameters (handler and use case; a list's go before its query parameters),
+  use-case pre-checks (after the record is loaded; delete loads it only when a plugin needs it), use-case events
+  (after the write), repository filters (an optional `list` parameter, its `where`, and the value the list use case
+  passes), response fields; app startup in `main.py`; `worker_startup` is collected (`plugins.app.worker_startup`) for
+  10.6 to render.
+- **Engine notes**: the context pack gains "Already in this project", with each active plugin's note and the files
+  not to edit.
+- **Integrations without a plugin** (`integration-stubs`): `src/modules/integrations/ports/output/<name>_port.py`, a
+  stub adapter raising `NotImplementedError` with its `I<Name>PortDep`, `<NAME>_BASE_URL` / `<NAME>_API_KEY` settings
+  and `.env.ex` lines, and an `unresolved` entry with `specPath`; not generator-owned, so the engine or a developer
+  fills it in.
+- **The proof**: the rate limiter is the `rate-limit` plugin (`templates/plugins/rate-limit`: the limiter and the 429
+  handler, a setting, middleware and handler through the app-startup hook). The codegen snapshots of every example
+  are unchanged; the plan snapshots gain `plugins`.
+- **Tests**: `tests/test_plugins.py` (10): plugins named in plans, ordering, cycle and missing errors, the rate
+  limiter scaffolded with no plan, a plan's plugins scaffolded, each hook point landing where it should with a test
+  plugin (`HookProbePlugin`, listed in `docs/development/test-doubles.md`), a module no plugin touches unchanged, the
+  integration stubs, the engine note.
+
+**Deviations:**
+
+- `src/main.py` is no longer an overlay file but rendered; it differs from the old one only in importing the 429
+  handler from `src.libs.rate_limit` (the handler moved into the plugin; `exceptions.handlers._error` became the
+  public `error_response` for it).
+- `slowapi` stays in the overlay's base `requirements.txt` and a plugin adds only what the base lacks: the sandbox's
+  baked venv (`docker/runner`) matches the base file byte for byte, and the first try (slowapi only in the plugin)
+  failed every real sandbox startup. Plugins with new libraries (10.2's PyJWT and argon2, 10.5's boto3) need a decision
+  then: bake them into the runner image's venv, or accept a venv install per project.
+- The worker-startup hook is defined and collected, not rendered: the worker arrives with 10.6.
+
+**Verified:** `make lint`; `tests/test_plugins.py`, the codegen, planner, contract, scaffold and integration-contract
+tests; `BGA_SANDBOX_TESTS=1` for `tests/sandbox/test_sandbox_workflow.py` and `tests/sandbox/test_sandbox_pipeline.py`
+(10 tests, real sandbox: the rendered `main.py` starts, template tests and smoke scenarios pass); `make test`: all
+pass. `make up`, then a fake-engine `flashcards-dynamic` generation (`gen_01M6MV8FTHMN3P58YFJWBB4CD0`): COMPLETED in
+162 s, all three lanes completed, `.bga/scaffold.json` lists `rate-limit@1`, "app starts and GET /health → 200", 38
+template tests and 21 scenarios pass; the live preview answers 125 quick requests with 119 × 200 and 6 × 429.
+
+**Found, not changed (follow-up):** the 429 body is SlowAPI's own `{"error": "Rate limit exceeded: …"}`, not the
+API's error envelope: its middleware never reaches our `RateLimitExceeded` handler. The old `main.py` behaves the same
+(checked on a project scaffolded before this story), so this has been true since 5.4; worth fixing in the
+`rate-limit` plugin with 10.2's stricter login limits.
