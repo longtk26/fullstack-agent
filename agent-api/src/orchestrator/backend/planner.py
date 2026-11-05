@@ -13,7 +13,7 @@ from typing import Any
 
 from src.modules.shared.domain.backend_spec.naming import pluralize, py_name, to_pascal, to_snake
 
-from ..plugins import active_plugins
+from ..plugins import active_plugins, extended_spec
 
 PLAN_VERSION = "1"
 ENTITIES_PKG = "src/modules/shared/domain/entities"
@@ -505,6 +505,7 @@ def _tests(module: dict[str, Any], model: dict[str, Any]) -> list[dict[str, Any]
 
 def build_plan(spec: dict[str, Any]) -> dict[str, Any]:
     """`spec` is the normalized BackendSpec (validate_spec_text(...).normalized)."""
+    spec = extended_spec(spec)  # Story 10.2: what plugins add before planning (the user entity)
     models = _models(spec)
     by_entity = {m["entity"]: m for m in models if m["entity"]}
     for entity in spec.get("entities", []):

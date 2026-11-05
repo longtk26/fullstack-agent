@@ -32,6 +32,7 @@ from ..checks.parity import compare_openapi
 from ..checks.parsers import junit_failures, last_lines
 from ..context import JobContext
 from ..packaging import ArtifactWriter, build_contract_seed, build_seed, build_source_zip
+from ..plugins import extended_spec
 from ..previews import KINDS, wait_settled
 from ..state import GenerationState, Outcome
 from .contract import contract_operations, resolve
@@ -89,7 +90,7 @@ async def package_lane_preview(state: GenerationState, ctx: JobContext, kind: st
                 writer.write_json("seed.json", "seed", seed_blocks)
         else:
             spec = _optional_json(project / ".bga" / "spec.json") or {}
-            if spec.get("seed") and plan:
+            if plan and extended_spec(spec).get("seed"):  # the spec's seed, and the plugins' (10.2: demo users)
                 generation = ctx.store.generation(ctx.generation_id)
                 ts = (
                     generation.created_at.isoformat()

@@ -78,8 +78,9 @@ def _object(properties: dict[str, Any], required: list[str]) -> dict[str, Any]:
 
 
 def _writable(column: dict[str, Any]) -> bool:
-    """Columns a client sends: not generated ids, not `now` timestamps."""
-    return not (column.get("default") or {}).get("factory") and not (column.get("default") or {}).get("autoincrement")
+    """Columns a client sends: not generated ids, not `now` timestamps, never a secret (a password hash, 10.2)."""
+    default = column.get("default") or {}
+    return not default.get("factory") and not default.get("autoincrement") and not column.get("secret")
 
 
 def _request_columns(model: dict[str, Any], spec_op: dict[str, Any]) -> list[dict[str, Any]]:
@@ -116,6 +117,12 @@ def _fresh(column: dict[str, Any], value: Any) -> Any:
         text = f"Scenario {value}"
         return text[: column["maxLength"]] if column.get("maxLength") else text
     return value
+
+
+def _public(record: dict[str, Any], model: dict[str, Any]) -> dict[str, Any]:
+    """A fixture row without its secret columns (a password hash, Story 10.2)."""
+    secret = {column["apiName"] for column in model["columns"] if column.get("secret")}
+    return {key: value for key, value in record.items() if key not in secret} if secret else record
 
 
 def summary_name(entity: str) -> str:
@@ -391,8 +398,8 @@ class _Builder:
     def example(self, entity: str, record: dict[str, Any]) -> dict[str, Any]:
         """A fixture row as the API answers it (10.0b), for entities the templates present."""
         if entity not in self.presented:
-            return record
-        return present(record, self.models[entity], self.fixtures, self.actions(entity))
+            return _public(record, self.models[entity])
+        return present(_public(record, self.models[entity]), self.models[entity], self.fixtures, self.actions(entity))
 
     def operation_ids(self, entity: str, action: str) -> str | None:
         module = self.modules.get(entity) or {}
@@ -417,7 +424,7 @@ class _Builder:
         name = f"{entity}Response"
         if name not in self.schemas:
             model = self.models[entity]
-            properties = {column["apiName"]: field_schema(column) for column in model["columns"]}
+            properties = {c["apiName"]: field_schema(c) for c in model["columns"] if not c.get("secret")}
             if entity in self.presented:
                 for reference in model.get("references", []):
                     ref = {"$ref": self.summary_schema(reference["entity"])}
@@ -721,6 +728,8 @@ class _Builder:
     def build(self) -> dict[str, Any]:
         paths: dict[str, dict[str, Any]] = {}
         for module in self.plan["modules"]:
+            if module.get("plugin"):  # Story 10.1: a plugin writes its own module's operations (`Plugin.contract`)
+                continue
             for op in module["operations"]:
                 paths.setdefault(op["path"], {})[op["method"].lower()] = self.operation(module, op)
         project = self.spec["project"]
@@ -744,10 +753,16 @@ class _Builder:
 
     def entities(self) -> dict[str, Any]:
         """Story 10.0b: per presented entity, what the mocks add to a record: summaries and `allowedActions`."""
-        out = {}
+        out: dict[str, Any] = {}
+        for entity, model in sorted(self.models.items()):  # entities no module presents: only their secrets
+            secret = [column["apiName"] for column in model["columns"] if column.get("secret")]
+            if entity not in self.presented and secret:
+                out[entity] = {"secretFields": secret}
         for entity in sorted(self.presented):
             model = self.models[entity]
+            secret = [column["apiName"] for column in model["columns"] if column.get("secret")]
             out[entity] = {
+                **({"secretFields": secret} if secret else {}),
                 "primaryKey": next(column["apiName"] for column in model["columns"] if column["primaryKey"]),
                 "labelField": (model.get("label") or {}).get("apiName"),
                 "references": [
@@ -761,7 +776,14 @@ class _Builder:
 
 def build_contract(spec: dict[str, Any], plan: dict[str, Any] | None = None) -> dict[str, Any]:
     """`spec` is the normalized BackendSpec; `plan` defaults to `build_plan(spec)` (also deterministic)."""
-    return _Builder(spec, plan or build_plan(spec)).build()
+    from ..plugins import extended_spec, plan_plugins
+
+    spec = extended_spec(spec)  # Story 10.2: the plugins' entities and seed records, as the plan has them
+    plan = plan or build_plan(spec)
+    contract = _Builder(spec, plan).build()
+    for plugin in plan_plugins(plan):  # Story 10.1: the plugins' operations, errors and scenarios
+        plugin.contract(contract, plan, spec)
+    return contract
 
 
 def dump_contract(contract: dict[str, Any]) -> str:
@@ -776,7 +798,9 @@ def presented_record(contract: dict[str, Any], entity: str | None, record: dict[
     if info is None:
         return dict(record)
     fixtures = meta.get("fixtures") or {}
-    out = dict(record)
+    out = {key: value for key, value in record.items() if key not in set(info.get("secretFields") or [])}
+    if "allowedActions" not in info:  # not presented: only its secrets dropped
+        return out
     for reference in info["references"]:
         value = record.get(reference["field"])
         key = ((meta.get("entities") or {}).get(reference["entity"]) or {}).get("primaryKey", "id")

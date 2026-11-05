@@ -8,9 +8,12 @@ RUN apt-get update \
     && pip install --no-cache-dir uv==0.9.5
 
 COPY files/requirements.txt files/requirements-dev.txt /opt/bga/
-RUN uv venv /opt/venv \
-    && uv pip install --no-cache --python /opt/venv/bin/python -r /opt/bga/requirements.txt -r /opt/bga/requirements-dev.txt \
-    && cat /opt/bga/requirements.txt /opt/bga/requirements-dev.txt | sha256sum | cut -d' ' -f1 > /opt/venv/requirements.sha256
+# Story 10.2: every plugin's requirements too (agent-api/templates/plugins/*/plugin.json)
+COPY --from=plugins . /opt/bga/plugins/
+RUN python -c "import glob, json; print('\n'.join(r for f in sorted(glob.glob('/opt/bga/plugins/*/plugin.json')) for r in json.load(open(f)).get('requirements', [])))" > /opt/bga/plugin-requirements.txt \
+    && uv venv /opt/venv \
+    && uv pip install --no-cache --python /opt/venv/bin/python -r /opt/bga/requirements.txt -r /opt/bga/requirements-dev.txt -r /opt/bga/plugin-requirements.txt \
+    && cat /opt/bga/requirements.txt /opt/bga/requirements-dev.txt /opt/bga/plugin-requirements.txt | grep -v '^[[:space:]]*$' | sort -u > /opt/venv/requirements.baked
 
 COPY --from=runner_bin . /opt/bga/bin/
 

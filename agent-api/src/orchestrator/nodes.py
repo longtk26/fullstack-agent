@@ -145,9 +145,11 @@ async def write_artifacts(ctx: JobContext, state: dict[str, Any], completed: boo
             if contract_copy(ctx).is_file():
                 contract = json.loads(contract_copy(ctx).read_text())
                 writer.write_json("seed.json", "seed", build_contract_seed(contract, plan))
-            elif spec.get("seed"):
+            else:  # the spec's seed, and what plugins add to it (Story 10.2: demo users)
                 timestamp = generation.created_at.isoformat() if generation.created_at else "1970-01-01T00:00:00+00:00"
-                writer.write_json("seed.json", "seed", build_seed(spec, plan, ctx.generation_id, timestamp))
+                seed = build_seed(spec, plan, ctx.generation_id, timestamp)
+                if seed:
+                    writer.write_json("seed.json", "seed", seed)
             head_file.parent.mkdir(parents=True, exist_ok=True)
             head_file.write_text(current_head)
         artifact_ids = {

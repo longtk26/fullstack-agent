@@ -10,7 +10,7 @@ class RateLimitPlugin(Plugin):
         super().__init__(name="rate-limit", always=True)
 
     def settings(self, plan: dict[str, Any] | None) -> list[Setting]:
-        return [Setting("rate_limit_default", "str", '"120/minute"')]
+        return [Setting("rate_limit_default", "str", '"120/minute"', test_value="100000/minute")]
 
     def app_startup(self, plan: dict[str, Any] | None) -> AppStartup:
         return AppStartup(

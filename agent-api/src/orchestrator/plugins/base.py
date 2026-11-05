@@ -88,6 +88,7 @@ class Setting:
     default: str | None  # a Python literal; None: required, from the environment only
     comment: str | None = None
     example: str | None = None  # the `.env.ex` value; None: not listed
+    test_value: str | None = None  # set in `tests/conftest.py` before the app loads; None: left to the environment
 
 
 @dataclass
@@ -165,11 +166,22 @@ class Plugin:
     def worker_startup(self, plan: dict[str, Any] | None) -> Code | None:
         return None
 
+    def test_setup(self, plan: dict[str, Any], module: dict[str, Any]) -> Code | None:
+        """Module-level code of a module's generated test file (a fixture that signs the client in)."""
+        return None
+
     # -- what it tells -------------------------------------------------------------------------------------------------
 
     def smoke(self, contract: dict[str, Any], plan: dict[str, Any]) -> list[dict[str, Any]]:
         """Extra smoke calls (shaped like `checks.smoke` scenario calls) proving its API works."""
         return []
+
+    def extend_spec(self, spec: dict[str, Any]) -> None:
+        """Adds to a copy of the spec, before planning, what the plugin needs (an entity, fields, seed records)."""
+
+    def owns_module(self, module: dict[str, Any]) -> bool:
+        """A plan module the plugin writes itself (`module["plugin"]`): codegen and the engine leave it alone."""
+        return module.get("plugin") == self.name
 
     def manifest(self) -> dict[str, Any]:
         return {"name": self.name, "version": self.version}

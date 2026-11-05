@@ -58,6 +58,7 @@ export function useApiTab(detail: TGenerationDetail) {
       (isSucceeded(detail.status) || detail.lanes.backend === "COMPLETED") &&
       detail.artifacts.some((a) => a.name === "backend.zip"),
     hasOpenapi: Boolean(openapiArtifact),
+    auth: manifest.data?.auth,
     document,
     loadingDocument: openapi.isLoading,
     logsOpen,

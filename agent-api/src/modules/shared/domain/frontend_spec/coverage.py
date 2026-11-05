@@ -108,7 +108,12 @@ def uncovered_operations(frontend_spec: dict[str, Any], contract: dict[str, Any]
     """Operations in the contract that no data binding, form, action, Stats item or journey step references."""
     operations = contract_operations(contract)
     covered = covered_operations(frontend_spec)
-    return sorted(op_id for op_id in operations if op_id not in covered)
+    return sorted(
+        op_id
+        for op_id, entry in operations.items()
+        # a plugin's own operations (sign-in, Story 10.2) get their screens with Story 22.7, not the Manage area
+        if op_id not in covered and not (entry["operation"].get("x-bga") or {}).get("plugin")
+    )
 
 
 def _needs_signin(op_entry: dict[str, Any]) -> bool:

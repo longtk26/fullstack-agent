@@ -275,6 +275,15 @@ def build_manifest(
     }
     if spec.get("auth"):
         manifest["auth"] = {"type": spec["auth"].get("type", "jwt"), "tokenType": "bearer"}
+        auth = plan.get("auth")
+        if auth:  # Story 10.2: how to sign in, and the seeded demo users (the agent UI's "Get token")
+            manifest["auth"] |= {
+                "login": {"operationId": "auth.login", "path": "/auth/login", "loginField": auth["loginField"]},
+                "register": {"operationId": "auth.register", "path": "/auth/register"},
+                "me": {"operationId": "auth.me", "path": "/auth/me"},
+                "roles": auth["roles"],
+                "demoUsers": auth["demoUsers"],
+            }
     if spec.get("x-frontendBindings"):
         manifest["frontendBindings"] = spec["x-frontendBindings"]
     return manifest
@@ -287,6 +296,9 @@ def build_seed(spec: dict[str, Any], plan: dict[str, Any], generation_id: str, t
     """BackendSpec `seed[]` (entity + API field names) → `scripts/seed.py` blocks (table + column names).
     Missing primary keys and factory defaults (ids, `now`) are filled deterministically, because the generated
     models set them in Python (default_factory), not in the database."""
+    from .plugins import extended_spec
+
+    spec = extended_spec(spec)  # Story 10.2: demo users
     models = {model["entity"]: model for model in plan.get("models", [])}
     blocks = []
     for seed_index, seed in enumerate(spec.get("seed", [])):

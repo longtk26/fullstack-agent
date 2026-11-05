@@ -32,8 +32,9 @@ type TRecord = Record<string, unknown>;
 type TEntityInfo = {
   primaryKey: string;
   labelField: string | null;
-  references: { field: string; apiName: string; entity: string; labelField: string | null }[];
-  allowedActions: string[];
+  references?: { field: string; apiName: string; entity: string; labelField: string | null }[];
+  allowedActions?: string[];
+  secretFields?: string[];
 };
 
 const presentation = entities as Record<string, TEntityInfo>;
@@ -55,8 +56,14 @@ function records(entity: string | null): TRecord[] {
 function present(entity: string | null, record: TRecord): TRecord {
   const info = entity ? presentation[entity] : undefined;
   if (!info) return record;
+  if (!info.allowedActions) {
+    const out: TRecord = { ...record };
+    for (const field of info.secretFields ?? []) delete out[field]; // a password hash never leaves the backend
+    return out;
+  }
   const out: TRecord = { ...record, allowedActions: [...info.allowedActions] };
-  for (const ref of info.references) {
+  for (const field of info.secretFields ?? []) delete out[field]; // a password hash never leaves the backend
+  for (const ref of info.references ?? []) {
     const id = record[ref.field];
     const key = presentation[ref.entity]?.primaryKey ?? "id";
     const parent = records(ref.entity).find((item) => String(item[key]) === String(id));

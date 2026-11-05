@@ -58,10 +58,21 @@ while time.monotonic() < deadline and proc.poll() is None:
             break
     except Exception:
         time.sleep(0.5)
+token = None
+if plan.get("login"):  # Story 10.2: a seeded demo user signs in once; protected calls send its bearer token
+    login = urllib.request.Request(base + plan["login"]["path"], data=json.dumps(plan["login"]["body"]).encode(),
+                                   headers={"content-type": "application/json"}, method="POST")  # fmt: skip
+    try:
+        with urllib.request.urlopen(login, timeout=15) as response:
+            token = json.loads(response.read())["accessToken"]
+    except Exception as error:
+        print(f"smoke sign-in failed: {error}")
 answers = []
 for call in plan["calls"]:
     data = json.dumps(call["body"]).encode() if call.get("body") is not None else None
     headers = {"content-type": "application/json"} if data is not None else {}
+    if call.get("auth") and token:
+        headers["authorization"] = f"Bearer {token}"
     request = urllib.request.Request(base + call["path"], data=data, headers=headers, method=call["method"])
     try:
         with urllib.request.urlopen(request, timeout=15) as response:
@@ -89,7 +100,13 @@ def custom_operations(plan: dict[str, Any]) -> list[dict[str, Any]]:
     """The planned operations the templates did not write (custom ones; aggregates are templated, and checked too)."""
     from ..backend.codegen import is_crud
 
-    return [op for module in plan.get("modules", []) for op in module.get("operations", []) if not is_crud(op)]
+    return [
+        op
+        for module in plan.get("modules", [])
+        if not module.get("plugin")  # a plugin's operations come with their own scenarios
+        for op in module.get("operations", [])
+        if not is_crud(op)
+    ]
 
 
 def sample_value(contract: dict[str, Any], schema: Any, record: dict[str, Any] | None = None, depth: int = 0) -> Any:
@@ -160,7 +177,7 @@ def smoke_calls(contract: dict[str, Any], plan: dict[str, Any]) -> tuple[list[di
         if entry is None:
             continue
         operation = entry["operation"]
-        if operation.get("security"):
+        if operation.get("security") and smoke_login(contract) is None:
             skipped.append({"operation": op["operationId"], "reason": "needs auth"})
             continue
         path = _resolve_operation_path(entry["path"], operation, contract)
@@ -179,19 +196,29 @@ def smoke_calls(contract: dict[str, Any], plan: dict[str, Any]) -> tuple[list[di
         request = ((operation.get("requestBody") or {}).get("content") or {}).get("application/json")
         if request and request.get("schema"):
             body = sample_value(contract, resolve(contract, request["schema"]), record)
-        calls.append({"operationId": op["operationId"], "method": entry["method"], "path": path, "body": body})
+        call = {"operationId": op["operationId"], "method": entry["method"], "path": path, "body": body}
+        if operation.get("security"):
+            call["auth"] = True
+        calls.append(call)
     return calls, skipped
 
 
+def smoke_login(contract: dict[str, Any]) -> dict[str, Any] | None:
+    """Story 10.2: how the smoke script signs in (a seeded demo user), when the contract has auth."""
+    return ((contract.get("x-bga") or {}).get("auth") or {}).get("login")
+
+
 def scenario_calls(contract: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Story 10.0b: one call per contract scenario, with what it must answer; operations behind auth are skipped."""
+    """Story 10.0b: one call per contract scenario, with what it must answer. Operations behind auth run with the
+    smoke user's token (10.2), or are skipped when the contract has no way to sign in."""
     from ..integration.contract import contract_operations
 
+    signed_in = smoke_login(contract) is not None
     calls, skipped = [], []
     for op_id, entry in contract_operations(contract).items():
         operation = entry["operation"]
         scenarios = (operation.get("x-bga") or {}).get("scenarios") or []
-        if scenarios and operation.get("security"):
+        if scenarios and operation.get("security") and not signed_in:
             skipped.append({"operation": op_id, "reason": "needs auth"})
             continue
         for scenario in scenarios:
@@ -206,6 +233,7 @@ def scenario_calls(contract: dict[str, Any]) -> tuple[list[dict[str, Any]], list
                     "body": scenario.get("body"),
                     "scenario": scenario["name"],
                     "expect": scenario["expect"],
+                    "auth": scenario.get("auth", bool(operation.get("security"))),
                 }
             )
     return calls, skipped

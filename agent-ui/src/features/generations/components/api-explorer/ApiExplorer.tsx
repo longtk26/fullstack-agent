@@ -14,6 +14,8 @@ const ApiReferenceReact = dynamic(
 type ApiExplorerProps = {
   document: object;
   serverUrl: string | null;
+  /** Story 10.2: the bearer token the protected operations send (from "Get token"). */
+  token?: string | null;
   onRequestSent: () => void;
 };
 
@@ -23,13 +25,13 @@ const LOCAL_ONLY_CSS = `.generate-sdk-button, button[aria-haspopup="dialog"].tex
 
 /** OpenAPI reference + try-it. Requests go from the browser straight to the preview container (CORS allows the
  * UI origin); nothing is sent to Scalar's services (no telemetry, no hosted fonts, no proxy, no agent). */
-export function ApiExplorer({ document, serverUrl, onRequestSent }: ApiExplorerProps) {
+export function ApiExplorer({ document, serverUrl, token = null, onRequestSent }: ApiExplorerProps) {
   const { resolvedTheme } = useTheme();
   const live = serverUrl !== null;
   return (
     <div className="overflow-hidden rounded-lg border">
       <ApiReferenceReact
-        key={`${serverUrl ?? "offline"}-${resolvedTheme}`}
+        key={`${serverUrl ?? "offline"}-${resolvedTheme}-${token ?? "anonymous"}`}
         configuration={{
           content: document,
           servers: live ? [{ url: serverUrl, description: "Preview container" }] : [],
@@ -39,6 +41,9 @@ export function ApiExplorer({ document, serverUrl, onRequestSent }: ApiExplorerP
           telemetry: false,
           withDefaultFonts: false,
           persistAuth: false,
+          ...(token
+            ? { authentication: { preferredSecurityScheme: "bearerAuth", securitySchemes: { bearerAuth: { token } } } }
+            : {}),
           hideDarkModeToggle: true,
           forceDarkModeState: resolvedTheme === "dark" ? "dark" : "light",
           documentDownloadType: "json",

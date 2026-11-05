@@ -15,6 +15,7 @@ from ..checks.parity import compare_schema
 from ..context import CONTRACT_REF, EngineFailure, JobContext, contract_copy, read_json, write_json
 from ..integration.contract import build_contract as contract_for
 from ..integration.integrate import package_lane_preview
+from ..plugins.app import owned_plugin_files
 from ..state import GenerationState, NodeResult, Outcome
 from .codegen import (
     codegen_gaps,
@@ -138,6 +139,7 @@ async def _scaffold(state: GenerationState, ctx: JobContext, project_name: str, 
         # The pinned template is not ruff-clean (import order, unused names); normalize it once.
         await sandbox.exec("ruff check --fix -q . ; ruff format -q .", timeout_s=120)
     record_owned(project)
+    add_owned(project, owned_plugin_files(plan))  # Story 10.1: what the plugins wrote is the generator's too
     ctx.workspaces.commit(ctx.workspace, "node:scaffold")
     await ctx.emit("scaffold.done", step="generate_database", **info)
 
@@ -215,6 +217,8 @@ async def generate_backend(state: GenerationState, ctx: JobContext) -> NodeResul
     if not _templates(state):
         changed = 0
         for module in plan["modules"]:
+            if module.get("plugin"):  # Story 10.1: a plugin wrote it at scaffold time
+                continue
             prompt = ctx.prompts.render(
                 "generate_backend",
                 PROMPT_VERSIONS["generate_backend"],
@@ -235,6 +239,8 @@ async def generate_backend(state: GenerationState, ctx: JobContext) -> NodeResul
     generated: dict[str, list[str]] = {}
     run_tests = state["options"].get("runTests", True)
     for module in plan["modules"]:
+        if module.get("plugin"):  # Story 10.1: a plugin wrote it at scaffold time
+            continue
         # Story 18.11: the template tests come with the code; no engine call writes tests.
         module_code = module_files(plan, spec, module) | (module_tests(plan, spec, module) if run_tests else {})
         files |= module_code

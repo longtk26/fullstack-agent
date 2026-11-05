@@ -9,7 +9,7 @@ from collections.abc import Iterator
 import pytest
 
 os.environ["DB_URL"] = os.environ.get("TEST_DB_URL") or os.environ["DB_URL"]
-os.environ.setdefault("RATE_LIMIT_DEFAULT", "100000/minute")
+# {{PLUGIN_TEST_ENV}}
 
 from alembic import command  # noqa: E402
 from alembic.config import Config as AlembicConfig  # noqa: E402

@@ -90,3 +90,26 @@ def test_a_list_scoped_by_its_path_passes_its_template_tests(client, user_header
     finally:
         if not os.environ.get("BGA_KEEP_SANDBOX_DIRS"):
             shutil.rmtree(root, ignore_errors=True)
+
+
+def test_a_backend_with_jwt_auth_passes_its_tests_and_scenarios(client, user_headers, tmp_path):
+    """Story 10.2: the auth-jwt plugin's module, the protected task routes, their signed-in template tests and the
+    401 / sign-in scenarios, all in the real sandbox."""
+    from tests.test_auth_jwt import auth_spec
+
+    root = REPO / ".data" / "test-sandbox" / uuid.uuid4().hex[:10]
+    root.mkdir(parents=True)
+    try:
+        auth_spec(tmp_path)
+        spec = json.loads((tmp_path / "auth-spec.json").read_text())
+        generation_id = submit(client, user_headers, spec=spec, crudFromTemplates=True)
+        status = run_job(root, generation_id, validator=SandboxValidationRunner(), sandboxes=DockerSandboxProvider())
+
+        assert status in ("COMPLETED", "COMPLETED_WITH_WARNINGS"), generation(generation_id).error_summary
+        tests = [e for e in events(generation_id) if e.type == "validation.check" and e.payload["check"] == "tests"]
+        assert tests[-1].status == "passed", tests[-1].payload["summary"]
+        assert "scenario(s) answer as the contract says" in tests[-1].payload["summary"]
+        assert "skipped" not in tests[-1].payload["summary"]  # protected operations ran, signed in
+    finally:
+        if not os.environ.get("BGA_KEEP_SANDBOX_DIRS"):
+            shutil.rmtree(root, ignore_errors=True)

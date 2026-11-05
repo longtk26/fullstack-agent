@@ -1,0 +1,15 @@
+{
+  "name": "auth-jwt",
+  "version": "1",
+  "description": "Register, login and me; argon2 password hashes (pwdlib), HS256 bearer tokens (PyJWT); CurrentUserDep on protected routes.",
+  "requirements": [
+    "pyjwt==2.15.1",
+    "pwdlib[argon2]==0.3.1"
+  ],
+  "owns": [
+    "src/libs/security",
+    "src/modules/auth",
+    "tests/auth.py",
+    "tests/modules/auth"
+  ]
+}

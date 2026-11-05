@@ -10,6 +10,7 @@ from . import plan_plugins
 from .base import Code, Plugin
 
 SETTINGS_PLACEHOLDER = "    # {{PLUGIN_SETTINGS}}\n"
+TEST_ENV_PLACEHOLDER = "# {{PLUGIN_TEST_ENV}}\n"
 
 
 def main_file(plugins: list[Plugin], plan: dict[str, Any] | None) -> str:
@@ -61,6 +62,16 @@ def plugin_files(plan: dict[str, Any] | None) -> dict[str, str]:
     return files
 
 
+def owned_plugin_files(plan: dict[str, Any] | None) -> list[str]:
+    """The plugins' files under the paths their `plugin.json` owns: generator-owned, the engine may not edit them
+    (an integration stub, which someone must fill in, is not)."""
+    owned = []
+    for plugin in plan_plugins(plan):
+        prefixes = tuple(plugin.meta.get("owns") or [])
+        owned += [path for path in plugin.files(plan) if prefixes and path.startswith(prefixes)]
+    return sorted([*owned, "src/main.py"])
+
+
 def apply_plugins(project: Path, plan: dict[str, Any] | None) -> list[str]:
     """Writes the plugins' files into a scaffolded project and adds their settings and requirements to the
     overlay's files; returns the files written."""
@@ -79,6 +90,11 @@ def apply_plugins(project: Path, plan: dict[str, Any] | None) -> list[str]:
             for s in settings
         )  # fmt: skip
         config.write_text(config.read_text().replace(SETTINGS_PLACEHOLDER, lines))
+    conftest = project / "tests/conftest.py"
+    if conftest.is_file():
+        tested = [s for s in settings if s.test_value is not None]
+        lines = "".join(f'os.environ.setdefault("{s.name.upper()}", "{s.test_value}")\n' for s in tested)
+        conftest.write_text(conftest.read_text().replace(TEST_ENV_PLACEHOLDER, lines))
     env = project / ".env.ex"
     examples = [s.example for s in settings if s.example is not None]
     if env.is_file() and examples:

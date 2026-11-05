@@ -230,6 +230,17 @@ export type TFrontendBinding = {
   params?: Record<string, unknown>;
 };
 
+/** Story 10.2: how to sign in to a generated API, and its seeded demo users. */
+export type TManifestAuth = {
+  type: string;
+  tokenType: string;
+  login?: { operationId: string; path: string; loginField: string };
+  register?: { operationId: string; path: string };
+  me?: { operationId: string; path: string };
+  roles?: string[];
+  demoUsers?: { login: string; password: string; role: string }[];
+};
+
 export type TManifest = {
   manifestVersion: string;
   generationId: string;
@@ -244,7 +255,7 @@ export type TManifest = {
   operations: TManifestOperation[];
   contractProblems: { operation: string; message: string }[];
   env: { name: string; required: boolean; secret: boolean; description: string | null }[];
-  auth?: { type: string; tokenType: string };
+  auth?: TManifestAuth;
   modules: { name: string; entity: string; path: string }[];
   frontendBindings?: TFrontendBinding[];
   unresolved: { kind?: string; ref?: string; specPath?: string; message?: string; reason?: string }[];

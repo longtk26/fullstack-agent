@@ -65,10 +65,12 @@ host-worker-stop:
 	@if [ -f $(HOST_WORKER_PID) ]; then \
 	  kill $$(cat $(HOST_WORKER_PID)) 2>/dev/null && echo "host worker stopped" || true; rm -f $(HOST_WORKER_PID); fi
 
-# Sandbox image for validating generated projects (Story 6.1); its venv matches the overlay requirements.
+# Sandbox image for validating generated projects (Story 6.1); its venv holds the overlay requirements and every
+# plugin's (Story 10.2), so a project with plugins needs no install of its own.
 runner:
 	docker build -q -t $(RUNNER_IMAGE) -f docker/runner/Dockerfile \
-	  --build-context runner_bin=docker/runner/bin $(API_DIR)/templates/fastapi_overlay
+	  --build-context runner_bin=docker/runner/bin --build-context plugins=$(API_DIR)/templates/plugins \
+	  $(API_DIR)/templates/fastapi_overlay
 
 # Sandbox image for generated frontends (Story 13.4): Node 22, pnpm, Playwright Chromium, a pnpm store pre-warmed
 # from the pinned frontend base. `make frontend-base` regenerates that base (then review and rebuild this image).

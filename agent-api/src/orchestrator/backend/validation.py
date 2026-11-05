@@ -39,7 +39,16 @@ from ..checks.conformance import compare_contract
 from ..checks.conventions import check_conventions
 from ..checks.parity import compare_openapi, compare_schema, missing_tests
 from ..checks.parsers import junit_failures, last_lines, ruff_failures, traceback_frames
-from ..checks.smoke import SMOKE_FILE, SMOKE_MARKER, SMOKE_SCRIPT, SMOKE_SCRIPT_FILE, judge, rule_answer, smoke_calls
+from ..checks.smoke import (
+    SMOKE_FILE,
+    SMOKE_MARKER,
+    SMOKE_SCRIPT,
+    SMOKE_SCRIPT_FILE,
+    judge,
+    rule_answer,
+    smoke_calls,
+    smoke_login,
+)
 from .migrations import ensure_migration, reflect_schema, roundtrip_migration, upgrade_migration
 
 CHECKS = ("syntax", "lint", "deps", "startup", "migration", "conventions", "tests", "openapi")
@@ -390,7 +399,9 @@ class SandboxValidationRunner(IValidationRunner):
             return None
         project = request.project
         (project / SMOKE_FILE).write_text(
-            json.dumps({"seed": build_contract_seed(contract, request.plan), "calls": calls})
+            json.dumps(
+                {"seed": build_contract_seed(contract, request.plan), "calls": calls, "login": smoke_login(contract)}
+            )
         )
         (project / SMOKE_SCRIPT_FILE).write_text(SMOKE_SCRIPT)
         run = await request.sandbox.exec(f"python {SMOKE_SCRIPT_FILE}", timeout_s=120)

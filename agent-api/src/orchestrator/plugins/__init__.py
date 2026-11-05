@@ -4,8 +4,10 @@ Adding a plugin is a `templates/plugins/<name>/` folder (`plugin.json`, `backend
 and one `Plugin` subclass registered here; codegen calls the hooks of the plugins the plan names (`plan["plugins"]`).
 """
 
+import copy
 from typing import Any
 
+from .auth_jwt import AuthJwtPlugin
 from .base import (
     PLUGINS_DIR,
     AppStartup,
@@ -21,7 +23,9 @@ from .integrations import IntegrationStubsPlugin
 from .rate_limit import RateLimitPlugin
 
 # Every plugin the generator knows, by name. Tests add their own with `monkeypatch.setitem(REGISTRY, ...)`.
-REGISTRY: dict[str, Plugin] = {plugin.name: plugin for plugin in (RateLimitPlugin(), IntegrationStubsPlugin())}
+REGISTRY: dict[str, Plugin] = {
+    plugin.name: plugin for plugin in (RateLimitPlugin(), AuthJwtPlugin(), IntegrationStubsPlugin())
+}
 
 
 class PluginError(ValueError):
@@ -58,6 +62,19 @@ def active_plugins(spec: dict[str, Any]) -> list[Plugin]:
     return ordered([plugin for plugin in REGISTRY.values() if plugin.applies(spec)])
 
 
+def extended_spec(spec: dict[str, Any]) -> dict[str, Any]:
+    """A copy of the spec with what the active plugins add before planning (Story 10.2: the user entity, demo users).
+    The planner, the contract and the seeds all read it; applying it twice changes nothing."""
+    extending = [p for p in active_plugins(spec) if type(p).extend_spec is not Plugin.extend_spec]
+    if spec.get("x-bgaExtended") or not extending:
+        return spec
+    extended = copy.deepcopy(spec)
+    for plugin in extending:
+        plugin.extend_spec(extended)
+    extended["x-bgaExtended"] = True
+    return extended
+
+
 def plan_plugins(plan: dict[str, Any] | None) -> list[Plugin]:
     """The plugins a plan names (`plan["plugins"]`), in its order; no plan: the ones every project has."""
     if plan is None or "plugins" not in plan:
@@ -78,6 +95,7 @@ __all__ = [
     "RouterParam",
     "Setting",
     "active_plugins",
+    "extended_spec",
     "ordered",
     "plan_plugins",
 ]

@@ -4,12 +4,14 @@ import { PlugZap } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Stack } from "@/components/layout/Stack";
 import { useApiTab } from "../../hooks/use-api-tab";
+import { usePreviewSignIn } from "../../hooks/use-preview-sign-in";
 import { isSucceeded } from "../../lib/status";
 import type { TGenerationDetail } from "../../types";
 import { ComingSoonPanel } from "../detail/ComingSoonPanel";
 import { ApiExplorer } from "./ApiExplorer";
 import { PreviewControlBar } from "./PreviewControlBar";
 import { PreviewLogsSheet } from "./PreviewLogsSheet";
+import { PreviewSignIn } from "./PreviewSignIn";
 
 type ApiTabProps = {
   detail: TGenerationDetail;
@@ -18,6 +20,8 @@ type ApiTabProps = {
 export function ApiTab({ detail }: ApiTabProps) {
   const tab = useApiTab(detail);
   const running = tab.preview?.status === "RUNNING";
+  const serverUrl = running ? tab.preview?.url ?? null : null;
+  const signIn = usePreviewSignIn(tab.auth, serverUrl);
 
   if (!tab.hasOpenapi) {
     return (
@@ -49,12 +53,9 @@ export function ApiTab({ detail }: ApiTabProps) {
           Read-only: start the preview to send requests to the generated backend.
         </p>
       )}
+      {tab.auth?.login && <PreviewSignIn auth={tab.auth} live={running} signIn={signIn} />}
       {tab.document ? (
-        <ApiExplorer
-          document={tab.document}
-          serverUrl={running ? tab.preview?.url ?? null : null}
-          onRequestSent={tab.touch}
-        />
+        <ApiExplorer document={tab.document} serverUrl={serverUrl} token={signIn.token} onRequestSent={tab.touch} />
       ) : (
         <Skeleton className="h-[720px] w-full" />
       )}
