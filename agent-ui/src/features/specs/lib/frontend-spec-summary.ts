@@ -147,3 +147,67 @@ export function summarizeFrontendSpec(spec: unknown): TFrontendSpecSummary {
     journeys,
   };
 }
+
+// Epic 22: the app outline of a dynamic app draft (`project.flow: "app"`), for the draft review.
+export type TAppEntitySummary = {
+  name: string;
+  label: string;
+  plural: string;
+  listFields: string[];
+  listStyle: string | null;
+  inNav: boolean;
+};
+export type TAppOutlineSummary = {
+  name: string | null;
+  tagline: string | null;
+  home: string;
+  nav: { entity: string; label: string }[];
+  entities: TAppEntitySummary[];
+  dashboard: { label: string; kind: string; entity: string | null }[];
+  landing: boolean;
+};
+
+function asStrings(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+/** The app outline of an app draft, or null for sites and legacy dynamic drafts; tolerant, never throws. */
+export function summarizeAppOutline(spec: unknown): TAppOutlineSummary | null {
+  const root = asObject(spec);
+  if (asObject(root.project).flow !== "app" || !("app" in root)) return null;
+  const app = asObject(root.app);
+  const entities = asObject(app.entities);
+  const labelOf = (name: string) => {
+    const entity = asObject(entities[name]);
+    return asString(entity.plural) ?? asString(entity.label) ?? name;
+  };
+  const nav = asArray(app.nav).flatMap((item) => {
+    const entity = asString(item.entity);
+    return entity ? [{ entity, label: asString(item.label) ?? labelOf(entity) }] : [];
+  });
+  const navEntities = new Set(nav.map((item) => item.entity));
+  return {
+    name: asString(app.name),
+    tagline: asString(app.tagline),
+    home: asString(app.home) ?? "dashboard",
+    nav,
+    entities: Object.entries(entities).map(([name, value]) => {
+      const entity = asObject(value);
+      const label = asString(entity.label) ?? name;
+      return {
+        name,
+        label,
+        plural: asString(entity.plural) ?? label,
+        listFields: asStrings(entity.listFields).map((field) => asString(asObject(entity.fieldLabels)[field]) ?? field),
+        listStyle: asString(entity.listStyle),
+        inNav: navEntities.has(name),
+      };
+    }),
+    dashboard: asArray(app.dashboard).map((item) => ({
+      label: asString(item.label) ?? "?",
+      kind: asString(item.kind) ?? "figure",
+      entity: asString(item.entity),
+    })),
+    landing: Object.keys(asObject(app.landing)).length > 0,
+  };
+}

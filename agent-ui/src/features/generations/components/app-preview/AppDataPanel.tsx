@@ -166,6 +166,15 @@ export function AppDataPanel({ detail, className }: AppDataPanelProps) {
               Start the backend preview container to view table data and records.
             </p>
           </div>
+        ) : tables.length > 0 && tables.every((tbl) => tbl.error === "Failed to connect") ? (
+          <div className="flex flex-col items-center justify-center p-6 text-center text-muted-foreground">
+            <Database className="size-8 text-muted-foreground/40 mb-2" />
+            <p className="text-xs font-medium">The backend preview does not answer</p>
+            <p className="mt-1 text-[11px] text-muted-foreground/80 max-w-[240px]">
+              Its container may have stopped: restart the preview. If it runs, open this page at the same host as
+              the preview (localhost or 127.0.0.1).
+            </p>
+          </div>
         ) : tables.length === 0 ? (
           <div className="flex flex-col items-center justify-center p-6 text-center text-muted-foreground">
             <TableIcon className="size-8 text-muted-foreground/40 mb-2" />

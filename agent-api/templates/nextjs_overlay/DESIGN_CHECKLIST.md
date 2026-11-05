@@ -116,6 +116,25 @@ cards (so `surface` applies), and colour, radius and density come from the theme
 - **Measured:** `make design-check-fixture ARGS="--motion"`: with motion on, the call to action is fully visible in
   under 1 s and nothing is left transparent or displaced after scrolling; with JavaScript off nothing is hidden.
 
+## App kit (Story 22.4)
+
+The dynamic app flow's kit (`files/dynamic/app/`) is one product UI, not designed pages: the direction sets only
+theme tokens (colours, fonts, radius, density), the kit sets everything else. `make design-check-app` plans an app
+from an example BackendSpec and outline (no engine), builds it and measures every screen at 375 and 1440 px, light and
+dark, on the mock API (`ARGS="--app two-entity:project-tracker"`; screenshots under `.data/shots/design-check-app/`).
+
+| Rule | How the kit keeps it | Measured (flashcards 12 screens, project tracker 9; 375 / 1440 px × light / dark) |
+|---|---|---|
+| One shell | `AppShell`: the sidebar (icons, collapsible to icons, a sheet on phones), a 56 px top bar with breadcrumbs and the theme switch; every screen is `max-w-6xl` with one gap (`gap-8` between blocks, `gap-4` inside) | top bar 56 px in every view |
+| One heading per screen | A list page's first list, a record's name, a form's title or the page title is the `h1` (`text-2xl`); lists in tabs or on the dashboard are `h2` (`text-lg`); a tab's list keeps its heading for screen readers only | one `h1`, on one line, in every view |
+| Five type sizes at most | `text-xs` (badges, hints), `text-sm` (tables, labels), `text-lg` (sub-headings), `text-2xl` (headings) and `text-3xl` for dashboard figures only | 2–5 per view (12, 12.8, 14, 18, 24, 30 px across all views; the 12.8 px is the base's small button) |
+| Readable records | Parents by name (linked to their page), dates in the reader's locale, enums as badges, numbers grouped with tabular figures, empty values as a dash; a table's first column links to the record | by review |
+| Every state | Lists and records: skeletons while loading, an empty state (with "Add" when the list can create), an error state with "Try again"; figures: a skeleton, "No data yet" for an empty chart | by review (mock data: lists full; the 22.5 / 22.6 forms add their own states) |
+| Keyboard | Row actions in a menu (`dropdown-menu`: Enter / Space opens, arrows move, Escape closes, focus returns); confirms in `alert-dialog`, forms in `dialog` (focus trapped, Escape closes); the sidebar toggles with ⌘B / Ctrl+B | by review |
+| Actions follow the record | Row and record actions show only what `allowedActions` lists (`allowed()` in `app.ts`); errors show the contract's message, on the field when the error names fields | `tests/test_app_screens.py`; by review |
+| Density | `theme.density: "compact"` tightens table rows; the rest of the scale stays | by review |
+| Off-black / off-white in dark mode | The theme's dark palette (as for sites) | body `rgb(10, 15, 27)` / `rgb(248, 250, 252)` |
+
 ## Deviations
 
 - **45-character minimum:** a full-width paragraph on a 390 px phone holds about 40 characters at 16 px. The

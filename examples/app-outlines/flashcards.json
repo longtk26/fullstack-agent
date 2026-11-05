@@ -1,0 +1,23 @@
+{
+  "name": "Flashcards",
+  "tagline": "Learn vocabulary with spaced repetition",
+  "icon": "GraduationCap",
+  "nav": [{"entity": "Deck", "label": "Decks", "icon": "Layers"}],
+  "home": "dashboard",
+  "entities": {
+    "Deck": {"listFields": ["name", "createdAt"], "listStyle": "cards"},
+    "Card": {
+      "displayField": "front",
+      "listFields": ["front", "back", "dueDate"],
+      "fieldLabels": {"intervalDays": "Interval (days)", "dueDate": "Due"},
+      "help": {"example": "A sentence that uses the word"}
+    },
+    "ReviewLog": {"label": "Review", "plural": "Reviews", "listFields": ["cardId", "rating", "reviewedAt"]}
+  },
+  "dashboard": [
+    {"label": "Decks", "entity": "Deck", "fn": "count"},
+    {"label": "Cards", "entity": "Card", "fn": "count"},
+    {"label": "Reviews this week", "entity": "ReviewLog", "fn": "count", "period": "week"},
+    {"label": "Reviews by rating", "kind": "pie", "entity": "ReviewLog", "fn": "count", "groupBy": "rating"}
+  ]
+}

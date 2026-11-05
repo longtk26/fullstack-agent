@@ -24,6 +24,9 @@ type TMockOperation = {
   search: boolean;
   defaultLimit: number;
   maxLimit: number;
+  /** Story 22.4: the request's required fields and its references (field → parent entity), checked as the API does. */
+  required?: string[];
+  references?: Record<string, string>;
 };
 
 type TRecord = Record<string, unknown>;
@@ -81,6 +84,24 @@ function present(entity: string | null, record: TRecord): TRecord {
 
 function notFound(entity: string | null) {
   return HttpResponse.json({ error: { code: "NOT_FOUND", message: `${entity ?? "Record"} not found`, details: null } }, { status: 404 });
+}
+
+/** A request the API would refuse: a required field missing (422, by field), a parent that does not exist (400). */
+function refused(op: TMockOperation, body: TRecord, creating: boolean): Response | null {
+  const missing = creating ? (op.required ?? []).filter((name) => body[name] === undefined || body[name] === null) : [];
+  if (missing.length > 0) {
+    const details = missing.map((name) => ({ loc: ["body", name], msg: "Field required", type: "missing" }));
+    return HttpResponse.json({ error: { code: "VALIDATION_ERROR", message: "Request validation failed", details } }, { status: 422 });
+  }
+  for (const [field, entity] of Object.entries(op.references ?? {})) {
+    const value = body[field];
+    if (value === undefined || value === null) continue;
+    const key = presentation[entity]?.primaryKey ?? "id";
+    if (!records(entity).some((item) => String(item[key]) === String(value))) {
+      return HttpResponse.json({ error: { code: "REFERENCE_NOT_FOUND", message: `${entity} not found`, details: { field } } }, { status: 400 });
+    }
+  }
+  return null;
 }
 
 function compare(a: unknown, b: unknown): number {
@@ -200,6 +221,8 @@ function handler(op: TMockOperation): HttpHandler {
     }
     if (op.action === "create" || op.mock === "create") {
       const body = ((await request.json().catch(() => ({}))) || {}) as TRecord;
+      const refusal = refused(op, body, true);
+      if (refusal) return refusal;
       const created = { [op.primaryKey]: newId(op.entity, op.primaryKey), createdAt: new Date().toISOString(), ...body };
       records(op.entity).push(created);
       return HttpResponse.json(present(op.entity, created), { status: op.status });
@@ -207,7 +230,10 @@ function handler(op: TMockOperation): HttpHandler {
     if (op.action === "update") {
       const current = find();
       if (!current) return notFound(op.entity);
-      Object.assign(current, (await request.json()) as TRecord);
+      const changes = ((await request.json().catch(() => ({}))) || {}) as TRecord;
+      const refusal = refused(op, changes, false);
+      if (refusal) return refusal;
+      Object.assign(current, changes);
       return HttpResponse.json(present(op.entity, current));
     }
     if (op.mock === "merge") {

@@ -1,0 +1,255 @@
+{
+  "pages": {
+    "/": [
+      {
+        "id": "figure-1",
+        "component": "AppDashboard",
+        "data": {
+          "operationId": "project.count"
+        },
+        "actions": []
+      },
+      {
+        "id": "figure-2",
+        "component": "AppDashboard",
+        "data": {
+          "operationId": "task.countWhereStatusTodo"
+        },
+        "actions": []
+      },
+      {
+        "id": "figure-3",
+        "component": "AppDashboard",
+        "data": {
+          "operationId": "task.countByStatus"
+        },
+        "actions": []
+      },
+      {
+        "id": "recent-projects",
+        "component": "AppList",
+        "data": {
+          "operationId": "project.list",
+          "params": {
+            "limit": 5,
+            "sort": "-createdAt"
+          },
+          "fields": [
+            "name",
+            "createdAt"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "delete"
+        ]
+      },
+      {
+        "id": "recent-tasks",
+        "component": "AppList",
+        "data": {
+          "operationId": "task.list",
+          "params": {
+            "limit": 5
+          },
+          "fields": [
+            "title",
+            "projectId",
+            "status"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "delete"
+        ]
+      }
+    ],
+    "/projects": [
+      {
+        "id": "projects-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "project.list",
+          "fields": [
+            "name",
+            "createdAt"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "delete"
+        ]
+      }
+    ],
+    "/projects/[id]": [
+      {
+        "id": "projects-detail",
+        "component": "AppDetail",
+        "data": {
+          "operationId": "project.get",
+          "params": {
+            "id": "$route.id"
+          },
+          "fields": [
+            "name",
+            "description",
+            "createdAt"
+          ]
+        },
+        "actions": [
+          "edit",
+          "delete"
+        ]
+      },
+      {
+        "id": "tasks-tab",
+        "component": "AppList",
+        "data": {
+          "operationId": "task.list",
+          "params": {
+            "projectId": "$route.id"
+          },
+          "fields": [
+            "title",
+            "status",
+            "priority",
+            "dueDate"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "delete"
+        ]
+      }
+    ],
+    "/projects/[id]/edit": [
+      {
+        "id": "projects-edit-form",
+        "component": "AppForm",
+        "form": "project_update",
+        "actions": []
+      }
+    ],
+    "/projects/[id]/tasks/new": [
+      {
+        "id": "task-create-in-project-form",
+        "component": "AppForm",
+        "form": "task_create_in_project",
+        "actions": []
+      }
+    ],
+    "/projects/new": [
+      {
+        "id": "project-create-form",
+        "component": "AppForm",
+        "form": "project_create",
+        "actions": []
+      }
+    ],
+    "/tasks": [
+      {
+        "id": "tasks-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "task.list",
+          "fields": [
+            "title",
+            "projectId",
+            "status",
+            "priority",
+            "dueDate"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "delete"
+        ]
+      }
+    ],
+    "/tasks/[id]": [
+      {
+        "id": "tasks-detail",
+        "component": "AppDetail",
+        "data": {
+          "operationId": "task.get",
+          "params": {
+            "id": "$route.id"
+          },
+          "fields": [
+            "projectId",
+            "title",
+            "status",
+            "priority",
+            "dueDate"
+          ]
+        },
+        "actions": [
+          "edit",
+          "delete"
+        ]
+      }
+    ],
+    "/tasks/[id]/edit": [
+      {
+        "id": "tasks-edit-form",
+        "component": "AppForm",
+        "form": "task_update",
+        "actions": []
+      }
+    ]
+  },
+  "forms": {
+    "project_create": {
+      "operationId": "project.create",
+      "fields": [
+        "name",
+        "description"
+      ]
+    },
+    "project_update": {
+      "operationId": "project.update",
+      "fields": [
+        "name",
+        "description"
+      ]
+    },
+    "task_create_in_project": {
+      "operationId": "task.create",
+      "fields": [
+        "projectId=$route.id",
+        "title",
+        "status",
+        "priority",
+        "dueDate"
+      ]
+    },
+    "task_update": {
+      "operationId": "task.update",
+      "fields": [
+        "title",
+        "status",
+        "priority",
+        "dueDate"
+      ]
+    }
+  },
+  "navigation": [
+    {
+      "label": "Dashboard",
+      "page": "home"
+    },
+    {
+      "label": "Projects",
+      "page": "projects"
+    },
+    {
+      "label": "Tasks",
+      "page": "tasks"
+    }
+  ]
+}

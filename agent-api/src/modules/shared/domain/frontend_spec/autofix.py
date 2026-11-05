@@ -186,7 +186,14 @@ def autofix_frontend_spec(spec: dict[str, Any]) -> tuple[dict[str, Any], list[di
             for key, val in list(container.items()):
                 subpath = f"{path}/{key}"
                 if key == "page" and isinstance(val, str):
-                    cand, params = resolve_target(val)
+                    # The link's own `params` fill route parameters (`{"page": "tasks-id", "params": {"id": …}}`);
+                    # without this, a link already checked with them was re-pointed at the list page (seen in 22.4).
+                    provided = (
+                        set((container.get("params") or {}).keys())
+                        if isinstance(container.get("params"), dict)
+                        else None
+                    )
+                    cand, params = resolve_target(val, provided)
                     if params:
                         target_id = val
                         target_route = pages_by_id[target_id].get("route", "")

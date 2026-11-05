@@ -41,12 +41,12 @@ The dynamic draft asks the model for full FrontendSpec pages and then for a tree
 
 ## Acceptance criteria
 
-- [ ] An app draft makes one model call, plus one repair only when validation fails; no `draft_tree` and no direction
+- [x] An app draft makes one model call, plus one repair only when validation fails; no `draft_tree` and no direction
       cards call.
 - [ ] Book club, flashcards and project-tracker requirements draft in ≤ 90 s on Gemini Flash (measured with the
       user's yes; the fake engine has an `app` scenario for tests).
-- [ ] A minimal outline (only `name` and `nav`) and a full one both produce a valid spec pair.
-- [ ] Prompt snapshot for `draft_app@v1`; schema digest updated; static drafting untouched (static golden passes).
+- [x] A minimal outline (only `name` and `nav`) and a full one both produce a valid spec pair.
+- [x] Prompt snapshot for `draft_app@v1`; schema digest updated; static drafting untouched (static golden passes).
 
 ## Verify
 
@@ -55,4 +55,30 @@ the outline in the review.
 
 ## Status
 
-**Planned (2026-11-05).**
+**Done (2026-11-05), except the Gemini Flash timing.** `frontend_spec/app.py` holds the outline (`AppOutline`:
+`AppNavItem`, `AppEntity`, `AppDashboardItem`, `AppLanding`); `drafting/app.py` makes the one `draft_app@v1` call
+(BackendSpec + `app-outline.json`, inputs: the BackendSpec ones plus the outline digest and two examples,
+`examples/app-outlines/`), repairs only the BackendSpec, and hands the outline to `frontend/app/outline.py`
+(`complete_outline`: labels, plurals, display field, list and detail fields, field labels, list style and navigation
+from the BackendSpec and the contract; unknown entities, fields, bad values and impossible figures are dropped with a
+note, never repaired by a call). Notes on the outline point into the FrontendSpec (`/app/...`). The fake engine has
+an `app` scenario (`APP_OUTLINE_FIXTURES`); the Gemini API engine accepts `draft_app`. The draft review shows the
+outline (`AppOutlinePanel`: navigation, entities with their list fields, dashboard) instead of the pages. Tests:
+`tests/test_app_drafting.py`.
+
+Live check (Antigravity, `gemini-3.8-flash-medium`, a new requirement "Plant Care", 2026-11-05): the outline was
+good (the model's own labels, real fields only, a dashboard answering "how many need water today", a `plant.listDue`
+custom operation, four sensible unresolved questions), but the draft ended NEEDS_REVIEW: the BackendSpec had a date
+default `today`, and the one `repair_spec` round returned without changing it. Fixed in code
+(`fix_backend_defaults`: `today` and the like become `now`, no call) and in the prompt (one line); the run is kept as
+`tests/fixtures/drafts/plant-care-antigravity/` and replays to a valid app with a clean pair check. Time: 339 s
+(draft 298 s in 16 agent turns, ~450k input tokens, plus a 41 s repair). That is Antigravity's agent loop reading the
+input files; the ≤ 90 s target is for the Gemini API engine, still to be measured (with the user's yes).
+
+Deviations:
+- `landing` is a small outline of its own (`headline`, `text`, up to three `highlights`, `cta`) rendered by the kit,
+  not library sections: library sections belong to the static flow (decision D1).
+- Dashboard items take an optional `dateField` (the date a `period` counts; default: the creation timestamp), added
+  after the live run, where "needing water today" was counted from the creation date.
+- The 15 KB digest limit is checked on the site schema (what the drafting prompts read); the full schema with the
+  outline is for the spec editor.

@@ -30,6 +30,14 @@ def test_schema_digest_frontend_spec_snapshot():
     assert digest == snapshot.read_text(), "FrontendSpec digest changed: review, then rerun with UPDATE_SNAPSHOTS=1"
 
 
+def test_static_and_legacy_drafts_read_the_site_schema_unchanged():
+    """Story 22.1: the schema static and legacy dynamic drafts read leaves out the app flow's fields, so their prompts
+    stay as before Epic 22 (this snapshot is the FrontendSpec digest from before it)."""
+    digest = schema_digest(frontend_spec_json_schema(app=False), "FrontendSpec")
+    snapshot = FIXTURES / "frontend-spec.site.digest.md"
+    assert digest == snapshot.read_text(), "the site schema changed: static drafting must not change in Epic 22"
+
+
 def test_schema_digest_all_defs_and_required_fields_present():
     """Every $defs entry and every required field must appear in the digest."""
     for schema, title in [(spec_json_schema(), "BackendSpec"), (frontend_spec_json_schema(), "FrontendSpec")]:
@@ -44,8 +52,9 @@ def test_schema_digest_all_defs_and_required_fields_present():
 
 
 def test_schema_digest_size_limits():
-    """FrontendSpec digest must be <= 15 KB (Story 18.9 target)."""
-    fs_digest = schema_digest(frontend_spec_json_schema(), "FrontendSpec")
+    """FrontendSpec digest must be <= 15 KB (Story 18.9 target). The limit is for the drafting prompts, which read the
+    site schema (Story 22.1); the app flow's prompt gets the outline digest alone."""
+    fs_digest = schema_digest(frontend_spec_json_schema(app=False), "FrontendSpec")
     bs_digest = schema_digest(spec_json_schema(), "BackendSpec")
     fs_size = len(fs_digest.encode("utf-8"))
     bs_size = len(bs_digest.encode("utf-8"))

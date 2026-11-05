@@ -175,6 +175,26 @@ Agent-specific notes:
   (`modules/uploads`) live under `UPLOAD_ROOT`, are copied to `public/assets/` by `scaffold_frontend`.
 - Test doubles (fake engine, golden two-entity project, static validator, fake CLIs, opt-in test flags) are listed in
   `docs/development/test-doubles.md`; add any new fake there and mark it at its definition.
+- Dynamic app flow (Epic 22): **static and dynamic are separate frontend flows**. `DYNAMIC_FRONTEND=app`
+  (`config.dynamic_frontend`, `legacy` until 22.4) sends dynamic drafts from a requirement to `drafting/app.py`;
+  the FrontendSpec it writes has `project.flow: "app"`, an `app` outline (`frontend_spec/app.py`) and pages of app
+  sections (`APP_SECTIONS`, accepted only in that flow), all written by code. `plan_frontend` hands such specs to
+  `frontend/app/` (`rendering: "app"`, no engine call), and the scaffold copies the app kit
+  (`templates/nextjs_overlay/files/dynamic/app/`) only for them. Dynamic-only code goes in `orchestrator/frontend/app/`
+  and `drafting/app.py`, prompts in `prompts/draft_app/`, overlay files in `files/dynamic/app/`. A change to shared code
+  (renderer, `common` overlay, section components, drafting) must leave `tests/test_static_golden.py` passing; static
+  and legacy drafts read the schema without the app fields (`frontend_spec_json_schema(app=False)`).
+  The app draft is one `draft_app@v1` call (BackendSpec + `app-outline.json`); code fixes the outline
+  (`complete_outline`, notes instead of repairs), adds the dashboard's aggregate operations (`ensure_aggregates`) and
+  plans every screen (`app_frontend_spec`): one binding per section, so `check_spec_pair` and `uncovered_operations`
+  see them all; a child is created from its parent's page (parent from the route); the Manage area is never added.
+  The kit (Story 22.4: `AppShell`, `AppPage` (figures in a grid, a parent's children in tabs), `AppList`, `AppDetail`,
+  `AppForm`, `AppDashboard`, `AppActions`) reads `src/content/app.json` (`frontend/app/files.py`: pages, routes, forms,
+  per-entity field types, references and list operations, the contract's errors) and calls the API through the
+  generated `bindings.ts`; actions follow each record's `allowedActions`. Custom and aggregate GETs have their own
+  React Query keys (`_Operation.query_key`). The frontend lane's `scenarios` check (apps only) runs the contract's
+  scenarios against the MSW mocks (`src/mocks/scenarios.test.ts`, `scenarios.json`); the mocks refuse missing required
+  fields (422) and unknown parents (400) as the API does. `make design-check-app` screenshots an app's screens.
 
 ## Orchestrator layout
 
@@ -184,9 +204,10 @@ Agent-specific notes:
 |---|---|
 | `orchestrator/` | workflow core: `graph.py`, `runner.py`, `state.py`, `context.py` (JobContext and the helpers nodes share), `store.py`, `tracing.py`, `workspace.py`, `worker_service.py`, `bootstrap.py`; `nodes.py` (the node table, `package_artifacts`), `autofix.py`, `packaging.py`, `previews.py`; `checks/` (pure checks both lanes use) |
 | `backend/` | `nodes.py` (validate_spec … repair_code), `planner.py`, `scaffold.py`, `codegen.py` (CRUD from templates), `completion.py` (engine completion), `migrations.py`, `validation.py` |
+| `frontend/app/` | Epic 22, dynamic apps only: `outline.py` (the drafted outline completed from the BackendSpec), `screens.py` (outline + contract → pages, forms and bindings; dashboard aggregates), `plan.py`, `files.py` (`app.json`, bindings, icons, route files) |
 | `frontend/` | `nodes.py`, `planner.py`, `scaffold.py`, `codegen.py`, `renderer.py`, `theme.py`, `motion.py`, `assets.py`, `asset_registry.py`, `svg_assets.py`, `custom_components.py`, `component_cache.py`, `context_pack.py`, `validation.py` |
 | `integration/` | `nodes.py` (validate_inputs, build_contract), `contract.py`, `integrate.py` (live switch and checks) |
-| `drafting/` | `drafts.py` (spec drafts), `trees.py` (designed pages), `pair_fixes.py`, `design_cards.py`, `design_direction.py`, `design_diversity.py`, `design_tone.py` |
+| `drafting/` | `drafts.py` (spec drafts), `app.py` (the dynamic app flow, Epic 22), `trees.py` (designed pages), `pair_fixes.py`, `design_cards.py`, `design_direction.py`, `design_diversity.py`, `design_tone.py` |
 
 ## Architecture
 

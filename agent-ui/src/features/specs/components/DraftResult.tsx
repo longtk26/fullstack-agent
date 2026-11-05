@@ -7,9 +7,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Stack } from "@/components/layout/Stack";
 import { formatTokens, formatUsd } from "@/lib/format-usage";
-import { summarizeFrontendSpec } from "../lib/frontend-spec-summary";
+import { summarizeAppOutline, summarizeFrontendSpec } from "../lib/frontend-spec-summary";
 import { summarizeSpec } from "../lib/spec-summary";
 import type { TSpecDraft, TValidationReport } from "../types";
+import { AppOutlinePanel } from "./AppOutlinePanel";
 import { NotesPanel } from "./NotesPanel";
 
 // The pair is settled in code while drafting (pair_fixes), so only the two specs are shown.
@@ -67,6 +68,7 @@ export function DraftResult({ draft, needsAcknowledgement, acknowledged, onAckno
 
   const backend = summarizeSpec(draft.backendSpec);
   const frontend = summarizeFrontendSpec(draft.frontendSpec);
+  const outline = summarizeAppOutline(draft.frontendSpec); // Epic 22: an app draft shows its outline, not its pages
   const reports = (Object.keys(REPORT_LABELS) as (keyof typeof REPORT_LABELS)[]).flatMap((name) => {
     const report = draft.validation[name];
     return report ? [{ name, report }] : [];
@@ -79,8 +81,10 @@ export function DraftResult({ draft, needsAcknowledgement, acknowledged, onAckno
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             {draft.status === "SUCCEEDED" ? "Draft ready" : "Draft needs fixes"}
-            {(frontend.projectName ?? backend.projectName) && (
-              <span className="font-normal text-muted-foreground">· {frontend.projectName ?? backend.projectName}</span>
+            {(outline?.name ?? frontend.projectName ?? backend.projectName) && (
+              <span className="font-normal text-muted-foreground">
+                · {outline?.name ?? frontend.projectName ?? backend.projectName}
+              </span>
             )}
           </CardTitle>
           <CardDescription>{usageLine(draft)}</CardDescription>
@@ -93,7 +97,8 @@ export function DraftResult({ draft, needsAcknowledgement, acknowledged, onAckno
               ))}
               {draft.attempts > 0 && <Badge variant="secondary">{draft.attempts} repair passes</Badge>}
             </Stack>
-            {draft.frontendSpec && (
+            {outline && <AppOutlinePanel outline={outline} />}
+            {draft.frontendSpec && !outline && (
               <p className="text-sm">
                 {frontend.pages.length} pages:{" "}
                 <span className="font-mono text-xs text-muted-foreground">

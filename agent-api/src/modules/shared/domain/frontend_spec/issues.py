@@ -52,3 +52,5 @@ class FrontendIssueCode(StrEnum):
     FE_FIELD_SOURCE = "FE_FIELD_SOURCE"
     CONTRACT_FIELD_TYPE_MISMATCH = "CONTRACT_FIELD_TYPE_MISMATCH"
     CONTRACT_SHAPE_MISMATCH = "CONTRACT_SHAPE_MISMATCH"  # a list section bound to an operation returning one record
+    # The dynamic app flow (Epic 22): `project.flow`, the `app` outline and the app sections
+    FE_APP_FLOW = "FE_APP_FLOW"

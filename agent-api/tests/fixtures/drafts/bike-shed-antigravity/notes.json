@@ -1,0 +1,76 @@
+{
+  "assumptions": [
+    {
+      "spec": "backend",
+      "path": "/entities/0/fields/4",
+      "message": "Named field 'yearBought' as integer for 'the year bought'."
+    },
+    {
+      "spec": "backend",
+      "path": "/entities/0/fields/5",
+      "message": "Named field 'currentMileage' as integer with default 0 and min 0 for 'current mileage in km'."
+    },
+    {
+      "spec": "backend",
+      "path": "/entities/1/fields/3",
+      "message": "Named field 'description' (string, maxLength 255) for 'what was done'."
+    },
+    {
+      "spec": "backend",
+      "path": "/entities/1/fields/5",
+      "message": "Used string field 'shop' (maxLength 120) to store either the repair shop name or 'home' when serviced at home."
+    },
+    {
+      "spec": "backend",
+      "path": "/seed/0/records",
+      "message": "Set initial currentMileage to 0 km for seed bikes ('Blue Arrow' and 'Muddy') as initial mileage was not specified in the requirement."
+    },
+    {
+      "spec": "frontend",
+      "path": "/app/icon",
+      "message": "Selected 'Bike' Lucide icon for the app."
+    },
+    {
+      "spec": "frontend",
+      "path": "/app/nav/1/icon",
+      "message": "Selected 'Wrench' Lucide icon for Service maintenance log navigation."
+    },
+    {
+      "spec": "frontend",
+      "path": "/app/entities/Bike/listStyle",
+      "message": "Selected 'table' listStyle for Bike as records consist of tabular vehicle specifications without images or long text."
+    },
+    {
+      "spec": "frontend",
+      "path": "/app/entities/Service/listStyle",
+      "message": "Selected 'table' listStyle for Service log entries."
+    },
+    {
+      "spec": "frontend",
+      "path": "/app/dashboard/1/kind",
+      "message": "Visualized 'Cost per bike' aggregate as a bar chart grouped by bikeId."
+    }
+  ],
+  "unresolved": [
+    {
+      "spec": "backend",
+      "path": "/entities/0/fields/1",
+      "message": "Should bike nicknames be strictly unique across the family?"
+    },
+    {
+      "spec": "backend",
+      "path": "/entities/1/fields/4",
+      "message": "Are zero costs (free maintenance) or negative costs (discounts/refunds) permitted, or must cost be strictly positive?"
+    },
+    {
+      "spec": "backend",
+      "path": "/policies",
+      "message": "Who is authorized to edit or delete bike and service records in the family?"
+    },
+    {
+      "spec": "frontend",
+      "path": "/app/entities/Service/fieldLabels/cost",
+      "message": "Should service cost currency be fixed to euros (€) or support multiple currencies?"
+    }
+  ]
+}

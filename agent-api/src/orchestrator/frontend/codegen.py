@@ -172,6 +172,14 @@ class _Operation:
         self.request = _request_type(op)
         self.raw = op
 
+    def query_key(self, params: str = "params") -> str:
+        """The React Query key of a GET: a CRUD list or record by kind; a custom or aggregate operation by its own id
+        (Story 22.4: two figures of one resource with the same parameters must not share a cache entry). All start
+        with the resource, so a mutation's `all` refreshes them."""
+        if (self.raw.get("x-bga") or {}).get("mock"):
+            return f"[...{self.keys}.all, {_json(self.id)}, {params}] as const"
+        return f"{self.keys}.{'list' if self.action == 'list' else 'detail'}({params})"
+
     @property
     def hook(self) -> str:
         return f"use{self.function[:1].upper()}{self.function[1:]}"
@@ -242,14 +250,13 @@ def queries_ts(contract: dict[str, Any]) -> str:
     out = ["type TQueryOptions = { enabled?: boolean };\n"]
     for op in ops:
         if op.method == "GET":
-            kind = "list" if op.action == "list" else "detail"
             params_arg = op.signature()[0] if op.params else None
             args = ", ".join([*([params_arg] if params_arg else []), "options: TQueryOptions = {}"])
             call = "params" if op.params else ""
             out.append(
                 f"export function {op.hook}({args}) {{\n"
                 "  return useQuery({\n"
-                f"    queryKey: {op.keys}.{kind}({call}),\n"
+                f"    queryKey: {op.query_key(call or '{}')},\n"
                 f"    queryFn: () => {op.function}({call}),\n"
                 "    enabled: options.enabled ?? true,\n"
                 "  });\n}\n"
@@ -328,9 +335,8 @@ def bindings_ts(contract: dict[str, Any] | None) -> str:
         body = f"body as {op.request}" if op.request else ""
         call = f"{op.function}({', '.join(arg for arg in (params, body) if arg)})"
         if op.method == "GET":
-            kind = "list" if op.action == "list" else "detail"
             fetchers.append(f"  {_json(op.id)}: (params) => {call},\n")
-            keys.append(f"  {_json(op.id)}: (params) => {op.keys}.{kind}(params),\n")
+            keys.append(f"  {_json(op.id)}: (params) => {op.query_key()},\n")
         else:
             mutations.append(
                 f"  {_json(op.id)}: {{ run: (params, body) => {call}, "
@@ -449,6 +455,17 @@ def mock_operations(contract: dict[str, Any]) -> list[dict[str, Any]]:
             "maxLimit": limit.get("maximum", 100),
             "hasFixtures": op.entity in fixtures,
         }
+        # Story 22.4: the request checks the API makes, so the mocks answer a bad request as the backend does
+        body = ((op.raw.get("requestBody") or {}).get("content") or {}).get("application/json", {}).get("schema")
+        if body:
+            request = resolve(contract, body)
+            references = {
+                name: ((prop.get("x-bga") or {}).get("ref") or {}).get("entity")
+                for name, prop in (request.get("properties") or {}).items()
+                if (prop.get("x-bga") or {}).get("source") == "reference"
+            }
+            entry["required"] = list(request.get("required") or [])
+            entry["references"] = {name: entity for name, entity in references.items() if entity}
         planned.append(entry)
     return planned
 
@@ -1185,6 +1202,10 @@ def generated_files(plan: dict[str, Any], spec: dict[str, Any], contract: dict[s
     if plan.get("rendering") == "renderer":
         files |= renderer_files(plan, spec, contract)
         files[BINDINGS_FILE] = bindings_ts(contract)
+    elif plan.get("rendering") == "app":  # Epic 22: the app kit's screens
+        from .app.files import app_files
+
+        files |= app_files(plan, spec, contract)
     if contract is not None:
         files |= {
             "src/lib/api/types.ts": types_ts(contract),

@@ -8,6 +8,7 @@ from pydantic import ValidationError
 
 from src.modules.shared.domain.backend_spec.issues import Severity, SpecIssue, ValidationReport
 
+from .app import APP_SECTIONS
 from .assets import ICON_NAME, MAX_GENERATED_ASSETS, MAX_PHOTOS, SVG_KINDS, UPLOAD_ID, lucide_icons, source_kind
 from .catalogue import BUILTIN_SECTIONS, SHADCN_PRIMITIVES, THEME_PRESETS
 from .copy_rules import stock_copy
@@ -217,9 +218,12 @@ class _SemanticChecker:
         self.spec = spec
         self.issues: list[SpecIssue] = []
         self.static = spec.project.mode == "static"
+        self.app = spec.project.flow == "app"  # Epic 22: app sections are accepted only in the app flow
         self.page_ids = [page.id or page_id(page.route) for page in spec.pages]
         self.pages = dict(zip(self.page_ids, spec.pages, strict=True))
         self.components = {component.name for component in spec.components} | set(BUILTIN_SECTIONS)
+        if self.app and not self.static:
+            self.components |= set(APP_SECTIONS)
         self.forms = {form.id: form for form in spec.forms}
         self.assets = {asset.id for asset in spec.assets}
         self.collections = {collection.collection for collection in spec.content}
@@ -243,9 +247,21 @@ class _SemanticChecker:
         self._check_content()
         self._check_journeys()
         self._check_trees()
+        self._check_app()
         if self.spec.auth is not None:
             self._add(C.FE_UNSUPPORTED_FEATURE, "/auth", "Auth pages arrive with Epic 10; 'auth' is ignored", True)
         return self.issues
+
+    def _check_app(self) -> None:
+        """Epic 22: the app flow is a dynamic flow; its outline belongs to it."""
+        if self.app and self.static:
+            hint = 'Remove "flow", or set "mode": "dynamic"'
+            self._add(
+                C.FE_APP_FLOW, "/project/flow", "The app flow is for dynamic apps; a static site has none", hint=hint
+            )
+        if self.spec.app is not None and not self.app:
+            hint = 'Set "project": {"flow": "app"} (dynamic apps), or remove "app"'
+            self._add(C.FE_APP_FLOW, "/app", "The 'app' outline belongs to the app flow", hint=hint)
 
     def _check_trees(self) -> None:
         """Epic 21: designed pages and chrome follow the tree rules (`trees.py`)."""

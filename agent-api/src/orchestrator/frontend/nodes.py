@@ -140,6 +140,12 @@ async def generate_frontend(state: GenerationState, ctx: JobContext) -> NodeResu
     Story 17.2: a plan the section library can render was fully written by the scaffold; no engine call.
     Story 17.3: except for its custom components, generated in parallel or taken from the component cache."""
     plan = _plan(ctx, state)
+    if plan.get("rendering") == "app":
+        # Epic 22 (decision D5): the app kit renders every screen from the plan's sections; nothing for the engine.
+        sections = sum(len(route["sections"]) for route in plan["routes"])
+        summary = {"pages": len(plan["routes"]), "sections": sections, "engineCalls": 0}
+        await ctx.emit("frontend.rendered", step="generate_frontend", **summary)
+        return {}, {**summary, "rendering": "app"}
     if plan.get("rendering") == "renderer":
         sections = sum(1 for route in plan["routes"] for _ in iter_sections(route["sections"]))
         summary: dict[str, Any] = {"pages": len(plan["routes"]), "sections": sections, "engineCalls": 0}

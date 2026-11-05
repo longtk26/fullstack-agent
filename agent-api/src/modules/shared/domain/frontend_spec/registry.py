@@ -1,5 +1,6 @@
 from typing import Any
 
+from .app import site_schema
 from .schema_v1 import FrontendSpecV1
 from .section_props import SECTION_PROPS
 
@@ -21,8 +22,12 @@ def section_props_schemas() -> dict[str, Any]:
     return defs
 
 
-def frontend_spec_json_schema(version: str = LATEST_FRONTEND_SPEC_VERSION) -> dict[str, Any]:
+def frontend_spec_json_schema(version: str = LATEST_FRONTEND_SPEC_VERSION, app: bool = True) -> dict[str, Any]:
+    """The FrontendSpec JSON schema; `app=False` leaves out the dynamic app flow's fields (Epic 22), for the drafts
+    of static sites and of the legacy dynamic flow."""
     schema = FRONTEND_SPEC_MODELS[version].model_json_schema(by_alias=True)
+    if not app:
+        schema = site_schema(schema)
     schema["$defs"] |= section_props_schemas()
     # A section's `content` follows its component's props model, so the editor completes and checks it as typed.
     schema["$defs"]["Section"]["allOf"] = [

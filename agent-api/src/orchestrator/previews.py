@@ -271,7 +271,16 @@ class PreviewService:
                 if backend is not None and backend.url:
                     return {"mode": generation.mode, "mockApi": False, "apiBaseUrl": backend.url}
             return {"mode": generation.mode, "mockApi": frontend.get("mockApi", True), "apiBaseUrl": ""}
-        origins = [origin for origin in config.preview_cors_origins.split(",") if origin]
+        origins = []
+        for origin in (origin.strip() for origin in config.preview_cors_origins.split(",")):
+            if not origin:
+                continue
+            # The agent UI may be opened as localhost or 127.0.0.1: its Data tab calls this backend from either
+            # (a blocked call shows as "Failed to connect" on every table).
+            origins.append(origin)
+            for a, b in (("//localhost:", "//127.0.0.1:"), ("//127.0.0.1:", "//localhost:")):
+                if a in origin:
+                    origins.append(origin.replace(a, b))
         frontend = self.store.preview(generation.id, "frontend")
         if frontend is not None and frontend.host_port:
             # The frontend preview calls this backend once it leaves the mock API (Story 14.2).

@@ -72,6 +72,10 @@ class Config(BaseSettings):
     # of an API engine run in parallel). Off: the section pages as before.
     frontend_trees: bool = True
     frontend_tree_concurrency: int = 4
+    # Epic 22: the frontend flow of dynamic drafts from a requirement. `app`: the model drafts an app outline next to
+    # the BackendSpec and code builds the screens on the app kit; `legacy`: designed pages as for static sites.
+    # Static sites always use their own flow.
+    dynamic_frontend: Literal["legacy", "app"] = "legacy"
     gemini_api_thinking_budget: int | None = None
     gemini_api_max_output_tokens: int = 65536
     gemini_api_timeout_seconds: int = 600

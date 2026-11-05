@@ -48,7 +48,9 @@ from ..workspace import ensure_inside
 logger = get_logger(__name__)
 
 API_BASE = "https://generativelanguage.googleapis.com/v1beta"
-DRAFT_PURPOSES = frozenset({"draft_spec", "draft_frontend_spec", "repair_spec", "repair_direction", "draft_tree"})
+DRAFT_PURPOSES = frozenset(
+    {"draft_spec", "draft_frontend_spec", "draft_app", "repair_spec", "repair_direction", "draft_tree"}
+)
 RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
 MAX_ATTEMPTS = 3
 HEALTH_CACHE_S = 600

@@ -11,6 +11,7 @@ from pydantic import ConfigDict, Field, model_validator
 
 from src.modules.shared.domain.backend_spec.schema_v1 import IDENTIFIER, OPERATION_ID, SpecModel
 
+from .app import AppOutline
 from .fonts import FONTS
 
 SLUG = r"^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
@@ -33,6 +34,7 @@ class Project(SpecModel):
     mode: Literal["static", "dynamic"]
     locale: str = Field(default="en", pattern=LOCALE)
     locales: list[Annotated[str, Field(pattern=LOCALE)]] = []
+    flow: Literal["app"] | None = None  # Epic 22: made by the dynamic app flow (pages from the `app` outline)
 
 
 class ThemeColors(SpecModel):
@@ -340,5 +342,6 @@ class FrontendSpecV1(SpecModel):
     content: list[ContentCollection] = []
     assets: list[Asset] = []
     journeys: list[Journey] = []
+    app: AppOutline | None = None  # Epic 22: the app outline (dynamic, `project.flow: "app"` only)
     auth: dict[str, Any] | None = None  # reserved for Epic 10
     backend_spec: str | None = Field(default=None, alias="x-backendSpec")

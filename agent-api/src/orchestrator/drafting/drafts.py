@@ -62,6 +62,7 @@ from .. import tracing
 from ..checks.consistency import check_spec_pair
 from ..integration.contract import build_contract
 from ..store import JobStore
+from .app import app_flow, app_inputs, draft_app, outline_notes
 from .design_cards import (
     MAX_SEED,
     best_fit,
@@ -170,8 +171,10 @@ def write_inputs(
     examples_dir: Path,
     design: list[dict[str, Any]] | None = None,
     seed: int | None = None,
+    app: bool = False,
 ) -> dict[str, str]:
-    """Writes the engine's inputs under `.bga/` and returns the prompt context (paths relative to `work`)."""
+    """Writes the engine's inputs under `.bga/` and returns the prompt context (paths relative to `work`). `app`:
+    the dynamic app flow (Epic 22), which needs no FrontendSpec inputs (code writes its pages)."""
     inputs = work / INPUTS
     mode = GenerationMode(draft.mode)
     _write_json(
@@ -182,6 +185,7 @@ def write_inputs(
             "requirementFormat": draft.requirement_format,
             "requirementFileName": draft.requirement_file_name,
             **({"designSeed": seed} if design else {}),
+            **({"flow": "app"} if app else {}),
         },
     )
     context: dict[str, Any] = {"mode": str(mode), "source": str(draft.source), "notes_path": NOTES_FILE}
@@ -203,9 +207,13 @@ def write_inputs(
             "output_spec_path": BACKEND_FILE,
             "output_backend_path": BACKEND_FILE,
         }
-    if mode in (GenerationMode.STATIC, GenerationMode.DYNAMIC):
-        _write_json(inputs / "frontend-spec.schema.json", frontend_spec_json_schema())
-        (inputs / "frontend-spec.schema.md").write_text(schema_digest(frontend_spec_json_schema(), "FrontendSpec"))
+    if app:
+        context |= app_inputs(examples_dir)
+    if mode in (GenerationMode.STATIC, GenerationMode.DYNAMIC) and not app:
+        # Epic 22: without the app flow's fields, so static and legacy dynamic drafts read the schema they always did.
+        site = frontend_spec_json_schema(app=False)
+        _write_json(inputs / "frontend-spec.schema.json", site)
+        (inputs / "frontend-spec.schema.md").write_text(schema_digest(site, "FrontendSpec"))
         _copy_example(examples_dir, EXAMPLES[str(mode)], inputs / "examples" / "frontend-spec.json")
         (inputs / "sections.md").write_text(section_catalogue())
         context |= {
@@ -845,7 +853,8 @@ class DraftRunner:
         state.mkdir(parents=True)
         found = draft_directions(draft)
         seed = draft_seed(draft) if found else None
-        context = write_inputs(work, draft, self.examples_dir, found, seed)
+        app = app_flow(draft)  # Epic 22: the dynamic app flow; the direction gives only the theme, without cards
+        context = write_inputs(work, draft, self.examples_dir, None if app else found, seed, app=app)
         inline = engine.inline_inputs  # Story 18.10: an API engine reads no files
         context["inline"] = inline
         if inline:
@@ -904,6 +913,33 @@ class DraftRunner:
             )
             self.store.update_draft(draft.id, usage=usage_summary(calls))
             return result
+
+        if app:
+            try:
+                outcome = await draft_app(
+                    work,
+                    context,
+                    self.prompts,
+                    call,
+                    update_progress,
+                    check_draft,
+                    found[0] if found else None,
+                    BACKEND_FILE,
+                    FRONTEND_FILE,
+                )
+            except BaseException as exc:
+                trace.close({"status": "failed"}, error=f"{type(exc).__name__}: {exc}"[:500])
+                raise
+            check = outcome.check
+            if check.backend_spec is None:
+                trace.close({"status": "failed"}, error="no spec written")
+                raise DraftFailed(outcome.error or "The engine wrote no spec")
+            assumptions, unresolved = (outline_notes(notes) for notes in read_notes(work, mode))
+            if found:  # the direction's theme only: its first note says where it came from
+                assumptions += design_notes(found[0])[:1]
+            notes = assumptions + outcome.notes
+            await self._save(draft, check, notes, unresolved + outcome.unresolved, None, calls, outcome.error, trace)
+            return
 
         error: str | None = None
         try:
@@ -1144,6 +1180,19 @@ class DraftRunner:
         assumptions += autofix_notes
         assumptions += manage_notes
         assumptions += photo_notes
+        await self._save(draft, check, assumptions, unresolved, design, calls, error, trace)
+
+    async def _save(
+        self,
+        draft: SpecDraftEntity,
+        check: DraftCheck,
+        assumptions: list[dict[str, Any]],
+        unresolved: list[dict[str, Any]],
+        design: dict[str, Any] | None,
+        calls: list[dict[str, Any]],
+        error: str | None,
+        trace: Any,
+    ) -> None:
         status = SpecDraftStatus.SUCCEEDED if check.ok else SpecDraftStatus.NEEDS_REVIEW
         usage = usage_summary(calls)
         image_calls_records = self.store.draft_image_calls(draft.id)

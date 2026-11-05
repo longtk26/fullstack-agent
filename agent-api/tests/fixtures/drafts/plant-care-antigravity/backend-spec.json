@@ -1,0 +1,280 @@
+{
+  "specVersion": "1.0",
+  "project": {
+    "name": "Plant Care",
+    "description": "A watering log for houseplants"
+  },
+  "stack": {
+    "framework": "fastapi",
+    "database": "postgresql",
+    "orm": "sqlalchemy",
+    "migration": "alembic"
+  },
+  "entities": [
+    {
+      "name": "Plant",
+      "displayField": "name",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "primary": true
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "maxLength": 100
+        },
+        {
+          "name": "species",
+          "type": "string",
+          "maxLength": 100
+        },
+        {
+          "name": "location",
+          "type": "string",
+          "required": true,
+          "maxLength": 100
+        },
+        {
+          "name": "wateringIntervalDays",
+          "type": "integer",
+          "required": true,
+          "min": 1
+        },
+        {
+          "name": "photoNote",
+          "type": "text"
+        },
+        {
+          "name": "nextWateringDate",
+          "type": "date"
+        },
+        {
+          "name": "createdAt",
+          "type": "datetime",
+          "required": true,
+          "default": "now"
+        }
+      ]
+    },
+    {
+      "name": "Watering",
+      "displayField": "wateredAt",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "primary": true
+        },
+        {
+          "name": "plantId",
+          "type": "uuid",
+          "required": true,
+          "index": true
+        },
+        {
+          "name": "wateredAt",
+          "type": "date",
+          "required": true,
+          "default": "today"
+        },
+        {
+          "name": "notes",
+          "type": "text"
+        },
+        {
+          "name": "createdAt",
+          "type": "datetime",
+          "required": true,
+          "default": "now"
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "name": "plantWaterings",
+      "type": "one-to-many",
+      "from": "Plant",
+      "to": "Watering",
+      "foreignKey": "plantId",
+      "onDelete": "CASCADE"
+    }
+  ],
+  "operations": [
+    {
+      "operationId": "plant.list",
+      "type": "crud",
+      "action": "list",
+      "entity": "Plant",
+      "method": "GET",
+      "path": "/plants",
+      "pagination": true,
+      "sort": [
+        "name",
+        "location",
+        "wateringIntervalDays"
+      ],
+      "search": [
+        "name",
+        "species",
+        "location"
+      ],
+      "filters": [
+        "location"
+      ]
+    },
+    {
+      "operationId": "plant.get",
+      "type": "crud",
+      "action": "get",
+      "entity": "Plant",
+      "method": "GET",
+      "path": "/plants/{id}"
+    },
+    {
+      "operationId": "plant.create",
+      "type": "crud",
+      "action": "create",
+      "entity": "Plant",
+      "method": "POST",
+      "path": "/plants"
+    },
+    {
+      "operationId": "plant.update",
+      "type": "crud",
+      "action": "update",
+      "entity": "Plant",
+      "method": "PATCH",
+      "path": "/plants/{id}"
+    },
+    {
+      "operationId": "plant.delete",
+      "type": "crud",
+      "action": "delete",
+      "entity": "Plant",
+      "method": "DELETE",
+      "path": "/plants/{id}"
+    },
+    {
+      "operationId": "plant.listDue",
+      "type": "custom",
+      "entity": "Plant",
+      "method": "GET",
+      "path": "/plants/due",
+      "summary": "List plants that need water today",
+      "description": "Returns all plants that currently need watering. A plant needs water if it has never been watered, or if the number of days between its most recent watering date and today is greater than or equal to its wateringIntervalDays.",
+      "response": {
+        "type": "array",
+        "entity": "Plant"
+      }
+    },
+    {
+      "operationId": "watering.list",
+      "type": "crud",
+      "action": "list",
+      "entity": "Watering",
+      "method": "GET",
+      "path": "/waterings",
+      "pagination": true,
+      "filters": [
+        "plantId"
+      ],
+      "sort": [
+        "wateredAt",
+        "createdAt"
+      ]
+    },
+    {
+      "operationId": "watering.get",
+      "type": "crud",
+      "action": "get",
+      "entity": "Watering",
+      "method": "GET",
+      "path": "/waterings/{id}"
+    },
+    {
+      "operationId": "watering.create",
+      "type": "crud",
+      "action": "create",
+      "entity": "Watering",
+      "method": "POST",
+      "path": "/waterings"
+    },
+    {
+      "operationId": "watering.update",
+      "type": "crud",
+      "action": "update",
+      "entity": "Watering",
+      "method": "PATCH",
+      "path": "/waterings/{id}"
+    },
+    {
+      "operationId": "watering.delete",
+      "type": "crud",
+      "action": "delete",
+      "entity": "Watering",
+      "method": "DELETE",
+      "path": "/waterings/{id}"
+    },
+    {
+      "operationId": "plant.countDueToday",
+      "type": "aggregate",
+      "entity": "Plant",
+      "method": "GET",
+      "path": "/plants/due-count",
+      "summary": "Count of plants needing water today",
+      "aggregate": {
+        "fn": "count",
+        "period": "day",
+        "dateField": "nextWateringDate"
+      }
+    },
+    {
+      "operationId": "watering.countThisWeek",
+      "type": "aggregate",
+      "entity": "Watering",
+      "method": "GET",
+      "path": "/waterings/count-this-week",
+      "summary": "Count of waterings logged this week",
+      "aggregate": {
+        "fn": "count",
+        "period": "week",
+        "dateField": "wateredAt"
+      }
+    }
+  ],
+  "seed": [
+    {
+      "entity": "Plant",
+      "records": [
+        {
+          "id": "7a1b2c3d-0001-4000-8000-000000000001",
+          "name": "Monstera",
+          "species": "Monstera deliciosa",
+          "location": "Living room",
+          "wateringIntervalDays": 7,
+          "nextWateringDate": "2026-11-05"
+        },
+        {
+          "id": "7a1b2c3d-0002-4000-8000-000000000002",
+          "name": "Basil",
+          "species": "Ocimum basilicum",
+          "location": "Kitchen",
+          "wateringIntervalDays": 2,
+          "nextWateringDate": "2026-11-06"
+        },
+        {
+          "id": "7a1b2c3d-0003-4000-8000-000000000003",
+          "name": "Fern",
+          "species": "Nephrolepis exaltata",
+          "location": "Bathroom",
+          "wateringIntervalDays": 4,
+          "nextWateringDate": "2026-11-05"
+        }
+      ]
+    }
+  ]
+}

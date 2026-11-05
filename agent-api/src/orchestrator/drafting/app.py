@@ -1,0 +1,194 @@
+"""Drafting a dynamic app (Epic 22, decision D1): the app flow, apart from the static sites' flow.
+
+The model drafts what the app is (the BackendSpec and the app outline, `draft_app@v1`); code writes the rest: the
+theme from the code-picked design direction (no model call), and the FrontendSpec's pages from the outline and the
+contract. No direction cards, no designed pages, no Manage area. `DYNAMIC_FRONTEND=app` sends dynamic drafts from a
+requirement here; `legacy` keeps them on the static sites' flow (`drafts.py`).
+"""
+
+import json
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+from src.configs import config
+from src.engines.port import EngineResult, EngineStatus
+from src.engines.prompts import PromptLibrary, RenderedPrompt
+from src.modules.shared.domain.backend_spec import validate_spec_data
+from src.modules.shared.domain.entities import SpecDraftEntity
+from src.modules.shared.domain.enums import GenerationMode, SpecSource
+from src.modules.shared.domain.frontend_spec.app import AppOutline
+from src.modules.shared.domain.schema_digest import schema_digest
+
+from ..backend.planner import build_plan
+from ..frontend.app.outline import complete_outline
+from ..frontend.app.screens import app_frontend_spec, ensure_aggregates
+from ..integration.contract import build_contract
+
+PROMPT = ("draft_app", "v1")
+OUTLINE_FILE = "app-outline.json"  # what the model drafts next to the BackendSpec (code folds it into the FrontendSpec)
+# Outline examples shown in the prompt, relative to EXAMPLES_DIR; they fit `specs/flashcards.json` and
+# `specs/two-entity.json` (the fake engine drafts from them too).
+OUTLINE_EXAMPLES = {
+    "Flashcards (decks of cards reviewed with spaced repetition)": "app-outlines/flashcards.json",
+    "Project tracker (projects and their tasks)": "app-outlines/project-tracker.json",
+}
+
+Call = Callable[[str, RenderedPrompt], Awaitable[EngineResult]]
+Progress = Callable[..., Awaitable[None]]
+
+
+def app_flow(draft: SpecDraftEntity) -> bool:
+    """A dynamic draft from a requirement, with the app flow switched on."""
+    return (
+        config.dynamic_frontend == "app"
+        and GenerationMode(draft.mode) == GenerationMode.DYNAMIC
+        and draft.source == SpecSource.REQUIREMENT
+    )
+
+
+@dataclass
+class AppDraft:
+    """What the app flow hands back to the draft runner: the last check, notes and the error that stopped it."""
+
+    check: Any
+    notes: list[dict[str, Any]] = field(default_factory=list)
+    unresolved: list[dict[str, Any]] = field(default_factory=list)  # operations the screens could not place
+    error: str | None = None
+
+
+def app_inputs(examples_dir: Path) -> dict[str, Any]:
+    """The prompt context the app flow adds to the BackendSpec inputs: the outline's schema digest, its examples and
+    the file to write. All text, so file and inline engines read the same."""
+    examples = []
+    for title, name in OUTLINE_EXAMPLES.items():
+        source = examples_dir / name
+        if source.is_file():
+            examples.append({"title": title, "json": json.dumps(json.loads(source.read_text()), ensure_ascii=False)})
+    digest = schema_digest(AppOutline.model_json_schema(by_alias=True), "AppOutline").split("\n", 2)[-1].strip()
+    return {"output_app_path": OUTLINE_FILE, "outline_digest": digest, "outline_examples": examples}
+
+
+def outline_notes(notes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The model's notes on the outline point into `app-outline.json`; in the FrontendSpec it is `/app`."""
+    out = []
+    for note in notes:
+        path = note.get("path") or ""
+        if note.get("spec") == "frontend" and not path.startswith("/app"):
+            note = {**note, "path": f"/app{path}" if path.startswith("/") or not path else f"/app/{path}"}
+        out.append(note)
+    return out
+
+
+# What models write for "the current date or time"; the BackendSpec's word for it is `now` (seen live: `today`).
+NOW_WORDS = frozenset({"today", "current_date", "current_timestamp", "now()", "current_time", "datetime.now"})
+
+
+def fix_backend_defaults(work: Path, backend_file: str) -> list[dict[str, Any]]:
+    """Code fixes to the drafted BackendSpec that need no model call: a date or datetime default of the current time
+    written another way becomes `now`. Returns the notes."""
+    data = _load(work / backend_file)
+    if not isinstance(data, dict):
+        return []
+    notes = []
+    for e_index, entity in enumerate(data.get("entities") or []):
+        for f_index, item in enumerate((entity or {}).get("fields") or []):
+            default = item.get("default") if isinstance(item, dict) else None
+            if item.get("type") in ("date", "datetime") and isinstance(default, str):
+                if default.strip().lower() in NOW_WORDS:
+                    item["default"] = "now"
+                    path = f"/entities/{e_index}/fields/{f_index}/default"
+                    message = f"{entity.get('name')}.{item.get('name')}: default '{default}' is written 'now'"
+                    notes.append({"spec": "backend", "path": path, "message": message, "suggestion": None})
+    if notes:
+        (work / backend_file).write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+    return notes
+
+
+def _load(path: Path) -> Any:
+    try:
+        return json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+        return None
+
+
+def app_theme(chosen: dict[str, Any] | None) -> dict[str, Any]:
+    """The direction's theme tokens only (decision D3): colours, fonts, radius and density; light and dark, the
+    kit's own type scale. No surface, colour area, motion or icon style: the kit decides how screens look."""
+    theme = (chosen or {}).get("theme") or {}
+    typography = theme.get("typography") or {}
+    out: dict[str, Any] = {"style": theme.get("style") or "dashboard", "colorScheme": "light-dark"}
+    if theme.get("colors"):
+        out["colors"] = dict(theme["colors"])
+    fonts = {key: typography[key] for key in ("headingFont", "bodyFont") if typography.get(key)}
+    if fonts:
+        out["typography"] = fonts
+    for key in ("radius", "density"):
+        if theme.get(key):
+            out[key] = theme[key]
+    if theme.get("direction"):
+        out["direction"] = dict(theme["direction"])
+    return out
+
+
+async def draft_app(
+    work: Path,
+    context: dict[str, Any],
+    prompts: PromptLibrary,
+    call: Call,
+    progress: Progress,
+    check_draft: Callable[[Path, GenerationMode], Any],
+    chosen: dict[str, Any] | None,
+    backend_file: str,
+    frontend_file: str,
+) -> AppDraft:
+    """One engine call for the BackendSpec and the outline (plus repairs only when the BackendSpec is invalid), then
+    the FrontendSpec by code: the outline completed from the BackendSpec and the contract, the screens planned."""
+    await progress("drafting")
+    result = await call("draft", prompts.render(*PROMPT, **context))
+    if result.status != EngineStatus.OK:
+        from .drafts import DraftFailed
+
+        raise DraftFailed(f"The engine stopped: {result.error_message or result.status}")
+    notes: list[dict[str, Any]] = fix_backend_defaults(work, backend_file)
+    error: str | None = None
+    check = check_draft(work, GenerationMode.BACKEND)
+    attempts = 0
+    while not check.ok and attempts < config.draft_repair_attempts_backend:
+        attempts += 1
+        await progress(f"repairing ({attempts}/{config.draft_repair_attempts_backend})", attempts_count=attempts)
+        errors = check.repair_errors()
+        documents = {backend_file: (work / backend_file).read_text()} if context.get("inline") else {}
+        prompt = prompts.render(
+            "repair_spec", "v3", files=[backend_file], errors=errors, inline=context.get("inline"), documents=documents
+        )
+        repaired = await call("repair", prompt)
+        notes += fix_backend_defaults(work, backend_file)
+        check = check_draft(work, GenerationMode.BACKEND)
+        if repaired.status != EngineStatus.OK and not check.ok:
+            error = f"Repair {attempts} stopped: {repaired.error_message or repaired.status}"
+            break
+    await progress("validating")
+    backend = validate_spec_data(_load(work / backend_file)).normalized if check.ok else None
+    if backend is None:
+        return AppDraft(check=check, notes=notes, error=error)
+    drafted = _load(work / OUTLINE_FILE)
+    if not isinstance(drafted, dict):
+        message = "The draft came without an app outline; every name and list comes from the BackendSpec"
+        notes.append({"spec": "frontend", "path": "/app", "message": message, "suggestion": None})
+    outline, outline_fixes = complete_outline(drafted, backend, build_contract(backend, build_plan(backend)))
+    # Story 22.3: the dashboard's figures are aggregate operations, templated like CRUD; code adds the missing ones.
+    extended, outline, aggregate_notes = ensure_aggregates(backend, outline)
+    added = [op for op in extended["operations"] if op not in backend["operations"]]
+    if added:
+        raw = _load(work / backend_file)
+        raw["operations"] = [*(raw.get("operations") or []), *added]
+        (work / backend_file).write_text(json.dumps(raw, indent=2, ensure_ascii=False) + "\n")
+        backend = validate_spec_data(raw).normalized
+    contract = build_contract(backend, build_plan(backend))
+    screens = app_frontend_spec(backend, outline, app_theme(chosen), contract)
+    (work / frontend_file).write_text(json.dumps(screens.spec, indent=2, ensure_ascii=False) + "\n")
+    notes += outline_fixes + aggregate_notes + screens.assumptions
+    check = check_draft(work, GenerationMode.DYNAMIC)
+    return AppDraft(check=check, notes=notes, unresolved=screens.unresolved, error=error)

@@ -1,0 +1,119 @@
+{
+  "name": "Bike Shed",
+  "tagline": "A maintenance log for our family's bikes",
+  "icon": "Bike",
+  "nav": [
+    {
+      "entity": "Bike",
+      "label": "Bikes",
+      "icon": "Bike"
+    },
+    {
+      "entity": "Service",
+      "label": "Services",
+      "icon": "Wrench"
+    }
+  ],
+  "home": "dashboard",
+  "entities": {
+    "Bike": {
+      "label": "Bike",
+      "plural": "Bikes",
+      "displayField": "nickname",
+      "listFields": [
+        "nickname",
+        "brand",
+        "type",
+        "yearBought",
+        "currentMileage"
+      ],
+      "listStyle": "table",
+      "detailFields": [
+        "nickname",
+        "brand",
+        "type",
+        "yearBought",
+        "currentMileage",
+        "createdAt"
+      ],
+      "fieldLabels": {
+        "nickname": "Nickname",
+        "brand": "Brand",
+        "type": "Type",
+        "yearBought": "Year bought",
+        "currentMileage": "Current mileage (km)",
+        "createdAt": "Created at"
+      },
+      "help": {
+        "currentMileage": "Current mileage in km"
+      }
+    },
+    "Service": {
+      "label": "Service",
+      "plural": "Services",
+      "displayField": "description",
+      "listFields": [
+        "description",
+        "bikeId",
+        "date",
+        "cost",
+        "shop"
+      ],
+      "listStyle": "table",
+      "detailFields": [
+        "bikeId",
+        "date",
+        "description",
+        "cost",
+        "shop",
+        "createdAt"
+      ],
+      "fieldLabels": {
+        "bikeId": "Bike",
+        "date": "Date",
+        "description": "What was done",
+        "cost": "Cost (€)",
+        "shop": "Shop / Home",
+        "createdAt": "Created at"
+      },
+      "help": {
+        "shop": "Shop name, or 'home' if serviced at home"
+      }
+    }
+  },
+  "dashboard": [
+    {
+      "label": "Spent this year",
+      "kind": "figure",
+      "entity": "Service",
+      "fn": "sum",
+      "field": "cost",
+      "filter": {},
+      "period": "year",
+      "dateField": "date"
+    },
+    {
+      "label": "Cost per bike",
+      "kind": "bar",
+      "entity": "Service",
+      "fn": "sum",
+      "field": "cost",
+      "filter": {},
+      "groupBy": "bikeId"
+    },
+    {
+      "label": "Bikes",
+      "kind": "figure",
+      "entity": "Bike",
+      "fn": "count",
+      "filter": {}
+    },
+    {
+      "label": "Services",
+      "kind": "figure",
+      "entity": "Service",
+      "fn": "count",
+      "filter": {}
+    }
+  ]
+}

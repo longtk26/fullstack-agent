@@ -1,0 +1,308 @@
+{
+  "specVersion": "1.0",
+  "project": {
+    "name": "Bike Shed",
+    "description": "A maintenance log for our family's bikes"
+  },
+  "stack": {
+    "framework": "fastapi",
+    "database": "postgresql",
+    "orm": "sqlalchemy",
+    "migration": "alembic"
+  },
+  "entities": [
+    {
+      "name": "Bike",
+      "displayField": "nickname",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "primary": true
+        },
+        {
+          "name": "nickname",
+          "type": "string",
+          "required": true,
+          "maxLength": 80
+        },
+        {
+          "name": "brand",
+          "type": "string",
+          "required": true,
+          "maxLength": 80
+        },
+        {
+          "name": "type",
+          "type": "enum",
+          "required": true,
+          "values": [
+            "road",
+            "mountain",
+            "city",
+            "kids"
+          ]
+        },
+        {
+          "name": "yearBought",
+          "type": "integer",
+          "required": true,
+          "min": 1900
+        },
+        {
+          "name": "currentMileage",
+          "type": "integer",
+          "required": true,
+          "default": 0,
+          "min": 0
+        },
+        {
+          "name": "createdAt",
+          "type": "datetime",
+          "required": true,
+          "default": "now"
+        }
+      ]
+    },
+    {
+      "name": "Service",
+      "displayField": "description",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "primary": true
+        },
+        {
+          "name": "bikeId",
+          "type": "uuid",
+          "required": true,
+          "index": true
+        },
+        {
+          "name": "date",
+          "type": "date",
+          "required": true,
+          "default": "now"
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "required": true,
+          "maxLength": 255
+        },
+        {
+          "name": "cost",
+          "type": "decimal",
+          "required": true,
+          "min": 0
+        },
+        {
+          "name": "shop",
+          "type": "string",
+          "required": true,
+          "maxLength": 120
+        },
+        {
+          "name": "createdAt",
+          "type": "datetime",
+          "required": true,
+          "default": "now"
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "name": "bikeServices",
+      "type": "one-to-many",
+      "from": "Bike",
+      "to": "Service",
+      "foreignKey": "bikeId",
+      "onDelete": "CASCADE"
+    }
+  ],
+  "operations": [
+    {
+      "operationId": "bike.list",
+      "type": "crud",
+      "action": "list",
+      "entity": "Bike",
+      "method": "GET",
+      "path": "/bikes",
+      "pagination": true,
+      "filters": [
+        "type"
+      ],
+      "sort": [
+        "nickname",
+        "brand",
+        "yearBought",
+        "currentMileage",
+        "createdAt"
+      ],
+      "search": [
+        "nickname",
+        "brand"
+      ]
+    },
+    {
+      "operationId": "bike.get",
+      "type": "crud",
+      "action": "get",
+      "entity": "Bike",
+      "method": "GET",
+      "path": "/bikes/{id}"
+    },
+    {
+      "operationId": "bike.create",
+      "type": "crud",
+      "action": "create",
+      "entity": "Bike",
+      "method": "POST",
+      "path": "/bikes"
+    },
+    {
+      "operationId": "bike.update",
+      "type": "crud",
+      "action": "update",
+      "entity": "Bike",
+      "method": "PATCH",
+      "path": "/bikes/{id}"
+    },
+    {
+      "operationId": "bike.delete",
+      "type": "crud",
+      "action": "delete",
+      "entity": "Bike",
+      "method": "DELETE",
+      "path": "/bikes/{id}"
+    },
+    {
+      "operationId": "service.list",
+      "type": "crud",
+      "action": "list",
+      "entity": "Service",
+      "method": "GET",
+      "path": "/services",
+      "pagination": true,
+      "filters": [
+        "bikeId",
+        "shop"
+      ],
+      "sort": [
+        "date",
+        "cost",
+        "createdAt"
+      ],
+      "search": [
+        "description",
+        "shop"
+      ]
+    },
+    {
+      "operationId": "service.get",
+      "type": "crud",
+      "action": "get",
+      "entity": "Service",
+      "method": "GET",
+      "path": "/services/{id}"
+    },
+    {
+      "operationId": "service.create",
+      "type": "crud",
+      "action": "create",
+      "entity": "Service",
+      "method": "POST",
+      "path": "/services"
+    },
+    {
+      "operationId": "service.update",
+      "type": "crud",
+      "action": "update",
+      "entity": "Service",
+      "method": "PATCH",
+      "path": "/services/{id}"
+    },
+    {
+      "operationId": "service.delete",
+      "type": "crud",
+      "action": "delete",
+      "entity": "Service",
+      "method": "DELETE",
+      "path": "/services/{id}"
+    },
+    {
+      "operationId": "service.sumCostThisYear",
+      "type": "aggregate",
+      "entity": "Service",
+      "method": "GET",
+      "path": "/services/aggregate/sum-cost-this-year",
+      "summary": "Spent this year",
+      "aggregate": {
+        "fn": "sum",
+        "field": "cost",
+        "period": "year",
+        "dateField": "date"
+      }
+    },
+    {
+      "operationId": "service.sumCostByBikeId",
+      "type": "aggregate",
+      "entity": "Service",
+      "method": "GET",
+      "path": "/services/aggregate/sum-cost-by-bike-id",
+      "summary": "Cost per bike",
+      "aggregate": {
+        "fn": "sum",
+        "field": "cost",
+        "groupBy": "bikeId"
+      }
+    },
+    {
+      "operationId": "bike.count",
+      "type": "aggregate",
+      "entity": "Bike",
+      "method": "GET",
+      "path": "/bikes/aggregate/count",
+      "summary": "Bikes",
+      "aggregate": {
+        "fn": "count"
+      }
+    },
+    {
+      "operationId": "service.count",
+      "type": "aggregate",
+      "entity": "Service",
+      "method": "GET",
+      "path": "/services/aggregate/count",
+      "summary": "Services",
+      "aggregate": {
+        "fn": "count"
+      }
+    }
+  ],
+  "seed": [
+    {
+      "entity": "Bike",
+      "records": [
+        {
+          "id": "a0000000-0000-4000-8000-000000000001",
+          "nickname": "Blue Arrow",
+          "brand": "Canyon",
+          "type": "road",
+          "yearBought": 2021,
+          "currentMileage": 0
+        },
+        {
+          "id": "a0000000-0000-4000-8000-000000000002",
+          "nickname": "Muddy",
+          "brand": "Trek",
+          "type": "mountain",
+          "yearBought": 2019,
+          "currentMileage": 0
+        }
+      ]
+    }
+  ]
+}

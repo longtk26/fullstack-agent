@@ -5,6 +5,7 @@ only shares configured host paths."""
 import asyncio
 import json
 import os
+import re
 import shutil
 import uuid
 
@@ -13,7 +14,7 @@ import pytest
 from src.modules.shared.domain.frontend_spec import validate_frontend_spec_text
 from src.orchestrator.frontend.planner import plan_frontend
 from src.orchestrator.frontend.scaffold import scaffold_frontend
-from src.orchestrator.frontend.validation import FrontendValidationRequest, SandboxFrontendValidationRunner
+from src.orchestrator.frontend.validation import CHECKS, FrontendValidationRequest, SandboxFrontendValidationRunner
 from src.sandbox import DockerSandboxProvider
 from tests.generation_helpers import EXAMPLES, REPO
 
@@ -46,9 +47,11 @@ def _validate(project, plan):
 PASSED = ("install", "typecheck", "conventions", "assets", "build", "routes")
 
 
-def _passing(summary: dict[str, str]) -> bool:
+def _passing(summary: dict[str, str], app: bool = False) -> bool:
+    """Every check passed; `scenarios` runs for apps of the dynamic app flow only (Story 22.4)."""
     rest = {check: status for check, status in summary.items() if check != "journeys"}
-    return rest == {**dict.fromkeys(PASSED, "passed"), "lint": "skipped", "tests": "skipped"}
+    scenarios = "passed" if app else "skipped"
+    return rest == {**dict.fromkeys(PASSED, "passed"), "lint": "skipped", "tests": "skipped", "scenarios": scenarios}
 
 
 def test_golden_static_site_passes_every_check_offline(landing):
@@ -367,3 +370,49 @@ def test_endless_render_loop_component_fails_fast_in_checks_and_render_test():
     finally:
         if not os.environ.get("BGA_KEEP_SANDBOX_DIRS"):
             shutil.rmtree(root, ignore_errors=True)
+
+
+@pytest.mark.parametrize("name", ["flashcards", "two-entity"])
+def test_an_app_on_the_kit_builds_and_renders_on_mocks(name):
+    """Story 22.4: an app of the dynamic app flow (screens by the planner, sections from the app kit) installs,
+    type-checks, builds and serves every route on the mock API, with no engine call."""
+    from tests.test_app_screens import _example, _plan
+
+    backend, raw = _example(name)
+    _, _, contract, screens = _plan(backend, raw)
+    spec = validate_frontend_spec_text(json.dumps(screens.spec)).normalized
+    plan = plan_frontend(spec, contract)
+    assert plan["rendering"] == "app"
+    project = REPO / ".data" / "test-sandbox" / uuid.uuid4().hex[:10] / "frontend"
+    scaffold_frontend(project, plan, spec, contract)
+    keep = os.environ.get("BGA_KEEP_SANDBOX_DIRS") == "1"
+    try:
+        outcome = _validate(project, plan)
+        assert _passing(outcome.summary, app=True), outcome.digest
+        scenarios = outcome.results[CHECKS.index("scenarios")].summary
+        assert re.match(r"^[1-9]\d* scenario\(s\) answered as the API does", scenarios), scenarios
+    finally:
+        if not keep:
+            shutil.rmtree(project.parent, ignore_errors=True)
+
+
+def test_a_planted_mock_mismatch_fails_the_scenarios_check():
+    """Story 22.4: a mock that accepts what the API refuses (a create without its required fields) fails the lane."""
+    from tests.test_app_screens import _example, _plan
+
+    backend, raw = _example("two-entity")
+    _, _, contract, screens = _plan(backend, raw)
+    spec = validate_frontend_spec_text(json.dumps(screens.spec)).normalized
+    plan = plan_frontend(spec, contract)
+    project = REPO / ".data" / "test-sandbox" / uuid.uuid4().hex[:10] / "frontend"
+    scaffold_frontend(project, plan, spec, contract)
+    handlers = project / "src" / "mocks" / "handlers.ts"
+    planted = handlers.read_text().replace("const refusal = refused(op, body, true);", "const refusal = null;")
+    assert planted != handlers.read_text()
+    handlers.write_text(planted)
+    try:
+        outcome = _validate(project, plan)
+        assert outcome.summary["scenarios"] == "failed" and outcome.summary["build"] == "passed", outcome.summary
+        assert "missing required field" in outcome.digest
+    finally:
+        shutil.rmtree(project.parent, ignore_errors=True)

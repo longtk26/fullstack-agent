@@ -1,0 +1,162 @@
+{
+  "pages": {
+    "/": [
+      {
+        "id": "recent-categories",
+        "component": "AppList",
+        "data": {
+          "operationId": "category.list",
+          "params": {
+            "limit": 5
+          },
+          "fields": [
+            "name"
+          ]
+        },
+        "actions": []
+      }
+    ],
+    "/cart-items": [
+      {
+        "id": "cart-items-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "cartItem.list",
+          "fields": [
+            "productId",
+            "quantity",
+            "createdAt"
+          ]
+        },
+        "actions": [
+          "edit",
+          "delete"
+        ]
+      }
+    ],
+    "/cart-items/[id]/edit": [
+      {
+        "id": "cart-items-edit-form",
+        "component": "AppForm",
+        "form": "cartItem_update",
+        "actions": []
+      }
+    ],
+    "/categories": [
+      {
+        "id": "categories-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "category.list",
+          "fields": [
+            "name"
+          ]
+        },
+        "actions": []
+      }
+    ],
+    "/contact-messages/new": [
+      {
+        "id": "contact-message-create-form",
+        "component": "AppForm",
+        "form": "contactMessage_create",
+        "actions": []
+      }
+    ],
+    "/products": [
+      {
+        "id": "products-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "product.list",
+          "fields": [
+            "name",
+            "categoryId",
+            "price",
+            "imageUrl"
+          ]
+        },
+        "actions": [
+          "view"
+        ]
+      }
+    ],
+    "/products/[id]": [
+      {
+        "id": "products-detail",
+        "component": "AppDetail",
+        "data": {
+          "operationId": "product.get",
+          "params": {
+            "id": "$route.id"
+          },
+          "fields": [
+            "categoryId",
+            "name",
+            "description",
+            "price",
+            "imageUrl",
+            "stock",
+            "createdAt"
+          ]
+        },
+        "actions": [
+          "add-cart-items"
+        ]
+      }
+    ],
+    "/products/[id]/cart-items/new": [
+      {
+        "id": "cart-item-create-in-product-form",
+        "component": "AppForm",
+        "form": "cartItem_create_in_product",
+        "actions": []
+      }
+    ]
+  },
+  "forms": {
+    "cartItem_create_in_product": {
+      "operationId": "cartItem.create",
+      "fields": [
+        "productId=$route.id",
+        "quantity"
+      ]
+    },
+    "cartItem_update": {
+      "operationId": "cartItem.update",
+      "fields": [
+        "quantity"
+      ]
+    },
+    "contactMessage_create": {
+      "operationId": "contactMessage.create",
+      "fields": [
+        "name",
+        "email",
+        "message"
+      ]
+    }
+  },
+  "navigation": [
+    {
+      "label": "Dashboard",
+      "page": "home"
+    },
+    {
+      "label": "Categories",
+      "page": "categories"
+    },
+    {
+      "label": "Products",
+      "page": "products"
+    },
+    {
+      "label": "Cart items",
+      "page": "cart-items"
+    },
+    {
+      "label": "New contact message",
+      "page": "contact-messages-new"
+    }
+  ]
+}

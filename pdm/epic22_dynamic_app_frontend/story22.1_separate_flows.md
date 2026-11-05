@@ -31,10 +31,10 @@ for one mode lands in the other, and nothing would notice.
 
 ## Acceptance criteria
 
-- [ ] The static golden test exists and passes on `main` before any other change of this epic.
-- [ ] `DYNAMIC_FRONTEND=legacy` gives today's dynamic draft and frontend lane unchanged (the existing tests pass).
-- [ ] `DYNAMIC_FRONTEND=app` reaches the new path (an empty outline renders a shell with no screens, for now).
-- [ ] The switch, the `project.flow` field and the code layout are documented.
+- [x] The static golden test exists and passes on `main` before any other change of this epic.
+- [x] `DYNAMIC_FRONTEND=legacy` gives today's dynamic draft and frontend lane unchanged (the existing tests pass).
+- [x] `DYNAMIC_FRONTEND=app` reaches the new path (an empty outline renders a shell with no screens, for now).
+- [x] The switch, the `project.flow` field and the code layout are documented.
 
 ## Verify
 
@@ -42,4 +42,15 @@ for one mode lands in the other, and nothing would notice.
 
 ## Status
 
-**Planned (2026-11-05).**
+**Done (2026-11-05).** `tests/test_static_golden.py` records digests of every drafted and rendered file for
+`static-landing`, `street-food-static` and the Northwind requirement (`tests/fixtures/static-golden/`), recorded before
+the other changes. `config.dynamic_frontend` (`DYNAMIC_FRONTEND`, default `legacy`) sends dynamic drafts from a
+requirement to `drafting/app.py`; `plan_frontend` hands `project.flow: "app"` specs to `frontend/app/plan.py`
+(`rendering: "app"`, no engine call in `generate_frontend`), and the scaffold copies `files/dynamic/app/` only for
+them. Tests: `tests/test_app_flow.py`.
+
+Deviations:
+- The schema the static and legacy drafts read leaves out the app fields (`frontend_spec_json_schema(app=False)`), so
+  their prompts are byte for byte as before; `tests/fixtures/schema-digests/frontend-spec.site.digest.md` pins it.
+- The FrontendSpec validator accepts app sections only with `project.flow: "app"` in dynamic mode (`FE_APP_FLOW`
+  otherwise).

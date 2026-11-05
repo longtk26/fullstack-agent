@@ -30,6 +30,7 @@ SKIP = {
     "base.lock", "lucide-icons.txt", "icon-index.json",
 }  # fmt: skip
 UI_DIR = "src/components/ui"
+APP_PART = "app"  # Epic 22: `files/dynamic/app/`, the app kit
 SHELL_PLACEHOLDER = """import type { ReactNode } from "react";
 
 type SiteShellProps = {
@@ -126,9 +127,17 @@ def scaffold_frontend(
         "{{EXTERNAL_IMAGES}}": external_images_note(plan),  # Story 15.4
     }
     overlay_files: list[str] = []
-    for part in ("common", mode, *(("renderer",) if plan.get("rendering") == "renderer" else ())):
+    rendering = plan.get("rendering")
+    parts = (
+        "common",
+        mode,
+        *(("renderer",) if rendering == "renderer" else ("dynamic/app",) if rendering == "app" else ()),
+    )
+    for part in parts:
         root = overlay / "files" / part
         sources = {source.relative_to(root).as_posix(): source for source in _files(root)}
+        if part == "dynamic":  # Epic 22: the app kit is its own part, copied only for apps
+            sources = {name: source for name, source in sources.items() if not name.startswith(f"{APP_PART}/")}
         # The section library (Stories 17.2, 17.4): the sections this site uses, the helpers and its shell.
         wanted = library_files(plan, list(sources)) if part == "renderer" else {name: name for name in sources}
         for target, source in wanted.items():

@@ -34,13 +34,13 @@ detail page with its children, forms for create and edit, actions for custom ope
 
 ## Acceptance criteria
 
-- [ ] For flashcards, project-tracker, shop and book club: every contract operation is on a screen or an action, and
+- [x] For flashcards, project-tracker, shop and book club: every contract operation is on a screen or an action, and
       the planner's notes list nothing unplaced (tests per example).
-- [ ] A child created from its parent's detail tab needs no parent input; from its own list page it gets a picker
+- [x] A child created from its parent's detail tab needs no parent input; from its own list page it gets a picker
       (22.6).
-- [ ] The draft carries no bindings; every binding in the spec is written by the planner and passes the pair check.
-- [ ] The planner is deterministic (same input, same pages); snapshot tests per example.
-- [ ] Static golden passes.
+- [x] The draft carries no bindings; every binding in the spec is written by the planner and passes the pair check.
+- [x] The planner is deterministic (same input, same pages); snapshot tests per example.
+- [x] Static golden passes.
 
 ## Verify
 
@@ -48,4 +48,28 @@ detail page with its children, forms for create and edit, actions for custom ope
 
 ## Status
 
-**Planned (2026-11-05).**
+**Done (2026-11-05).** `frontend/app/screens.py` (`app_frontend_spec`, pure): from the completed outline, the
+BackendSpec and the contract it writes pages, forms and every binding, with one binding per section (a parent's page
+lists each child in its own `AppList` with `content.tab`; the dashboard has one `AppDashboard` per figure), so
+`check_spec_pair` and `uncovered_operations` check all of them. `ensure_aggregates` turns the outline's dashboard into
+BackendSpec aggregate operations (templated like CRUD; the BackendSpec's own aggregates are reused, and any the
+dashboard does not name join it). Navigation: the outline's entities, then custom lists of their own, then any list
+no page links to. The Manage area is never added (`integration/nodes.py` skips it for app specs). Tests:
+`tests/test_app_screens.py` (flashcards, two-entity / project tracker, shop, task-management: every operation placed,
+no pair issue at all, snapshots in `tests/fixtures/app-screens/`; the plugin specs of Epic 10's tests plan too).
+
+Live check (Antigravity, a new requirement "Bike Shed", 2026-11-05): SUCCEEDED with one call and no repair; BackendSpec,
+FrontendSpec and pair valid with no warnings, nothing unplaced; the model used `dateField` for "spent this year".
+252 s in 21 agent turns (~730k input tokens): Antigravity's agent loop, not the planner. Kept as
+`tests/fixtures/drafts/bike-shed-antigravity/` and replayed in the tests. Seen for 22.4: "cost per bike" groups by
+`bikeId`, so the chart must label bars with the bikes' names; the code-picked direction gave this family app a
+monospace font (JetBrains Mono): direction picking is unchanged by this epic, worth a look.
+
+Deviations:
+- No book club example exists in `examples/`; task-management, the plugin specs and the two live drafts stand in.
+- A child whose parent has a page is created from that page only (parent from the route, hidden); its own list has no
+  "New" button until pickers (22.6). A child whose list does not filter by its parent (a cart item) gets an "Add …"
+  link on the parent's page instead of a tab. A second required parent is typed as an id (an `FE_FIELD_SOURCE`
+  warning and an unresolved note) until 22.6.
+- An update without a `get` gets an edit page that starts empty (a partial update).
+- Figures and charts are on the dashboard only, not on the parent's detail page.

@@ -11,8 +11,66 @@ type FrontendSpec = {
   content?: ContentCollection[];
   assets?: Asset[];
   journeys?: Journey[];
+  app?: AppOutline | null;
   auth?: Record<string, unknown> | null;
   x-backendSpec?: string | null;
+};
+
+// A figure (`kind: figure`) or a chart of an aggregate of an entity's records (Epic 21's aggregates).
+type AppDashboardItem = {
+  label: string;
+  kind?: "figure" | "bar" | "line" | "area" | "pie";
+  entity: string;
+  fn?: "count" | "sum" | "avg" | "min" | "max";
+  field?: string | null;
+  filter?: Record<string, string | number | boolean>;
+  period?: "day" | "week" | "month" | "year" | null;
+  dateField?: string | null;
+  groupBy?: string | null;
+};
+
+// How an entity is named and shown; every field is optional (code fills it from the BackendSpec).
+type AppEntity = {
+  label?: string | null;
+  plural?: string | null;
+  displayField?: string | null;
+  listFields?: string[];
+  listStyle?: "table" | "cards" | null;
+  detailFields?: string[];
+  fieldLabels?: Record<string, string>;
+  help?: Record<string, string>;
+};
+
+type AppHighlight = {
+  title: string;
+  text?: string | null;
+  icon?: string | null;
+};
+
+// An optional public first page (off unless the requirement asks for one): a headline, a short text, up to three highlights and a button into the app.
+type AppLanding = {
+  headline: string;
+  text?: string | null;
+  highlights?: AppHighlight[];
+  cta?: string | null;
+};
+
+type AppNavItem = {
+  entity: string;
+  label?: string | null;
+  icon?: string | null;
+};
+
+// What the app is, as the model drafts it: entities, navigation, labels and figures, never layout, routes, operations or parameters (code binds every screen, Story 22.3).
+type AppOutline = {
+  name?: string | null;
+  tagline?: string | null;
+  icon?: string | null;
+  nav?: AppNavItem[];
+  home?: string;
+  entities?: Record<string, AppEntity>;
+  dashboard?: AppDashboardItem[];
+  landing?: AppLanding | null;
 };
 
 // An image the site shows (Stories 15.1, 19.1).
@@ -164,6 +222,7 @@ type Project = {
   mode: "static" | "dynamic";
   locale?: string;
   locales?: string[];
+  flow?: string | null;
 };
 
 type Section = {

@@ -1,0 +1,354 @@
+{
+  "pages": {
+    "/": [
+      {
+        "id": "figure-1",
+        "component": "AppDashboard",
+        "data": {
+          "operationId": "deck.count"
+        },
+        "actions": []
+      },
+      {
+        "id": "figure-2",
+        "component": "AppDashboard",
+        "data": {
+          "operationId": "card.count"
+        },
+        "actions": []
+      },
+      {
+        "id": "figure-3",
+        "component": "AppDashboard",
+        "data": {
+          "operationId": "reviewLog.countThisWeek"
+        },
+        "actions": []
+      },
+      {
+        "id": "figure-4",
+        "component": "AppDashboard",
+        "data": {
+          "operationId": "reviewLog.countByRating"
+        },
+        "actions": []
+      },
+      {
+        "id": "recent-decks",
+        "component": "AppList",
+        "data": {
+          "operationId": "deck.list",
+          "params": {
+            "limit": 5,
+            "sort": "-createdAt"
+          },
+          "fields": [
+            "name",
+            "createdAt"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "delete"
+        ]
+      }
+    ],
+    "/cards": [
+      {
+        "id": "cards-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "card.list",
+          "fields": [
+            "front",
+            "back",
+            "dueDate"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "delete"
+        ]
+      }
+    ],
+    "/cards/[id]": [
+      {
+        "id": "cards-detail",
+        "component": "AppDetail",
+        "data": {
+          "operationId": "card.get",
+          "params": {
+            "id": "$route.id"
+          },
+          "fields": [
+            "deckId",
+            "front",
+            "back",
+            "example",
+            "intervalDays",
+            "ease",
+            "dueDate",
+            "repetitionCount",
+            "createdAt"
+          ]
+        },
+        "actions": [
+          "edit",
+          "review",
+          "delete"
+        ]
+      },
+      {
+        "id": "review-logs-tab",
+        "component": "AppList",
+        "data": {
+          "operationId": "reviewLog.list",
+          "params": {
+            "cardId": "$route.id"
+          },
+          "fields": [
+            "rating",
+            "reviewedAt"
+          ]
+        },
+        "actions": []
+      }
+    ],
+    "/cards/[id]/edit": [
+      {
+        "id": "cards-edit-form",
+        "component": "AppForm",
+        "form": "card_update",
+        "actions": []
+      }
+    ],
+    "/cards/[id]/review-logs/new": [
+      {
+        "id": "review-log-create-in-card-form",
+        "component": "AppForm",
+        "form": "reviewLog_create_in_card",
+        "actions": []
+      }
+    ],
+    "/cards/due": [
+      {
+        "id": "card-list-due-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "card.listDue",
+          "fields": [
+            "front",
+            "back",
+            "dueDate"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "delete"
+        ]
+      }
+    ],
+    "/decks": [
+      {
+        "id": "decks-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "deck.list",
+          "fields": [
+            "name",
+            "createdAt"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "delete"
+        ]
+      }
+    ],
+    "/decks/[id]": [
+      {
+        "id": "decks-detail",
+        "component": "AppDetail",
+        "data": {
+          "operationId": "deck.get",
+          "params": {
+            "id": "$route.id"
+          },
+          "fields": [
+            "name",
+            "description",
+            "createdAt"
+          ]
+        },
+        "actions": [
+          "edit",
+          "delete"
+        ]
+      },
+      {
+        "id": "deck-stats",
+        "component": "AppDetail",
+        "data": {
+          "operationId": "deck.stats",
+          "params": {
+            "id": "$route.id"
+          }
+        },
+        "actions": []
+      },
+      {
+        "id": "cards-tab",
+        "component": "AppList",
+        "data": {
+          "operationId": "card.list",
+          "params": {
+            "deckId": "$route.id"
+          },
+          "fields": [
+            "front",
+            "back",
+            "dueDate"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "delete"
+        ]
+      },
+      {
+        "id": "card-list-due-tab",
+        "component": "AppList",
+        "data": {
+          "operationId": "card.listDue",
+          "params": {
+            "deckId": "$route.id"
+          },
+          "fields": [
+            "front",
+            "back",
+            "dueDate"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "delete"
+        ]
+      }
+    ],
+    "/decks/[id]/cards/new": [
+      {
+        "id": "card-create-in-deck-form",
+        "component": "AppForm",
+        "form": "card_create_in_deck",
+        "actions": []
+      }
+    ],
+    "/decks/[id]/edit": [
+      {
+        "id": "decks-edit-form",
+        "component": "AppForm",
+        "form": "deck_update",
+        "actions": []
+      }
+    ],
+    "/decks/new": [
+      {
+        "id": "deck-create-form",
+        "component": "AppForm",
+        "form": "deck_create",
+        "actions": []
+      }
+    ],
+    "/review-logs": [
+      {
+        "id": "review-logs-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "reviewLog.list",
+          "fields": [
+            "cardId",
+            "rating",
+            "reviewedAt"
+          ]
+        },
+        "actions": []
+      }
+    ]
+  },
+  "forms": {
+    "deck_create": {
+      "operationId": "deck.create",
+      "fields": [
+        "name",
+        "description"
+      ]
+    },
+    "deck_update": {
+      "operationId": "deck.update",
+      "fields": [
+        "name",
+        "description"
+      ]
+    },
+    "card_create_in_deck": {
+      "operationId": "card.create",
+      "fields": [
+        "deckId=$route.id",
+        "front",
+        "back",
+        "example",
+        "intervalDays",
+        "ease",
+        "dueDate",
+        "repetitionCount"
+      ]
+    },
+    "card_review": {
+      "operationId": "card.review",
+      "fields": [
+        "rating"
+      ]
+    },
+    "card_update": {
+      "operationId": "card.update",
+      "fields": [
+        "front",
+        "back",
+        "example",
+        "intervalDays",
+        "ease",
+        "dueDate",
+        "repetitionCount"
+      ]
+    },
+    "reviewLog_create_in_card": {
+      "operationId": "reviewLog.create",
+      "fields": [
+        "cardId=$route.id",
+        "rating",
+        "intervalDays",
+        "ease"
+      ]
+    }
+  },
+  "navigation": [
+    {
+      "label": "Dashboard",
+      "page": "home"
+    },
+    {
+      "label": "Decks",
+      "page": "decks"
+    },
+    {
+      "label": "Due cards",
+      "page": "cards-due"
+    }
+  ]
+}

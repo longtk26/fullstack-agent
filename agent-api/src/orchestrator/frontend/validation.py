@@ -8,6 +8,8 @@
     5 build        next build                                                       1, 2
     6 routes       every planned route is in the build output                       5
     7 tests        Vitest (unit) + Playwright smoke on the mock API / the export    5
+    8 scenarios    apps of the dynamic app flow (Story 22.4): the contract's scenarios against the mock API
+                   (`src/mocks/scenarios.test.ts`, msw/node, seconds); blocking. Skipped for other frontends.
 
 A failed check skips its dependents; every validation re-runs all checks. Story 18.13: `conventions` findings and
 type errors only in test files are `warning`s (shown, never repaired), as on the backend lane (18.11).
@@ -30,10 +32,13 @@ from ..checks.parsers import junit_failures, last_lines
 from .assets import assets_check
 
 # `assets` (Story 15.3) runs before the build: a drawing that falls back must not be built.
-CHECKS = ("install", "typecheck", "lint", "conventions", "assets", "build", "routes", "tests", "journeys")
+CHECKS = ("install", "typecheck", "lint", "conventions", "assets", "build", "routes", "scenarios", "tests", "journeys")
 DEPENDS_ON = {"typecheck": ("install",), "lint": ("install",), "build": ("install", "typecheck")}
-DEPENDS_ON |= {"routes": ("build",), "tests": ("build",), "journeys": ("build", "tests")}
-DIGEST_ORDER = ("install", "typecheck", "build", "assets", "conventions", "lint", "routes", "tests", "journeys")
+DEPENDS_ON |= {"routes": ("build",), "tests": ("build",), "journeys": ("build", "tests"), "scenarios": ("typecheck",)}
+DIGEST_ORDER = (
+    *("install", "typecheck", "build", "assets", "conventions", "lint"),
+    *("routes", "scenarios", "tests", "journeys"),
+)
 TS_ERROR = re.compile(r"^(?:\./)?((?:src|tests)/[^\s(:]+)\((\d+),\d+\): error (TS\d+): (.+)$", re.MULTILINE)
 TEST_FILE = re.compile(r"(?:^tests/|\.(?:test|spec)\.tsx?$)")
 BUILD_LOCATION = re.compile(r"^\./(src/[^\s:]+):(\d+):\d+", re.MULTILINE)
@@ -174,6 +179,8 @@ class StaticFrontendValidationRunner:
                     result = CheckResult(check=check, status="skipped", summary="frontend tests disabled")
                 elif check == "lint":
                     result = CheckResult(check=check, status="skipped", summary="eslint validation disabled")
+                elif check == "scenarios" and request.plan.get("rendering") != "app":
+                    result = CheckResult(check=check, status="skipped", summary="not an app of the dynamic app flow")
                 else:
                     result = CheckResult(check=check, status="not_run", summary="requires the Node sandbox")
                 slot.append(result)
@@ -194,6 +201,8 @@ class SandboxFrontendValidationRunner:
                     result = CheckResult(check=check, status="skipped", summary="frontend tests disabled")
                 elif check == "lint":
                     result = CheckResult(check=check, status="skipped", summary="eslint validation disabled")
+                elif check == "scenarios" and request.plan.get("rendering") != "app":
+                    result = CheckResult(check=check, status="skipped", summary="not an app of the dynamic app flow")
                 elif blocked:
                     result = CheckResult(
                         check=check, status="skipped", summary=f"skipped: {', '.join(blocked)} did not pass"
@@ -209,6 +218,18 @@ class SandboxFrontendValidationRunner:
                 slot.append(result)
             results[check] = result
         return _outcome([results[check] for check in CHECKS])
+
+    async def _scenarios(self, request: FrontendValidationRequest) -> CheckResult:
+        """Story 22.4: the mock API answers the contract's scenarios as the backend does (status and error code)."""
+        run = await request.sandbox.exec(
+            "pnpm exec vitest run src/mocks/scenarios.test.ts --reporter=dot --silent", timeout_s=300
+        )
+        data = json.loads((request.project / "src" / "mocks" / "scenarios.json").read_text())
+        count, skipped = len(data.get("scenarios") or []), data.get("notEmulated") or {}
+        rest = f"; not emulated: {', '.join(f'{n} {reason}' for reason, n in skipped.items())}" if skipped else ""
+        ok, broken = f"{count} scenario(s) answered as the API does{rest}", "the mock API breaks the contract"
+        summary = ok if run.ok else broken
+        return _result("scenarios", run.ok, summary, run)
 
     async def _install(self, request: FrontendValidationRequest) -> CheckResult:
         sandbox = request.sandbox

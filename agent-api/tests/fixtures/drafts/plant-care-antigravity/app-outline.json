@@ -1,0 +1,101 @@
+{
+  "name": "Plant Care",
+  "tagline": "A watering log for my houseplants",
+  "icon": "Sprout",
+  "home": "dashboard",
+  "nav": [
+    {
+      "entity": "Plant",
+      "label": "Plants",
+      "icon": "Sprout"
+    }
+  ],
+  "entities": {
+    "Plant": {
+      "label": "Plant",
+      "plural": "Plants",
+      "displayField": "name",
+      "listStyle": "cards",
+      "listFields": [
+        "name",
+        "location",
+        "wateringIntervalDays",
+        "nextWateringDate"
+      ],
+      "detailFields": [
+        "name",
+        "species",
+        "location",
+        "wateringIntervalDays",
+        "photoNote",
+        "nextWateringDate",
+        "createdAt"
+      ],
+      "fieldLabels": {
+        "wateringIntervalDays": "Water every (days)",
+        "photoNote": "Photo note",
+        "nextWateringDate": "Next watering",
+        "location": "Location",
+        "species": "Species",
+        "createdAt": "Added"
+      },
+      "help": {
+        "wateringIntervalDays": "How often this plant needs water in days",
+        "location": "Where the plant stands (e.g. living room, kitchen, balcony)",
+        "photoNote": "Optional note or reference for the plant"
+      }
+    },
+    "Watering": {
+      "label": "Watering",
+      "plural": "Waterings",
+      "displayField": "wateredAt",
+      "listStyle": "table",
+      "listFields": [
+        "plantId",
+        "wateredAt",
+        "notes"
+      ],
+      "detailFields": [
+        "plantId",
+        "wateredAt",
+        "notes",
+        "createdAt"
+      ],
+      "fieldLabels": {
+        "plantId": "Plant",
+        "wateredAt": "Date",
+        "notes": "Note",
+        "createdAt": "Logged at"
+      },
+      "help": {
+        "notes": "Optional note (e.g. added fertiliser)"
+      }
+    }
+  },
+  "dashboard": [
+    {
+      "label": "Plants needing water today",
+      "entity": "Plant",
+      "fn": "count",
+      "period": "day"
+    },
+    {
+      "label": "Waterings this week",
+      "entity": "Watering",
+      "fn": "count",
+      "period": "week"
+    },
+    {
+      "label": "Total plants",
+      "entity": "Plant",
+      "fn": "count"
+    },
+    {
+      "label": "Plants by location",
+      "kind": "pie",
+      "entity": "Plant",
+      "fn": "count",
+      "groupBy": "location"
+    }
+  ]
+}

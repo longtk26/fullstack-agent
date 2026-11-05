@@ -515,6 +515,10 @@ def plan_frontend(spec: dict[str, Any], contract: dict[str, Any] | None = None) 
     """`spec` is the normalized FrontendSpec; `contract` is required in dynamic mode."""
     if spec["project"]["mode"] == "dynamic" and contract is None:
         raise ValueError("dynamic frontends are planned against the API contract")
+    if spec["project"].get("flow") == "app":  # Epic 22: the app flow plans its own screens
+        from .app.plan import plan_app
+
+        return plan_app(spec, contract)
     return _Planner(spec, contract if spec["project"]["mode"] == "dynamic" else None).build()
 
 

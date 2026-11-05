@@ -1,0 +1,71 @@
+{
+  "assumptions": [
+    {
+      "spec": "backend",
+      "path": "/entities/0/fields/6",
+      "message": "Added nextWateringDate (type date) to Plant to track when the plant next needs water and enable dashboard period filtering for plants needing water today."
+    },
+    {
+      "spec": "backend",
+      "path": "/entities/0/fields/5",
+      "message": "Modeled 'photo note' as a text field photoNote on Plant for optional notes or photo references as described in the requirement."
+    },
+    {
+      "spec": "backend",
+      "path": "/entities/0/fields/7",
+      "message": "Added createdAt timestamp to Plant for record ordering and audit."
+    },
+    {
+      "spec": "backend",
+      "path": "/entities/1/fields/4",
+      "message": "Added createdAt timestamp to Watering for chronological logging and sorting."
+    },
+    {
+      "spec": "backend",
+      "path": "/entities/1/fields/2",
+      "message": "Used wateredAt (type date) for the date the plant was watered, defaulting to today."
+    },
+    {
+      "spec": "backend",
+      "path": "/operations/5",
+      "message": "Declared custom operation plant.listDue (GET /plants/due) to list plants due or overdue for watering based on wateringIntervalDays and historical waterings."
+    },
+    {
+      "spec": "backend",
+      "path": "/seed/0/records",
+      "message": "Provided scientific species names (Monstera deliciosa, Ocimum basilicum, Nephrolepis exaltata) for the three seeded plants named in the requirement."
+    },
+    {
+      "spec": "frontend",
+      "path": "/app/nav",
+      "message": "Omitted Watering from sidebar navigation as it is a log entity accessed directly from the Plant detail screen per outline guidelines."
+    },
+    {
+      "spec": "frontend",
+      "path": "/app/entities/Plant/listStyle",
+      "message": "Selected cards layout style for Plant list to facilitate quick visual scanning of houseplant care cards."
+    }
+  ],
+  "unresolved": [
+    {
+      "spec": "backend",
+      "path": "/entities/0",
+      "message": "Should deleting a plant permanently delete all associated watering logs (CASCADE), or should watering history be retained/archived?"
+    },
+    {
+      "spec": "backend",
+      "path": "/entities/0/fields/4",
+      "message": "Should the watering interval support seasonal schedules (e.g. less frequent watering in winter vs summer)?"
+    },
+    {
+      "spec": "backend",
+      "path": "/entities/0/fields/5",
+      "message": "Should photoNote support direct image file uploads (type image) in addition to or instead of text notes in future iterations?"
+    },
+    {
+      "spec": "backend",
+      "path": "/entities/1/fields/2",
+      "message": "Should multiple watering records for the same plant on the same date be permitted or restricted?"
+    }
+  ]
+}

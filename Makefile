@@ -42,7 +42,7 @@ DEV_ENV := DB_URL=postgresql+psycopg://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@loc
            IMAGE_PROVIDER=$(or $(IMAGE_PROVIDER),gemini)
 
 .PHONY: env up down down-all ps logs dev dev-down dev-api dev-worker dev-ui setup venv migrate test lint template runner runner-node frontend-base icon-index \
-        host-worker host-worker-stop design-data design-diversity design-check-fixture
+        host-worker host-worker-stop design-data design-diversity design-check-fixture design-check-app
 
 env:
 	@test -f .env && echo ".env already exists" || ( \
@@ -104,6 +104,10 @@ design-diversity: template
 # and dark, measured against templates/nextjs_overlay/DESIGN_CHECKLIST.md (Docker, runner-node image).
 design-check-fixture:
 	cd $(API_DIR) && $(DEV_ENV) $(PY)/python -m scripts.design_check_fixture $(ARGS)
+
+# The app kit's design check (Story 22.4): an app's screens at 375 / 1440 px, light and dark, on its mock API.
+design-check-app:
+	cd $(API_DIR) && $(DEV_ENV) $(PY)/python -m scripts.design_check_app $(ARGS)
 
 # Local checkout of the pinned base template (the worker image bakes its own copy).
 template:

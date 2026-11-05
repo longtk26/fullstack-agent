@@ -88,7 +88,8 @@ async def validate_inputs(state: GenerationState, ctx: JobContext) -> NodeResult
 
             if not errors:
                 frontend_opts = (state.get("options") or {}).get("frontend") or {}
-                if frontend_opts.get("manageArea") is True:
+                app = (result.normalized.get("project") or {}).get("flow") == "app"  # Epic 22 (D4): never managed
+                if frontend_opts.get("manageArea") is True and not app:
                     from src.modules.shared.domain.frontend_spec import add_manage_area
 
                     contract = contract_for(backend.normalized)

@@ -1,0 +1,62 @@
+{
+  "pages": {
+    "/": [
+      {
+        "id": "recent-tasks",
+        "component": "AppList",
+        "data": {
+          "operationId": "task.list",
+          "params": {
+            "limit": 5
+          },
+          "fields": [
+            "title",
+            "status"
+          ]
+        },
+        "actions": []
+      }
+    ],
+    "/tasks": [
+      {
+        "id": "tasks-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "task.list",
+          "fields": [
+            "title",
+            "status"
+          ]
+        },
+        "actions": []
+      }
+    ],
+    "/tasks/new": [
+      {
+        "id": "task-create-form",
+        "component": "AppForm",
+        "form": "task_create",
+        "actions": []
+      }
+    ]
+  },
+  "forms": {
+    "task_create": {
+      "operationId": "task.create",
+      "fields": [
+        "title",
+        "status"
+      ]
+    }
+  },
+  "navigation": [
+    {
+      "label": "Dashboard",
+      "page": "home"
+    },
+    {
+      "label": "Tasks",
+      "page": "tasks"
+    }
+  ]
+}

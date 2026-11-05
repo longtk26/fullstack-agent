@@ -2,6 +2,7 @@ import asyncio
 import json
 import re
 import shutil
+import subprocess
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -33,6 +34,10 @@ class FakeStep(BaseModel):
 
     write: dict[str, str] = {}
     copy_from: Path | None = None
+    # Story 22.4: the templated files `copy_from`'s golden files were written over (same relative paths). A golden file
+    # with a base is three-way merged into the workspace's file (as an engine edits it) instead of replacing it, so
+    # what the workspace has beyond the base (the app flow's aggregate routes) is kept.
+    merge_base: Path | None = None
     # Frontend lane: copy the golden frontend matching `.bga/frontend-spec.json` (project name), optionally with
     # one planted conventions defect (a hard-coded colour in the shell) so the repair loop runs.
     golden_frontend: bool = False
@@ -64,6 +69,9 @@ class SimulatedCrash(BaseException):
 GOLDEN = Path(__file__).resolve().parent / "golden" / "two_entity"
 GOLDEN_SHOP = GOLDEN.parent / "shop"
 GOLDEN_FLASHCARDS = GOLDEN.parent / "flashcards"
+# Story 22.4: the templated files of `examples/specs/flashcards.json` the golden flashcards files were written over
+# (refresh with UPDATE_SNAPSHOTS=1, tests/test_fake_engine_merge.py).
+GOLDEN_FLASHCARDS_BASE = GOLDEN.parent / "flashcards_base"
 _TASK_ROUTER = "src/modules/tasks/presenter/router.py"
 _CONTACT_ROUTER = "src/modules/contact_messages/presenter/router.py"
 # TESTING / DEMO ONLY (docs/development/test-doubles.md). Golden frontends: hand-written, convention-correct
@@ -179,6 +187,52 @@ DRAFT_DEFAULTS = {
 }
 
 
+# TESTING / DEMO ONLY (docs/development/test-doubles.md). Epic 22: the app outline a dynamic app draft
+# (`.bga/draft.json` `flow: "app"`) writes next to its BackendSpec; any other BackendSpec gets a name-only outline.
+APP_OUTLINE_FIXTURES = {
+    "specs/flashcards.json": "app-outlines/flashcards.json",
+    "specs/two-entity.json": "app-outlines/project-tracker.json",
+}
+
+
+def merge_golden(golden: Path, base: Path, workdir: Path) -> None:
+    """Copies `golden` into `workdir`; a file with a templated `base` is merged three ways into the workspace's file
+    (`git merge-file`: the golden additions on top of what the workspace has; a package's export list is merged by
+    name), else written whole; a conflict keeps the golden file, as a plain copy would."""
+    for source in sorted(golden.rglob("*")):
+        if not source.is_file() or "__pycache__" in source.parts:
+            continue
+        relative = source.relative_to(golden)
+        target, original = workdir / relative, base / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if target.is_file() and source.name == "__init__.py" and _EXPORT.search(source.read_text()):
+            target.write_text(_merged_exports(target.read_text(), source.read_text()))
+            continue
+        if target.is_file() and original.is_file():
+            command = ["git", "merge-file", "-p", "-q", str(target), str(original), str(source)]
+            merged = subprocess.run(command, capture_output=True, text=True)
+            if merged.returncode == 0:
+                target.write_text(merged.stdout)
+                continue
+        shutil.copyfile(source, target)
+
+
+_EXPORT = re.compile(r"^from (\.[\w.]+) import (.+)$", re.MULTILINE)
+
+
+def _merged_exports(mine: str, golden: str) -> str:
+    """A package's export list (`from .x import A, B` + `__all__`): what either side exports, each name once."""
+    modules: dict[str, list[str]] = {}
+    for text in (mine, golden):
+        for module, names in _EXPORT.findall(text):
+            for name in (n.strip() for n in names.strip("() ").split(",")):
+                if name and name not in modules.setdefault(module, []):
+                    modules[module].append(name)
+    lines = [f"from {module} import {', '.join(names)}" for module, names in sorted(modules.items())]
+    exported = sorted({name for names in modules.values() for name in names})
+    return "\n".join(lines) + "\n\n__all__ = [\n" + "".join(f'    "{name}",\n' for name in exported) + "]\n"
+
+
 def _tree_request_id(prompt: str) -> str:
     """The page a `draft_tree` prompt asks for (`trees/<page>.json` in the prompt), Epic 21."""
     match = re.search(r"trees/([a-z0-9-]+)\.json", prompt)
@@ -204,11 +258,23 @@ def write_draft_fixture(workdir: Path) -> list[str]:
             DRAFT_DEFAULTS[mode],
         )
         written = []
+        app = request.get("flow") == "app"  # Epic 22: the BackendSpec and an app outline, no FrontendSpec
         for name in files:
             target = "frontend-spec.json" if name.startswith("frontend-specs/") else "backend-spec.json"
+            if app and target == "frontend-spec.json":
+                continue
             shutil.copyfile(Path(config.examples_dir) / name, workdir / target)
             written.append(target)
-        picked = ", ".join(files)
+            if app:
+                outline = APP_OUTLINE_FIXTURES.get(name)
+                if outline:
+                    shutil.copyfile(Path(config.examples_dir) / outline, workdir / "app-outline.json")
+                else:
+                    project = json.loads((workdir / target).read_text()).get("project") or {}
+                    outline_doc = {"name": project.get("name") or "App"}
+                    (workdir / "app-outline.json").write_text(json.dumps(outline_doc, indent=2) + "\n")
+                written.append("app-outline.json")
+        picked = ", ".join(files if not app else [f for f in files if not f.startswith("frontend-specs/")])
     spec = "backend" if mode == "backend" else "frontend"
     notes: dict[str, Any] = {
         "assumptions": [{"spec": spec, "path": "", "message": f"Fake engine: drafted from {picked}"}],
@@ -266,7 +332,9 @@ def shop_demo_scenario(delay_s: float = 0.3) -> dict[str, list[FakeStep]]:
 
 
 def flashcards_demo_scenario(delay_s: float = 0.3, broken_review: bool = False) -> dict[str, list[FakeStep]]:
-    cards_step = FakeStep(sleep_s=delay_s, copy_from=GOLDEN_FLASHCARDS / "cards")
+    cards_step = FakeStep(
+        sleep_s=delay_s, copy_from=GOLDEN_FLASHCARDS / "cards", merge_base=GOLDEN_FLASHCARDS_BASE / "cards"
+    )
     if broken_review:
         usecase_file = GOLDEN_FLASHCARDS / "cards" / "src" / "modules" / "cards" / "usecases" / "review_card_usecase.py"
         broken_usecase = usecase_file.read_text().replace(
@@ -275,7 +343,9 @@ def flashcards_demo_scenario(delay_s: float = 0.3, broken_review: bool = False) 
         cards_step.write = {"src/modules/cards/usecases/review_card_usecase.py": broken_usecase}
     return {
         "complete_backend": [
-            FakeStep(sleep_s=delay_s, copy_from=GOLDEN_FLASHCARDS / "decks"),
+            FakeStep(
+                sleep_s=delay_s, copy_from=GOLDEN_FLASHCARDS / "decks", merge_base=GOLDEN_FLASHCARDS_BASE / "decks"
+            ),
             cards_step,
         ],
     }
@@ -320,6 +390,7 @@ def demo_scenario(delay_s: float = 0.3) -> dict[str, list[FakeStep]]:
         # Spec drafts (Stories 2.4, 12.4): the example spec(s) the requirement matches; nothing to repair.
         "draft_spec": [FakeStep(sleep_s=delay_s, draft_fixture=True, message="Drafted the spec.")],
         "draft_frontend_spec": [FakeStep(sleep_s=delay_s, draft_fixture=True, message="Drafted the specs.")],
+        "draft_app": [FakeStep(sleep_s=delay_s, draft_fixture=True, message="Drafted the app.")],  # Epic 22
         "draft_tree": [FakeStep(sleep_s=delay_s, tree_fixture=True, message="Designed the page.")],
         "repair_spec": [FakeStep(sleep_s=delay_s, message="Nothing to repair.")],
         # Story 20.4: the fake's cards already differ; a repair call (only when a test scripts failing cards) keeps
@@ -391,9 +462,17 @@ class FakeEngine(ICodeEngine):
             if purpose == "complete_backend":
                 delay_s = self._flashcards_scenario["complete_backend"][0].sleep_s
                 if "complete the `decks` module" in prompt:
-                    return FakeStep(sleep_s=delay_s, copy_from=GOLDEN_FLASHCARDS / "decks")
+                    return FakeStep(
+                        sleep_s=delay_s,
+                        copy_from=GOLDEN_FLASHCARDS / "decks",
+                        merge_base=GOLDEN_FLASHCARDS_BASE / "decks",
+                    )
                 if "complete the `cards` module" in prompt:
-                    return FakeStep(sleep_s=delay_s, copy_from=GOLDEN_FLASHCARDS / "cards")
+                    return FakeStep(
+                        sleep_s=delay_s,
+                        copy_from=GOLDEN_FLASHCARDS / "cards",
+                        merge_base=GOLDEN_FLASHCARDS_BASE / "cards",
+                    )
             active = self._flashcards_scenario
         steps = active.get(purpose) or self.scenario.get("*") or [FakeStep()]
         key = (str(workdir), purpose)
@@ -429,7 +508,9 @@ class FakeEngine(ICodeEngine):
                     pass
             if status != EngineStatus.CANCELLED:
                 source = golden_frontend_for(workdir) if step.golden_frontend else step.copy_from
-                if source is not None:
+                if source is not None and step.merge_base is not None:
+                    merge_golden(source, step.merge_base, workdir)
+                elif source is not None:
                     shutil.copytree(source, workdir, dirs_exist_ok=True, ignore=shutil.ignore_patterns("__pycache__"))
                     await emit(EngineEventKind.TOOL_USE, f"Copy {source.name}", tool="Copy")
                     tools.append(ToolCall(name="Copy", target=source.name, started_at=datetime.now(UTC)))

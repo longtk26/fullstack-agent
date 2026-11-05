@@ -65,3 +65,17 @@ Output: `.data/reports/design-diversity/<timestamp>/report.md` and `report.json`
 (`pdm/epic20_design_diversity/epic20_design_diversity.md`) are written against these measures. With the fake engine
 the drafted content is the same example spec for every requirement, so section and copy measures only mean
 something with a real engine.
+
+## App kit (Story 22.4)
+
+`make design-check-app` plans an app of the dynamic app flow from an example BackendSpec and outline (no engine),
+builds it in the Node runner and screenshots every screen at 375 and 1440 px, light and dark, on the mock API;
+parameterised routes take the first fixture record. `ARGS="--app two-entity:project-tracker"` picks another app;
+screenshots and `report.json` land in `.data/shots/design-check-app/<app>/`. The rules it measures are in
+`templates/nextjs_overlay/DESIGN_CHECKLIST.md` ("App kit").
+
+`agent-api/scripts/app-walk.mjs` walks a running app through every screen and action in a browser (open every page,
+open a record from each list, edit and save, add a child from its parent, create, delete from the row menu, record
+actions), driven by the app's own `src/content/app.json`, and fails on any failed API call, error state or page error.
+Run it in `bga-runner-node` with a project's `node_modules` (the shared `bga-fe-modules-*` volume) mounted next to it:
+`node app-walk.mjs <url> <app.json> [shots dir]`; `WALK_HOST=host.docker.internal` when the app runs on the host.
