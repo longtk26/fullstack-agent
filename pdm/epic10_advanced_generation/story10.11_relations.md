@@ -9,7 +9,7 @@ one-to-many ones, with no engine call, and editable in the app's forms.
 
 ## Why
 
-`backend_codegen.database_gaps` sends every one-to-one relation and every link model to the engine, so a spec with
+`backend/codegen.py`'s `database_gaps` sends every one-to-one relation and every link model to the engine, so a spec with
 tags or members is never CRUD-only.
 
 ## Acceptance criteria
@@ -21,8 +21,8 @@ tags or members is never CRUD-only.
 - [ ] One-to-one: a unique foreign key; the parent's response embeds the child's summary; creating a second child is
       409.
 - [ ] `database_gaps` no longer names these relations; the examples with them make no engine call for their models.
-- [ ] Frontend: the 10.0a kit gains a multi-select reference picker (`x-bga.source: reference`, `many: true`), and list
-      and detail sections show related records as chips; MSW and fixtures handle link records.
+- [ ] The contract marks link fields (`x-bga.source: reference`, `many: true`) and the mocks' fixtures hold link
+      records (the multi-select picker and chips: [22.7](../epic22_dynamic_app_frontend/story22.7_plugin_frontends.md)).
 - [ ] Contract and codegen snapshots for both kinds; template tests for add, remove, duplicate add (409) and delete
       cascades.
 

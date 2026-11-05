@@ -25,8 +25,9 @@ pass. They are common in booking, stock and scheduling apps, and each has a know
 
 - [ ] Each kind takes a filter of which records count (e.g. `status != CANCELLED`), checked by the validator.
 - [ ] Template tests include **concurrent** requests (two sessions at once): exactly one succeeds.
-- [ ] The frontend shows the rejection on its field (10.0a); a full parent shows "full" and hides its create action
-      when the contract's `x-bga.rules` allows it to know; MSW enforces the same kinds.
+- [ ] A full parent's `allowedActions` has no `create:<child>`; the 409s carry their code and `details.fields` in
+      `x-bga.errors`; scenarios cover the last seat, a full workshop, an overlap and a duplicate; so the app can show
+      "full" and the rejection on its field ([22.7](../epic22_dynamic_app_frontend/story22.7_plugin_frontends.md)).
 - [ ] The drafter maps "no double booking", "limited seats", "only once per user" to these kinds instead of
       `custom`.
 

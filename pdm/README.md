@@ -72,7 +72,7 @@ lane, tracing, results, and an OpenAPI explorer that sends test calls to the run
 | 7 | [Artifacts & preview container](epic7_artifacts_and_preview/epic7_artifacts_and_preview.md) | Phase 4 | 4 |
 | 8 | [Observability & tracing](epic8_observability/epic8_observability.md) | Phase 4 | 4 |
 | 9 | [Agent UI](epic9_agent_ui/epic9_agent_ui.md) | cross-phase | 10 |
-| 10 | [Advanced generation: forms, plugins, auth, rules, files, jobs, email, webhooks, payments](epic10_advanced_generation/epic10_advanced_generation.md) (planned, next after 18.13) | Phase 5 | 13 |
+| 10 | [Advanced generation: plugins, auth, rules, files, jobs, email, webhooks, payments](epic10_advanced_generation/epic10_advanced_generation.md) (planned, next; backend only since 2026-11-05) | Phase 5 | 12 |
 | 11 | [Hardening, benchmark & release](epic11_hardening_and_release/epic11_hardening_and_release.md) | DoD §10 | 4 |
 | 12 | [Generation modes, FrontendSpec & API contract](epic12_contract_and_frontend_spec/epic12_contract_and_frontend_spec.md) | Phase 6 | 6 |
 | 13 | [Frontend generation (Next.js on nextjs-skills)](epic13_frontend_generation/epic13_frontend_generation.md) | Phase 6 | 5 |
@@ -84,6 +84,7 @@ lane, tracing, results, and an OpenAPI explorer that sends test calls to the run
 | 19 | [Real photos and API-driven dynamic apps](epic19_photos_and_live_apps/epic19_photos_and_live_apps.md) | Phase 7 | 10 |
 | 20 | [Design diversity: distinct directions, icons and motion](epic20_design_diversity/epic20_design_diversity.md) (in progress) | Phase 7 | 11 |
 | 21 | [Designed pages: element trees for static and dynamic sites](epic21_designed_pages/epic21_designed_pages.md) (approved, next after 18.10) | Phase 7 | 7 (outline) |
+| 22 | [Dynamic app frontend: screens from the contract, separate from static sites](epic22_dynamic_app_frontend/epic22_dynamic_app_frontend.md) (planned, after Epic 10) | Phase 5 | 8 |
 
 ### Suggested delivery order
 
@@ -135,6 +136,14 @@ workflow to be built before real generation works.
    one-to-one relations. 20.10, 20.7 and Epic 20's final check move after Epic 10; Epic 11 stays last. Candidate epics
    after Epic 10: teams and organisations; backend revisions (schema change → clear the preview database and run the
    migrations again from empty, no data migrations).
+14. **Re-planned 2026-11-05 (backend first, then a separate dynamic frontend):** Epic 10 becomes backend and contract
+   only, in five checkpoints: **A** contract and framework (10.0b field sources and parent summaries, 10.1 plugin
+   framework) → **B** JWT auth, roles and ownership, rules → **C** file storage, jobs and events, email → **D** webhooks,
+   payments → **E** capacity / no-overlap / unique-together, many-to-many and one-to-one. Then
+   [Epic 22](epic22_dynamic_app_frontend/epic22_dynamic_app_frontend.md): dynamic mode gets its own frontend flow (one
+   draft call, screens built by code from the contract on one shadcn app kit, no page trees), with the form kit (was
+   10.0a), the reference pickers (frontend half of 10.0b) and every plugin's frontend half (22.7); static mode is
+   unchanged, guarded by a static golden test (22.1). Then 20.10, 20.7 and Epic 20's final check; Epic 11 stays last.
 
 ### Status (2026-10-30)
 
@@ -154,7 +163,8 @@ workflow to be built before real generation works.
 | 18.10, 21 | implemented 2026-11-04 (drafts through the Gemini API, one request per step; designed pages as element trees for static and dynamic sites, aggregates from templates); merged to `main`; 21.1's paid measurement open |
 | 18.12, 18.11 | done 2026-11-04 (merged to `main`): each lane's preview starts when the lane passes, from any worker, integration in the background, lanes no longer cancel each other; no `generate_tests` step, validation blocks only on "starts" and "API works" (smoke call per custom operation), lint / conventions / migration details are warnings; plus Epic 21 fixes (old Lucide names, Metric `fn`, sites without trees). Real-run timings and 18.13 open |
 | 18.13 | done 2026-11-04 on `feat/story18.13-backend-context-pack`, under the user's review: `complete_backend@v5` carries a context pack per module (no file reads), modules run in parallel in scratch copies with a conflict rerun, frontend conventions and test-only type errors are warnings; the paid timing open |
-| 10 | re-planned 2026-11-04: 13 stories in checkpoints A–E (forms, core plugins, infrastructure, integrations, domain shapes); next after 18.13 |
+| 10 | re-planned 2026-11-04, backend only since 2026-11-05: 12 stories in checkpoints A–E (contract and framework, core plugins, infrastructure, integrations, domain shapes); next |
+| 22 | planned 2026-11-05: 8 stories in checkpoints A–D (the flow, forms, plugin frontends, switch-over); after Epic 10 |
 | 11, 16 | open (16 to be revised after Epic 20) |
 
 ### Next up (re-planned 2026-10-30)
@@ -224,11 +234,15 @@ Open decisions along the way:
 | LANES (2026-11-04, default, please confirm) | In dynamic mode each lane delivers on its own: its preview starts when it passes, integration runs in the background. A **failed frontend lane no longer cancels or fails the backend**: the backend finishes and previews, overall `COMPLETED_WITH_WARNINGS` (mirror of Q14). The integration-wait watchdog that cancelled a slow backend is removed | 18.12; FR-21, FR-27 (requirements v1.7) |
 | TESTS (2026-11-04) | The backend lane has **no `generate_tests` step**: only template tests, written with the code; validation blocks only on "starts" (deps, syntax, migration upgrade, startup) and "API works" (OpenAPI, template tests, one smoke call per custom operation); lint, conventions and migration details are warnings | 18.11; FR-09, FR-11 (requirements v1.7) |
 | PLUGINS (2026-11-04) | Backend features are **generation-time plugins**: plain fastapi-skills source copied into the project (owned, versioned in the manifest) through six named codegen hooks, with their frontend half in dynamic mode; the engine writes only custom operations, rules and job bodies, calling the plugins' APIs. Audit log, soft delete and SSE are out of scope | Epic 10 re-scoped (10.1); FR-34 (requirements v1.8) |
-| FIELDS (2026-11-04) | Every request field has a **source** in the contract (`x-bga.source`: server, currentUser, route, reference, upload, input); foreign keys are picked by label or taken from the route; the pair check rejects forms with a field they cannot fill. Forms use a kit on the base's shadcn components (Calendar, Combobox, Switch, …) with Zod schemas for every form | 10.0a, 10.0b; FR-35 (requirements v1.8) |
+| FIELDS (2026-11-04) | Every request field has a **source** in the contract (`x-bga.source`: server, currentUser, route, reference, upload, input); foreign keys are picked by label or taken from the route; the pair check rejects forms with a field they cannot fill. Forms use a kit on the base's shadcn components (Calendar, Combobox, Switch, …) with Zod schemas for every form | 10.0b, 22.5, 22.6; FR-35 (requirements v1.8) |
 | QUEUE (2026-11-04) | Generated backends run jobs on a **Postgres-backed queue** with a transactional outbox, not Redis + `arq` | 10.6 |
 | PAY (2026-11-04) | Payments start with a **fake provider** behind a port; a developer adds Stripe as an adapter later | 10.9 |
 | FILES (2026-11-04) | Files go to **MinIO** through signed URLs on the S3 API, so S3 is an env change | 10.5 |
-| TOKEN (2026-11-04) | Generated frontends store the auth token by a **runtime flag**, `AUTH_TOKEN_STORAGE=local` (default, `localStorage` + bearer) or `cookie` (httpOnly cookie, same-origin proxy adds the bearer); a developer switches it in the downloaded project with an env change. Both modes are tested; the backend stays bearer-only. Agreed exception to nextjs-skills' "never `localStorage`" rule | 10.2 |
+| FE-TESTS (2026-11-05) | Generated frontend unit tests, Playwright and journeys **stay off** in validation (off since `95b547b`, 2026-11-01): they made the frontend lane too slow. Frontend criteria are proven by agent tests on the generated code, build and typecheck, and the preview | Epics 10, 22 |
+| MODES (2026-11-05) | **Static and dynamic are separate frontend flows.** Dynamic mode drafts an app outline next to the BackendSpec in one call; code builds every screen from the contract on one shadcn app kit (no page trees, no direction cards; the direction sets theme tokens only; every operation on a screen, no Manage area; no engine call in the frontend lane). Static keeps Epics 20–21 unchanged; a static golden test fails on any change to static output | Epic 22; FR-36 (requirements v1.9) |
+| INTEGRATION (2026-11-05) | **The backend decides; a frontend only reads.** The contract carries each field's source, each operation's errors (`x-bga.errors`, custom rules included) and scenarios (`x-bga.scenarios`); every record response carries `allowedActions`. Each rule has one definition in the plan, from which codegen writes the backend check, the MSW behaviour and the scenarios; the scenarios run against the backend (smoke), MSW and the live switch. The draft names no operations: code writes every binding | 10.0b, 10.3, 10.4, 10.9, 10.10, 22.2–22.4, 22.7 |
+| BACKEND-FIRST (2026-11-05) | Epic 10 is built backend and contract first; its frontend halves are written once, on Epic 22's app kit (22.5–22.7). Until then dynamic examples keep auth and roles off, and checkpoints are verified through template tests, smoke checks and the try-it explorer | Epics 10, 22 |
+| TOKEN (2026-11-04) | Generated frontends store the auth token by a **runtime flag**, `AUTH_TOKEN_STORAGE=local` (default, `localStorage` + bearer) or `cookie` (httpOnly cookie, same-origin proxy adds the bearer); a developer switches it in the downloaded project with an env change. Both modes are checked (agent tests and the preview); the backend stays bearer-only. Agreed exception to nextjs-skills' "never `localStorage`" rule | 22.7 |
 | Q15 (2026-10-26) | Product renamed **Fullstack Generation Agent** (docs, UI, `APP_NAME`, LangSmith project). Internal identifiers stay: `bga-runner`, `.bga/`, compose project `bga`, schema `$id`s, repo folder | – |
 
 ## Changes from requirements v1.0 (accepted via Q1; now part of v1.1)

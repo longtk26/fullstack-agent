@@ -1,12 +1,11 @@
-# Story 10.2 — JWT authentication (backend + frontend)
+# Story 10.2 — JWT authentication
 
 **Epic:** [10 — Advanced generation](epic10_advanced_generation.md) · **Requirements:** FR-06 · **Depends on:** 10.1
 
 ## User story
 
 As a backend consumer, I want generated backends with working registration, login and protected endpoints when
-the spec asks for JWT auth; as a user of a generated dynamic app, I want to sign up, sign in and be sent to the
-login page when my session is missing.
+the spec asks for JWT auth. The dynamic app's sign-in, sign-up and token storage are in [22.7](../epic22_dynamic_app_frontend/story22.7_plugin_frontends.md).
 
 ## Acceptance criteria
 
@@ -26,28 +25,11 @@ Backend (the `auth-jwt` plugin, no engine call):
 - [ ] Previews seed a demo user per role; the App tab shows the demo credentials.
 - [ ] Manifest `auth` block filled in (7.1).
 
-Frontend (dynamic mode):
-
-- [ ] FrontendSpec `auth` (reserved since 12.1) → login and register pages from library sections (10.0a form kit),
-      a user menu in the shell (signed-in user, sign out).
-- [ ] Token storage follows the runtime flag `AUTH_TOKEN_STORAGE` (decision P8), read through `/api/runtime-config`:
-      - `local` (default): the token in `localStorage`, sent by `client.ts` as a bearer header on direct calls; routes
-        whose operations need auth are guarded in the browser.
-      - `cookie`: Next route handlers (`/api/auth/login|register|logout`) call the backend and set or clear an httpOnly,
-        `SameSite=Lax` cookie; `client.ts` calls a same-origin proxy (`/api/backend/[...path]`, checks `Origin`) that adds
-        the bearer from the cookie and forwards to `API_BASE_URL`; routes are guarded on the server.
-      - Either way a 401 clears the session and goes to `/login?next=<path>`. In mock mode both use MSW from the
-        browser with an in-memory session (MSW cannot set httpOnly cookies).
-      - The generated README and `.env.example` document the flag and recommend `cookie` for production.
-- [ ] Journeys and the generated auth tests run in both modes (live); the `conventions` check accepts `localStorage`
-      for the auth token only in the `local` mode helper.
-- [ ] MSW mocks register, login and `me` in memory and enforce the token on protected operations.
-- [ ] Journeys cover sign-up, sign-in and a protected page, on mocks and live.
-
 Agent UI:
 
 - [ ] The try-it explorer's auth helper (9.6): a "Get token" form calls the generated login and fills the bearer.
 
 ## Status
 
-**Planned (2026-11-04)**, revised from the first Epic 10 (frontend half, demo users, 9.6 helper added).
+**Planned (2026-11-04)**, revised from the first Epic 10 (demo users, 9.6 helper added). Frontend half moved to
+22.7 on 2026-11-05.

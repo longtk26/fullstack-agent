@@ -41,11 +41,7 @@ Infrastructure:
 - [ ] Bucket CORS allows the frontend preview's origin to `PUT`.
 - [ ] URLs are signed with the **browser-visible** endpoint (`STORAGE_PUBLIC_ENDPOINT`), not the in-network host.
 
-Frontend (dynamic mode):
-
-- [ ] An upload field (drag and drop, progress, image preview, replace and remove) in the 10.0a kit; images show in
-      lists and details through the signed URL.
-- [ ] MSW answers presign and the `PUT` and keeps the file as a blob URL.
+The upload field and its mocks are in [22.7](../epic22_dynamic_app_frontend/story22.7_plugin_frontends.md).
 
 ## Status
 

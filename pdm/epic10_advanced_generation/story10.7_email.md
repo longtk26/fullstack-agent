@@ -17,7 +17,8 @@ provider; as a user of the agent, I want to see the emails a preview sent.
 - [ ] Emails are always sent through jobs (10.6), so failures retry; env `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`,
       `SMTP_PASSWORD`, `SMTP_FROM`, `SMTP_TLS`.
 - [ ] With 10.2: optional email verification and password reset (`auth.emailVerification`, `auth.passwordReset`)
-      with signed, expiring tokens and their frontend pages.
+      with signed, expiring tokens (their app screens:
+      [22.7](../epic22_dynamic_app_frontend/story22.7_plugin_frontends.md)).
 - [ ] One shared Mailpit container for previews and sandboxes (SMTP and web UI bound to `127.0.0.1`); messages are
       tagged with the generation id, and the agent UI links to that generation's emails.
 - [ ] Template tests render each template; the validation smoke check triggers one email and finds it in Mailpit.

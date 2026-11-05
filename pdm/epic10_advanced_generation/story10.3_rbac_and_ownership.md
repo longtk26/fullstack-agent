@@ -5,7 +5,7 @@
 ## User story
 
 As a backend consumer, I want role and resource-ownership policies enforced server-side, as declared in the spec;
-as a user of the app, I only see the actions I am allowed to take.
+the contract tells a frontend which roles each operation needs (hiding actions: [22.7](../epic22_dynamic_app_frontend/story22.7_plugin_frontends.md)).
 
 ## Acceptance criteria
 
@@ -22,12 +22,15 @@ Backend (the `policies` plugin):
       documented in OpenAPI responses.
 - [ ] Template tests per protected operation: owner allowed, other user rejected, role missing rejected.
 
-Frontend (dynamic mode):
+Contract:
 
-- [ ] The contract marks each operation's roles; actions, row actions, Manage area links and navigation the signed-in
-      user cannot use are hidden.
-- [ ] MSW enforces ownership and roles on the fixtures (records owned by the mock user and by another user).
+- [ ] Each operation carries its roles and whether ownership applies (`x-bga.auth`).
+- [ ] `allowedActions` (10.0b) drops what the signed-in user may not do: another user's record has no `update` or
+      `delete`; a missing role removes its operations. MSW computes the same from its mock users.
+- [ ] Errors (401, 403, 404 for another user's record) are in `x-bga.errors`, with scenarios: no token, wrong role,
+      another user's record.
 
 ## Status
 
-**Planned (2026-11-04)**, revised from the first Epic 10 (hooks, field source, frontend half).
+**Planned (2026-11-04)**, revised from the first Epic 10 (hooks, field source). Frontend half
+moved to 22.7 on 2026-11-05.

@@ -5,16 +5,16 @@
 ## User story
 
 As a maintainer, I want each backend feature to be a plugin with a fixed shape, so that adding auth, files, jobs or
-payments does not grow `backend_codegen.py` into one large special case per feature, and the engine knows which
+payments does not grow `backend/codegen.py` into one large special case per feature, and the engine knows which
 APIs the project already has.
 
 ## Steps
 
 1. **Plugin class and registry** (`orchestrator/plugins/`): `applies(spec)`, plan and contract additions, files
-   (`templates/plugins/<name>/backend/files`, `frontend/files`), requirements, env vars (`.env.ex` and the manifest
-   `env`), owned paths (`scaffold.add_owned`), smoke checks, manifest entry, engine note. Plugins are ordered by
+   (`templates/plugins/<name>/backend/files`, `frontend/files`, filled in by 22.7), requirements, env vars
+   (`.env.ex` and the manifest `env`), owned paths (`scaffold.add_owned`), smoke checks, manifest entry, engine note. Plugins are ordered by
    declared dependencies; a cycle or a missing dependency is a planner error.
-2. **Six hook points** in `backend_codegen.py`, each a list of contributions rendered in a fixed order:
+2. **Six hook points** in `backend/codegen.py`, each a list of contributions rendered in a fixed order:
    router parameters, use-case pre-checks, use-case events (outbox, 10.6), repository filters, response fields,
    app and worker startup. Output stays a pure function of (spec, plan) and byte-identical between runs.
 3. **Engine notes:** each active plugin's API note goes into the `complete_backend` context pack (18.13) under

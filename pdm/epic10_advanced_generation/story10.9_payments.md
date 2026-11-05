@@ -29,7 +29,7 @@ fake checkout page (served by the backend): Pay / Fail / Cancel
       path, so the real flow (signature, idempotency, job) is exercised. It refuses to run when `APP_ENV=production`.
 - [ ] Marking paid uses the `transition` rule when the spec has one (10.4) and emits `<entity>.paid` (email and
       webhooks can subscribe).
-- [ ] Frontend: a Pay action on the record, success and cancel pages that poll the status; MSW mocks the checkout.
+- [ ] `pay` is in `allowedActions` only for an unpaid record; a status endpoint the app's success and cancel screens poll (the Pay action and screens: [22.7](../epic22_dynamic_app_frontend/story22.7_plugin_frontends.md)).
 - [ ] The port is documented for a developer adding Stripe (`PAYMENT_PROVIDER=stripe`, `STRIPE_SECRET_KEY`,
       `STRIPE_WEBHOOK_SECRET`, Checkout Sessions + `checkout.session.completed`); the Stripe adapter itself is a
       follow-up, not this story.

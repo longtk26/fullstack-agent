@@ -5,8 +5,7 @@
 ## User story
 
 As a spec author, I want common business rules expressed declaratively and generated reliably, and complex ones
-implemented by the engine with tests, while ambiguous ones are flagged rather than guessed; as a user of the app, I
-am only offered what the rules allow.
+implemented by the engine with tests, while ambiguous ones are flagged rather than guessed.
 
 ## Acceptance criteria
 
@@ -30,13 +29,18 @@ Backend (the `rules` plugin):
       notes it.
 - [ ] Rule ids appear in test names and in the manifest.
 
-Frontend (dynamic mode):
+Contract:
 
-- [ ] The contract exposes `transition` and `immutableAfter` rules (`x-bga.rules`); a status field offers only the
-      allowed next states, and edit and delete actions are hidden on locked records.
-- [ ] MSW enforces the deterministic rules with the same error codes, so journeys see the same rejections on mocks
-      and live; a rejection shows on its field (10.0a).
+- [ ] One definition per rule in the plan; codegen writes from it the use-case check, the `allowedActions` entries
+      (`transition:<STATE>` for the allowed next states; no `update` or `delete` on a locked record), the MSW
+      behaviour and the scenarios (an allowed and a refused transition, an edit of a locked record).
+- [ ] Every rule's code is in `x-bga.errors` with its field; `kind=custom` rules too (code and field from the
+      planner), so the app shows them on the field
+      ([22.7](../epic22_dynamic_app_frontend/story22.7_plugin_frontends.md)).
+- [ ] `x-bga.rules` still describes the rules, for documentation and the try-it explorer; frontends act on
+      `allowedActions`, not on it.
 
 ## Status
 
-**Planned (2026-11-04)**, revised from the first Epic 10 (plugin, frontend half, mocks).
+**Planned (2026-11-04)**, revised from the first Epic 10 (plugin). Frontend half and mocks moved
+to 22.7 on 2026-11-05.
