@@ -161,7 +161,7 @@ migrate:
 	cd $(API_DIR) && $(DEV_ENV) $(PY)/alembic upgrade head
 
 test: template
-	cd $(API_DIR) && $(DEV_ENV) IMAGE_PROVIDER=fake $(PY)/pytest
+	cd $(API_DIR) && $(DEV_ENV) IMAGE_PROVIDER=fake $(PY)/pytest $(ARGS)
 
 lint:
 	cd $(API_DIR) && $(PY)/ruff check . && $(PY)/ruff format --check .
