@@ -22,6 +22,7 @@
   "dependencies": [],
   "models": [
     {
+      "children": [],
       "class": "TaskModel",
       "columns": [
         {

@@ -93,7 +93,7 @@ def test_what_the_templates_do_not_cover_is_named():
     assert database_gaps(plan) == []
     one_to_one = copy.deepcopy(plan)
     one_to_one["models"][0]["relationships"][0]["type"] = "one-to-one"
-    assert database_gaps(one_to_one) == ["Project.tasks: one-to-one relationships"]
+    assert database_gaps(one_to_one) == []  # Story 10.11: one-to-one is templated too
 
 
 def test_generated_files_are_owned(tmp_path):

@@ -104,6 +104,8 @@ Agent-specific notes:
 - Concurrency rules (Story 10.10, `plugins/concurrency.py`): capacity locks the parent row; noOverlap is an exclusion
   constraint (btree_gist from `env.py`); uniqueTogether a (partial) unique index. Models take `tableArgs` and
   `constraintErrors` (mapped by constraint name in the repository).
+- Relations (Story 10.11): link models and one-to-one come from templates (`database_gaps` names neither); a one-to-one
+  child is a summary in its parent's response (`model.children`); the `relations` plugin writes the many-to-many routes.
 - The integration contract (Story 10.0b): the backend decides, a frontend only reads. Request properties carry
   `x-bga.source` (a foreign key: `reference` with `x-bga.ref`); record responses carry a `{id, label}` summary per
   parent and `allowedActions` (the planner's `label`, `references`, `recordActions`); operations list

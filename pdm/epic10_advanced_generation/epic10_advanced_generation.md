@@ -41,6 +41,14 @@ The forms findings below are why the contract gains field sources (10.0b); the f
 Out of scope: audit log, soft delete, SSE / realtime (later epic). An integration with no plugin keeps a stub adapter
 and an `unresolved` entry (the old 10.4 behaviour, now the plugin framework's fallback).
 
+## Status
+
+**Done (2026-11-05)** on `feat/epic10-backend-plugins`, all twelve stories (Checkpoints A–E), each committed after its
+checks: tests, the real sandbox through the workflow, `make up` and a fake-engine generation's preview. What each
+story left open is in its **Deviations**; the main ones: drafts do not write auth, emails or webhooks yet (Epic 22);
+the local object store is RustFS (MinIO's images are gone); a full parent has no `create:<child>` action; Stripe is
+a documented port, not an adapter; MSW applies auth, policies and rules only from 22.7.
+
 ## Stories
 
 Five checkpoints; stop for the user's review after each one.

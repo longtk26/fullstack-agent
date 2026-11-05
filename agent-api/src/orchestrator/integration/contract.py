@@ -146,6 +146,12 @@ def present(record: dict[str, Any], model: dict[str, Any], by_entity: dict[str, 
         out[reference["apiName"]] = (
             None if value is None else {"id": value, "label": (parent or {}).get(reference["labelField"])}
         )
+    own = next((c["apiName"] for c in model["columns"] if c["primaryKey"]), "id")
+    for child in model.get("children", []):  # Story 10.11: a one-to-one child, or None
+        row = next((r for r in by_entity.get(child["entity"]) or [] if r.get(child["field"]) == record.get(own)), None)
+        out[child["apiName"]] = (
+            None if row is None else {"id": row.get(child["primaryKeyField"]), "label": row.get(child["labelField"])}
+        )
     out["allowedActions"] = list(actions)
     return out
 
@@ -447,7 +453,7 @@ class _Builder:
             model = self.models[entity]
             properties = {c["apiName"]: field_schema(c) for c in model["columns"] if not c.get("secret")}
             if entity in self.presented:
-                for reference in model.get("references", []):
+                for reference in [*model.get("references", []), *model.get("children", [])]:  # 10.11: children too
                     ref = {"$ref": self.summary_schema(reference["entity"])}
                     properties[reference["apiName"]] = {"anyOf": [ref, {"type": "null"}]}
                 actions = {"type": "string"}
@@ -792,6 +798,16 @@ class _Builder:
                     {key: reference[key] for key in ("field", "apiName", "entity", "labelField")}
                     for reference in model.get("references", [])
                 ],
+                **(
+                    {
+                        "children": [
+                            {key: child[key] for key in ("field", "apiName", "entity", "labelField", "primaryKeyField")}
+                            for child in model["children"]
+                        ]
+                    }
+                    if model.get("children")
+                    else {}
+                ),
                 "allowedActions": self.actions(entity),
             }
         return out
@@ -830,6 +846,12 @@ def presented_record(contract: dict[str, Any], entity: str | None, record: dict[
         parent = next((row for row in fixtures.get(reference["entity"]) or [] if row.get(key) == value), None)
         label = (parent or {}).get(reference["labelField"]) if reference["labelField"] else None
         out[reference["apiName"]] = None if value is None else {"id": value, "label": label}
+    own = record.get(info.get("primaryKey") or "id")
+    for child in info.get("children") or []:  # Story 10.11: a one-to-one child
+        row = next((r for r in fixtures.get(child["entity"]) or [] if r.get(child["field"]) == own), None)
+        out[child["apiName"]] = (
+            None if row is None else {"id": row.get(child["primaryKeyField"]), "label": row.get(child["labelField"])}
+        )
     out["allowedActions"] = list(info["allowedActions"])
     return out
 

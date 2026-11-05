@@ -385,7 +385,8 @@ def build_contract_seed(contract: dict[str, Any], plan: dict[str, Any]) -> list[
     fixtures = (contract.get("x-bga") or {}).get("fixtures") or {}
     blocks = []
     for model in plan.get("models", []):
-        records = fixtures.get(model.get("entity")) or []
+        # a link model's records are under its class name without `Model` (Story 10.11)
+        records = fixtures.get(model.get("entity") or model["class"].removesuffix("Model")) or []
         if not records:
             continue
         columns = {column["field"]: column["attr"] for column in model["columns"]}

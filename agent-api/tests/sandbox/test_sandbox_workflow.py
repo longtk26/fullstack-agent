@@ -290,3 +290,27 @@ def test_a_backend_with_concurrency_rules_passes_its_concurrent_tests_and_scenar
     finally:
         if not os.environ.get("BGA_KEEP_SANDBOX_DIRS"):
             shutil.rmtree(root, ignore_errors=True)
+
+
+def test_a_backend_with_many_to_many_and_one_to_one_relations_passes_its_tests(client, user_headers, tmp_path):
+    """Story 10.11: the link model and its routes (list, relate, unrelate; duplicate 409; cascade), and a one-to-one
+    child summarised in its parent's response, all from templates in the real sandbox."""
+    from tests.test_relations import relations_spec
+
+    root = REPO / ".data" / "test-sandbox" / uuid.uuid4().hex[:10]
+    root.mkdir(parents=True)
+    try:
+        relations_spec(tmp_path)
+        spec = json.loads((tmp_path / "relations-spec.json").read_text())
+        generation_id = submit(client, user_headers, spec=spec, crudFromTemplates=True)
+        status = run_job(root, generation_id, validator=SandboxValidationRunner(), sandboxes=DockerSandboxProvider())
+
+        assert status in ("COMPLETED", "COMPLETED_WITH_WARNINGS"), generation(generation_id).error_summary
+        tests = [e for e in events(generation_id) if e.type == "validation.check" and e.payload["check"] == "tests"]
+        assert tests[-1].status == "passed", tests[-1].payload["summary"]
+        runs = [run for run in node_runs(generation_id) if run.node == "generate_database"]
+        database = [run.summary.get("engineCalls") for run in runs]
+        assert database == [0]  # the link model and the one-to-one models came from templates
+    finally:
+        if not os.environ.get("BGA_KEEP_SANDBOX_DIRS"):
+            shutil.rmtree(root, ignore_errors=True)

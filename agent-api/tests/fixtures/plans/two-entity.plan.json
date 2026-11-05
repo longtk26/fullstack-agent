@@ -22,6 +22,7 @@
   "dependencies": [],
   "models": [
     {
+      "children": [],
       "class": "ProjectModel",
       "columns": [
         {
@@ -108,6 +109,7 @@
       "uniqueConstraints": []
     },
     {
+      "children": [],
       "class": "TaskModel",
       "columns": [
         {

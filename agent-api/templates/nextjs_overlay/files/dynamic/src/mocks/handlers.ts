@@ -33,6 +33,8 @@ type TEntityInfo = {
   primaryKey: string;
   labelField: string | null;
   references?: { field: string; apiName: string; entity: string; labelField: string | null }[];
+  // Story 10.11: a one-to-one child, shown in its parent's record as a summary
+  children?: { field: string; apiName: string; entity: string; labelField: string | null; primaryKeyField: string }[];
   allowedActions?: string[];
   secretFields?: string[];
 };
@@ -68,6 +70,11 @@ function present(entity: string | null, record: TRecord): TRecord {
     const key = presentation[ref.entity]?.primaryKey ?? "id";
     const parent = records(ref.entity).find((item) => String(item[key]) === String(id));
     out[ref.apiName] = id === null || id === undefined ? null : { id, label: parent && ref.labelField ? (parent[ref.labelField] ?? null) : null };
+  }
+  const own = record[info.primaryKey ?? "id"];
+  for (const child of info.children ?? []) {
+    const row = records(child.entity).find((item) => String(item[child.field]) === String(own));
+    out[child.apiName] = row ? { id: row[child.primaryKeyField], label: child.labelField ? (row[child.labelField] ?? null) : null } : null;
   }
   return out;
 }

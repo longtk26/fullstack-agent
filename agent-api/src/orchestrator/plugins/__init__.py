@@ -28,6 +28,7 @@ from .jobs import JobsPlugin
 from .payments import PaymentsPlugin
 from .policies import PoliciesPlugin
 from .rate_limit import RateLimitPlugin
+from .relations import RelationsPlugin
 from .rules import RulesPlugin
 from .storage import StoragePlugin
 from .webhooks import WebhooksPlugin
@@ -45,6 +46,7 @@ REGISTRY: dict[str, Plugin] = {
         EmailPlugin(),
         WebhooksPlugin(),
         PaymentsPlugin(),
+        RelationsPlugin(),
         IntegrationStubsPlugin(),
     )
 }

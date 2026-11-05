@@ -1,0 +1,7 @@
+{
+  "name": "relations",
+  "version": "1",
+  "description": "Many-to-many relations: routes to list, add and remove related records through the link model.",
+  "requirements": [],
+  "owns": []
+}

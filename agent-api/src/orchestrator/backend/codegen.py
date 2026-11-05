@@ -45,13 +45,11 @@ FUTURE = "from __future__ import annotations\n\n"
 
 def database_gaps(plan: dict[str, Any]) -> list[str]:
     """Why the models cannot be generated (empty: they can)."""
-    gaps = []
+    gaps = []  # Story 10.11: one-to-one and many-to-many (their link models) are templated too
     for model in plan["models"]:
         for relation in model.get("relationships", []):
-            if relation.get("type") not in ("one-to-many", None) or relation.get("link"):
+            if relation.get("type") not in ("one-to-many", "one-to-one", "many-to-many", None):
                 gaps.append(f"{model['entity']}.{relation['attr']}: {relation.get('type')} relationships")
-    if plan.get("linkModels"):
-        gaps.append("many-to-many link models")
     return sorted(set(gaps))
 
 
@@ -203,7 +201,9 @@ def _model_field(column: dict[str, Any], model: dict[str, Any], imports: Imports
     kwargs: list[str] = []
     nullable = column["nullable"] and not column["primaryKey"]
     if column["primaryKey"]:
-        if column["type"] == "uuid":
+        if column.get("foreignKey"):  # Story 10.11: a link model's keys are its two references
+            pass
+        elif column["type"] == "uuid":
             kwargs.append("default_factory=uuid.uuid4")
         elif "autoincrement" in default:
             kwargs.append("default=None")
@@ -288,11 +288,19 @@ def model_file(model: dict[str, Any], plan: dict[str, Any]) -> str:
         imports.add("src.modules.shared.domain.entities", *_enums(model))
     relations = []
     referenced = []
+    by_link = {m["class"]: m for m in plan["models"] if m.get("linkFor")}
     for relation in model.get("relationships", []):
         imports.add("sqlmodel", "Relationship")
         target = re.findall(r'"(\w+)"', relation["annotation"])[0]
         referenced.append(target)
         extra = ', passive_deletes="all"' if relation["annotation"].startswith("list[") else ""
+        if relation.get("link"):  # Story 10.11: many-to-many through its link model (imported: SQLAlchemy needs it)
+            link = by_link[relation["link"]]
+            imports.add(f".{link['file'].rsplit('/', 1)[1].removesuffix('.py')}", relation["link"])
+            extra = f", link_model={relation['link']}"
+        elif relation.get("uselist") is False:  # a one-to-one parent: one record, or none
+            extra = ', sa_relationship_kwargs={"uselist": False}'
+
         relations.append(
             f"    {relation['attr']}: {relation['annotation']} = "
             f'Relationship(back_populates="{relation["backPopulates"]}"{extra})'
@@ -331,8 +339,11 @@ def database_files(plan: dict[str, Any]) -> dict[str, str]:
     entity_exports: list[tuple[str, str]] = []
     model_exports: list[tuple[str, str]] = []
     for model in plan["models"]:
-        files[model["entityFile"]] = entity_file(model)
         files[model["file"]] = model_file(model, plan)
+        if not model.get("entity"):  # Story 10.11: a link model has no domain entity
+            model_exports.append((model["file"].rsplit("/", 1)[1].removesuffix(".py"), model["class"]))
+            continue
+        files[model["entityFile"]] = entity_file(model)
         entity_module = model["entityFile"].rsplit("/", 1)[1].removesuffix(".py")
         for name in [model["entityClass"], *_enums(model)]:
             entity_exports.append((entity_module, name))
@@ -364,7 +375,10 @@ def summary_dto(entity: str) -> str:
 def summaries_file(plan: dict[str, Any]) -> str:
     """Story 10.0b: one `{id, label}` DTO per referenced entity, and the `References` a repository returns."""
     by_entity = _entity_by_name(plan)
-    parents = sorted({ref["entity"] for model in plan["models"] for ref in model.get("references") or []})
+    parents = sorted(
+        {ref["entity"] for model in plan["models"] for ref in [*(model.get("references") or []),
+                                                                *(model.get("children") or [])]}
+    )  # fmt: skip
     if not parents:
         return ""
     imports = Imports().add("typing", "Any").add("pydantic", "BaseModel", "ConfigDict")
@@ -382,7 +396,8 @@ def summaries_file(plan: dict[str, Any]) -> str:
         '"""Summaries of referenced records (Story 10.0b): `{id, label}`, so a client shows a name, never an id."""\n\n'
         + imports.render()
         + "\n# Labels of referenced records by reference name and id, as a repository's `references()` returns them\n"
-        "References = dict[str, dict[Any, str | None]]\n\n\n" + "\n\n".join(classes)
+        "References = dict[str, dict[Any, Any]]  # a label, or a one-to-one child's {id, label} (Story 10.11)\n\n\n"
+        + "\n\n".join(classes)
     )
 
 
@@ -429,6 +444,9 @@ class _Module:
         self.plugins = plan_plugins(plan)
         # Story 10.0b: parents shown as summaries, when the repository loads their labels
         self.references = (self.model.get("references") or []) if "references" in module["port"]["methods"] else []
+        # Story 10.11: one-to-one children, shown as summaries in this record's response
+        self.children = (self.model.get("children") or []) if "references" in module["port"]["methods"] else []
+        self.shows = bool(self.references or self.children)
         self.unique = [column for column in self.model["columns"] if column["unique"] and not column["primaryKey"]]
         # Story 10.3: columns the server fills from the signed-in user on create (`x-bga.source: currentUser`)
         self.from_user = [column for column in self.model["columns"] if column.get("source") == "currentUser"]
@@ -692,6 +710,25 @@ class _Module:
                 " for key, label in self.session.exec(query).all()",
                 "            }",
             ]
+        if self.children:
+            lines.append(f"        own_ids = {{record.{self.pk['attr']} for record in records}}")
+        for child in self.children:
+            model = child["model"]
+            imports.add(MODELS_PKG.replace("/", "."), model)
+            fk, pk, label = (
+                f"{model}.{child['column']}",
+                f"{model}.{child['primaryKey']}",
+                f"{model}.{child['labelAttr']}",
+            )
+            lines += [
+                f'        found["{child["attr"]}"] = {{}}',
+                "        if own_ids:",
+                f"            query = select(col({fk}), col({pk}), col({label})).where(col({fk}).in_(own_ids))",
+                f'            found["{child["attr"]}"] = {{',
+                '                key: {"id": child_id, "label": None if label is None else str(label)}',
+                "                for key, child_id, label in self.session.exec(query).all()",
+                "            }",
+            ]
         lines.append("        return found")
         return "\n".join(lines)
 
@@ -879,6 +916,10 @@ class _Module:
             if reference["nullable"]:
                 summary = f"None if {fk} is None else {summary}"
             entries.append(f'"{reference["attr"]}": {summary}')
+        for child in self.children:  # Story 10.11: a one-to-one child as a summary, or None
+            imports.add(SUMMARIES_PKG, summary_dto(child["entity"]))
+            fields.append(f"    {child['attr']}: {summary_dto(child['entity'])} | None")
+            entries.append(f'"{child["attr"]}": refs.get("{child["attr"]}", {{}}).get(entity.{self.pk["attr"]})')
         for item in self._response_fields():  # Story 10.1: what plugins add to a record
             self._imports(imports, item.imports)
             fields.append(f"    {item.attr}: {item.annotation}")
@@ -887,7 +928,7 @@ class _Module:
         checks = self._action_checks()
         signature = f"cls, entity: {self.entity_class}"
         refs = ""
-        if self.references:
+        if self.shows:
             imports.add(SUMMARIES_PKG, "References")
             signature += ", references: References | None = None"
             refs = "        refs = references or {}\n"
@@ -1081,7 +1122,7 @@ class _Module:
     def _present(self, var: str, op: dict[str, Any]) -> str:
         """The response for one record; with references, their labels loaded too (Story 10.0b)."""
         user = self._caller(op)
-        if not self.references:
+        if not self.shows:
             return f"{self.response_dto}.from_entity({var}{user})"
         return f"{self.response_dto}.from_entity({var}, self.{self.repo_var}.references([{var}]){user})"
 
@@ -1211,9 +1252,9 @@ class _Module:
                 else "        order = None\n"
             )
             + f"        {plural}, total = self.{self.repo_var}.list(filters, {q_arg}order, limit, offset{scoped})\n"
-            + (f"        references = self.{self.repo_var}.references({plural})\n" if self.references else "")
+            + (f"        references = self.{self.repo_var}.references({plural})\n" if self.shows else "")
             + f"        return {op['responseDto']}(\n"
-            f"            items=[{self.response_dto}.from_entity(item{', references' if self.references else ''}{user})"
+            f"            items=[{self.response_dto}.from_entity(item{', references' if self.shows else ''}{user})"
             f" for item in {plural}],\n"
             "            total=total,\n            limit=limit,\n            offset=offset,\n        )"
         )

@@ -146,8 +146,10 @@ def _relationships(spec: dict[str, Any]) -> tuple[dict[str, list], list[dict], l
                     "parent": {
                         "model": f"{rel['from']}Model",
                         "attr": child_collection if many else py_name(to_snake(rel["to"])),
-                        "annotation": f'list["{rel["to"]}Model"]' if many else f'Optional["{rel["to"]}Model"]',
+                        # Story 10.11: a one-to-one parent side is one record (`uselist=False`), possibly none
+                        "annotation": f'list["{rel["to"]}Model"]' if many else f'"{rel["to"]}Model"',
                         "backPopulates": parent_attr,
+                        **({} if many else {"uselist": False}),
                     },
                     "child": {
                         "model": f"{rel['to']}Model",
@@ -161,15 +163,19 @@ def _relationships(spec: dict[str, Any]) -> tuple[dict[str, list], list[dict], l
             child_pk = next(f for f in child["fields"] if f.get("primary"))
             link_entity = rel.get("through") or f"{rel['from']}{rel['to']}Link"
             left, right = f"{to_snake(rel['from'])}_id", f"{to_snake(rel['to'])}_id"
+            lower = lambda name: f"{name[:1].lower()}{name[1:]}Id"  # noqa: E731 - the link's API names
             links.append(
                 {
                     "relationship": rel["name"],
+                    "from": rel["from"],
+                    "to": rel["to"],
                     "class": f"{link_entity}Model" if not link_entity.endswith("Model") else link_entity,
                     "table": f"{parent['table']}_{child['table']}",
                     "file": f"{MODELS_PKG}/{to_snake(link_entity)}_model.py",
                     "columns": [
                         {
                             "attr": left,
+                            "field": lower(rel["from"]),
                             "references": f"{parent['table']}.{to_snake(parent_pk['name'])}",
                             "referencesType": parent_pk["type"],
                             "onDelete": "CASCADE",
@@ -177,6 +183,7 @@ def _relationships(spec: dict[str, Any]) -> tuple[dict[str, list], list[dict], l
                         },
                         {
                             "attr": right,
+                            "field": lower(rel["to"]),
                             "references": f"{child['table']}.{to_snake(child_pk['name'])}",
                             "referencesType": child_pk["type"],
                             "onDelete": "CASCADE",
@@ -276,10 +283,14 @@ def _models(spec: dict[str, Any]) -> list[dict[str, Any]]:
                 "class": link["class"],
                 "file": link["file"],
                 "linkFor": link["relationship"],
+                "linkFrom": link["from"],
+                "linkTo": link["to"],
                 "primaryKey": [c["attr"] for c in link["columns"]],
                 "columns": [
                     {
                         "attr": c["attr"],
+                        "field": c["field"],
+                        "apiName": c["field"],
                         "type": c["referencesType"],
                         "pythonType": TYPE_MAP[c["referencesType"]][0],
                         "columnType": TYPE_MAP[c["referencesType"]][1],
@@ -357,6 +368,29 @@ def _references(models: list[dict[str, Any]]) -> None:
                 }
             )
         model["references"] = references
+    for model in models:  # Story 10.11: a one-to-one child, shown in its parent's response as a summary
+        if not model.get("entity"):
+            continue
+        children = []
+        taken = {column["apiName"] for column in model["columns"]} | {r["apiName"] for r in model["references"]}
+        for child in models:
+            if not child.get("entity") or child.get("label") is None:
+                continue
+            for column in child["columns"]:
+                fk = column.get("foreignKey")
+                if not fk or not column["unique"] or fk["references"].partition(".")[0] != model["table"]:
+                    continue
+                api = f"{child['entity'][:1].lower()}{child['entity'][1:]}"
+                if api in taken:
+                    api = f"{api}Ref"
+                taken.add(api)
+                children.append({
+                    "apiName": api, "attr": py_name(to_snake(api)), "entity": child["entity"], "model": child["class"],
+                    "column": column["attr"], "field": column["apiName"], "primaryKey": child["primaryKey"],
+                    "primaryKeyField": next(c["apiName"] for c in child["columns"] if c["primaryKey"]),
+                    "labelAttr": child["label"]["attr"], "labelField": child["label"]["apiName"],
+                })  # fmt: skip
+        model["children"] = children
 
 
 def record_actions(module: dict[str, Any], model: dict[str, Any]) -> list[str]:
@@ -576,7 +610,8 @@ def build_plan(spec: dict[str, Any]) -> dict[str, Any]:
             "testFile": f"tests/modules/{name}/test_{entity_snake}_api.py",
         }
         module["recordActions"] = record_actions(module, model)
-        if model.get("references") and {"create", "get", "list", "update"} & {op.get("action") for op in ops}:
+        shown = model.get("references") or model.get("children")  # parents' labels, a one-to-one child (10.11)
+        if shown and {"create", "get", "list", "update"} & {op.get("action") for op in ops}:
             module["port"]["methods"].append("references")  # Story 10.0b: parents' labels for the responses
         module["tests"] = _tests(module, model)
         modules.append(module)
