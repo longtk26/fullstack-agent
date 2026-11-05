@@ -192,6 +192,25 @@ def test_each_hook_point_lands_where_it_should(probe):
     assert [code.lines for code in worker_startup(plan)] == [("note('worker')",)]
 
 
+def test_a_later_plugin_replaces_a_route_parameter_of_the_same_name(probe, monkeypatch):
+    """Story 10.3: `policies` narrows auth-jwt's `current_user` this way; here a second probe narrows `caller`."""
+
+    class NarrowingProbe(HookProbePlugin):
+        def router_params(self, plan, module, op) -> list[RouterParam]:
+            if module["name"] != "tasks" or op["action"] != "delete":
+                return []
+            return [RouterParam("caller", "AdminCallerDep", None, (("src.libs.probe", ("AdminCallerDep",)),))]
+
+    narrowing = NarrowingProbe("narrowing-probe", requires=("hook-probe",))
+    monkeypatch.setitem(REGISTRY, narrowing.name, narrowing)
+    spec = _probe_spec()
+    plan = build_plan(spec)
+    tasks = next(module for module in plan["modules"] if module["name"] == "tasks")
+    router = module_files(plan, spec, tasks)["src/modules/tasks/presenter/router.py"]
+    assert router.count("caller: AdminCallerDep") == 1 and router.count("caller: CallerDep") == 4
+    assert "await usecase.execute(id)\n" in router  # the replacement does not pass it to the use case
+
+
 def test_a_module_no_plugin_touches_is_unchanged(probe):
     spec = _probe_spec()
     plain_spec = normalized(EXAMPLES / "specs" / "two-entity.json")

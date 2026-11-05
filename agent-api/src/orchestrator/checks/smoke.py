@@ -58,20 +58,32 @@ while time.monotonic() < deadline and proc.poll() is None:
             break
     except Exception:
         time.sleep(0.5)
-token = None
-if plan.get("login"):  # Story 10.2: a seeded demo user signs in once; protected calls send its bearer token
-    login = urllib.request.Request(base + plan["login"]["path"], data=json.dumps(plan["login"]["body"]).encode(),
-                                   headers={"content-type": "application/json"}, method="POST")  # fmt: skip
-    try:
-        with urllib.request.urlopen(login, timeout=15) as response:
-            token = json.loads(response.read())["accessToken"]
-    except Exception as error:
-        print(f"smoke sign-in failed: {error}")
+tokens = {}
+
+
+def token_of(user):
+    """Story 10.2: a seeded demo user signs in once (10.3: the one a scenario names, else the default one)."""
+    if user not in tokens:
+        body = dict(plan["login"]["body"])
+        if user is not None:
+            body[plan["login"]["field"]] = user
+        login = urllib.request.Request(base + plan["login"]["path"], data=json.dumps(body).encode(),
+                                       headers={"content-type": "application/json"}, method="POST")  # fmt: skip
+        tokens[user] = None
+        try:
+            with urllib.request.urlopen(login, timeout=15) as response:
+                tokens[user] = json.loads(response.read())["accessToken"]
+        except Exception as error:
+            print(f"smoke sign-in failed ({user or 'default user'}): {error}")
+    return tokens[user]
+
+
 answers = []
 for call in plan["calls"]:
     data = json.dumps(call["body"]).encode() if call.get("body") is not None else None
     headers = {"content-type": "application/json"} if data is not None else {}
-    if call.get("auth") and token:
+    token = token_of(call.get("user")) if call.get("auth") and plan.get("login") else None
+    if token:
         headers["authorization"] = f"Bearer {token}"
     request = urllib.request.Request(base + call["path"], data=data, headers=headers, method=call["method"])
     try:
@@ -234,6 +246,7 @@ def scenario_calls(contract: dict[str, Any]) -> tuple[list[dict[str, Any]], list
                     "scenario": scenario["name"],
                     "expect": scenario["expect"],
                     "auth": scenario.get("auth", bool(operation.get("security"))),
+                    **({"user": scenario["user"]} if scenario.get("user") else {}),
                 }
             )
     return calls, skipped

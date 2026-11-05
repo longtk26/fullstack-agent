@@ -23,9 +23,9 @@ from typing import Any
 
 from src.modules.shared.domain.backend_spec.naming import py_name, to_snake
 
-from ..integration.contract import _request_columns, _required
+from ..integration.contract import _request_columns, _required, _writable
 from ..plugins import plan_plugins
-from ..plugins.base import Code, Import
+from ..plugins.base import CaseContext, Code, Import
 from .pysource import Imports
 
 ENTITIES_PKG = "src/modules/shared/domain/entities"
@@ -70,8 +70,6 @@ def codegen_gaps(module: dict[str, Any]) -> list[str]:
             gaps.append(f"{where}: custom operation")
         if op.get("rules"):
             gaps.append(f"{where}: business rules")
-        if (op.get("auth") or {}).get("policy"):  # Story 10.2: `auth: jwt` is the auth-jwt plugin's
-            gaps.append(f"{where}: policy")
     return gaps
 
 
@@ -417,6 +415,8 @@ class _Module:
         # Story 10.0b: parents shown as summaries, when the repository loads their labels
         self.references = (self.model.get("references") or []) if "references" in module["port"]["methods"] else []
         self.unique = [column for column in self.model["columns"] if column["unique"] and not column["primaryKey"]]
+        # Story 10.3: columns the server fills from the signed-in user on create (`x-bga.source: currentUser`)
+        self.from_user = [column for column in self.model["columns"] if column.get("source") == "currentUser"]
 
     @property
     def pk_type(self) -> str:
@@ -451,9 +451,8 @@ class _Module:
                 scoped = self._scope_params(imports)
                 methods.append(
                     "    def list(\n"
-                    f"        self, filters: dict[str, Any], {q}sort: tuple[str, bool] | None, "
-                    f"limit: int, offset: int{scoped}\n"
-                    f"    ) -> tuple[list[{entity}], int]:\n"
+                    + self._list_params_line(f"{q}sort: tuple[str, bool] | None, limit: int, offset: int{scoped}")
+                    + f"    ) -> tuple[list[{entity}], int]:\n"
                     '        """One page and the total count; `filters` are equality matches on entity attributes."""'
                 )
             elif method == "update":
@@ -524,11 +523,9 @@ class _Module:
                 f"            query = query.where({item.condition.format(model=model)})\n"
                 for item in self._repository_filters()
             )
+            params = f"{q_param}sort: tuple[str, bool] | None, limit: int, offset: int{self._scope_params(imports)}"
             methods.append(
-                "    def list(\n"
-                f"        self, filters: dict[str, Any], {q_param}sort: tuple[str, bool] | None, "
-                f"limit: int, offset: int{self._scope_params(imports)}\n"
-                f"    ) -> tuple[list[{entity}], int]:\n"
+                "    def list(\n" + self._list_params_line(params) + f"    ) -> tuple[list[{entity}], int]:\n"
                 f"        query = select({model})\n"
                 "        for attribute, value in filters.items():\n"
                 f"            query = query.where(col(getattr({model}, attribute)) == value)\n"
@@ -576,7 +573,9 @@ class _Module:
             fk_branch = ""
             if self.has_fk or "delete" in port["methods"]:
                 imports.add("src.libs.exceptions", "BadRequestException", "ErrorCode")
-                fks = ", ".join(f'"{c["apiName"]}"' for c in self.model["columns"] if c.get("foreignKey"))
+                fks = ", ".join(  # what a client sent (an owner comes from the signed-in user, 10.3)
+                    f'"{c["apiName"]}"' for c in self.model["columns"] if c.get("foreignKey") and _writable(c)
+                )
                 fk_details = f', details={{"fields": [{fks}]}}' if fks else ""
                 missing = (
                     "                raise BadRequestException(\n"
@@ -755,12 +754,21 @@ class _Module:
                 fields.append(f"    {column['attr']}: {annotation} = None")
             else:
                 fields.append(f"    {column['attr']}: {annotation}")
+        params, values = "", ""
+        for column in self.from_user:  # Story 10.3: accepted and ignored; the use case passes the signed-in user's
+            imports.add("pydantic", "Field")
+            annotation = _type(column, imports)
+            fields.append(
+                f"    {column['attr']}: {annotation} | None = Field(default=None, exclude=True)  # the signed-in user"
+            )
+            params += f", {column['attr']}: {annotation}"
+            values += f", {column['attr']}={column['attr']}"
         return (
             imports.render() + f"\n\nclass {op['requestDto']}(BaseModel):\n"
             '    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True, extra="forbid")\n\n'
             + "\n".join(fields)
-            + f"\n\n    def to_entity(self) -> {self.entity_class}:\n"
-            f"        return {self.entity_class}(**self.model_dump())\n"
+            + f"\n\n    def to_entity(self{params}) -> {self.entity_class}:\n"
+            f"        return {self.entity_class}(**self.model_dump(){values})\n"
         )
 
     def update_dto(self) -> str:
@@ -831,13 +839,29 @@ class _Module:
             fields.append(f"    {item.attr}: {item.annotation}")
             entries.append(f'"{item.attr}": {item.value}')
         fields.append("    allowed_actions: list[str]")
-        entries.append('"allowed_actions": list(ALLOWED_ACTIONS)')
+        checks = self._action_checks()
         signature = f"cls, entity: {self.entity_class}"
         refs = ""
         if self.references:
             imports.add(SUMMARIES_PKG, "References")
             signature += ", references: References | None = None"
             refs = "        refs = references or {}\n"
+        narrowing = ""
+        if checks:  # Story 10.3: what this caller may do to the record
+            for check in checks:
+                self._imports(imports, check.imports)
+            user = checks[0].user_annotation
+            signature += f", user: {user} | None = None"
+            entries.append('"allowed_actions": allowed_actions(entity, user)')
+            lines = "".join(f'        "{check.action}": {check.condition},\n' for check in checks)
+            narrowing = (
+                f"\n\ndef allowed_actions(entity: {self.entity_class}, user: {user} | None) -> list[str]:\n"
+                '    """The actions the operations\' policies let `user` take on the record (None: a visitor)."""\n'
+                f"    checks = {{\n{lines}    }}\n"
+                "    return [action for action in ALLOWED_ACTIONS if checks.get(action, True)]\n"
+            )
+        else:
+            entries.append('"allowed_actions": list(ALLOWED_ACTIONS)')
         value = "{" + ", ".join(entries) + "}"
         line = f"        return cls.model_validate({value})"
         if len(line) > 120:
@@ -853,7 +877,9 @@ class _Module:
             header = f'    def from_entity(\n        {signature}\n    ) -> "{self.response_dto}":'
         return (
             imports.render() + "\n# What can be done to a record (Story 10.0b); plugins narrow it by user and state\n"
-            f"ALLOWED_ACTIONS: tuple[str, ...] = {actions}\n" + f"\n\nclass {self.response_dto}(BaseModel):\n"
+            f"ALLOWED_ACTIONS: tuple[str, ...] = {actions}\n"
+            + narrowing
+            + f"\n\nclass {self.response_dto}(BaseModel):\n"
             "    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)\n\n"
             + "\n".join(fields)
             + "\n\n    @classmethod\n"
@@ -923,7 +949,12 @@ class _Module:
             imports.add(module, *names)
 
     def _router_params(self, op: dict[str, Any]) -> list[Any]:
-        return [param for plugin in self.plugins for param in plugin.router_params(self.plan, self.module, op)]
+        """Each plugin's route parameters; a later plugin's parameter replaces an earlier one of the same name."""
+        params: dict[str, Any] = {}
+        for plugin in self.plugins:
+            for param in plugin.router_params(self.plan, self.module, op):
+                params[param.name] = param
+        return list(params.values())
 
     def _usecase_params(self, op: dict[str, Any], imports: Imports) -> list[tuple[str, str]]:
         """(name, annotation) of what the router passes the use case (after its own arguments)."""
@@ -960,14 +991,33 @@ class _Module:
             out += f", {item.param}: {item.annotation} = None"
         return out
 
+    @staticmethod
+    def _list_params_line(params: str) -> str:
+        """The repository `list`'s parameters: one line, or one per line past 120 characters (a plugin's filter)."""
+        line = f"        self, filters: dict[str, Any], {params}\n"
+        if len(line) <= 121:
+            return line
+        names = ["self", "filters: dict[str, Any]", *re.split(r", (?=\w+: )", params)]
+        return "".join(f"        {name},\n" for name in names)
+
     def _response_fields(self) -> list[Any]:
         return [item for plugin in self.plugins for item in plugin.response_fields(self.plan, self.module)]
 
-    def _present(self, var: str) -> str:
+    def _action_checks(self) -> list[Any]:
+        return [item for plugin in self.plugins for item in plugin.action_checks(self.plan, self.module)]
+
+    def _caller(self, op: dict[str, Any]) -> str:
+        """`, user=<param>` when the record's `allowedActions` depend on the caller and the use case has one."""
+        checks = self._action_checks()
+        names = {param.name for param in self._router_params(op) if param.usecase_annotation}
+        return f", user={checks[0].user_param}" if checks and checks[0].user_param in names else ""
+
+    def _present(self, var: str, op: dict[str, Any]) -> str:
         """The response for one record; with references, their labels loaded too (Story 10.0b)."""
+        user = self._caller(op)
         if not self.references:
-            return f"{self.response_dto}.from_entity({var})"
-        return f"{self.response_dto}.from_entity({var}, self.{self.repo_var}.references([{var}]))"
+            return f"{self.response_dto}.from_entity({var}{user})"
+        return f"{self.response_dto}.from_entity({var}, self.{self.repo_var}.references([{var}]){user})"
 
     def _raise_not_found(self) -> str:
         return (
@@ -989,12 +1039,13 @@ class _Module:
             extra = "".join(f", {name}: {annotation}" for name, annotation in self._usecase_params(op, imports))
             if action == "create":
                 imports.add(dtos, op["requestDto"], self.response_dto)
+                from_user = ", ".join(column["sourceValue"] for column in self.from_user)
                 body = (
                     self._prechecks(op, None, imports)
-                    + f"        {self.var} = {repo}.create(dto.to_entity())\n"
+                    + f"        {self.var} = {repo}.create(dto.to_entity({from_user}))\n"
                     + self._events(op, self.var, imports)
                     + f'        logger.info("{_label(self.model)} created", {log_id})\n'
-                    f"        return {self._present(self.var)}"
+                    f"        return {self._present(self.var, op)}"
                 )
                 text = self._usecase(op, imports, f", dto: {op['requestDto']}{extra}", body, self.response_dto)
             elif action == "get":
@@ -1003,7 +1054,7 @@ class _Module:
                     f"        {self.var} = {repo}.find_by_id({self.snake}_id)\n"
                     + self._not_found(self.var)
                     + self._prechecks(op, self.var, imports)
-                    + f"        return {self._present(self.var)}"
+                    + f"        return {self._present(self.var, op)}"
                 )
                 text = self._usecase(op, imports, f", {self.snake}_id: {pk}{extra}", body, self.response_dto)
             elif action == "update":
@@ -1015,7 +1066,7 @@ class _Module:
                     + f"        {self.var} = {repo}.update(dto.to_entity(current))\n"
                     + self._events(op, self.var, imports)
                     + f'        logger.info("{_label(self.model)} updated", {log_id})\n'
-                    f"        return {self._present(self.var)}"
+                    f"        return {self._present(self.var, op)}"
                 )
                 signature = f", {self.snake}_id: {pk}, dto: {op['requestDto']}{extra}"
                 text = self._usecase(op, imports, signature, body, self.response_dto)
@@ -1072,10 +1123,15 @@ class _Module:
         passed = self._usecase_params(op, imports)
         signature += "".join(f"\n        {name}: {annotation}," for name, annotation in passed)
         signature += "\n    "
-        filters = self._repository_filters()
+        filters = [
+            item
+            for item in self._repository_filters()
+            if item.operations is None or op["operationId"] in item.operations
+        ]
         for item in filters:
             self._imports(imports, item.imports)
         scoped = "".join(f", {item.param}={item.value}" for item in filters)
+        user = self._caller(op)
         sort_fields = ", ".join(f'"{item["param"]}": "{item["attr"]}"' for item in op.get("sort", []))
         candidates = ", ".join(f'"{flt["attr"]}": {variable}' for variable, _, flt in params)
         q_arg = ("q, " if search else "None, ") if self.search() else ""
@@ -1091,7 +1147,7 @@ class _Module:
             + f"        {plural}, total = self.{self.repo_var}.list(filters, {q_arg}order, limit, offset{scoped})\n"
             + (f"        references = self.{self.repo_var}.references({plural})\n" if self.references else "")
             + f"        return {op['responseDto']}(\n"
-            f"            items=[{self.response_dto}.from_entity(item{', references' if self.references else ''})"
+            f"            items=[{self.response_dto}.from_entity(item{', references' if self.references else ''}{user})"
             f" for item in {plural}],\n"
             "            total=total,\n            limit=limit,\n            offset=offset,\n        )"
         )
@@ -1306,6 +1362,15 @@ class _Tests:
         self.imports.add(MODELS_PKG.replace("/", "."), model["class"])
         lines = []
         for column in self._required(model):
+            if column.get("source") == "currentUser":  # Story 10.3: the signed-in test user owns it, if any
+                self.imports.add("tests.auth", "current_user_id")
+                parent = self._parent(column)
+                fallback = f"{self.seed(parent)}().{_pk(parent)['attr']}"
+                lines.append(
+                    f'    if "{column["attr"]}" not in values:\n'
+                    f'        values["{column["attr"]}"] = current_user_id() or {fallback}\n'
+                )
+                continue
             if column.get("foreignKey"):
                 parent = self._parent(column)
                 parent_seed = self.seed(parent)
@@ -1520,6 +1585,8 @@ class _Tests:
                 )
             if case == "bad_reference":
                 fks = [c["apiName"] for c in self.crud.request_columns(op) if c.get("foreignKey")]
+                if not fks:  # Story 10.3: the only reference is the owner, which the client does not send
+                    return None
                 changes = ", ".join(f'"{api}": MISSING' for api in fks)
                 return (
                     f"def {name}(client):\n"
@@ -1712,6 +1779,40 @@ class _Tests:
     def _column(self, attr: str) -> dict[str, Any]:
         return next(c for c in self.crud.model["columns"] if c["attr"] == attr)
 
+    # -- plugin cases (Story 10.3) ----------------------------------------------------------------------------------
+
+    def _code(self, code: Code) -> list[str]:
+        for module, names in code.imports:
+            self.imports.add(module, *names)
+        return list(code.lines)
+
+    def plugin_case(self, test: dict[str, Any], op: dict[str, Any]) -> str | None:
+        """A test case a plugin writes (another user's record, a missing role)."""
+        own = bool(re.search(r"\{\w+\}", op["path"])) and op["action"] != "list"
+        ctx = CaseContext(
+            seed=self.seed(self.crud.model),
+            record_path=self._path(op, "record") if own else None,
+            missing_path=self._missing_path(op) if own else None,
+            seed_for=lambda entity: self.seed(self.models[entity]),
+        )
+        for plugin in self.crud.plugins:
+            code = plugin.test_case(self.plan, self.module, op, test, ctx)
+            if code is not None:
+                return "".join(f"{line}\n" for line in self._code(code))
+        return None
+
+    def with_prelude(self, text: str, op: dict[str, Any]) -> str:
+        """The plugins' first lines of every test of `op` (sign in with the role it needs)."""
+        lines = [
+            line
+            for plugin in self.crud.plugins
+            for line in self._code(plugin.test_prelude(self.plan, self.module, op) or Code(()))
+        ]
+        if not lines:
+            return text
+        head, _, rest = text.partition("\n")
+        return head + "\n" + "".join(f"    {line}\n" for line in lines) + rest
+
     def render(self) -> str:
         ops = {op["operationId"]: op for op in self.module["operations"]}
         cases = []
@@ -1724,7 +1825,10 @@ class _Tests:
                 continue
             if op is None or not is_crud(op):
                 continue
-            text = self.case(test, op)
+            text = self.plugin_case(test, op)  # whole, with its own sign-in
+            if text is None:
+                text = self.case(test, op)
+                text = self.with_prelude(text, op) if text else None
             if text:
                 cases.append(text)
         pk = self.crud.pk

@@ -10,7 +10,9 @@ from typing import Any
 from .auth_jwt import AuthJwtPlugin
 from .base import (
     PLUGINS_DIR,
+    ActionCheck,
     AppStartup,
+    CaseContext,
     Code,
     Import,
     Plugin,
@@ -20,11 +22,12 @@ from .base import (
     Setting,
 )
 from .integrations import IntegrationStubsPlugin
+from .policies import PoliciesPlugin
 from .rate_limit import RateLimitPlugin
 
 # Every plugin the generator knows, by name. Tests add their own with `monkeypatch.setitem(REGISTRY, ...)`.
 REGISTRY: dict[str, Plugin] = {
-    plugin.name: plugin for plugin in (RateLimitPlugin(), AuthJwtPlugin(), IntegrationStubsPlugin())
+    plugin.name: plugin for plugin in (RateLimitPlugin(), AuthJwtPlugin(), PoliciesPlugin(), IntegrationStubsPlugin())
 }
 
 
@@ -85,7 +88,9 @@ def plan_plugins(plan: dict[str, Any] | None) -> list[Plugin]:
 __all__ = [
     "PLUGINS_DIR",
     "REGISTRY",
+    "ActionCheck",
     "AppStartup",
+    "CaseContext",
     "Code",
     "Import",
     "Plugin",

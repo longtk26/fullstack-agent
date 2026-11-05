@@ -14,9 +14,14 @@ contributes nothing leaves the generated code exactly as it was without plugins.
 | `response_fields` | fields of a record's response DTO and how they are computed |
 | `app_startup` | imports, middleware, exception handlers and lifespan lines of `src/main.py` |
 | `worker_startup` | what the generated job worker starts with (rendered by 10.6) |
+
+Story 10.3 adds `action_checks` (`allowedActions` narrowed per user) and the test hooks `test_prelude` and
+`test_case`. Two plugins giving a route parameter of the same name: the later one (dependency order) replaces it, so
+a plugin can narrow another's (`policies` turns auth-jwt's current user into one that must have a role).
 """
 
 import json
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -56,6 +61,7 @@ class RepositoryFilter:
     condition: str
     value: str
     imports: tuple[Import, ...] = ()
+    operations: tuple[str, ...] | None = None  # the list operations that pass it (None: every one)
 
 
 @dataclass(frozen=True)
@@ -66,6 +72,30 @@ class ResponseField:
     annotation: str
     value: str
     imports: tuple[Import, ...] = ()
+
+
+@dataclass(frozen=True)
+class ActionCheck:
+    """`allowedActions` per user (Story 10.3): `action` is listed only when `condition` holds, an expression of the
+    record (`entity`) and the caller (`user`, of type `user_annotation`; None on a public route). Use cases pass the
+    route parameter `user_param` as the user."""
+
+    action: str
+    condition: str
+    user_annotation: str
+    user_param: str = "current_user"
+    imports: tuple[Import, ...] = ()
+
+
+@dataclass(frozen=True)
+class CaseContext:
+    """What a plugin's generated test case can use (Story 10.3): the module's seed helper, the record's path as an
+    f-string expression of `record`, a path no record has, and `seed_for(entity)`, another entity's seed helper."""
+
+    seed: str
+    record_path: str | None
+    missing_path: str | None
+    seed_for: Callable[[str], str]
 
 
 @dataclass(frozen=True)
@@ -169,6 +199,19 @@ class Plugin:
     def test_setup(self, plan: dict[str, Any], module: dict[str, Any]) -> Code | None:
         """Module-level code of a module's generated test file (a fixture that signs the client in)."""
         return None
+
+    def test_prelude(self, plan: dict[str, Any], module: dict[str, Any], op: dict[str, Any]) -> Code | None:
+        """Lines at the start of each generated test of `op` (Story 10.3: sign in with the role it needs)."""
+        return None
+
+    def test_case(
+        self, plan: dict[str, Any], module: dict[str, Any], op: dict[str, Any], test: dict[str, Any], ctx: CaseContext
+    ) -> Code | None:
+        """A plan test case (`module["tests"]`) the plugin writes: the whole function, or None when not its own."""
+        return None
+
+    def action_checks(self, plan: dict[str, Any], module: dict[str, Any]) -> list[ActionCheck]:
+        return []
 
     # -- what it tells -------------------------------------------------------------------------------------------------
 

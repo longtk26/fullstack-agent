@@ -104,6 +104,7 @@ def test_the_smoke_check_signs_in_as_a_demo_user(tmp_path):
         "operationId": "auth.login",
         "path": "/auth/login",
         "body": {"email": "demo-member@example.com", "password": DEMO_PASSWORD},
+        "field": "email",
     }
     calls, skipped = smoke_calls(contract, plan)
     assert skipped == []

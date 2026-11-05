@@ -113,3 +113,26 @@ def test_a_backend_with_jwt_auth_passes_its_tests_and_scenarios(client, user_hea
     finally:
         if not os.environ.get("BGA_KEEP_SANDBOX_DIRS"):
             shutil.rmtree(root, ignore_errors=True)
+
+
+def test_a_backend_with_role_and_ownership_policies_passes_its_tests_and_scenarios(client, user_headers, tmp_path):
+    """Story 10.3: role and ownership policies (owner from the signed-in user, owner-scoped lists, admins bypass),
+    their template tests and the wrong-role / another-user's-record scenarios, all in the real sandbox."""
+    from tests.test_policies import policy_spec
+
+    root = REPO / ".data" / "test-sandbox" / uuid.uuid4().hex[:10]
+    root.mkdir(parents=True)
+    try:
+        policy_spec(tmp_path)
+        spec = json.loads((tmp_path / "policy-spec.json").read_text())
+        generation_id = submit(client, user_headers, spec=spec, crudFromTemplates=True)
+        status = run_job(root, generation_id, validator=SandboxValidationRunner(), sandboxes=DockerSandboxProvider())
+
+        assert status in ("COMPLETED", "COMPLETED_WITH_WARNINGS"), generation(generation_id).error_summary
+        tests = [e for e in events(generation_id) if e.type == "validation.check" and e.payload["check"] == "tests"]
+        assert tests[-1].status == "passed", tests[-1].payload["summary"]
+        assert "scenario(s) answer as the contract says" in tests[-1].payload["summary"]
+        assert "skipped" not in tests[-1].payload["summary"]
+    finally:
+        if not os.environ.get("BGA_KEEP_SANDBOX_DIRS"):
+            shutil.rmtree(root, ignore_errors=True)

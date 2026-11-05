@@ -1,0 +1,7 @@
+{
+  "name": "policies",
+  "version": "1",
+  "description": "Role and ownership policies: require_roles on routes, ownership checks in use cases, owner-scoped lists, allowedActions per user.",
+  "requirements": [],
+  "owns": []
+}

@@ -78,9 +78,15 @@ def _object(properties: dict[str, Any], required: list[str]) -> dict[str, Any]:
 
 
 def _writable(column: dict[str, Any]) -> bool:
-    """Columns a client sends: not generated ids, not `now` timestamps, never a secret (a password hash, 10.2)."""
+    """Columns a client sends: not generated ids, not `now` timestamps, never a secret (a password hash, 10.2), not
+    what the server takes from the signed-in user (an owner, 10.3)."""
     default = column.get("default") or {}
-    return not default.get("factory") and not default.get("autoincrement") and not column.get("secret")
+    return (
+        not default.get("factory")
+        and not default.get("autoincrement")
+        and not column.get("secret")
+        and column.get("source") != "currentUser"
+    )
 
 
 def _request_columns(model: dict[str, Any], spec_op: dict[str, Any]) -> list[dict[str, Any]]:
@@ -710,12 +716,14 @@ class _Builder:
                 fields = [column["apiName"] for column in columns if column["unique"] and not column["primaryKey"]]
                 message = conflict_message(model) if model else "The record conflicts with an existing record"
             elif error["code"] == "REFERENCE_NOT_FOUND":
-                fields = [column["apiName"] for column in columns if column.get("foreignKey")]
+                fields = [column["apiName"] for column in columns if column.get("foreignKey") and _writable(column)]
                 message = "A referenced record does not exist"
             elif error["code"] == "NOT_FOUND":
                 message = f"{entity} not found"
             elif error["code"] == "VALIDATION_ERROR":
                 message = "Some values are not valid (each one in `details`, by field)"
+            elif error["code"] == "FORBIDDEN":
+                message = "You may not do this"
             else:
                 message = error["code"].replace("_", " ").capitalize()
             entry = {"status": error["status"], "code": error["code"], "message": message}

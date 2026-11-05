@@ -123,6 +123,8 @@ type Policy = {
   type: "role" | "ownership";
   roles?: string[];
   ownerField?: string | null;
+  bypassRoles?: string[];
+  denyStatus?: 403 | 404;
 };
 
 type Project = {

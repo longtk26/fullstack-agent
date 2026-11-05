@@ -398,13 +398,14 @@ class _SemanticChecker:
             if policy.type == "ownership" and not policy.owner_field:
                 self._add(C.SCHEMA_VIOLATION, f"/policies/{p_index}/ownerField", "Ownership policies need 'ownerField'")
             if auth is not None and auth.roles:
-                for r_index, role in enumerate(policy.roles):
-                    if role not in auth.roles:
-                        self._add(
-                            C.UNKNOWN_ROLE_REF,
-                            f"/policies/{p_index}/roles/{r_index}",
-                            f"Role '{role}' is not declared in auth.roles",
-                        )
+                for key, roles in (("roles", policy.roles), ("bypassRoles", policy.bypass_roles)):
+                    for r_index, role in enumerate(roles):
+                        if role not in auth.roles:
+                            self._add(
+                                C.UNKNOWN_ROLE_REF,
+                                f"/policies/{p_index}/{key}/{r_index}",
+                                f"Role '{role}' is not declared in auth.roles",
+                            )
 
         for o_index, op in enumerate(self.spec.operations):
             path = f"/operations/{o_index}"

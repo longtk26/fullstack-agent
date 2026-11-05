@@ -321,7 +321,29 @@ def build_seed(spec: dict[str, Any], plan: dict[str, Any], generation_id: str, t
                     row[column["attr"]] = default["value"]
             rows.append(row)
         blocks.append({"table": model["table"], "rows": rows})
-    return blocks
+    return _parents_first(blocks, plan)
+
+
+def _parents_first(blocks: list[dict[str, Any]], plan: dict[str, Any]) -> list[dict[str, Any]]:
+    """Seed blocks in an order the foreign keys allow: a referenced table's rows before its children's (a plugin's
+    entity, the auth-jwt users, comes last in the spec but owns records, Story 10.3)."""
+    parents = {
+        model["table"]: {fk["references"].partition(".")[0] for fk in model.get("foreignKeys", [])} - {model["table"]}
+        for model in plan.get("models", [])
+    }
+    ordered: list[dict[str, Any]] = []
+    pending = list(blocks)
+    while pending:
+        waiting = [{other["table"] for other in pending if other is not block} for block in pending]
+        ready = [
+            block
+            for block, others in zip(pending, waiting, strict=True)
+            if not parents.get(block["table"], set()) & others
+        ]
+        for block in ready or pending[:1]:  # a cycle: the spec's order, and the database decides
+            ordered.append(block)
+            pending.remove(block)
+    return ordered
 
 
 def build_contract_seed(contract: dict[str, Any], plan: dict[str, Any]) -> list[dict[str, Any]]:
@@ -336,7 +358,7 @@ def build_contract_seed(contract: dict[str, Any], plan: dict[str, Any]) -> list[
         columns = {column["field"]: column["attr"] for column in model["columns"]}
         rows = [{columns[k]: v for k, v in record.items() if k in columns} for record in records]
         blocks.append({"table": model["table"], "rows": rows})
-    return blocks
+    return _parents_first(blocks, plan)
 
 
 # -- report ------------------------------------------------------------------------------------------------------

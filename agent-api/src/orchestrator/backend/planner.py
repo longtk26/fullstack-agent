@@ -432,8 +432,8 @@ def _operation(op: dict[str, Any], model: dict[str, Any] | None) -> dict[str, An
             planned["errors"].append({"status": 422, "exception": None, "code": "VALIDATION_ERROR"})
     if op.get("rules"):
         planned["rules"] = list(op["rules"])
-    if op.get("auth") == "jwt" or op.get("policy"):
-        planned["auth"] = {"auth": op.get("auth"), "policy": op.get("policy")}
+    if op.get("auth") == "jwt" or op.get("policy"):  # a policy needs to know who is calling (Story 10.3)
+        planned["auth"] = {"auth": "jwt", "policy": op.get("policy")}
     return planned
 
 

@@ -138,6 +138,9 @@ class Policy(SpecModel):
     type: Literal["role", "ownership"]
     roles: list[str] = []
     owner_field: str | None = None
+    # Story 10.3, ownership: roles that reach every record (admins), and what another user's record answers
+    bypass_roles: list[str] = []
+    deny_status: Literal[403, 404] = 404
 
 
 class Rule(SpecModel):

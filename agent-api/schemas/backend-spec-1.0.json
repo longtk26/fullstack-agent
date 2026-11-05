@@ -808,6 +808,23 @@
           ],
           "default": null,
           "title": "Ownerfield"
+        },
+        "bypassRoles": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Bypassroles",
+          "type": "array"
+        },
+        "denyStatus": {
+          "default": 404,
+          "enum": [
+            403,
+            404
+          ],
+          "title": "Denystatus",
+          "type": "integer"
         }
       },
       "required": [

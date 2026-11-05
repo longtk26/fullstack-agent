@@ -74,9 +74,14 @@ Agent-specific notes:
   first); `scaffold_project(..., plan=)` writes the plugins' files, renders `src/main.py` from the app-startup hook and
   fills the `# {{PLUGIN_SETTINGS}}` line of the overlay's `config.py`, `.env.ex` and `requirements.txt` (with no plan:
   the plugins every project has, i.e. the rate limiter). Codegen calls the module hooks (router params, use-case
-  pre-checks and events, repository filters, response fields); none contributing leaves the code byte-identical.
-  Integrations without a plugin get a port and a stub adapter (`integration-stubs`). The sandbox's baked venv matches
-  the base `requirements.txt` exactly, so a plugin library outside the base costs a venv install per project.
+  pre-checks and events, repository filters, response fields; 10.3: action checks, test preludes and test cases);
+  none contributing leaves the code byte-identical, and a later plugin's route parameter of the same name replaces an
+  earlier one's. Integrations without a plugin get a port and a stub adapter (`integration-stubs`). The runner image
+  bakes every plugin's requirements, so a project uses the baked venv when it has each of its requirement lines.
+- Auth and policies (Stories 10.2, 10.3): `auth-jwt` adds the user entity, demo users (`demo-<role>@example.com` /
+  `demo12345`) and its own `auth` module; `policies` adds role checks on routes (`require_roles`), ownership in use
+  cases and lists, the owner from the signed-in user (`x-bga.source: currentUser`) and `allowedActions` per user.
+  Contract scenarios may name the demo user they run as (`scenario.user`); seeds go in parents-first.
 - The integration contract (Story 10.0b): the backend decides, a frontend only reads. Request properties carry
   `x-bga.source` (a foreign key: `reference` with `x-bga.ref`); record responses carry a `{id, label}` summary per
   parent and `allowedActions` (the planner's `label`, `references`, `recordActions`); operations list

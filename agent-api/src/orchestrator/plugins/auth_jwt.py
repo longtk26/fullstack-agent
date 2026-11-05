@@ -108,16 +108,24 @@ class AuthJwtPlugin(Plugin):
         by_api["passwordHash"]["secret"] = True
         login = by_api[auth["loginField"]]
         roles = auth["roles"] or ["user"]
+        seeded = [  # what extend_spec seeded (a later plugin may add one: policies' second user, 10.3)
+            record
+            for seed in spec.get("seed", [])
+            if seed["entity"] == auth["userEntity"]
+            for record in seed["records"]
+            if record.get("passwordHash") == DEMO_HASH
+        ]
         plan["auth"] = {
             "userEntity": auth["userEntity"],
             "model": model["class"],
             "entityClass": model["entityClass"],
             "loginField": auth["loginField"],
             "loginAttr": login["attr"],
+            "primaryKeyAttr": next(column["attr"] for column in model["columns"] if column["primaryKey"]),
             "roles": roles,
             "demoUsers": [
-                {"login": _demo_login(auth["loginField"], role), "password": DEMO_PASSWORD, "role": role}
-                for role in roles
+                {"login": record[auth["loginField"]], "password": DEMO_PASSWORD, "role": record["role"]}
+                for record in seeded
             ],
         }
         operations = [
@@ -299,7 +307,12 @@ class AuthJwtPlugin(Plugin):
                     errors.append({"status": 401, "code": "UNAUTHORIZED", "message": "Sign in to continue"})
                 operation["responses"].setdefault("401", failure(401, "UNAUTHORIZED")["401"])
         contract["x-bga"]["auth"] = {
-            "login": {"operationId": "auth.login", "path": "/auth/login", "body": demo_body},
+            "login": {
+                "operationId": "auth.login",
+                "path": "/auth/login",
+                "body": demo_body,
+                "field": auth["loginField"],  # how the smoke check signs in another demo user (10.3)
+            },
             "demoUsers": auth["demoUsers"],
         }
 
@@ -447,9 +460,25 @@ def _security_files(auth: dict[str, Any], model: dict[str, Any]) -> dict[str, st
         "src/libs/security/__init__.py": (
             "from .current_user import CurrentUserDep, bearer_scheme, get_current_user\n"
             "from .passwords import hash_password, verify_password\n"
+            "from .roles import require_roles\n"
             "from .tokens import create_access_token, decode_access_token\n\n"
             '__all__ = [\n    "CurrentUserDep",\n    "bearer_scheme",\n    "create_access_token",\n'
-            '    "decode_access_token",\n    "get_current_user",\n    "hash_password",\n    "verify_password",\n]\n'
+            '    "decode_access_token",\n    "get_current_user",\n    "hash_password",\n    "require_roles",\n'
+            '    "verify_password",\n]\n'
+        ),
+        "src/libs/security/roles.py": (
+            "from collections.abc import Callable\n\n"
+            "from src.libs.exceptions import ForbiddenException\n"
+            f"from src.modules.shared.domain.entities import {auth['entityClass']}\n\n"
+            "from .current_user import CurrentUserDep\n\n\n"
+            f"def require_roles(*roles: str) -> Callable[..., {auth['entityClass']}]:\n"
+            '    """A route dependency: the signed-in user when their role is one of `roles`, else 403 (401 without a\n'
+            '    token). `current_user: Annotated[User, Depends(require_roles("admin"))]`."""\n\n'
+            f"    def signed_in_with_role(current_user: CurrentUserDep) -> {auth['entityClass']}:\n"
+            "        if current_user.role not in roles:\n"
+            '            raise ForbiddenException("Your role cannot do this", details={"roles": list(roles)})\n'
+            "        return current_user\n\n"
+            "    return signed_in_with_role\n"
         ),
         "src/libs/security/current_user.py": (
             "import uuid\nfrom typing import Annotated\n\nfrom fastapi import Depends\n"
@@ -647,19 +676,53 @@ def _test_files(auth: dict[str, Any], model: dict[str, Any]) -> dict[str, str]:
         f', "{c["apiName"]}": {_literal(_sample({"type": c["type"], "values": _values(c)}, "test"))}' for c in register
     )
     value = 'f"user{next(_ACCOUNTS)}@example.com"' if "email" in login.lower() else 'f"user{next(_ACCOUNTS)}"'
+    pk = next(column for column in model["columns"] if column["primaryKey"])
+    role = next(column for column in model["columns"] if column["attr"] == "role")
+    parse = {"uuid": "uuid.UUID(signed_in)", "integer": "int(signed_in)"}.get(pk["type"], "signed_in")
+    role_value, role_import = "role", ""
+    if role["type"] == "enum":
+        role_value = f"{role['enum']['class']}(role)"
+        role_import = f"from src.modules.shared.domain.entities import {role['enum']['class']}\n"
     return {
         "tests/auth.py": (
-            '"""Story 10.2: sign a fresh account in (the tables are emptied before every test)."""\n\n'
-            "from itertools import count\n\n_ACCOUNTS = count(1)\n"
+            '"""Story 10.2: sign a fresh account in (the tables are emptied before every test); 10.3: with a role,\n'
+            'and who that was (the owner of the records a test seeds)."""\n\n'
+            "import os\nimport uuid\nfrom itertools import count\n\n"
+            "from sqlalchemy import create_engine\nfrom sqlmodel import Session\n\n"
+            + role_import
+            + f"from src.modules.shared.infrastructure.models import {auth['model']}\n\n"
+            "_ACCOUNTS = count(1)\n_SIGNED_IN: dict[str, str] = {}  # the running test → the account it signed in\n"
             'PASSWORD = "correct-horse-123"\n\n\n'
             "def account(**overrides: object) -> dict:\n"
             f'    return {{"{login}": {value}, "password": PASSWORD{extra}, **overrides}}\n\n\n'
-            "def sign_in(client) -> str:\n"
+            "def sign_in(client, role: str | None = None) -> str:\n"
+            '    """A fresh account (with `role`, else the default one) signed in: its bearer token."""\n'
             "    body = account()\n"
-            '    assert client.post("/auth/register", json=body).status_code == 201\n'
+            '    registered = client.post("/auth/register", json=body)\n'
+            "    assert registered.status_code == 201, registered.text\n"
+            "    _SIGNED_IN.clear()\n"
+            f'    _SIGNED_IN[_test()] = str(registered.json()["{pk["apiName"]}"])\n'
+            "    if role is not None:\n"
+            "        _set_role(role)\n"
             f'    response = client.post("/auth/login", json={{"{login}": body["{login}"], "password": PASSWORD}})\n'
             "    assert response.status_code == 200, response.text\n"
-            '    return response.json()["accessToken"]\n'
+            '    return response.json()["accessToken"]\n\n\n'
+            f"def current_user_id() -> {_python_type(pk)} | None:\n"
+            '    """The account `sign_in` signed in last in this test, if any."""\n'
+            "    signed_in = _SIGNED_IN.get(_test())\n"
+            f"    return {parse} if signed_in is not None else None\n\n\n"
+            "def _test() -> str:\n"
+            '    """The running test, without its phase (`setup`, `call`)."""\n'
+            '    return os.environ.get("PYTEST_CURRENT_TEST", "").rsplit(" ", 1)[0]\n\n\n'
+            "def _set_role(role: str) -> None:\n"
+            '    engine = create_engine(os.environ["DB_URL"])\n'
+            "    with Session(engine) as session:\n"
+            f"        account = session.get({auth['model']}, current_user_id())\n"
+            "        assert account is not None\n"
+            f"        account.role = {role_value}\n"
+            "        session.add(account)\n"
+            "        session.commit()\n"
+            "    engine.dispose()\n"
         ),
         "tests/modules/auth/test_auth_api.py": (
             '"""Generated by the Fullstack Generation Agent (Story 10.2, the auth-jwt plugin)."""\n\n'
