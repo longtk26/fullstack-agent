@@ -16,6 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { app, enumLabel, listOf, recordTitle, type TAppSection } from "./app";
 import { useOperationQuery } from "./bindings";
 import { LoadError } from "./AppList";
+import { t } from "./messages";
 
 type TGroup = { key: unknown; value: number };
 
@@ -30,7 +31,7 @@ function useGroupLabels(entityName: string | undefined, groupBy: string | undefi
   const parents = useOperationQuery(parent?.listOperation ?? undefined, { limit: 100 });
   const names = new Map(listOf(parents.data).records.map((record) => [String(record.id), recordTitle(parent, record)]));
   return (key) => {
-    if (key === null || key === undefined || key === "") return "None";
+    if (key === null || key === undefined || key === "") return t("none");
     if (reference) return names.get(String(key)) ?? String(key);
     return entity?.fields?.[groupBy ?? ""]?.type === "enum" ? enumLabel(String(key)) : String(key);
   };
@@ -42,7 +43,7 @@ function Chart({ section, groups }: { section: TAppSection; groups: TGroup[] }) 
   const rows = groups.map((group, index) => ({ name: label(group.key), value: group.value, fill: COLORS[index % COLORS.length] }));
   // Each slice of a pie is named in the legend (its colour per group, from the theme's chart tokens).
   const config: ChartConfig = {
-    value: { label: section.content?.label ?? "Value", color: "var(--chart-1)" },
+    value: { label: section.content?.label ?? t("value"), color: "var(--chart-1)" },
     ...Object.fromEntries(rows.map((row) => [row.name, { label: row.name, color: row.fill }])),
   };
   if (kind === "pie") {
@@ -101,8 +102,8 @@ export function AppDashboard({ section }: { section: TAppSection }) {
           <EmptyMedia variant="icon">
             <LayoutDashboard aria-hidden />
           </EmptyMedia>
-          <EmptyTitle>Nothing here yet</EmptyTitle>
-          <EmptyDescription>Figures appear here as the app gets data.</EmptyDescription>
+          <EmptyTitle>{t("nothingYet")}</EmptyTitle>
+          <EmptyDescription>{t("figuresAppear")}</EmptyDescription>
         </EmptyHeader>
       </Empty>
     );

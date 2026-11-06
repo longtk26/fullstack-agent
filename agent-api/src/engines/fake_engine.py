@@ -42,6 +42,10 @@ class FakeStep(BaseModel):
     # planted colour defect.
     custom_component: bool = False
     plant_component_defect: bool = False
+    # Story 23.11: write the view slot `.bga/slot.json` asks for (a plain card or shell over its props); the defect
+    # variant calls fetch, which code must refuse (the kit's view is used instead).
+    view_slot: bool = False
+    view_slot_defect: bool = False
     # Spec drafts (Stories 2.4, 12.4): write the example spec(s) matching the requirement in `.bga/` (DRAFT_FIXTURES).
     draft_fixture: bool = False
     # Epic 21: write the designed page `.bga/tree-<page>.json` asks for, composed from its sections (fake_trees.py).
@@ -125,6 +129,43 @@ def write_assets(workdir: Path, unsafe: bool) -> list[str]:
     return written
 
 
+def write_view_slot(workdir: Path, defect: bool) -> str:
+    """TESTING / DEMO ONLY (docs/development/test-doubles.md): the slot `.bga/slot.json` names, as plain JSX over its
+    props (Story 23.11)."""
+    asked = json.loads((workdir / ".bga" / "slot.json").read_text())
+    if asked["kind"] == "shell":
+        body = (
+            '"use client";\n\nimport Link from "next/link";\nimport type { TShellProps } from "../slot-types";\n\n'
+            "export default function Shell({ appName, nav, account, children }: TShellProps) {\n"
+            '  return (\n    <div className="flex min-h-svh flex-col">\n'
+            '      <header className="flex h-14 items-center gap-4 border-b px-4">\n'
+            '        <Link href="/" className="font-semibold">{appName}</Link>\n'
+            '        <nav className="flex gap-2" aria-label="Main">\n'
+            "          {nav.map((item) => (\n"
+            '            <Link key={item.href} href={item.href} aria-current={item.current ? "page" : undefined} '
+            'className="flex items-center gap-1 text-sm">{item.icon}{item.label}</Link>\n'
+            "          ))}\n        </nav>\n"
+            '        <div className="ml-auto flex items-center gap-1">{account}</div>\n      </header>\n'
+            '      <main className="flex-1 px-4 py-6">{children}</main>\n    </div>\n  );\n}\n'
+        )
+    else:
+        body = (
+            '"use client";\n\nimport Link from "next/link";\nimport { Card } from "@/components/ui/card";\n'
+            'import type { TCardProps } from "../slot-types";\n\n'
+            f"export default function {asked['name']}({{ title, href, actions }}: TCardProps) {{\n"
+            + ('  void fetch("/api/anything");\n' if defect else "")
+            + "  return (\n"
+            '    <Card className="flex-row items-center justify-between gap-2 p-4">\n'
+            '      {href ? <Link href={href} className="font-medium">{title}</Link>'
+            ' : <span className="font-medium">{title}</span>}\n'
+            "      {actions}\n    </Card>\n  );\n}\n"
+        )
+    target = workdir / asked["file"]
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(body)
+    return asked["file"]
+
+
 def write_custom_component(workdir: Path, defect: bool) -> str:
     """The component the orchestrator asked for in `.bga/component.json` (custom_components.py)."""
     request = json.loads((workdir / ".bga" / "component.json").read_text())
@@ -171,6 +212,21 @@ DRAFT_FIXTURES = [
 DRAFT_FIXTURES.append(
     ("workshop", {"backend": ["specs/workshop-bookings.json"], "dynamic": ["specs/workshop-bookings.json"]})
 )
+# Story 23.1: the golden apps, drafted by Gemini for Story 23.0 and replayed here; first, so that their own words win
+# (the event ticketing requirement mentions "workshops").
+GOLDEN_APPS = {
+    "devpulse": "news-feed",
+    "studiotube": "video-library",
+    "learnly": "learning-platform",
+    "studio flow": "agency-projects",
+    "bright smile": "clinic-bookings",
+    "leafy corner": "plant-shop",
+    "event ticketing": "event-tickets",
+}
+DRAFT_FIXTURES[:0] = [
+    (keyword, {"backend": [f"specs/{name}.json"], "dynamic": [f"specs/{name}.json"]})
+    for keyword, name in GOLDEN_APPS.items()
+]
 DRAFT_DEFAULTS = {
     "backend": ["specs/two-entity.json"],
     "static": ["frontend-specs/static-landing.json"],
@@ -184,6 +240,7 @@ APP_OUTLINE_FIXTURES = {
     "specs/flashcards.json": "app-outlines/flashcards.json",
     "specs/two-entity.json": "app-outlines/project-tracker.json",
     "specs/workshop-bookings.json": "app-outlines/workshop-bookings.json",
+    **{f"specs/{name}.json": f"app-outlines/{name}.json" for name in GOLDEN_APPS.values()},
 }
 
 
@@ -362,6 +419,7 @@ def demo_scenario(delay_s: float = 0.3) -> dict[str, list[FakeStep]]:
         ],
         # A rendered site's custom components (Story 17.3), one call each.
         "generate_custom_component": [FakeStep(sleep_s=delay_s, custom_component=True)],
+        "generate_view_slot": [FakeStep(sleep_s=delay_s, view_slot=True)],  # Story 23.11 (opt-in)
         "repair_custom_component": [FakeStep(sleep_s=delay_s, custom_component=True)],
         # The engine path of a static site's pages (Story 22.8 removed the golden dynamic frontend): no change.
         "generate_frontend": [FakeStep(sleep_s=delay_s, message="The page is already in place.")],
@@ -513,6 +571,10 @@ class FakeEngine(ICodeEngine):
                     for relative in write_assets(workdir, step.unsafe_assets):
                         await emit(EngineEventKind.TOOL_USE, f"Write {relative}", tool="Write", target=relative)
                         tools.append(ToolCall(name="Write", target=relative, started_at=datetime.now(UTC)))
+                if step.view_slot or step.view_slot_defect:
+                    relative = write_view_slot(workdir, step.view_slot_defect)
+                    await emit(EngineEventKind.TOOL_USE, f"Write {relative}", tool="Write", target=relative)
+                    tools.append(ToolCall(name="Write", target=relative, started_at=datetime.now(UTC)))
                 if step.custom_component or step.plant_component_defect:
                     relative = write_custom_component(workdir, step.plant_component_defect)
                     await emit(EngineEventKind.TOOL_USE, f"Write {relative}", tool="Write", target=relative)

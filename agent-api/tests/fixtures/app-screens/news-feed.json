@@ -1,0 +1,414 @@
+{
+  "pages": {
+    "/": [
+      {
+        "id": "posts-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "post.list",
+          "fields": [
+            "title",
+            "sourceId",
+            "readingTime",
+            "upvoteCount",
+            "publishedAt"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "upvote",
+          "delete"
+        ]
+      }
+    ],
+    "/bookmarks": [
+      {
+        "id": "bookmarks-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "bookmark.list",
+          "fields": [
+            "postId",
+            "createdAt"
+          ]
+        },
+        "actions": [
+          "view",
+          "delete"
+        ]
+      }
+    ],
+    "/bookmarks/[id]": [
+      {
+        "id": "bookmarks-detail",
+        "component": "AppDetail",
+        "data": {
+          "operationId": "bookmark.get",
+          "params": {
+            "id": "$route.id"
+          },
+          "fields": [
+            "ownerId",
+            "postId",
+            "createdAt"
+          ]
+        },
+        "actions": [
+          "delete"
+        ]
+      }
+    ],
+    "/login": [
+      {
+        "id": "login",
+        "component": "AppAuth",
+        "form": "auth_login",
+        "actions": []
+      }
+    ],
+    "/posts": [
+      {
+        "id": "posts-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "post.list",
+          "fields": [
+            "title",
+            "sourceId",
+            "readingTime",
+            "upvoteCount",
+            "publishedAt"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "upvote",
+          "delete"
+        ]
+      }
+    ],
+    "/posts/[id]": [
+      {
+        "id": "posts-detail",
+        "component": "AppDetail",
+        "data": {
+          "operationId": "post.get",
+          "params": {
+            "id": "$route.id"
+          },
+          "fields": [
+            "title",
+            "summary",
+            "url",
+            "sourceId",
+            "readingTime",
+            "upvoteCount",
+            "publishedAt",
+            "coverImage",
+            "isHidden",
+            "createdAt"
+          ]
+        },
+        "actions": [
+          "edit",
+          "upvote",
+          "delete"
+        ]
+      },
+      {
+        "id": "bookmarks-tab",
+        "component": "AppList",
+        "data": {
+          "operationId": "bookmark.list",
+          "params": {
+            "postId": "$route.id"
+          },
+          "fields": [
+            "createdAt"
+          ]
+        },
+        "actions": [
+          "view",
+          "delete"
+        ]
+      },
+      {
+        "id": "tags-links",
+        "component": "AppLinks",
+        "data": {
+          "operationId": "post.listTags",
+          "params": {
+            "id": "$route.id"
+          }
+        },
+        "actions": []
+      }
+    ],
+    "/posts/[id]/bookmarks/new": [
+      {
+        "id": "bookmark-create-in-post-form",
+        "component": "AppForm",
+        "form": "bookmark_create_in_post",
+        "actions": []
+      }
+    ],
+    "/posts/[id]/edit": [
+      {
+        "id": "posts-edit-form",
+        "component": "AppForm",
+        "form": "post_update",
+        "actions": []
+      }
+    ],
+    "/register": [
+      {
+        "id": "register",
+        "component": "AppAuth",
+        "form": "auth_register",
+        "actions": []
+      }
+    ],
+    "/sources": [
+      {
+        "id": "sources-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "source.list",
+          "fields": [
+            "name",
+            "website",
+            "createdAt"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "delete"
+        ]
+      }
+    ],
+    "/sources/[id]": [
+      {
+        "id": "sources-detail",
+        "component": "AppDetail",
+        "data": {
+          "operationId": "source.get",
+          "params": {
+            "id": "$route.id"
+          },
+          "fields": [
+            "name",
+            "website",
+            "logo",
+            "description",
+            "createdAt"
+          ]
+        },
+        "actions": [
+          "edit",
+          "delete"
+        ]
+      },
+      {
+        "id": "posts-tab",
+        "component": "AppList",
+        "data": {
+          "operationId": "post.list",
+          "params": {
+            "sourceId": "$route.id"
+          },
+          "fields": [
+            "title",
+            "readingTime",
+            "upvoteCount",
+            "publishedAt"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "upvote",
+          "delete"
+        ]
+      }
+    ],
+    "/sources/[id]/edit": [
+      {
+        "id": "sources-edit-form",
+        "component": "AppForm",
+        "form": "source_update",
+        "actions": []
+      }
+    ],
+    "/sources/[id]/posts/new": [
+      {
+        "id": "post-create-in-source-form",
+        "component": "AppForm",
+        "form": "post_create_in_source",
+        "actions": []
+      }
+    ],
+    "/sources/new": [
+      {
+        "id": "source-create-form",
+        "component": "AppForm",
+        "form": "source_create",
+        "actions": []
+      }
+    ],
+    "/tags": [
+      {
+        "id": "tags-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "tag.list",
+          "fields": [
+            "name",
+            "description"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "delete"
+        ]
+      }
+    ],
+    "/tags/[id]": [
+      {
+        "id": "tags-detail",
+        "component": "AppDetail",
+        "data": {
+          "operationId": "tag.get",
+          "params": {
+            "id": "$route.id"
+          },
+          "fields": [
+            "name",
+            "description"
+          ]
+        },
+        "actions": [
+          "edit",
+          "delete"
+        ]
+      }
+    ],
+    "/tags/[id]/edit": [
+      {
+        "id": "tags-edit-form",
+        "component": "AppForm",
+        "form": "tag_update",
+        "actions": []
+      }
+    ],
+    "/tags/new": [
+      {
+        "id": "tag-create-form",
+        "component": "AppForm",
+        "form": "tag_create",
+        "actions": []
+      }
+    ]
+  },
+  "forms": {
+    "source_create": {
+      "operationId": "source.create",
+      "fields": [
+        "name",
+        "website",
+        "logo",
+        "description"
+      ]
+    },
+    "source_update": {
+      "operationId": "source.update",
+      "fields": [
+        "name",
+        "website",
+        "logo",
+        "description"
+      ]
+    },
+    "tag_create": {
+      "operationId": "tag.create",
+      "fields": [
+        "name",
+        "description"
+      ]
+    },
+    "tag_update": {
+      "operationId": "tag.update",
+      "fields": [
+        "name",
+        "description"
+      ]
+    },
+    "post_create_in_source": {
+      "operationId": "post.create",
+      "fields": [
+        "title",
+        "summary",
+        "url",
+        "coverImage",
+        "sourceId=$route.id",
+        "readingTime",
+        "upvoteCount",
+        "isHidden"
+      ]
+    },
+    "post_update": {
+      "operationId": "post.update",
+      "fields": [
+        "title",
+        "summary",
+        "url",
+        "coverImage",
+        "sourceId",
+        "readingTime",
+        "upvoteCount",
+        "isHidden"
+      ]
+    },
+    "bookmark_create_in_post": {
+      "operationId": "bookmark.create",
+      "fields": [
+        "postId=$route.id"
+      ]
+    },
+    "auth_login": {
+      "operationId": "auth.login",
+      "fields": [
+        "email",
+        "password"
+      ]
+    },
+    "auth_register": {
+      "operationId": "auth.register",
+      "fields": [
+        "email",
+        "password"
+      ]
+    }
+  },
+  "navigation": [
+    {
+      "label": "Feed",
+      "page": "posts"
+    },
+    {
+      "label": "Bookmarks",
+      "page": "bookmarks"
+    },
+    {
+      "label": "Sources",
+      "page": "sources"
+    },
+    {
+      "label": "Tags",
+      "page": "tags"
+    }
+  ]
+}

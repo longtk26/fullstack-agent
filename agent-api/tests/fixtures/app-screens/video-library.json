@@ -1,0 +1,469 @@
+{
+  "pages": {
+    "/": [
+      {
+        "id": "videos-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "video.list",
+          "fields": [
+            "title",
+            "channelId",
+            "category",
+            "duration",
+            "viewCount"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "record-view",
+          "delete"
+        ]
+      }
+    ],
+    "/channels": [
+      {
+        "id": "channels-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "channel.list",
+          "fields": [
+            "name",
+            "subscriberCount",
+            "shortDescription"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit"
+        ]
+      }
+    ],
+    "/channels/[id]": [
+      {
+        "id": "channels-detail",
+        "component": "AppDetail",
+        "data": {
+          "operationId": "channel.get",
+          "params": {
+            "id": "$route.id"
+          },
+          "fields": [
+            "bannerImage",
+            "name",
+            "subscriberCount",
+            "shortDescription",
+            "createdAt",
+            "slug"
+          ]
+        },
+        "actions": [
+          "edit"
+        ]
+      },
+      {
+        "id": "videos-tab",
+        "component": "AppList",
+        "data": {
+          "operationId": "video.list",
+          "params": {
+            "channelId": "$route.id"
+          },
+          "fields": [
+            "title",
+            "category",
+            "duration",
+            "viewCount"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "record-view",
+          "delete"
+        ]
+      }
+    ],
+    "/channels/[id]/edit": [
+      {
+        "id": "channels-edit-form",
+        "component": "AppForm",
+        "form": "channel_update",
+        "actions": []
+      }
+    ],
+    "/channels/[id]/videos/new": [
+      {
+        "id": "video-create-in-channel-form",
+        "component": "AppForm",
+        "form": "video_create_in_channel",
+        "actions": []
+      }
+    ],
+    "/channels/new": [
+      {
+        "id": "channel-create-form",
+        "component": "AppForm",
+        "form": "channel_create",
+        "actions": []
+      }
+    ],
+    "/dashboard": [
+      {
+        "id": "figure-1",
+        "component": "AppDashboard",
+        "data": {
+          "operationId": "video.count"
+        },
+        "actions": []
+      },
+      {
+        "id": "figure-2",
+        "component": "AppDashboard",
+        "data": {
+          "operationId": "video.sumViewCount"
+        },
+        "actions": []
+      },
+      {
+        "id": "figure-3",
+        "component": "AppDashboard",
+        "data": {
+          "operationId": "channel.count"
+        },
+        "actions": []
+      },
+      {
+        "id": "figure-4",
+        "component": "AppDashboard",
+        "data": {
+          "operationId": "video.countByCategory"
+        },
+        "actions": []
+      },
+      {
+        "id": "recent-videos",
+        "component": "AppList",
+        "data": {
+          "operationId": "video.list",
+          "params": {
+            "limit": 5
+          },
+          "fields": [
+            "title",
+            "channelId",
+            "category"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "record-view",
+          "delete"
+        ]
+      },
+      {
+        "id": "recent-channels",
+        "component": "AppList",
+        "data": {
+          "operationId": "channel.list",
+          "params": {
+            "limit": 5,
+            "sort": "-createdAt"
+          },
+          "fields": [
+            "name",
+            "subscriberCount",
+            "shortDescription"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit"
+        ]
+      }
+    ],
+    "/login": [
+      {
+        "id": "login",
+        "component": "AppAuth",
+        "form": "auth_login",
+        "actions": []
+      }
+    ],
+    "/playlist-items": [
+      {
+        "id": "playlist-items-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "playlistItem.list",
+          "fields": [
+            "playlistId",
+            "videoId",
+            "position",
+            "addedAt"
+          ]
+        },
+        "actions": [
+          "delete"
+        ]
+      }
+    ],
+    "/playlists": [
+      {
+        "id": "playlists-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "playlist.list",
+          "fields": [
+            "title",
+            "description",
+            "createdAt"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "delete"
+        ]
+      }
+    ],
+    "/playlists/[id]": [
+      {
+        "id": "playlists-detail",
+        "component": "AppDetail",
+        "data": {
+          "operationId": "playlist.get",
+          "params": {
+            "id": "$route.id"
+          },
+          "fields": [
+            "title",
+            "description",
+            "isPrivate",
+            "createdAt",
+            "ownerId"
+          ]
+        },
+        "actions": [
+          "edit",
+          "delete"
+        ]
+      },
+      {
+        "id": "playlist-items-tab",
+        "component": "AppList",
+        "data": {
+          "operationId": "playlistItem.list",
+          "params": {
+            "playlistId": "$route.id"
+          },
+          "fields": [
+            "videoId",
+            "position",
+            "addedAt"
+          ]
+        },
+        "actions": [
+          "delete"
+        ]
+      }
+    ],
+    "/playlists/[id]/edit": [
+      {
+        "id": "playlists-edit-form",
+        "component": "AppForm",
+        "form": "playlist_update",
+        "actions": []
+      }
+    ],
+    "/playlists/[id]/playlist-items/new": [
+      {
+        "id": "playlist-item-create-in-playlist-form",
+        "component": "AppForm",
+        "form": "playlistItem_create_in_playlist",
+        "actions": []
+      }
+    ],
+    "/playlists/new": [
+      {
+        "id": "playlist-create-form",
+        "component": "AppForm",
+        "form": "playlist_create",
+        "actions": []
+      }
+    ],
+    "/register": [
+      {
+        "id": "register",
+        "component": "AppAuth",
+        "form": "auth_register",
+        "actions": []
+      }
+    ],
+    "/videos": [
+      {
+        "id": "videos-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "video.list",
+          "fields": [
+            "title",
+            "channelId",
+            "category",
+            "duration",
+            "viewCount"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "record-view",
+          "delete"
+        ]
+      }
+    ],
+    "/videos/[id]": [
+      {
+        "id": "videos-detail",
+        "component": "AppDetail",
+        "data": {
+          "operationId": "video.get",
+          "params": {
+            "id": "$route.id"
+          },
+          "fields": [
+            "thumbnail",
+            "title",
+            "channelId",
+            "category",
+            "duration",
+            "viewCount",
+            "publishDate",
+            "description",
+            "videoUrl",
+            "createdAt"
+          ]
+        },
+        "actions": [
+          "edit",
+          "record-view",
+          "delete"
+        ]
+      }
+    ],
+    "/videos/[id]/edit": [
+      {
+        "id": "videos-edit-form",
+        "component": "AppForm",
+        "form": "video_update",
+        "actions": []
+      }
+    ]
+  },
+  "forms": {
+    "channel_create": {
+      "operationId": "channel.create",
+      "fields": [
+        "name",
+        "slug",
+        "shortDescription",
+        "bannerImage",
+        "subscriberCount"
+      ]
+    },
+    "channel_update": {
+      "operationId": "channel.update",
+      "fields": [
+        "name",
+        "slug",
+        "shortDescription",
+        "bannerImage",
+        "subscriberCount"
+      ]
+    },
+    "video_create_in_channel": {
+      "operationId": "video.create",
+      "fields": [
+        "channelId=$route.id",
+        "title",
+        "description",
+        "thumbnail",
+        "duration",
+        "category",
+        "viewCount",
+        "videoUrl"
+      ]
+    },
+    "video_update": {
+      "operationId": "video.update",
+      "fields": [
+        "channelId",
+        "title",
+        "description",
+        "thumbnail",
+        "duration",
+        "category",
+        "viewCount",
+        "videoUrl"
+      ]
+    },
+    "playlist_create": {
+      "operationId": "playlist.create",
+      "fields": [
+        "title",
+        "description",
+        "isPrivate"
+      ]
+    },
+    "playlist_update": {
+      "operationId": "playlist.update",
+      "fields": [
+        "title",
+        "description",
+        "isPrivate"
+      ]
+    },
+    "playlistItem_create_in_playlist": {
+      "operationId": "playlistItem.create",
+      "fields": [
+        "playlistId=$route.id",
+        "videoId",
+        "position"
+      ]
+    },
+    "auth_login": {
+      "operationId": "auth.login",
+      "fields": [
+        "email",
+        "password"
+      ]
+    },
+    "auth_register": {
+      "operationId": "auth.register",
+      "fields": [
+        "email",
+        "password"
+      ]
+    }
+  },
+  "navigation": [
+    {
+      "label": "Browse Videos",
+      "page": "videos"
+    },
+    {
+      "label": "Channels",
+      "page": "channels"
+    },
+    {
+      "label": "My Playlists",
+      "page": "playlists"
+    },
+    {
+      "label": "Dashboard",
+      "page": "dashboard"
+    }
+  ]
+}

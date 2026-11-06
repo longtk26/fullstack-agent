@@ -1,0 +1,208 @@
+{
+  "name": "Learnly",
+  "tagline": "Online courses for ambitious designers, developers, and marketers",
+  "icon": "GraduationCap",
+  "home": "dashboard",
+  "nav": [
+    {
+      "entity": "Course",
+      "label": "Courses",
+      "icon": "BookOpen"
+    },
+    {
+      "entity": "Enrolment",
+      "label": "Enrolments",
+      "icon": "Award"
+    }
+  ],
+  "dashboard": [
+    {
+      "kind": "figure",
+      "label": "Enrolments this month",
+      "entity": "Enrolment",
+      "fn": "count",
+      "period": "month",
+      "dateField": "enrolledAt"
+    },
+    {
+      "kind": "bar",
+      "label": "Revenue per course",
+      "entity": "Enrolment",
+      "fn": "sum",
+      "field": "amount",
+      "groupBy": "courseTitle"
+    },
+    {
+      "kind": "pie",
+      "label": "Most popular categories",
+      "entity": "Enrolment",
+      "fn": "count",
+      "groupBy": "category"
+    },
+    {
+      "kind": "figure",
+      "label": "Published courses",
+      "entity": "Course",
+      "fn": "count",
+      "filter": {
+        "status": "published"
+      }
+    }
+  ],
+  "entities": {
+    "Course": {
+      "label": "Course",
+      "plural": "Courses",
+      "displayField": "title",
+      "listFields": [
+        "title",
+        "category",
+        "level",
+        "price",
+        "status"
+      ],
+      "listStyle": "cards",
+      "detailFields": [
+        "coverImage",
+        "title",
+        "summary",
+        "category",
+        "level",
+        "price",
+        "status",
+        "createdAt"
+      ],
+      "fieldLabels": {
+        "coverImage": "Cover Image",
+        "level": "Experience Level",
+        "summary": "Course Summary",
+        "price": "Price (USD)"
+      },
+      "help": {
+        "status": "Publish the course to allow learners to browse and enrol.",
+        "price": "Set 0 for free courses or a fixed USD amount."
+      }
+    },
+    "Lesson": {
+      "label": "Lesson",
+      "plural": "Lessons",
+      "displayField": "title",
+      "listFields": [
+        "orderIndex",
+        "title",
+        "durationMinutes",
+        "videoUrl"
+      ],
+      "listStyle": "table",
+      "detailFields": [
+        "title",
+        "orderIndex",
+        "durationMinutes",
+        "videoUrl",
+        "courseId"
+      ],
+      "fieldLabels": {
+        "durationMinutes": "Duration (minutes)",
+        "orderIndex": "Lesson Order",
+        "videoUrl": "Video Link"
+      },
+      "help": {
+        "videoUrl": "Provide a direct streaming link or hosted video URL.",
+        "orderIndex": "Determines the sequence in which learners progress."
+      }
+    },
+    "Enrolment": {
+      "label": "Enrolment",
+      "plural": "Enrolments",
+      "displayField": "courseTitle",
+      "listFields": [
+        "courseTitle",
+        "learnerName",
+        "progressPercent",
+        "paymentStatus",
+        "enrolledAt"
+      ],
+      "listStyle": "cards",
+      "detailFields": [
+        "courseTitle",
+        "category",
+        "learnerName",
+        "progressPercent",
+        "amount",
+        "paymentStatus",
+        "enrolledAt"
+      ],
+      "fieldLabels": {
+        "courseTitle": "Course",
+        "learnerName": "Learner",
+        "progressPercent": "Progress (%)",
+        "paymentStatus": "Payment Status",
+        "enrolledAt": "Enrolled On"
+      }
+    },
+    "LessonCompletion": {
+      "label": "Lesson Completion",
+      "plural": "Lesson Completions",
+      "displayField": "id",
+      "listFields": [
+        "enrolmentId",
+        "lessonId",
+        "completedAt"
+      ],
+      "listStyle": "table"
+    }
+  },
+  "design": {
+    "archetype": "learning",
+    "shell": "sidebar",
+    "mobileNav": "bottom-tabs",
+    "homeView": "dashboard",
+    "mainEntity": "Course",
+    "entities": {
+      "Course": {
+        "view": "media-grid",
+        "roles": {
+          "media": "coverImage",
+          "title": "title",
+          "subtitle": "summary",
+          "badge": "level",
+          "price": "price",
+          "meta": "category"
+        }
+      },
+      "Lesson": {
+        "view": "table",
+        "roles": {
+          "title": "title",
+          "meta": "durationMinutes"
+        }
+      },
+      "Enrolment": {
+        "view": "cards",
+        "roles": {
+          "title": "courseTitle",
+          "subtitle": "learnerName",
+          "badge": "paymentStatus",
+          "stat": "progressPercent",
+          "meta": "enrolledAt",
+          "price": "amount"
+        }
+      }
+    },
+    "looks": [
+      {
+        "recipe": "minimal",
+        "reason": "Clean, focused layout and calm typography keep learners centered on coursework without visual clutter."
+      },
+      {
+        "recipe": "soft",
+        "reason": "Gentle shadows and card elevations provide a tactile, encouraging feel for tracking lessons and progress."
+      },
+      {
+        "recipe": "editorial",
+        "reason": "Refined typographic hierarchy gives training curricula a prestigious, authoritative academy presence."
+      }
+    ],
+    "reason": "A learning archetype with a sidebar navigation and home dashboard balances manager business tracking with learner progress."
+  }
+}

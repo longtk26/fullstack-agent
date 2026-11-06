@@ -30,8 +30,11 @@ import {
 } from "./app";
 import { filterOptions, useOperationQuery } from "./bindings";
 import { FieldValue } from "./FieldValue";
+import { entityDesign, useLayout } from "./layout";
 import { useSession } from "./plugins";
 import { RowActions } from "./RecordActions";
+import { Calendar, RecordsView } from "./views";
+import { inSentence, t } from "./messages";
 
 const PAGE_SIZE = 20;
 const RECENT = 5;
@@ -58,7 +61,28 @@ function useListState(sectionId: string) {
   return { get, set };
 }
 
-function Controls({ section, entity, state }: { section: TAppSection; entity?: TAppEntity; state: ReturnType<typeof useListState> }) {
+/** A filter's values as a row of chips (Story 23.5): one press filters, the pressed chip again clears. */
+function Chips({ name, label, options, state }: { name: string; label: string; options: string[]; state: ReturnType<typeof useListState> }) {
+  const current = state.get(name);
+  return (
+    <div className="flex flex-wrap items-center gap-2" role="group" aria-label={label}>
+      {[null, ...options].map((option) => (
+        <Button
+          key={option ?? "ALL"}
+          size="sm"
+          variant={current === option ? "default" : "outline"}
+          className="rounded-full"
+          aria-pressed={current === option}
+          onClick={() => state.set({ [name]: option })}
+        >
+          {option === null ? t("all") : enumLabel(option)}
+        </Button>
+      ))}
+    </div>
+  );
+}
+
+function Controls({ section, entity, state, style = "toolbar" }: { section: TAppSection; entity?: TAppEntity; state: ReturnType<typeof useListState>; style?: string }) {
   const controls = section.content?.controls ?? {};
   const [search, setSearch] = useState(state.get("q") ?? "");
   const options = filterOptions[section.data?.operationId ?? ""] ?? {};
@@ -70,6 +94,48 @@ function Controls({ section, entity, state }: { section: TAppSection; entity?: T
   }, [search]); // eslint-disable-line react-hooks/exhaustive-deps
   const filters = (controls.filters ?? []).filter((name) => options[name]?.length);
   if (!controls.search && filters.length === 0 && !controls.sort?.length) return null;
+  // Story 23.5: chips for short value lists, a facet panel, or a search first with the filters as chips under it
+  const chipped = style === "chips" || style === "search-first" ? filters.filter((name) => options[name].length <= 12) : [];
+  if (style === "facets" && filters.length) {
+    return (
+      <aside className="flex flex-col gap-5" aria-label="Filters" data-bga-filters="facets">
+        {controls.search && (
+          <Input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("search", { name: inSentence(entity?.plural ?? t("records")) })} aria-label={t("search", { name: inSentence(entity?.plural ?? t("records")) })} />
+        )}
+        {filters.map((name) => (
+          <fieldset key={name} className="flex flex-col gap-1">
+            <legend className="mb-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">{fieldLabel(entity, name)}</legend>
+            {[null, ...options[name]].map((option) => (
+              <button
+                key={option ?? "ALL"}
+                type="button"
+                aria-pressed={state.get(name) === option}
+                onClick={() => state.set({ [name]: option })}
+                className="rounded-md px-2 py-1 text-left text-sm text-muted-foreground hover:bg-accent hover:text-foreground aria-pressed:bg-accent aria-pressed:font-medium aria-pressed:text-foreground"
+              >
+                {option === null ? t("all") : enumLabel(option)}
+              </button>
+            ))}
+          </fieldset>
+        ))}
+      </aside>
+    );
+  }
+  if (chipped.length) {
+    return (
+      <div className="flex flex-col gap-3" data-bga-filters={style}>
+        {controls.search && style === "search-first" && (
+          <div className="relative">
+            <Search className="pointer-events-none absolute top-1/2 left-3.5 size-5 -translate-y-1/2 text-muted-foreground" aria-hidden />
+            <Input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("search", { name: inSentence(entity?.plural ?? t("records")) })} aria-label={t("search", { name: inSentence(entity?.plural ?? t("records")) })} className="h-12 rounded-full pl-11 text-base" />
+          </div>
+        )}
+        {chipped.map((name) => (
+          <Chips key={name} name={name} label={fieldLabel(entity, name)} options={options[name]} state={state} />
+        ))}
+      </div>
+    );
+  }
   return (
     <div className="flex flex-wrap items-center gap-2" role="search">
       {controls.search && (
@@ -79,8 +145,8 @@ function Controls({ section, entity, state }: { section: TAppSection; entity?: T
             type="search"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder={`Search ${(entity?.plural ?? "records").toLowerCase()}`}
-            aria-label={`Search ${(entity?.plural ?? "records").toLowerCase()}`}
+            placeholder={t("search", { name: inSentence(entity?.plural ?? t("records")) })}
+            aria-label={t("search", { name: inSentence(entity?.plural ?? t("records")) })}
             className="pl-8"
           />
         </div>
@@ -88,7 +154,7 @@ function Controls({ section, entity, state }: { section: TAppSection; entity?: T
       {filters.map((name) => (
         <Select
           key={name}
-          items={{ ALL: `All: ${fieldLabel(entity, name).toLowerCase()}`, ...Object.fromEntries(options[name].map((o) => [o, enumLabel(o)])) }}
+          items={{ ALL: t("allOf", { name: inSentence(fieldLabel(entity, name)) }), ...Object.fromEntries(options[name].map((o) => [o, enumLabel(o)])) }}
           value={state.get(name) ?? "ALL"}
           onValueChange={(value) => state.set({ [name]: value === "ALL" || value === null ? null : String(value) })}
         >
@@ -96,7 +162,7 @@ function Controls({ section, entity, state }: { section: TAppSection; entity?: T
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="ALL">All: {fieldLabel(entity, name).toLowerCase()}</SelectItem>
+            <SelectItem value="ALL">{t("allOf", { name: inSentence(fieldLabel(entity, name)) })}</SelectItem>
             {options[name].map((option) => (
               <SelectItem key={option} value={option}>
                 {enumLabel(option)}
@@ -108,7 +174,7 @@ function Controls({ section, entity, state }: { section: TAppSection; entity?: T
       {Boolean(controls.sort?.length) && (
         <Select
           items={{
-            DEFAULT: "Default order",
+            DEFAULT: t("defaultOrder"),
             ...Object.fromEntries(
               (controls.sort ?? []).flatMap((field) => [
                 [field, `${fieldLabel(entity, field)} ↑`],
@@ -123,7 +189,7 @@ function Controls({ section, entity, state }: { section: TAppSection; entity?: T
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="DEFAULT">Default order</SelectItem>
+            <SelectItem value="DEFAULT">{t("defaultOrder")}</SelectItem>
             {(controls.sort ?? []).flatMap((field) => [
               <SelectItem key={field} value={field}>
                 {fieldLabel(entity, field)} ↑
@@ -148,13 +214,13 @@ function Pager({ page, total, size, onPage }: { page: number; total: number; siz
         {(page - 1) * size + 1}–{Math.min(page * size, total)} of {total}
       </span>
       <div className="flex items-center gap-1">
-        <Button variant="outline" size="icon-sm" onClick={() => onPage(page - 1)} disabled={page <= 1} aria-label="Previous page">
+        <Button variant="outline" size="icon-sm" onClick={() => onPage(page - 1)} disabled={page <= 1} aria-label={t("previousPage")}>
           <ChevronLeft aria-hidden />
         </Button>
         <span className="px-2 tabular-nums">
           {page} / {pages}
         </span>
-        <Button variant="outline" size="icon-sm" onClick={() => onPage(page + 1)} disabled={page >= pages} aria-label="Next page">
+        <Button variant="outline" size="icon-sm" onClick={() => onPage(page + 1)} disabled={page >= pages} aria-label={t("nextPage")}>
           <ChevronRight aria-hidden />
         </Button>
       </div>
@@ -185,13 +251,21 @@ function viewHref(actions: TAppAction[], record: TRecord, route: TRouteParams): 
   return view?.page ? pageHref(view.page, resolveParams(view.params, route, record), route) : undefined;
 }
 
-function Rows({ section, entity, records }: { section: TAppSection; entity?: TAppEntity; records: TRecord[] }) {
+function Rows({ section, entity, records, home = false }: { section: TAppSection; entity?: TAppEntity; records: TRecord[]; home?: boolean }) {
   const route = (useParams() ?? {}) as TRouteParams;
   const router = useRouter();
+  const layout = useLayout();
   const fields = section.data?.fields ?? [];
   const actions = section.content?.actions ?? [];
   const compact = app.density === "compact";
-  if ((section.content?.style ?? entity?.listStyle) === "cards") {
+  // Epic 23: the layout's view of this entity (an area may show it another way); tables and plain cards stay here
+  const design = entityDesign(layout, section.content?.entity);
+  const plainCards = design.view === "cards" && !design.roles?.title && !design.roles?.media;
+  if (section.content?.variant !== "recent" && design.view !== "table" && !plainCards) {
+    const listHref = entity?.list ?? undefined;
+    return <RecordsView section={section} entity={entity} records={records} design={design} home={home && layout.homeView === "catalogue"} listHref={listHref} />;
+  }
+  if (design.view === "cards" || (!layout.entities?.[section.content?.entity ?? ""] && (section.content?.style ?? entity?.listStyle) === "cards")) {
     return (
       <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {records.map((record) => {
@@ -298,38 +372,58 @@ export function LoadError({ onRetry }: { onRetry: () => void }) {
         <EmptyMedia variant="icon">
           <TriangleAlert aria-hidden />
         </EmptyMedia>
-        <EmptyTitle>Could not load this</EmptyTitle>
-        <EmptyDescription>Check the connection and try again.</EmptyDescription>
+        <EmptyTitle>{t("couldNotLoad")}</EmptyTitle>
+        <EmptyDescription>{t("checkConnection")}</EmptyDescription>
       </EmptyHeader>
       <EmptyContent>
         <Button variant="outline" size="sm" onClick={onRetry}>
-          Try again
+          {t("tryAgain")}
         </Button>
       </EmptyContent>
     </Empty>
   );
 }
 
-function ListBody({ section, heading, hideTitle }: ListProps) {
+function ListBody({ section, heading, hideTitle, pageId }: ListProps) {
   const route = (useParams() ?? {}) as TRouteParams;
   const state = useListState(section.id);
+  const layout = useLayout();
   const entity = app.entities[section.content?.entity ?? ""];
   const recent = section.content?.variant === "recent";
   const controls = section.content?.controls ?? {};
+  const design = entityDesign(layout, section.content?.entity);
+  const home = pageId === "home" && !section.content?.tab;
+  // Epic 23: a calendar (or the agenda home) asks for its dates itself; a board and a catalogue home load at once
+  const dated = !recent && design.view === "calendar" && Boolean(design.dateField);
+  const agenda = dated && home && layout.homeView === "agenda";
+  const whole = !recent && (design.view === "board" || (home && layout.homeView === "catalogue"));
   const page = Math.max(1, Number(state.get("page") ?? 1) || 1);
-  const size = recent ? RECENT : PAGE_SIZE;
+  const size = recent ? RECENT : whole ? (controls.maxLimit ?? 100) : PAGE_SIZE;
   const params: Record<string, unknown> = { ...resolveParams(section.data?.params, route) };
   if (!recent) {
     if (controls.search && state.get("q")) params.q = state.get("q");
     for (const name of controls.filters ?? []) if (state.get(name)) params[name] = state.get(name);
     if (state.get("sort")) params.sort = state.get("sort");
-    if (section.data?.action === "list") Object.assign(params, { limit: size, offset: (page - 1) * size });
+    else if (design.view === "feed") {
+      // a feed reads newest first (its date sort is added by code, Story 23.3)
+      const dateSort = (controls.sort ?? []).find((field) => ["date", "datetime"].includes(entity?.fields?.[field]?.type ?? ""));
+      if (dateSort) params.sort = `-${dateSort}`;
+    }
   }
-  const query = useOperationQuery(section.data?.operationId, params);
+  const base = { ...params };
+  if (!recent && section.data?.action === "list") Object.assign(params, { limit: size, offset: whole ? 0 : (page - 1) * size });
+  const query = useOperationQuery(dated ? undefined : section.data?.operationId, params);
   const { records, total } = listOf(query.data);
   const title = section.content?.title ?? entity?.plural ?? "Records";
   const Heading = heading;
   const filtered = Boolean(state.get("q")) || (controls.filters ?? []).some((name) => state.get(name));
+  // Story 23.9: a restricted caller is told what they may see (the backend narrowed the list, the kit only explains)
+  const session = useSession();
+  const rule = entity?.visibility;
+  const shownOnly =
+    rule && (!session.user || rule.roles.includes(String(session.user.role)))
+      ? Object.values(rule.where).map((value) => enumLabel(String(value)).toLowerCase()).join(", ")
+      : null;
 
   return (
     <div className="flex flex-col gap-4">
@@ -341,8 +435,13 @@ function ListBody({ section, heading, hideTitle }: ListProps) {
         </Heading>
         <CreateLink section={section} />
       </div>
-      {!recent && <Controls section={section} entity={entity} state={state} />}
-      {query.isLoading ? (
+      {!recent && design.filtersStyle !== "facets" && <Controls section={section} entity={entity} state={state} style={design.filtersStyle} />}
+      <div className={cn(!recent && design.filtersStyle === "facets" && "grid gap-6 lg:has-[>aside]:grid-cols-[14rem_minmax(0,1fr)]")}>
+      {!recent && design.filtersStyle === "facets" && <Controls section={section} entity={entity} state={state} style="facets" />}
+      <div className="flex min-w-0 flex-col gap-4">
+      {dated ? (
+        <Calendar section={section} entity={entity} params={base} design={design} agenda={agenda} />
+      ) : query.isLoading ? (
         <ListSkeleton rows={recent ? 3 : 5} />
       ) : query.error ? (
         <LoadError onRetry={() => query.refetch()} />
@@ -352,9 +451,15 @@ function ListBody({ section, heading, hideTitle }: ListProps) {
             <EmptyMedia variant="icon">
               <Inbox aria-hidden />
             </EmptyMedia>
-            <EmptyTitle>{filtered ? "Nothing matches" : `No ${title.toLowerCase()} yet`}</EmptyTitle>
+            <EmptyTitle>{filtered ? t("nothingMatches") : t("noneYet", { name: inSentence(title) })}</EmptyTitle>
             <EmptyDescription>
-              {filtered ? "Try another search or filter." : section.content?.create ? "Add the first one." : "They appear here once added."}
+              {filtered
+                ? t("tryAnother")
+                : shownOnly
+                  ? t("onlyShown", { where: shownOnly, name: inSentence(title) })
+                  : section.content?.create
+                    ? t("addFirst")
+                    : t("appearOnceAdded")}
             </EmptyDescription>
           </EmptyHeader>
           {!filtered && section.content?.create && (
@@ -365,12 +470,14 @@ function ListBody({ section, heading, hideTitle }: ListProps) {
         </Empty>
       ) : (
         <>
-          <Rows section={section} entity={entity} records={records} />
-          {!recent && section.data?.action === "list" && (
+          <Rows section={section} entity={entity} records={records} home={home} />
+          {!recent && !whole && section.data?.action === "list" && (
             <Pager page={page} total={total} size={size} onPage={(next) => state.set({ page: String(next) })} />
           )}
         </>
       )}
+      </div>
+      </div>
     </div>
   );
 }

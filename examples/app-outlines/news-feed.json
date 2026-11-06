@@ -1,0 +1,180 @@
+{
+  "name": "DevPulse",
+  "tagline": "Curated developer news feed from top engineering blogs and communities",
+  "icon": "Newspaper",
+  "home": "Post",
+  "nav": [
+    {
+      "entity": "Post",
+      "label": "Feed",
+      "icon": "Rss"
+    },
+    {
+      "entity": "Bookmark",
+      "label": "Bookmarks",
+      "icon": "Bookmark"
+    },
+    {
+      "entity": "Source",
+      "label": "Sources",
+      "icon": "Globe"
+    },
+    {
+      "entity": "Tag",
+      "label": "Tags",
+      "icon": "Tag"
+    }
+  ],
+  "entities": {
+    "Post": {
+      "label": "Post",
+      "plural": "Posts",
+      "displayField": "title",
+      "listFields": [
+        "title",
+        "sourceId",
+        "readingTime",
+        "upvoteCount",
+        "publishedAt"
+      ],
+      "listStyle": "cards",
+      "detailFields": [
+        "title",
+        "summary",
+        "url",
+        "sourceId",
+        "readingTime",
+        "upvoteCount",
+        "publishedAt",
+        "coverImage",
+        "isHidden"
+      ],
+      "fieldLabels": {
+        "title": "Title",
+        "summary": "Summary",
+        "url": "Article URL",
+        "sourceId": "Source",
+        "readingTime": "Read Time (min)",
+        "upvoteCount": "Upvotes",
+        "publishedAt": "Published Date",
+        "coverImage": "Cover Image",
+        "isHidden": "Hidden"
+      },
+      "help": {
+        "summary": "A concise abstract of the engineering article or community announcement",
+        "readingTime": "Estimated reading duration in minutes",
+        "isHidden": "Hide this post from the public feed if it breaks rules"
+      }
+    },
+    "Bookmark": {
+      "label": "Bookmark",
+      "plural": "Bookmarks",
+      "displayField": "postId",
+      "listFields": [
+        "postId",
+        "createdAt"
+      ],
+      "listStyle": "cards",
+      "fieldLabels": {
+        "postId": "Post",
+        "createdAt": "Saved At"
+      }
+    },
+    "Source": {
+      "label": "Source",
+      "plural": "Sources",
+      "displayField": "name",
+      "listFields": [
+        "name",
+        "website",
+        "createdAt"
+      ],
+      "listStyle": "table",
+      "detailFields": [
+        "name",
+        "website",
+        "logo",
+        "description",
+        "createdAt"
+      ],
+      "fieldLabels": {
+        "name": "Publication Name",
+        "website": "Website URL",
+        "logo": "Brand Logo",
+        "description": "About Source"
+      }
+    },
+    "Tag": {
+      "label": "Tag",
+      "plural": "Tags",
+      "displayField": "name",
+      "listFields": [
+        "name",
+        "description"
+      ],
+      "listStyle": "table",
+      "fieldLabels": {
+        "name": "Tag Name",
+        "description": "Description"
+      }
+    }
+  },
+  "design": {
+    "archetype": "feed",
+    "shell": "topbar",
+    "mobileNav": "bottom-tabs",
+    "homeView": "feed",
+    "mainEntity": "Post",
+    "entities": {
+      "Post": {
+        "view": "feed",
+        "roles": {
+          "title": "title",
+          "subtitle": "summary",
+          "meta": "publishedAt",
+          "badge": "sourceId",
+          "stat": "upvoteCount",
+          "media": "coverImage"
+        }
+      },
+      "Bookmark": {
+        "view": "cards",
+        "roles": {
+          "title": "postId",
+          "meta": "createdAt"
+        }
+      },
+      "Source": {
+        "view": "cards",
+        "roles": {
+          "title": "name",
+          "subtitle": "description",
+          "avatar": "logo",
+          "meta": "website"
+        }
+      },
+      "Tag": {
+        "view": "table",
+        "roles": {
+          "title": "name",
+          "subtitle": "description"
+        }
+      }
+    },
+    "looks": [
+      {
+        "recipe": "minimal",
+        "reason": "High-density clean typography optimizes reading speed and scanning across technical headlines."
+      },
+      {
+        "recipe": "editorial",
+        "reason": "Publication-inspired layout gives engineering blogs and summaries an authoritative magazine feel."
+      },
+      {
+        "recipe": "swiss",
+        "reason": "Crisp grids, high contrast, and neutral surfaces fit technical documentation and news feeds."
+      }
+    ],
+    "reason": "DevPulse is focused on content consumption where engineers scan chronological headlines, filter sources, and bookmark articles."
+  }
+}

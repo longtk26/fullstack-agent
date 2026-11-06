@@ -46,6 +46,24 @@ def _model(plan: dict[str, Any], module: dict[str, Any]) -> dict[str, Any]:
     return next(m for m in plan["models"] if m.get("entity") == module["entity"])
 
 
+def outside_url(value: object) -> bool:
+    """A seeded file value that is a link to an outside file (a demo photo) instead of an object key: records keep and
+    show it as it is; the smoke calls send the key code would have given that row (`_stand_in`)."""
+    return isinstance(value, str) and value.startswith(("https://", "http://"))
+
+
+def _stand_in(plan: dict[str, Any], fixtures: dict[str, Any], found: dict[str, Any], url: str) -> str:
+    """The key `build_fixtures` gives a seed row without a file value (`<prefix>/<owner or shared>/seed/<n>.png`),
+    for the row whose value is `url`."""
+    model = next(m for m in plan["models"] if m.get("entity") == found["entity"])
+    owner = next((c["apiName"] for c in model["columns"] if c.get("source") == "currentUser"), None)
+    rows = fixtures.get(found["entity"]) or []
+    index = next((i for i, row in enumerate(rows) if row.get(found["field"]) == url), 0)
+    folder = (rows[index].get(owner) if owner and rows else None) or "shared"
+    extension = ".png" if found["kind"] == "image" else ".pdf"
+    return f"{found['prefix']}/{folder}/seed/{index + 1}{extension}"
+
+
 def _owned(op: dict[str, Any]) -> bool:
     """The use case knows the caller and the record has an owner: keys must be in the caller's folder."""
     return bool((op.get("auth") or {}).get("ownership") or op.get("ownerSource"))
@@ -150,6 +168,11 @@ class StoragePlugin(Plugin):
                         },
                     }
             scenarios = (operation.get("x-bga") or {}).get("scenarios") or []
+            for scenario in scenarios:  # a call sends a key, never a seed's outside URL (uploads take keys only)
+                body_values = scenario.get("body")
+                for (owner, name), found in fields.items():
+                    if owner == entity and isinstance(body_values, dict) and outside_url(body_values.get(name)):
+                        body_values[name] = _stand_in(plan, meta["fixtures"], found, body_values[name])
             success = next((s for s in scenarios if s["name"] == "success" and isinstance(s.get("body"), dict)), None)
             if success and (operation.get("x-bga") or {}).get("action") == "create":
                 for (owner, name), found in fields.items():
@@ -191,7 +214,8 @@ class StoragePlugin(Plugin):
             for row in meta["fixtures"].get(entity) or []:
                 if row.get(name):
                     content = "image/png" if found["kind"] == "image" else (found["accept"] or ["application/pdf"])[0]
-                    objects.append({"key": row[name], "contentType": content.replace("/*", "/png")})
+                    key = _stand_in(plan, meta["fixtures"], found, row[name]) if outside_url(row[name]) else row[name]
+                    objects.append({"key": key, "contentType": content.replace("/*", "/png")})
         meta["storage"] = {"presign": "files.presign", "objects": objects}
 
     @staticmethod

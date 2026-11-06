@@ -8,6 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { dateLocale } from "../date-locale";
 import type { TFieldProps } from "./types";
+import { t } from "../messages";
 
 /** A currency's symbol in the app's locale (`EUR` → `€`). */
 function currencySymbol(currency: string): string {
@@ -98,7 +99,7 @@ function PasswordField({ field, id, value, onChange, onBlur, invalid }: TFieldPr
         onChange={(e) => onChange(e.target.value)}
       />
       <InputGroupAddon align="inline-end">
-        <InputGroupButton size="xs" aria-label={shown ? "Hide password" : "Show password"} onClick={() => setShown(!shown)}>
+        <InputGroupButton size="xs" aria-label={shown ? t("hidePassword") : t("showPassword")} onClick={() => setShown(!shown)}>
           {shown ? <EyeOffIcon aria-hidden /> : <EyeIcon aria-hidden />}
         </InputGroupButton>
       </InputGroupAddon>

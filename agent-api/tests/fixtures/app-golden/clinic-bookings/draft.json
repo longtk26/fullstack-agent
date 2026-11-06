@@ -1,0 +1,25 @@
+{
+  "requirement": "clinic-bookings.md",
+  "seconds": 58.7,
+  "repairs": 0,
+  "costUsd": 0.0391,
+  "archetypeCandidates": [
+    "booking"
+  ],
+  "productTypes": [
+    "Booking & Appointment App",
+    "Healthcare App",
+    "Calendar & Scheduling App"
+  ],
+  "calls": [
+    {
+      "step": "draft",
+      "prompt": "draft_app@v3proto",
+      "model": "gemini-3.8-flash",
+      "durationMs": 58647,
+      "inputTokens": 7793,
+      "outputTokens": 8872,
+      "costUsd": 0.039115
+    }
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "archetype": "learning",
+  "shell": "sidebar",
+  "mobileNav": "bottom-tabs",
+  "homeView": "dashboard",
+  "mainEntity": "Course",
+  "entities": {
+    "Course": {
+      "view": "media-grid",
+      "roles": {
+        "media": "coverImage",
+        "title": "title",
+        "subtitle": "summary",
+        "badge": "level",
+        "price": "price",
+        "meta": "category"
+      }
+    },
+    "Lesson": {
+      "view": "table",
+      "roles": {
+        "title": "title",
+        "meta": "durationMinutes"
+      }
+    },
+    "Enrolment": {
+      "view": "cards",
+      "roles": {
+        "title": "courseTitle",
+        "subtitle": "learnerName",
+        "badge": "paymentStatus",
+        "stat": "progressPercent",
+        "meta": "enrolledAt",
+        "price": "amount"
+      }
+    }
+  },
+  "looks": [
+    {
+      "recipe": "minimal",
+      "reason": "Clean, focused layout and calm typography keep learners centered on coursework without visual clutter."
+    },
+    {
+      "recipe": "soft",
+      "reason": "Gentle shadows and card elevations provide a tactile, encouraging feel for tracking lessons and progress."
+    },
+    {
+      "recipe": "editorial",
+      "reason": "Refined typographic hierarchy gives training curricula a prestigious, authoritative academy presence."
+    }
+  ],
+  "reason": "A learning archetype with a sidebar navigation and home dashboard balances manager business tracking with learner progress."
+}

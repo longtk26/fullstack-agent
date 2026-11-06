@@ -1,0 +1,134 @@
+{
+  "archetype": "booking",
+  "shell": "topbar",
+  "mobileNav": "bottom-tabs",
+  "homeView": "catalogue",
+  "mainEntity": "Event",
+  "entities": {
+    "Event": {
+      "view": "media-grid",
+      "roles": {
+        "media": "poster",
+        "title": "title",
+        "badge": "category",
+        "meta": "startTime",
+        "price": "price"
+      }
+    },
+    "Ticket": {
+      "view": "cards",
+      "roles": {
+        "title": "qrCodeRef",
+        "subtitle": "attendeeName",
+        "badge": "status",
+        "price": "pricePaid"
+      }
+    },
+    "Venue": {
+      "view": "cards",
+      "roles": {
+        "title": "name",
+        "subtitle": "neighborhood",
+        "stat": "capacity"
+      }
+    }
+  },
+  "areas": [
+    {
+      "id": "attendees",
+      "label": "Attendee Experience",
+      "roles": [
+        "attendee"
+      ],
+      "archetype": "booking",
+      "shell": "topbar",
+      "mobileNav": "bottom-tabs",
+      "homeView": "catalogue",
+      "mainEntity": "Event",
+      "entities": {
+        "Event": {
+          "view": "media-grid",
+          "roles": {
+            "media": "poster",
+            "title": "title",
+            "badge": "category",
+            "meta": "startTime",
+            "price": "price"
+          }
+        },
+        "Ticket": {
+          "view": "cards",
+          "roles": {
+            "title": "qrCodeRef",
+            "subtitle": "attendeeName",
+            "badge": "status",
+            "price": "pricePaid"
+          }
+        },
+        "Venue": {
+          "view": "cards",
+          "roles": {
+            "title": "name",
+            "subtitle": "neighborhood",
+            "stat": "capacity"
+          }
+        }
+      }
+    },
+    {
+      "id": "organizers",
+      "label": "Venue Management",
+      "roles": [
+        "organizer"
+      ],
+      "archetype": "back-office",
+      "shell": "sidebar",
+      "mobileNav": "drawer",
+      "homeView": "dashboard",
+      "mainEntity": "Event",
+      "entities": {
+        "Event": {
+          "view": "table",
+          "roles": {
+            "title": "title",
+            "badge": "status",
+            "meta": "startTime",
+            "price": "price"
+          }
+        },
+        "Ticket": {
+          "view": "table",
+          "roles": {
+            "title": "qrCodeRef",
+            "subtitle": "attendeeName",
+            "badge": "status",
+            "price": "pricePaid"
+          }
+        },
+        "Venue": {
+          "view": "table",
+          "roles": {
+            "title": "name",
+            "subtitle": "neighborhood",
+            "stat": "capacity"
+          }
+        }
+      }
+    }
+  ],
+  "looks": [
+    {
+      "recipe": "editorial",
+      "reason": "Lends an independent cultural guide feel with bold typography and posters for music and arts events."
+    },
+    {
+      "recipe": "minimal",
+      "reason": "Prioritizes high contrast readability and quick QR ticket scans on mobile devices at venue doors."
+    },
+    {
+      "recipe": "swiss",
+      "reason": "Structured typographic grid perfectly balances catalog browsing and back-office venue management."
+    }
+  ],
+  "reason": "Attendee phone browsing pairs with an image-rich catalogue while organizers utilize a structured dashboard and data tables for doors and sales."
+}

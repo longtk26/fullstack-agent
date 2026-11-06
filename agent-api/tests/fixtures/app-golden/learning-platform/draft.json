@@ -1,0 +1,26 @@
+{
+  "requirement": "learning-platform.md",
+  "seconds": 124.3,
+  "repairs": 0,
+  "costUsd": 0.0855,
+  "archetypeCandidates": [
+    "learning",
+    "catalogue"
+  ],
+  "productTypes": [
+    "Online Course/E-learning",
+    "Educational App",
+    "Short Video Editor"
+  ],
+  "calls": [
+    {
+      "step": "draft",
+      "prompt": "draft_app@v3proto",
+      "model": "gemini-3.8-flash",
+      "durationMs": 124283,
+      "inputTokens": 7667,
+      "outputTokens": 21271,
+      "costUsd": 0.085516
+    }
+  ]
+}

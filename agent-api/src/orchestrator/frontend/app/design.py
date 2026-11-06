@@ -1,0 +1,501 @@
+"""The design brief, completed by code (Epic 23, decision D1): the model chooses from the design space (archetype,
+shell, a view per entity, field roles, home, filters, looks, areas); code checks every choice against the BackendSpec
+and replaces what does not fit with the archetype's default, one note each (`design.replaced`). No model call.
+
+Pure functions. `complete_design` runs inside `complete_outline` (before the contract is built: Epic 23 D6), so the
+list features a view needs are added to the BackendSpec by `ensure_aggregates` (`design_list_features`).
+"""
+
+import re
+from typing import Any
+
+from pydantic import ValidationError
+
+from src.modules.shared.domain.frontend_spec.app import MAX_META, AppDesign, AppLook
+
+from .recipes import first_recipe
+
+ARCHETYPES: dict[str, dict[str, str]] = {
+    # archetype → its frame and the main entity's default view
+    "back-office": {"shell": "sidebar", "mobileNav": "drawer", "frame": "standard", "density": "compact",
+                    "homeView": "dashboard", "view": "table"},
+    "catalogue": {"shell": "topbar", "mobileNav": "bottom-tabs", "frame": "wide", "density": "comfortable",
+                  "homeView": "catalogue", "view": "media-grid"},
+    "feed": {"shell": "topbar", "mobileNav": "bottom-tabs", "frame": "narrow", "density": "comfortable",
+             "homeView": "feed", "view": "feed"},
+    "workspace": {"shell": "sidebar", "mobileNav": "drawer", "frame": "full", "density": "compact",
+                  "homeView": "dashboard", "view": "board"},
+    "booking": {"shell": "topbar-tabs", "mobileNav": "bottom-tabs", "frame": "standard", "density": "comfortable",
+                "homeView": "agenda", "view": "calendar"},
+    "learning": {"shell": "sidebar", "mobileNav": "bottom-tabs", "frame": "wide", "density": "comfortable",
+                 "homeView": "dashboard", "view": "media-grid"},
+    "storefront": {"shell": "topbar", "mobileNav": "bottom-tabs", "frame": "wide", "density": "comfortable",
+                   "homeView": "catalogue", "view": "media-grid"},
+}  # fmt: skip
+DEFAULT_ARCHETYPE = "back-office"
+# Words of a requirement → an archetype (Story 23.0: UI UX Pro Max's ranking alone matched "video library" to a
+# component library, so these come first; whole words, counted).
+ARCHETYPE_WORDS: dict[str, tuple[str, ...]] = {
+    "feed": ("news", "feed", "blog", "posts", "articles", "community", "social", "magazine", "upvote"),
+    "catalogue": ("video", "videos", "streaming", "channel", "music", "podcast", "gallery", "photos", "library",
+                  "portfolio", "recipes", "browse"),
+    "learning": ("course", "courses", "lesson", "lessons", "learner", "learners", "enrol", "enroll", "training",
+                 "quiz", "students", "e-learning"),
+    "storefront": ("shop", "store", "cart", "checkout", "products", "e-commerce", "ecommerce", "marketplace",
+                   "orders", "buy"),
+    "booking": ("booking", "bookings", "book", "appointment", "appointments", "reservation", "reservations",
+                "schedule", "slots", "tickets", "rooms"),
+    "workspace": ("tasks", "task", "project", "projects", "kanban", "sprint", "backlog", "pipeline", "deals"),
+    "back-office": ("inventory", "admin", "crm", "invoices", "invoice", "accounting", "stock", "suppliers",
+                    "employees", "reports"),
+}  # fmt: skip
+SHELLS = ("sidebar", "topbar", "topbar-tabs", "rail")
+VIEWS = ("table", "cards", "media-grid", "feed", "board", "calendar")
+IMAGE_WORDS = ("image", "thumbnail", "cover", "logo", "banner", "avatar", "photo", "picture", "poster")
+NUMERIC = frozenset({"integer", "float", "decimal"})
+DATES = frozenset({"date", "datetime"})
+HIDDEN = frozenset({"id", "allowedActions", "passwordHash", "password"})
+ROLE_ORDER = ("title", "media", "avatar", "price", "stat", "badge", "subtitle", "meta")  # who keeps a shared field
+CHIPS_MAX = 12  # values a row of chips shows
+_WORD = re.compile(r"[a-z][a-z-]*")
+
+
+def archetype_candidates(requirement: str, product_types: list[str] | None = None) -> list[str]:
+    """Up to three archetypes for the prompt (Story 23.6): the requirement's words by count, then the product types'."""
+    words = _WORD.findall(requirement.lower())
+    scores = {name: sum(words.count(word) for word in hints) for name, hints in ARCHETYPE_WORDS.items()}
+    out = [name for name, score in sorted(scores.items(), key=lambda kv: -kv[1]) if score > 0][:2]
+    for product in product_types or []:
+        for name, hints in ARCHETYPE_WORDS.items():
+            if any(hint in product.lower() for hint in hints) and name not in out:
+                out.append(name)
+    return out[:3] or [DEFAULT_ARCHETYPE]
+
+
+def archetype_for(requirement: str, product_types: list[str] | None = None) -> str:
+    """The archetype a requirement's words point to (counted, ties in the table's order), else the ranked product
+    types' names, else a back office."""
+    words = _WORD.findall(requirement.lower())
+    scores = {name: sum(words.count(word) for word in hints) for name, hints in ARCHETYPE_WORDS.items()}
+    best = max(scores, key=lambda name: scores[name])
+    if scores[best] > 0:
+        return best
+    for product in product_types or []:
+        lower = product.lower()
+        for name, hints in ARCHETYPE_WORDS.items():
+            if any(hint in lower for hint in hints):
+                return name
+    return DEFAULT_ARCHETYPE
+
+
+class _Data:
+    """What the BackendSpec says about the entities a design may show."""
+
+    def __init__(self, backend: dict[str, Any]):
+        self.fields = {e["name"]: {f["name"]: f for f in e.get("fields") or []} for e in backend.get("entities") or []}
+        self.lists: dict[str, dict[str, Any]] = {}
+        for op in backend.get("operations") or []:
+            if op.get("type") == "crud" and op.get("action") == "list" and op.get("entity") not in self.lists:
+                self.lists[op["entity"]] = op
+        self.flows = {
+            (rule.get("entity"), (rule.get("params") or {}).get("field"))
+            for rule in backend.get("rules") or []
+            if rule.get("kind") == "transition"
+        }
+        self.roles = list((backend.get("auth") or {}).get("roles") or [])
+        # a child's foreign key → its parent (shown by the parent's name: a bookmark titled by its post)
+        self.references: dict[str, dict[str, str]] = {}
+        for rel in backend.get("relationships") or []:
+            if rel.get("foreignKey") and rel.get("type") in ("one-to-many", "many-to-one", "one-to-one"):
+                child, parent = (
+                    (rel["to"], rel["from"]) if rel.get("type") != "many-to-one" else (rel["from"], rel["to"])
+                )
+                self.references.setdefault(child, {})[rel["foreignKey"]] = parent
+
+    def image(self, entity: str, name: str) -> bool:
+        field = self.fields[entity].get(name) or {}
+        return field.get("type") in ("image", "file") or (
+            field.get("type") == "string" and any(word in name.lower() for word in IMAGE_WORDS)
+        )
+
+    def kind(self, entity: str, name: str | None) -> str | None:
+        return (self.fields[entity].get(name or "") or {}).get("type")
+
+    def first_image(self, entity: str, skip: set[str]) -> str | None:
+        return next(
+            (n for n in self.fields[entity] if n not in skip and "avatar" not in n.lower() and self.image(entity, n)),
+            None,
+        )
+
+    def status(self, entity: str, wanted: str | None) -> str | None:
+        """A board's column field: the named enum, else one with a status flow, else one called status."""
+        enums = [n for n, f in self.fields[entity].items() if f.get("type") == "enum"]
+        if wanted in enums:
+            return wanted
+        flowing = [n for n in enums if (entity, n) in self.flows]
+        return next(iter(flowing), "status" if "status" in enums else None)
+
+    def date(self, entity: str, wanted: str | None) -> str | None:
+        """A calendar's date: the named one, else the first date that is not a bookkeeping timestamp."""
+        dates = [n for n, f in self.fields[entity].items() if f.get("type") in DATES]
+        if wanted in dates:
+            return wanted
+        return next((n for n in dates if n not in ("createdAt", "updatedAt")), None)
+
+    def end(self, entity: str, start: str) -> str | None:
+        dates = [n for n, f in self.fields[entity].items() if f.get("type") in DATES and n != start]
+        return next((n for n in dates if re.search(r"end|until|finish|to$", n, re.IGNORECASE)), None)
+
+    def filter_fields(self, entity: str) -> list[str]:
+        """The list's filters a row of chips or a facet panel can show: enums and references (`…Id`)."""
+        op = self.lists.get(entity) or {}
+        out = []
+        for name in op.get("filters") or []:
+            kind = self.kind(entity, name)
+            if kind == "enum" or (kind == "uuid" and name.endswith("Id")) or kind == "boolean":
+                out.append(name)
+        return out
+
+    def fits(self, entity: str, role: str, name: str) -> str | None:
+        """Why a field cannot play a role, or None when it can."""
+        if name not in self.fields[entity] or name in HIDDEN:
+            return "no such field"
+        kind = self.kind(entity, name)
+        if role in ("media", "avatar") and not self.image(entity, name):
+            return f"a {kind} field is not an image"
+        if role in ("stat", "price") and kind not in NUMERIC:
+            return f"a {kind} field is not a number"
+        if role == "title" and kind not in ("string", "text") and name not in self.references.get(entity, {}):
+            return f"a {kind} field is not a name"
+        return None
+
+
+def _list_of(value: Any) -> list[Any]:
+    """Seen live (Story 23.0): models write a list of one as a plain value."""
+    if value is None:
+        return []
+    return value if isinstance(value, list) else [value]
+
+
+def _items(value: Any) -> dict[str, Any]:
+    """A design's entities, keyed by entity (the schema's list, or an object keyed by entity as Gemini wrote it)."""
+    if isinstance(value, dict):
+        return {k: v for k, v in value.items() if isinstance(v, dict)}
+    out = {}
+    for item in value if isinstance(value, list) else []:
+        if isinstance(item, dict) and isinstance(item.get("entity"), str):
+            out[item["entity"]] = {k: v for k, v in item.items() if k != "entity"}
+    return out
+
+
+def _enum(value: Any, allowed: tuple[str, ...] | frozenset[str] | list[str]) -> str | None:
+    return value if isinstance(value, str) and value in allowed else None
+
+
+class _Completion:
+    def __init__(self, data: _Data, where: str):
+        self.data = data
+        self.where = where
+        self.replaced: list[str] = []
+
+    def note(self, message: str) -> None:
+        self.replaced.append(f"{self.where}{message}")
+
+    def roles(self, entity: str, raw: Any) -> dict[str, Any]:
+        raw = raw if isinstance(raw, dict) else {}
+        out: dict[str, Any] = {}
+        used: dict[str, str] = {}
+        order = sorted(raw.items(), key=lambda kv: ROLE_ORDER.index(kv[0]) if kv[0] in ROLE_ORDER else len(ROLE_ORDER))
+        for role, value in order:
+            if role not in ROLE_ORDER:
+                self.note(f"{entity}: '{role}' is not a field role; left out")
+                continue
+            kept = []
+            for name in _list_of(value):
+                if not isinstance(name, str):
+                    continue
+                if name in used:
+                    self.note(f"{entity}: {role} '{name}' left out (already the {used[name]})")
+                    continue
+                problem = self.data.fits(entity, role, name)
+                if problem:
+                    self.note(f"{entity}: {role} '{name}' left out ({problem})")
+                    continue
+                kept.append(name)
+                used[name] = role
+            if kept:
+                out[role] = kept[:MAX_META] if role == "meta" else kept[0]
+        if "media" not in out:
+            image = self.data.first_image(entity, set(used))
+            if image:
+                out["media"] = image
+        return out
+
+    def entity(self, entity: str, raw: dict[str, Any], default_view: str) -> dict[str, Any]:
+        roles = self.roles(entity, raw.get("roles"))
+        view = _enum(raw.get("view"), VIEWS)
+        if raw.get("view") is not None and view is None:
+            self.note(f"{entity}: view '{raw.get('view')}' is not one of the views; {default_view} used")
+        view = view or default_view
+        out: dict[str, Any] = {}
+        if view == "media-grid" and "media" not in roles:
+            self.note(f"{entity}: a media grid needs an image field; shown as cards")
+            view = "cards"
+        if view == "board":
+            status = self.data.status(entity, raw.get("groupBy") or roles.get("badge"))
+            if status:
+                out["groupBy"] = status
+            else:
+                self.note(f"{entity}: a board needs a status field; shown as cards")
+                view = "cards"
+        if view == "calendar":
+            day = self.data.date(entity, raw.get("dateField") or next(iter(roles.get("meta") or []), None))
+            if day:
+                out["dateField"] = day
+                end = raw.get("endField") if self.data.kind(entity, raw.get("endField")) in DATES else None
+                end = end or self.data.end(entity, day)
+                if end:
+                    out["endField"] = end
+            else:
+                self.note(f"{entity}: a calendar needs a date field; shown as a table")
+                view = "table"
+        detail = _enum(raw.get("detailView"), ("record", "media", "profile"))
+        if detail == "media" and "media" not in roles:
+            self.note(f"{entity}: a media detail needs an image field; the record detail used")
+            detail = "record"
+        if detail == "profile" and "avatar" not in roles and "media" not in roles:
+            self.note(f"{entity}: a profile needs an image field; the record detail used")
+            detail = "record"
+        filters = _enum(raw.get("filtersStyle"), ("toolbar", "chips", "facets", "search-first"))
+        if filters in ("chips", "facets") and not self.data.filter_fields(entity):
+            self.note(f"{entity}: {filters} need a filter on a status, a category or a parent; the toolbar used")
+            filters = "toolbar"
+        if filters == "search-first" and not (self.data.lists.get(entity) or {}).get("search"):
+            self.note(f"{entity}: search-first needs a search on the list; the toolbar used")
+            filters = "toolbar"
+        out |= {"view": view, "roles": roles}
+        if detail:
+            out["detailView"] = detail
+        if filters:
+            out["filtersStyle"] = filters
+        return out
+
+    def default_view(self, entity: str, main: str | None, archetype: str) -> str:
+        if entity == main:
+            return ARCHETYPES[archetype]["view"]
+        if self.data.first_image(entity, set()):
+            return "cards"
+        return "table"
+
+    def layout(self, raw: dict[str, Any], inherited: dict[str, Any] | None = None) -> dict[str, Any]:
+        """One layout (the app's, or an area's): archetype, frame, home, main entity and the entities' views."""
+        inherited = inherited or {}
+        archetype = _enum(raw.get("archetype"), tuple(ARCHETYPES)) or inherited.get("archetype")
+        if raw.get("archetype") is not None and archetype != raw.get("archetype"):
+            self.note(f"archetype '{raw.get('archetype')}' is not one of the archetypes")
+        archetype = archetype or DEFAULT_ARCHETYPE
+        defaults = ARCHETYPES[archetype]
+        out: dict[str, Any] = {"archetype": archetype}
+        for key, allowed in (
+            ("shell", SHELLS),
+            ("mobileNav", ("drawer", "bottom-tabs")),
+            ("frame", ("narrow", "standard", "wide", "full")),
+            ("density", ("compact", "comfortable", "spacious")),
+            ("homeView", ("dashboard", "feed", "catalogue", "agenda", "bento")),
+        ):
+            value = _enum(raw.get(key), allowed)
+            if raw.get(key) is not None and value is None:
+                self.note(f"{key} '{raw.get(key)}' is not allowed; {defaults[key]} used")
+            if key == "density" and value is None:
+                continue  # the theme's density (an axis apps had before Epic 23) unless the brief sets one
+            out[key] = value or defaults[key]
+        entities = self.data.fields
+        main = raw.get("mainEntity") if raw.get("mainEntity") in entities else None
+        if raw.get("mainEntity") is not None and main is None:
+            self.note(f"main entity '{raw.get('mainEntity')}' is not in the BackendSpec")
+        listed = [name for name in entities if name in self.data.lists]
+        main = main or inherited.get("mainEntity") or next(iter(listed), next(iter(entities), None))
+        out["mainEntity"] = main
+        drafted = _items(raw.get("entities"))
+        for name in sorted(set(drafted) - set(entities)):
+            self.note(f"entity '{name}' is not in the BackendSpec; left out")
+        views = {}
+        for name in entities:
+            if name not in self.data.lists and name not in drafted:
+                continue  # no list: nothing to present
+            views[name] = self.entity(name, drafted.get(name) or {}, self.default_view(name, main, archetype))
+        out["entities"] = views
+        home = out["homeView"]
+        main_view = views.get(main or "", {})
+        if home in ("feed", "catalogue", "agenda") and main not in self.data.lists:
+            self.note(f"home '{home}' needs a list of {main}; the dashboard is the home page")
+            out["homeView"] = "dashboard"
+        elif home == "agenda" and "dateField" not in main_view:
+            day = self.data.date(main, None) if main else None
+            if day:
+                main_view["dateField"] = day
+            else:
+                self.note(f"home 'agenda' needs a date on {main}; the dashboard is the home page")
+                out["homeView"] = "dashboard"
+        return out
+
+
+def _looks(raw: Any, completion: _Completion) -> list[dict[str, Any]]:
+    out = []
+    for item in _list_of(raw):
+        recipe = item.get("recipe") if isinstance(item, dict) else item
+        try:
+            look = AppLook.model_validate(
+                {"recipe": recipe, "reason": (item or {}).get("reason") if isinstance(item, dict) else None}
+            )
+        except ValidationError:
+            completion.note(f"look '{recipe}' is not a recipe; left out")
+            continue
+        if all(look.recipe != kept["recipe"] for kept in out):
+            out.append(look.model_dump(by_alias=True, exclude_none=True))
+    return out[:3]
+
+
+def complete_design(
+    raw: Any, raw_areas: Any, backend: dict[str, Any], archetype_hint: str | None = None
+) -> tuple[dict[str, Any], list[dict[str, Any]], list[str]]:
+    """The drafted brief (any JSON, or none) → a complete design, the areas and the replacements. `archetype_hint`
+    (code's pick from the requirement) is used when the brief names none."""
+    data = _Data(backend)
+    raw = raw if isinstance(raw, dict) else {}
+    app = _Completion(data, "")
+    if archetype_hint and not raw.get("archetype"):
+        raw = {**raw, "archetype": archetype_hint}
+    design = app.layout(raw)
+    design["looks"] = _looks(raw.get("looks"), app)
+    if isinstance(raw.get("reason"), str):
+        design["reason"] = raw["reason"][:300]
+    areas: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for index, area in enumerate(_list_of(raw_areas)):
+        if not isinstance(area, dict):
+            continue
+        ident = re.sub(r"[^a-z0-9-]+", "-", str(area.get("id") or f"area-{index + 1}").lower()).strip("-") or "area"
+        where = _Completion(data, f"area '{ident}': ")
+        roles = [r for r in _list_of(area.get("roles")) if isinstance(r, str)]
+        own = [r for r in roles if r in data.roles and r not in seen]
+        for role in roles:
+            if role not in own:
+                where.note(f"role '{role}' " + ("is in another area" if role in seen else "is not a role of the app"))
+        if not own:
+            where.note("left out (no role of its own)")
+            app.replaced += where.replaced
+            continue
+        seen.update(own)
+        layout = where.layout(area.get("design") if isinstance(area.get("design"), dict) else area, design)
+        areas.append(
+            {
+                "id": ident,
+                "label": str(area.get("label") or ident.replace("-", " ").capitalize())[:40],
+                "roles": own,
+                "prefix": "/" if not areas else f"/{ident}",
+                "design": layout,
+            }
+        )
+        app.replaced += where.replaced
+    if areas:
+        for role in data.roles:
+            if role not in seen:
+                app.note(f"role '{role}' is in no area; it uses the first area ({areas[0]['id']})")
+                areas[0]["roles"].append(role)
+    if len(areas) == 1:
+        app.note("one area is the app itself; areas left out")
+        areas = []
+    signup = data.roles[0] if data.roles else None
+    if areas and signup and signup not in areas[0]["roles"]:  # sign-up lands in the first area, at `/`
+        home = next(index for index, area in enumerate(areas) if signup in area["roles"])
+        app.note(f"area '{areas[home]['id']}' moved first: sign-up gives the role '{signup}'")
+        areas.insert(0, areas.pop(home))
+    for index, area in enumerate(areas):
+        area["prefix"] = "/" if index == 0 else f"/{area['id']}"
+    design["replaced"] = app.replaced
+    AppDesign.model_validate(design)  # a bug here, not a bad draft: every value was checked above
+    return design, areas, app.replaced
+
+
+def design_notes(replaced: list[str]) -> list[dict[str, Any]]:
+    """The replacements as draft notes (on `/app/design`)."""
+    return [{"spec": "frontend", "path": "/app/design", "message": line, "suggestion": None} for line in replaced]
+
+
+def home_entity(design: dict[str, Any]) -> str | None:
+    """The entity whose list is the home page, or None for the dashboard (`homeView` dashboard or bento)."""
+    if design.get("homeView") in ("feed", "catalogue", "agenda"):
+        return design.get("mainEntity")
+    return None
+
+
+KIT_DEFAULTS = {"archetype": DEFAULT_ARCHETYPE, "shell": "sidebar", "mobileNav": "drawer", "frame": "standard",
+                "homeView": "dashboard", "entities": {}, "looks": []}  # fmt: skip
+
+
+def kit_design(outline: dict[str, Any]) -> dict[str, Any]:
+    """What the kit reads (`app.json` `design`): the outline's design, or today's kit for an app drafted before Epic 23
+    (a sidebar, the dashboard home, the outline's list styles)."""
+    design = outline.get("design") or {}
+    out = {**KIT_DEFAULTS, **{k: v for k, v in design.items() if k not in ("replaced", "reason")}}
+    out["recipe"] = first_recipe(design) if design else None  # Story 23.7: the look on screen
+    if not out.get("mainEntity"):
+        out["mainEntity"] = next(iter(outline.get("entities") or {}), None)
+    return out
+
+
+def _layouts(outline: dict[str, Any]) -> list[dict[str, Any]]:
+    """The app's design and each area's: every layout whose views need list features."""
+    design = outline.get("design") or {}
+    return [design, *[(area.get("design") or {}) for area in outline.get("areas") or []]]
+
+
+def list_features(
+    backend: dict[str, Any], operations: list[dict[str, Any]], outline: dict[str, Any]
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Epic 23 D6: what the views need from the lists, added to the BackendSpec before the contract is built: a date
+    range on the list of an entity shown on a calendar or an agenda (Story 23.4), a sort by its date on a feed's list
+    (newest first, 23.3). Each change is checked by the validator; one that would make the spec invalid is skipped
+    with a note. Returns the operations and notes."""
+    from src.modules.shared.domain.backend_spec import validate_spec_data
+
+    notes: list[dict[str, Any]] = []
+    out = [dict(op) for op in operations]
+    lists = {op.get("entity"): op for op in out if op.get("type") == "crud" and op.get("action") == "list"}
+    fields = {e["name"]: {f["name"]: f for f in e.get("fields") or []} for e in backend.get("entities") or []}
+    for layout in _layouts(outline):
+        for entity, view in (layout.get("entities") or {}).items():
+            op = lists.get(entity)
+            if op is None:
+                continue
+            change: dict[str, Any] = {}
+            day = view.get("dateField")
+            if day and day not in (op.get("ranges") or []):
+                change["ranges"] = [*(op.get("ranges") or []), day]
+            if day and day not in (op.get("sort") or []):  # a calendar opens on the nearest month, an agenda in order
+                change["sort"] = [*(op.get("sort") or []), day]
+            if view.get("view") == "feed":
+                dated = next(
+                    (m for m in [*(view.get("roles") or {}).get("meta", []), "publishedAt", "createdAt"]
+                     if (fields.get(entity, {}).get(m) or {}).get("type") in DATES),
+                    None,
+                )  # fmt: skip
+                if dated and dated not in (op.get("sort") or []):
+                    change["sort"] = [*(op.get("sort") or []), dated]
+            if not change:
+                continue
+            trial = {**backend, "operations": [o if o is not op else {**op, **change} for o in out]}
+            if not validate_spec_data(trial).report.valid:
+                notes.append(
+                    {"spec": "backend", "path": "/operations", "message": f"{op['operationId']}: {change} would not "
+                     "validate; the view loads its first page", "suggestion": None}
+                )  # fmt: skip
+                continue
+            op.update(change)
+            what = ", ".join(f"{key} {value[-1]}" for key, value in change.items())
+            notes.append(
+                {"spec": "backend", "path": "/operations", "message": f"{op['operationId']} gained {what} for its "
+                 f"{view.get('view')} view (Epic 23)", "suggestion": None}
+            )  # fmt: skip
+    return out, notes

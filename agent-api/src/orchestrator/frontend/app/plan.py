@@ -43,7 +43,11 @@ def app_nav(spec: dict[str, Any]) -> list[dict[str, Any]]:
         page = link.get("page")
         if not page:
             continue
-        icon = "LayoutDashboard" if page == "home" else icons.get(page) or ("Plus" if page.endswith("-new") else None)
+        icon = (
+            "LayoutDashboard"
+            if page in ("home", "dashboard")
+            else icons.get(page) or ("Plus" if page.endswith("-new") else None)
+        )
         out.append({"label": link["label"], "page": page, "icon": icon or "ListFilter"})
     return out
 

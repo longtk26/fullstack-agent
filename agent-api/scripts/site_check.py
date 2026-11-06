@@ -60,6 +60,7 @@ async def check_site(
     schemes: str | None = None,
     backend: dict[str, Any] | None = None,
     motion: bool = False,
+    prepare: Any = None,
 ) -> dict[str, Any] | None:
     """Builds `spec` (dynamic: against `backend`'s contract) and runs the design check on `routes` (default:
     `default_routes`). The screenshots and `report.json` land in `shots`; returns the report, or None when the spec
@@ -86,6 +87,8 @@ async def check_site(
     target = BUILD_ROOT / f"check-{uuid.uuid4().hex[:10]}"
     project = target / "frontend"
     scaffold_frontend(project, plan, result.normalized, contract)
+    if prepare is not None:  # Story 23.12: a dev tool's change to the scaffold before the build (fake view slots)
+        prepare(project, result.normalized)
     sandbox = DockerSandboxProvider().for_job(f"gen_CHK{uuid.uuid4().hex[:10].upper()}", project, "frontend")
     try:
         outcome = await SandboxFrontendValidationRunner().run(

@@ -137,6 +137,9 @@ class EngineResult(BaseModel):
     prompt_ref: PromptRef | None = None
     model_calls: list[ModelCall] = []
     tools_dropped: int = 0  # tool calls beyond the per-invocation sample (Story 8.2)
+    # Story 23.6: whether the answer followed the request's answer schema (an API engine's structured output);
+    # None: no schema asked, False: the API refused the schema and the answer came without it
+    structured: bool | None = None
 
     @property
     def ok(self) -> bool:

@@ -15,6 +15,15 @@ type FrontendSpec = {
   x-backendSpec?: string | null;
 };
 
+// A group of roles with its own layout (Story 23.10): its own routes (`prefix`), shell, home and views.
+type AppArea = {
+  id: string;
+  label: string;
+  roles: string[];
+  prefix?: string;
+  design?: AppDesign;
+};
+
 // A figure (`kind: figure`) or a chart of an aggregate of an entity's records (Epic 21's aggregates).
 type AppDashboardItem = {
   label: string;
@@ -26,6 +35,22 @@ type AppDashboardItem = {
   period?: "day" | "week" | "month" | "year" | null;
   dateField?: string | null;
   groupBy?: string | null;
+};
+
+// The design brief (Epic 23): the model chooses from these values, code checks them against the contract and replaces what does not fit (`replaced`, one line each).
+type AppDesign = {
+  archetype?: "back-office" | "catalogue" | "feed" | "workspace" | "booking" | "learning" | "storefront" | null;
+  shell?: "sidebar" | "topbar" | "topbar-tabs" | "rail" | null;
+  mobileNav?: "drawer" | "bottom-tabs" | null;
+  frame?: "narrow" | "standard" | "wide" | "full" | null;
+  density?: "compact" | "comfortable" | "spacious" | null;
+  homeView?: "dashboard" | "feed" | "catalogue" | "agenda" | "bento" | null;
+  mainEntity?: string | null;
+  entities?: Record<string, AppEntityDesign>;
+  looks?: AppLook[];
+  recipe?: "minimal" | "swiss" | "material" | "enterprise" | "soft" | "clay" | "glass" | "aurora" | "brutalist" | "neon" | "playful" | "editorial" | null;
+  reason?: string | null;
+  replaced?: string[];
 };
 
 // How an entity is named and shown; every field is optional (code fills it from the BackendSpec).
@@ -40,6 +65,29 @@ type AppEntity = {
   help?: Record<string, string>;
 };
 
+// How one entity's records are shown (Stories 23.3–23.5).
+type AppEntityDesign = {
+  view?: "table" | "cards" | "media-grid" | "feed" | "board" | "calendar" | null;
+  detailView?: "record" | "media" | "profile" | null;
+  roles?: AppFieldRoles;
+  filtersStyle?: "toolbar" | "chips" | "facets" | "search-first" | null;
+  groupBy?: string | null;
+  dateField?: string | null;
+  endField?: string | null;
+};
+
+// Which field plays which part on a card or a row (Story 23.3); code checks each against the field's type.
+type AppFieldRoles = {
+  media?: string | null;
+  title?: string | null;
+  subtitle?: string | null;
+  meta?: string[];
+  badge?: string | null;
+  stat?: string | null;
+  price?: string | null;
+  avatar?: string | null;
+};
+
 type AppHighlight = {
   title: string;
   text?: string | null;
@@ -52,6 +100,12 @@ type AppLanding = {
   text?: string | null;
   highlights?: AppHighlight[];
   cta?: string | null;
+};
+
+// One look the user can pick (Story 23.7): a style recipe and why it fits.
+type AppLook = {
+  recipe: "minimal" | "swiss" | "material" | "enterprise" | "soft" | "clay" | "glass" | "aurora" | "brutalist" | "neon" | "playful" | "editorial";
+  reason?: string | null;
 };
 
 type AppNavItem = {
@@ -70,6 +124,9 @@ type AppOutline = {
   entities?: Record<string, AppEntity>;
   dashboard?: AppDashboardItem[];
   landing?: AppLanding | null;
+  design?: AppDesign | null;
+  locale?: string | null;
+  areas?: AppArea[];
 };
 
 // An image the site shows (Stories 15.1, 19.1).

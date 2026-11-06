@@ -1,0 +1,25 @@
+{
+  "requirement": "news-feed.md",
+  "seconds": 60.2,
+  "repairs": 0,
+  "costUsd": 0.039,
+  "archetypeCandidates": [
+    "feed"
+  ],
+  "productTypes": [
+    "Bookmark & Read-Later",
+    "Magazine/Blog",
+    "Q&A Community Platform"
+  ],
+  "calls": [
+    {
+      "step": "draft",
+      "prompt": "draft_app@v3proto",
+      "model": "gemini-3.8-flash",
+      "durationMs": 60100,
+      "inputTokens": 7695,
+      "outputTokens": 8867,
+      "costUsd": 0.039023
+    }
+  ]
+}

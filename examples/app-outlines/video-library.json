@@ -1,0 +1,215 @@
+{
+  "name": "StudioTube",
+  "tagline": "Internal training and product video knowledge base",
+  "icon": "TvMinimalPlay",
+  "home": "Video",
+  "nav": [
+    {
+      "entity": "Video",
+      "label": "Browse Videos",
+      "icon": "Film"
+    },
+    {
+      "entity": "Channel",
+      "label": "Channels",
+      "icon": "Layers"
+    },
+    {
+      "entity": "Playlist",
+      "label": "My Playlists",
+      "icon": "ListVideo"
+    }
+  ],
+  "entities": {
+    "Video": {
+      "label": "Video",
+      "plural": "Videos",
+      "displayField": "title",
+      "listFields": [
+        "title",
+        "channelId",
+        "category",
+        "duration",
+        "viewCount"
+      ],
+      "listStyle": "cards",
+      "detailFields": [
+        "thumbnail",
+        "title",
+        "channelId",
+        "category",
+        "duration",
+        "viewCount",
+        "publishDate",
+        "description",
+        "videoUrl"
+      ],
+      "fieldLabels": {
+        "channelId": "Channel",
+        "category": "Category",
+        "duration": "Duration (sec)",
+        "viewCount": "Views",
+        "publishDate": "Published Date",
+        "videoUrl": "Video Stream"
+      },
+      "help": {
+        "channelId": "The team or department channel this video belongs to",
+        "duration": "Total playback time in seconds",
+        "category": "Primary topic classification"
+      }
+    },
+    "Channel": {
+      "label": "Channel",
+      "plural": "Channels",
+      "displayField": "name",
+      "listFields": [
+        "name",
+        "subscriberCount",
+        "shortDescription"
+      ],
+      "listStyle": "cards",
+      "detailFields": [
+        "bannerImage",
+        "name",
+        "subscriberCount",
+        "shortDescription",
+        "createdAt"
+      ],
+      "fieldLabels": {
+        "subscriberCount": "Subscribers",
+        "shortDescription": "Description",
+        "bannerImage": "Banner Image"
+      },
+      "help": {
+        "name": "Team or initiative channel name"
+      }
+    },
+    "Playlist": {
+      "label": "Playlist",
+      "plural": "Playlists",
+      "displayField": "title",
+      "listFields": [
+        "title",
+        "description",
+        "createdAt"
+      ],
+      "listStyle": "cards",
+      "detailFields": [
+        "title",
+        "description",
+        "isPrivate",
+        "createdAt"
+      ],
+      "fieldLabels": {
+        "isPrivate": "Private Playlist"
+      },
+      "help": {
+        "title": "Give your playlist a descriptive name like 'New Hire Backend'"
+      }
+    },
+    "PlaylistItem": {
+      "label": "Playlist Video",
+      "plural": "Playlist Videos",
+      "displayField": "videoId",
+      "listFields": [
+        "playlistId",
+        "videoId",
+        "position",
+        "addedAt"
+      ],
+      "listStyle": "table",
+      "fieldLabels": {
+        "playlistId": "Playlist",
+        "videoId": "Video",
+        "position": "Order Position",
+        "addedAt": "Added Date"
+      }
+    }
+  },
+  "dashboard": [
+    {
+      "label": "Total Videos",
+      "kind": "figure",
+      "entity": "Video",
+      "fn": "count"
+    },
+    {
+      "label": "Total Views",
+      "kind": "figure",
+      "entity": "Video",
+      "fn": "sum",
+      "field": "viewCount"
+    },
+    {
+      "label": "Active Channels",
+      "kind": "figure",
+      "entity": "Channel",
+      "fn": "count"
+    },
+    {
+      "label": "Videos by Category",
+      "kind": "pie",
+      "entity": "Video",
+      "fn": "count",
+      "groupBy": "category"
+    }
+  ],
+  "design": {
+    "archetype": "catalogue",
+    "shell": "topbar",
+    "mobileNav": "bottom-tabs",
+    "homeView": "catalogue",
+    "mainEntity": "Video",
+    "entities": {
+      "Video": {
+        "view": "media-grid",
+        "roles": {
+          "media": "thumbnail",
+          "title": "title",
+          "subtitle": "category",
+          "meta": "publishDate",
+          "badge": "category",
+          "stat": "viewCount"
+        }
+      },
+      "Channel": {
+        "view": "cards",
+        "roles": {
+          "media": "bannerImage",
+          "title": "name",
+          "subtitle": "shortDescription",
+          "stat": "subscriberCount"
+        }
+      },
+      "Playlist": {
+        "view": "cards",
+        "roles": {
+          "title": "title",
+          "subtitle": "description"
+        }
+      },
+      "PlaylistItem": {
+        "view": "table",
+        "roles": {
+          "title": "videoId",
+          "meta": "addedAt"
+        }
+      }
+    },
+    "looks": [
+      {
+        "recipe": "minimal",
+        "reason": "Clean, content-first presentation with distraction-free video playback and high visual clarity"
+      },
+      {
+        "recipe": "swiss",
+        "reason": "Structured typographic grid emphasizing channels, categorized hierarchies, and metadata"
+      },
+      {
+        "recipe": "enterprise",
+        "reason": "Professional corporate portal styling tailored for internal company training repositories"
+      }
+    ],
+    "reason": "StudioTube is centered around browsing and discovering media items with video previews, topbar searching, and channel badges."
+  }
+}

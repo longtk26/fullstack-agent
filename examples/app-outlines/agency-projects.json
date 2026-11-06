@@ -1,0 +1,167 @@
+{
+  "name": "Studio Flow",
+  "tagline": "Client project and task tracker for design teams",
+  "icon": "FolderKanban",
+  "home": "dashboard",
+  "nav": [
+    {
+      "entity": "Task",
+      "label": "Tasks",
+      "icon": "CheckSquare"
+    },
+    {
+      "entity": "Project",
+      "label": "Projects",
+      "icon": "FolderKanban"
+    }
+  ],
+  "entities": {
+    "Project": {
+      "label": "Project",
+      "plural": "Projects",
+      "displayField": "name",
+      "listFields": [
+        "name",
+        "clientName",
+        "budget",
+        "spent",
+        "deadline"
+      ],
+      "listStyle": "table",
+      "detailFields": [
+        "name",
+        "clientName",
+        "budget",
+        "spent",
+        "deadline",
+        "color",
+        "createdAt"
+      ],
+      "fieldLabels": {
+        "name": "Project Name",
+        "clientName": "Client",
+        "budget": "Budget",
+        "spent": "Spent",
+        "deadline": "Deadline",
+        "color": "Color Label"
+      }
+    },
+    "Task": {
+      "label": "Task",
+      "plural": "Tasks",
+      "displayField": "title",
+      "listFields": [
+        "title",
+        "projectId",
+        "assigneeName",
+        "priority",
+        "status",
+        "dueDate"
+      ],
+      "listStyle": "cards",
+      "detailFields": [
+        "title",
+        "projectId",
+        "description",
+        "assigneeName",
+        "priority",
+        "estimateHours",
+        "status",
+        "dueDate",
+        "createdAt"
+      ],
+      "fieldLabels": {
+        "projectId": "Project",
+        "assigneeName": "Assignee",
+        "estimateHours": "Estimate (Hours)",
+        "dueDate": "Due Date"
+      }
+    }
+  },
+  "dashboard": [
+    {
+      "label": "In Progress",
+      "entity": "Task",
+      "fn": "count",
+      "filter": {
+        "status": "IN_PROGRESS"
+      }
+    },
+    {
+      "label": "Awaiting Review",
+      "entity": "Task",
+      "fn": "count",
+      "filter": {
+        "status": "IN_REVIEW"
+      }
+    },
+    {
+      "label": "Active Projects",
+      "entity": "Project",
+      "fn": "count"
+    },
+    {
+      "label": "Total Committed Budget",
+      "entity": "Project",
+      "fn": "sum",
+      "field": "budget"
+    },
+    {
+      "label": "Tasks by Status",
+      "kind": "bar",
+      "entity": "Task",
+      "fn": "count",
+      "groupBy": "status"
+    },
+    {
+      "label": "Tasks by Priority",
+      "kind": "pie",
+      "entity": "Task",
+      "fn": "count",
+      "groupBy": "priority"
+    }
+  ],
+  "design": {
+    "archetype": "back-office",
+    "shell": "sidebar",
+    "mobileNav": "bottom-tabs",
+    "homeView": "dashboard",
+    "mainEntity": "Task",
+    "entities": {
+      "Project": {
+        "view": "table",
+        "roles": {
+          "title": "name",
+          "subtitle": "clientName",
+          "badge": "color",
+          "meta": "deadline",
+          "price": "budget"
+        }
+      },
+      "Task": {
+        "view": "board",
+        "roles": {
+          "title": "title",
+          "subtitle": "assigneeName",
+          "badge": "status",
+          "meta": "dueDate"
+        }
+      }
+    },
+    "looks": [
+      {
+        "recipe": "swiss",
+        "reason": "Clear grid alignment and rational typography suited for studio project schedules and daily standup checks."
+      },
+      {
+        "recipe": "minimal",
+        "reason": "Clean, distraction-free interface keeping attention focused on deadlines and task velocity."
+      },
+      {
+        "recipe": "editorial",
+        "reason": "Refined visual structure resonating with agency and creative studio aesthetics."
+      }
+    ],
+    "reason": "A back-office layout with a sidebar shell and board view enables agency team members to review tasks each morning and monitor project budgets and deadlines."
+  }
+}

@@ -1,0 +1,184 @@
+
+/* ---- Story 23.0 prototype only: style recipes over the kit's components (data-slot), chosen by <html data-recipe>.
+   Unlayered, so they win over the components' utility classes. Colours and fonts stay the direction's; a recipe
+   changes surfaces, backdrop, borders, shadows, radius and headings. ---- */
+
+html[data-proto-frame="wide"] [data-page] { max-width: 96rem; }
+html[data-proto-frame="narrow"] [data-page] { max-width: 48rem; }
+
+/* minimal: flat, hairlines, no shadow */
+html[data-recipe="minimal"] { --radius: 0.5rem; }
+html[data-recipe="minimal"] [data-slot="card"] { box-shadow: none; border: 1px solid var(--border); }
+
+/* swiss: grid, sharp corners, strong type, one accent */
+html[data-recipe="swiss"] { --radius: 0rem; --heading-weight: 800; --heading-tracking: -0.03em; }
+html[data-recipe="swiss"] [data-slot="card"] { box-shadow: none; border: 0; border-top: 3px solid var(--foreground); }
+html[data-recipe="swiss"] h1, html[data-recipe="swiss"] h2, html[data-recipe="swiss"] h3 { font-weight: 800; letter-spacing: -0.03em; }
+html[data-recipe="swiss"] [data-proto="header"], html[data-recipe="swiss"] [data-slot="sidebar-inset"] > header { border-bottom: 3px solid var(--foreground); }
+
+/* material: raised surfaces, rounded, elevation on hover */
+html[data-recipe="material"] { --radius: 0.75rem; }
+html[data-recipe="material"] [data-slot="card"] {
+  border: 0;
+  box-shadow: 0 1px 2px color-mix(in oklab, var(--foreground) 10%, transparent), 0 2px 6px color-mix(in oklab, var(--foreground) 8%, transparent);
+  transition: box-shadow 200ms;
+}
+html[data-recipe="material"] [data-slot="card"]:hover { box-shadow: 0 6px 20px color-mix(in oklab, var(--foreground) 16%, transparent); }
+html[data-recipe="material"] [data-slot="button"] { border-radius: 999px; text-transform: none; }
+
+/* enterprise: dense, square-ish, muted backdrop */
+html[data-recipe="enterprise"] { --radius: 0.25rem; }
+html[data-recipe="enterprise"] body { background: color-mix(in oklab, var(--muted) 70%, var(--background)); }
+html[data-recipe="enterprise"] [data-slot="card"] { box-shadow: none; border: 1px solid var(--border); background: var(--card); }
+html[data-recipe="enterprise"] [data-slot="table-cell"] { padding-block: 0.375rem; }
+
+/* soft (neumorphism): soft paired shadows on the background colour; a hairline and a visible focus ring for contrast */
+html[data-recipe="soft"] { --radius: 1.25rem; }
+html[data-recipe="soft"] body { background: color-mix(in oklab, var(--muted) 85%, var(--background)); }
+html[data-recipe="soft"] [data-slot="card"] {
+  background: color-mix(in oklab, var(--muted) 85%, var(--background));
+  border: 1px solid color-mix(in oklab, var(--foreground) 6%, transparent);
+  box-shadow: 8px 8px 18px color-mix(in oklab, var(--foreground) 14%, transparent), -8px -8px 18px color-mix(in oklab, white 75%, transparent);
+}
+.dark[data-recipe="soft"] [data-slot="card"] { box-shadow: 8px 8px 18px rgb(0 0 0 / 0.55), -6px -6px 16px rgb(255 255 255 / 0.04); }
+html[data-recipe="soft"] [data-slot="button"], html[data-recipe="soft"] [data-slot="input"] {
+  box-shadow: 4px 4px 10px color-mix(in oklab, var(--foreground) 12%, transparent), -4px -4px 10px color-mix(in oklab, white 70%, transparent);
+}
+html[data-recipe="soft"] :focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; }
+
+/* clay (claymorphism): puffy, very round, inner highlights, pastel */
+html[data-recipe="clay"] { --radius: 1.75rem; }
+html[data-recipe="clay"] body { background: color-mix(in oklab, var(--primary) 8%, var(--background)); }
+html[data-recipe="clay"] [data-slot="card"] {
+  border: 0;
+  background: color-mix(in oklab, var(--primary) 6%, var(--card));
+  box-shadow: 0 18px 36px -12px color-mix(in oklab, var(--primary) 35%, transparent),
+    inset 0 -6px 12px color-mix(in oklab, var(--primary) 12%, transparent), inset 0 6px 12px rgb(255 255 255 / 0.6);
+}
+.dark[data-recipe="clay"] [data-slot="card"] { box-shadow: 0 18px 36px -12px rgb(0 0 0 / 0.6), inset 0 -6px 12px rgb(0 0 0 / 0.35), inset 0 6px 12px rgb(255 255 255 / 0.06); }
+html[data-recipe="clay"] [data-slot="button"] { border-radius: 999px; box-shadow: inset 0 -3px 0 color-mix(in oklab, var(--foreground) 18%, transparent); }
+
+/* glass (glassmorphism / liquid glass): translucent surfaces with blur over a colourful backdrop; solid when the user
+   asks for less transparency */
+html[data-recipe="glass"] { --radius: 1.25rem; }
+html[data-recipe="glass"] body {
+  background:
+    radial-gradient(45rem 35rem at 5% 0%, color-mix(in oklab, var(--primary) 70%, transparent), transparent 65%),
+    radial-gradient(45rem 35rem at 95% 15%, oklch(0.7 0.17 280 / 0.6), transparent 65%),
+    radial-gradient(40rem 30rem at 60% 100%, oklch(0.78 0.14 190 / 0.55), transparent 65%),
+    radial-gradient(30rem 25rem at 30% 60%, oklch(0.8 0.12 340 / 0.35), transparent 65%),
+    var(--background);
+  background-attachment: fixed;
+}
+html[data-recipe="glass"] [data-slot="card"],
+html[data-recipe="glass"] [data-proto="header"],
+html[data-recipe="glass"] [data-proto="bottom-tabs"],
+html[data-recipe="glass"] [data-slot="sidebar-inner"],
+html[data-recipe="glass"] [data-slot="sidebar-inset"] > header {
+  background: color-mix(in oklab, var(--card) 55%, transparent);
+  backdrop-filter: blur(20px) saturate(1.6);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  border: 1px solid rgb(255 255 255 / 0.45);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.6), 0 10px 30px -12px rgb(0 0 0 / 0.25);
+}
+.dark[data-recipe="glass"] [data-slot="card"], .dark[data-recipe="glass"] [data-proto="header"], .dark[data-recipe="glass"] [data-slot="sidebar-inner"] {
+  border-color: rgb(255 255 255 / 0.12);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.1), 0 10px 30px -12px rgb(0 0 0 / 0.6);
+}
+html[data-recipe="glass"] [data-slot="sidebar-inset"] { background: transparent; }
+html[data-recipe="glass"] [data-slot="input"] { background: color-mix(in oklab, var(--background) 50%, transparent); backdrop-filter: blur(12px); }
+@media (prefers-reduced-transparency: reduce) {
+  html[data-recipe="glass"] [data-slot="card"], html[data-recipe="glass"] [data-proto="header"] { background: var(--card); backdrop-filter: none; }
+}
+
+/* aurora: soft gradient mesh behind everything, clean cards on top (never a gradient behind text) */
+html[data-recipe="aurora"] { --radius: 1rem; }
+html[data-recipe="aurora"] body {
+  background:
+    radial-gradient(70rem 35rem at 0% 0%, color-mix(in oklab, var(--primary) 30%, transparent), transparent 70%),
+    radial-gradient(60rem 30rem at 100% 0%, color-mix(in oklab, oklch(0.75 0.15 320) 30%, transparent), transparent 70%),
+    radial-gradient(60rem 30rem at 50% 100%, color-mix(in oklab, oklch(0.8 0.12 190) 25%, transparent), transparent 70%),
+    var(--background);
+  background-attachment: fixed;
+}
+html[data-recipe="aurora"] [data-slot="card"] {
+  border: 1px solid color-mix(in oklab, var(--foreground) 8%, transparent);
+  box-shadow: 0 20px 50px -25px color-mix(in oklab, var(--primary) 50%, transparent);
+}
+html[data-recipe="aurora"] [data-proto="header"], html[data-recipe="aurora"] [data-slot="sidebar-inset"] > header { background: color-mix(in oklab, var(--background) 60%, transparent); }
+html[data-recipe="aurora"] [data-slot="sidebar-inset"] { background: transparent; }
+html[data-recipe="aurora"] [data-slot="button"][data-variant="default"],
+html[data-recipe="aurora"] [data-slot="button"]:not([data-variant]) {
+  background-image: linear-gradient(120deg, var(--primary), color-mix(in oklab, var(--primary) 55%, oklch(0.7 0.18 320)));
+}
+
+/* brutalist (neo-brutalism): thick black borders, offset hard shadows, flat bright fills */
+html[data-recipe="brutalist"] { --radius: 0.375rem; --heading-weight: 800; }
+html[data-recipe="brutalist"] body { background: color-mix(in oklab, var(--primary) 10%, var(--background)); }
+html[data-recipe="brutalist"] [data-slot="card"],
+html[data-recipe="brutalist"] [data-slot="input"],
+html[data-recipe="brutalist"] [data-slot="select-trigger"],
+html[data-recipe="brutalist"] [data-slot="button"],
+html[data-recipe="brutalist"] [data-proto="logo"] {
+  border: 2.5px solid var(--foreground) !important;
+  box-shadow: 4px 4px 0 var(--foreground) !important;
+}
+html[data-recipe="brutalist"] [data-slot="card"] { background: var(--card); }
+html[data-recipe="brutalist"] [data-slot="button"]:active { transform: translate(3px, 3px); box-shadow: 1px 1px 0 var(--foreground) !important; }
+html[data-recipe="brutalist"] [data-proto="header"], html[data-recipe="brutalist"] [data-slot="sidebar-inset"] > header { border-bottom: 2.5px solid var(--foreground); background: var(--background); backdrop-filter: none; }
+html[data-recipe="brutalist"] [data-slot="sidebar-inner"] { border-right: 2.5px solid var(--foreground); }
+html[data-recipe="brutalist"] h1, html[data-recipe="brutalist"] h2, html[data-recipe="brutalist"] h3 { font-weight: 800; letter-spacing: -0.02em; }
+html[data-recipe="brutalist"] [data-proto="media"] { border-radius: 0.375rem; }
+
+/* neon (cyberpunk): dark first, glowing accents, mono headings */
+html[data-recipe="neon"] {
+  --background: oklch(0.16 0.03 280);
+  --foreground: oklch(0.95 0.02 280);
+  --card: oklch(0.2 0.04 280);
+  --card-foreground: oklch(0.95 0.02 280);
+  --popover: oklch(0.2 0.04 280);
+  --popover-foreground: oklch(0.95 0.02 280);
+  --muted: oklch(0.26 0.04 280);
+  --muted-foreground: oklch(0.75 0.04 280);
+  --accent: oklch(0.3 0.08 300);
+  --accent-foreground: oklch(0.95 0.02 280);
+  --border: oklch(0.4 0.12 300 / 0.6);
+  --primary: oklch(0.82 0.17 195);
+  --primary-foreground: oklch(0.18 0.03 280);
+  --secondary: oklch(0.3 0.1 330);
+  --secondary-foreground: oklch(0.95 0.02 280);
+  --radius: 0.25rem;
+  color-scheme: dark;
+}
+html[data-recipe="neon"] h1, html[data-recipe="neon"] h2, html[data-recipe="neon"] h3 { font-family: ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: 0.02em; }
+html[data-recipe="neon"] h1 { text-shadow: 0 0 18px color-mix(in oklab, var(--primary) 60%, transparent); }
+html[data-recipe="neon"] [data-slot="card"] { border: 1px solid var(--border); box-shadow: 0 0 0 1px color-mix(in oklab, var(--primary) 25%, transparent), 0 0 24px -8px color-mix(in oklab, var(--primary) 55%, transparent); }
+html[data-recipe="neon"] [data-slot="button"] { box-shadow: 0 0 16px -4px var(--primary); }
+html[data-recipe="neon"] body { background: radial-gradient(50rem 30rem at 80% -10%, oklch(0.35 0.15 320 / 0.45), transparent 70%), var(--background); }
+
+/* playful (Y2K / Frutiger Aero): glossy pills, sky gradients, bubbly cards */
+html[data-recipe="playful"] { --radius: 1.5rem; }
+html[data-recipe="playful"] body { background: linear-gradient(180deg, oklch(0.93 0.06 220), oklch(0.97 0.03 160) 60%, var(--background)); background-attachment: fixed; }
+.dark[data-recipe="playful"] body { background: linear-gradient(180deg, oklch(0.25 0.06 240), var(--background) 60%); }
+html[data-recipe="playful"] [data-slot="card"] {
+  border: 1px solid rgb(255 255 255 / 0.7);
+  background: linear-gradient(180deg, color-mix(in oklab, var(--card) 92%, white), var(--card));
+  box-shadow: 0 10px 24px -12px oklch(0.55 0.15 230 / 0.45), inset 0 1px 0 rgb(255 255 255 / 0.9);
+}
+html[data-recipe="playful"] [data-slot="button"] {
+  border-radius: 999px;
+  background-image: linear-gradient(180deg, rgb(255 255 255 / 0.45), rgb(255 255 255 / 0) 55%);
+  box-shadow: 0 4px 12px -4px color-mix(in oklab, var(--primary) 60%, transparent);
+}
+
+/* editorial (magazine): serif headings, rules between items, generous white space */
+html[data-recipe="editorial"] { --radius: 0.125rem; }
+html[data-recipe="editorial"] h1, html[data-recipe="editorial"] h2, html[data-recipe="editorial"] h3 { font-family: ui-serif, Georgia, "Times New Roman", serif; font-weight: 600; letter-spacing: -0.01em; }
+html[data-recipe="editorial"] h1 { font-size: 2.25rem; }
+html[data-recipe="editorial"] [data-slot="card"] { box-shadow: none; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: transparent; }
+html[data-recipe="editorial"] [data-proto-view="feed"] { gap: 0; }
+html[data-recipe="editorial"] [data-proto="header"] { border-bottom: 1px solid var(--foreground); }
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-recipe] * { transition: none !important; }
+}

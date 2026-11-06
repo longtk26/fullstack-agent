@@ -24,6 +24,8 @@ export type TPluginOperation = {
   secured?: boolean;
   policy?: TPolicy | null;
   errors?: TError[];
+  /** Story 23.9: `roles` (and signed-out callers) see only the records where every field equals its value. */
+  visibility?: { roles: string[]; where: Record<string, unknown> } | null;
 };
 
 type TActionPolicy = { roles?: string[]; ownerField?: string; bypassRoles?: string[]; unless?: Record<string, unknown> };
@@ -141,8 +143,19 @@ function bypasses(policy: { bypassRoles?: string[] }, user: TRecord | null): boo
   return Boolean(user && policy.bypassRoles?.includes(String(user.role)));
 }
 
-/** A list under an ownership policy: the user's own records (all of them for a bypass role). */
+/** Story 23.9: whether this caller sees only the visible records (signed out, or a restricted role). */
+function restricted(op: TPluginOperation, user: TRecord | null): boolean {
+  return Boolean(op.visibility) && (!user || (op.visibility?.roles ?? []).includes(String(user.role)));
+}
+
+function visible(op: TPluginOperation, record: TRecord): boolean {
+  return Object.entries(op.visibility?.where ?? {}).every(([field, value]) => String(record[field]) === String(value));
+}
+
+/** A list under a visibility rule (the visible records for a restricted caller) and an ownership policy (the user's
+ *  own records; all of them for a bypass role). */
 export function scope(op: TPluginOperation, user: TRecord | null, rows: TRecord[]): TRecord[] {
+  if (restricted(op, user)) rows = rows.filter((row) => visible(op, row));
   const policy = op.policy;
   if (policy?.type !== "ownership" || !policy.ownerField || bypasses(policy, user)) return rows;
   return rows.filter((row) => user && String(row[policy.ownerField as string]) === String(user.id));
@@ -150,6 +163,7 @@ export function scope(op: TPluginOperation, user: TRecord | null, rows: TRecord[
 
 /** Another user's record under an ownership policy: 404 (or the policy's 403), or null. */
 export function denied(op: TPluginOperation, user: TRecord | null, record: TRecord): Response | null {
+  if (restricted(op, user) && !visible(op, record)) return error(404, "NOT_FOUND", `${op.entity ?? "Record"} not found`);
   const policy = op.policy;
   if (policy?.type !== "ownership" || !policy.ownerField || bypasses(policy, user)) return null;
   if (user && String(record[policy.ownerField]) === String(user.id)) return null;
@@ -278,12 +292,17 @@ const objects = new Map<string, string>(); // object key → a blob URL in this 
 const OBJECTS = "__objects"; // a small file as a data URL in the mock store, so it shows after a reload
 const KEEP_BYTES = 1_500_000;
 
-/** A file field's read URL (`<field>Url`): the uploaded file, else the fixture's own. */
+/** A file field's read URL (`<field>Url`): the uploaded file, else the fixture's own; a seed's outside URL (a demo
+ *  photo) as it is, as the API reads it. */
 export function fileUrls(entity: string | null, record: TRecord, out: TRecord, records: TRecords) {
   for (const [name, spec] of Object.entries(plugins.storage?.fields ?? {})) {
     const [owner, field] = name.split(".");
     if (owner !== entity) continue;
     const key = record[field];
+    if (typeof key === "string" && /^https?:\/\//.test(key)) {
+      out[spec.urlField] = key;
+      continue;
+    }
     const kept = records(OBJECTS).find((row) => row.key === key)?.url;
     out[spec.urlField] = typeof key === "string" && key ? (objects.get(key) ?? kept ?? record[spec.urlField] ?? null) : null;
   }

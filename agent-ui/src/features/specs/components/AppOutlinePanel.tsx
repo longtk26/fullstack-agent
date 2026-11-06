@@ -1,4 +1,4 @@
-import { ChartColumn, LayoutDashboard, PanelLeft, Table2 } from "lucide-react";
+import { ChartColumn, LayoutDashboard, Palette, PanelLeft, Table2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Stack } from "@/components/layout/Stack";
 import type { TAppOutlineSummary } from "../lib/frontend-spec-summary";
@@ -10,6 +10,18 @@ export function AppOutlinePanel({ outline }: { outline: TAppOutlineSummary }) {
   return (
     <Stack gap="sm" className="text-sm">
       {outline.tagline && <p className="text-muted-foreground">{outline.tagline}</p>}
+      {outline.design && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Palette className="size-4 text-muted-foreground" aria-hidden />
+          <span className="text-muted-foreground">Design:</span>
+          <span>{outline.design}</span>
+          {outline.looks.map((look) => (
+            <Badge key={look} variant="outline" className="capitalize">
+              {look}
+            </Badge>
+          ))}
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-1.5">
         <PanelLeft className="size-4 text-muted-foreground" aria-hidden />
         <span className="text-muted-foreground">Navigation:</span>
@@ -31,7 +43,7 @@ export function AppOutlinePanel({ outline }: { outline: TAppOutlineSummary }) {
             <Table2 className="size-4 shrink-0 translate-y-0.5 text-muted-foreground" aria-hidden />
             <span className="font-medium">{entity.plural}</span>
             <span className="text-xs text-muted-foreground">
-              {entity.listStyle ?? "table"}: {entity.listFields.join(", ") || "default fields"}
+              {entity.view ?? entity.listStyle ?? "table"}: {entity.listFields.join(", ") || "default fields"}
               {!entity.inNav && " · from its parent"}
             </span>
           </li>

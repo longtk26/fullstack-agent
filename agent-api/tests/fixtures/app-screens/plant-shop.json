@@ -1,0 +1,836 @@
+{
+  "pages": {
+    "/": [
+      {
+        "id": "plants-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "plant.list",
+          "fields": [
+            "name",
+            "collectionId",
+            "price",
+            "size",
+            "lightNeed"
+          ]
+        },
+        "actions": [
+          "view"
+        ]
+      }
+    ],
+    "/cart-items": [
+      {
+        "id": "cart-items-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "cartItem.list",
+          "fields": [
+            "plantId",
+            "quantity",
+            "createdAt"
+          ]
+        },
+        "actions": [
+          "edit",
+          "delete"
+        ]
+      }
+    ],
+    "/cart-items/[id]/edit": [
+      {
+        "id": "cart-items-edit-form",
+        "component": "AppForm",
+        "form": "cartItem_update",
+        "actions": []
+      }
+    ],
+    "/collections": [
+      {
+        "id": "collections-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "collection.list",
+          "fields": [
+            "name",
+            "description"
+          ]
+        },
+        "actions": [
+          "view"
+        ]
+      }
+    ],
+    "/collections/[id]": [
+      {
+        "id": "collections-detail",
+        "component": "AppDetail",
+        "data": {
+          "operationId": "collection.get",
+          "params": {
+            "id": "$route.id"
+          },
+          "fields": [
+            "name",
+            "description",
+            "createdAt"
+          ]
+        },
+        "actions": []
+      },
+      {
+        "id": "plants-tab",
+        "component": "AppList",
+        "data": {
+          "operationId": "plant.list",
+          "params": {
+            "collectionId": "$route.id"
+          },
+          "fields": [
+            "name",
+            "price",
+            "size",
+            "lightNeed"
+          ]
+        },
+        "actions": [
+          "view"
+        ]
+      }
+    ],
+    "/dashboard": [
+      {
+        "id": "figure-1",
+        "component": "AppDashboard",
+        "data": {
+          "operationId": "plant.count"
+        },
+        "actions": []
+      },
+      {
+        "id": "figure-2",
+        "component": "AppDashboard",
+        "data": {
+          "operationId": "order.countWhereStatusPaid"
+        },
+        "actions": []
+      },
+      {
+        "id": "figure-3",
+        "component": "AppDashboard",
+        "data": {
+          "operationId": "order.countByStatus"
+        },
+        "actions": []
+      },
+      {
+        "id": "figure-4",
+        "component": "AppDashboard",
+        "data": {
+          "operationId": "plant.countByLightNeed"
+        },
+        "actions": []
+      },
+      {
+        "id": "recent-plants",
+        "component": "AppList",
+        "data": {
+          "operationId": "plant.list",
+          "params": {
+            "limit": 5,
+            "sort": "-createdAt"
+          },
+          "fields": [
+            "name",
+            "collectionId",
+            "price"
+          ]
+        },
+        "actions": [
+          "view"
+        ]
+      },
+      {
+        "id": "recent-collections",
+        "component": "AppList",
+        "data": {
+          "operationId": "collection.list",
+          "params": {
+            "limit": 5
+          },
+          "fields": [
+            "name",
+            "description"
+          ]
+        },
+        "actions": [
+          "view"
+        ]
+      }
+    ],
+    "/login": [
+      {
+        "id": "login",
+        "component": "AppAuth",
+        "form": "auth_login",
+        "actions": []
+      }
+    ],
+    "/management": [
+      {
+        "id": "figure-1",
+        "component": "AppDashboard",
+        "data": {
+          "operationId": "plant.count"
+        },
+        "actions": []
+      },
+      {
+        "id": "figure-2",
+        "component": "AppDashboard",
+        "data": {
+          "operationId": "order.countWhereStatusPaid"
+        },
+        "actions": []
+      },
+      {
+        "id": "figure-3",
+        "component": "AppDashboard",
+        "data": {
+          "operationId": "order.countByStatus"
+        },
+        "actions": []
+      },
+      {
+        "id": "figure-4",
+        "component": "AppDashboard",
+        "data": {
+          "operationId": "plant.countByLightNeed"
+        },
+        "actions": []
+      },
+      {
+        "id": "recent-plants",
+        "component": "AppList",
+        "data": {
+          "operationId": "plant.list",
+          "params": {
+            "limit": 5,
+            "sort": "-createdAt"
+          },
+          "fields": [
+            "name",
+            "collectionId",
+            "price"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "delete"
+        ]
+      },
+      {
+        "id": "recent-collections",
+        "component": "AppList",
+        "data": {
+          "operationId": "collection.list",
+          "params": {
+            "limit": 5
+          },
+          "fields": [
+            "name",
+            "description"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "delete"
+        ]
+      }
+    ],
+    "/management/cart-items": [
+      {
+        "id": "cart-items-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "cartItem.list",
+          "fields": [
+            "plantId",
+            "quantity",
+            "createdAt"
+          ]
+        },
+        "actions": [
+          "edit",
+          "delete"
+        ]
+      }
+    ],
+    "/management/cart-items/[id]/edit": [
+      {
+        "id": "cart-items-edit-form",
+        "component": "AppForm",
+        "form": "management_cartItem_update",
+        "actions": []
+      }
+    ],
+    "/management/collections": [
+      {
+        "id": "collections-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "collection.list",
+          "fields": [
+            "name",
+            "description"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "delete"
+        ]
+      }
+    ],
+    "/management/collections/[id]": [
+      {
+        "id": "collections-detail",
+        "component": "AppDetail",
+        "data": {
+          "operationId": "collection.get",
+          "params": {
+            "id": "$route.id"
+          },
+          "fields": [
+            "name",
+            "description",
+            "createdAt"
+          ]
+        },
+        "actions": [
+          "edit",
+          "delete"
+        ]
+      },
+      {
+        "id": "plants-tab",
+        "component": "AppList",
+        "data": {
+          "operationId": "plant.list",
+          "params": {
+            "collectionId": "$route.id"
+          },
+          "fields": [
+            "name",
+            "price",
+            "size",
+            "lightNeed"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "delete"
+        ]
+      }
+    ],
+    "/management/collections/[id]/edit": [
+      {
+        "id": "collections-edit-form",
+        "component": "AppForm",
+        "form": "management_collection_update",
+        "actions": []
+      }
+    ],
+    "/management/collections/[id]/plants/new": [
+      {
+        "id": "plant-create-in-collection-form",
+        "component": "AppForm",
+        "form": "management_plant_create_in_collection",
+        "actions": []
+      }
+    ],
+    "/management/collections/new": [
+      {
+        "id": "collection-create-form",
+        "component": "AppForm",
+        "form": "management_collection_create",
+        "actions": []
+      }
+    ],
+    "/management/order-items": [
+      {
+        "id": "order-items-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "orderItem.list",
+          "fields": [
+            "id",
+            "orderId",
+            "plantId",
+            "unitPrice",
+            "quantity"
+          ]
+        },
+        "actions": []
+      }
+    ],
+    "/management/orders": [
+      {
+        "id": "orders-actions",
+        "component": "AppActions",
+        "actions": [
+          "checkout"
+        ]
+      },
+      {
+        "id": "orders-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "order.list",
+          "fields": [
+            "createdAt",
+            "totalAmount",
+            "status",
+            "paymentStatus"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "transition-packed",
+          "transition-shipped",
+          "transition-delivered",
+          "pay"
+        ]
+      }
+    ],
+    "/management/orders/[id]": [
+      {
+        "id": "orders-detail",
+        "component": "AppDetail",
+        "data": {
+          "operationId": "order.get",
+          "params": {
+            "id": "$route.id"
+          },
+          "fields": [
+            "createdAt",
+            "shippingAddress",
+            "totalAmount",
+            "status",
+            "paymentStatus",
+            "ownerId"
+          ]
+        },
+        "actions": [
+          "edit",
+          "transition-packed",
+          "transition-shipped",
+          "transition-delivered",
+          "pay"
+        ]
+      },
+      {
+        "id": "order-items-tab",
+        "component": "AppList",
+        "data": {
+          "operationId": "orderItem.list",
+          "params": {
+            "orderId": "$route.id"
+          },
+          "fields": [
+            "id",
+            "plantId",
+            "unitPrice",
+            "quantity"
+          ]
+        },
+        "actions": []
+      }
+    ],
+    "/management/orders/[id]/edit": [
+      {
+        "id": "orders-edit-form",
+        "component": "AppForm",
+        "form": "management_order_update",
+        "actions": []
+      }
+    ],
+    "/management/plants": [
+      {
+        "id": "plants-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "plant.list",
+          "fields": [
+            "name",
+            "collectionId",
+            "price",
+            "size",
+            "lightNeed"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "delete"
+        ]
+      }
+    ],
+    "/management/plants/[id]": [
+      {
+        "id": "plants-detail",
+        "component": "AppDetail",
+        "data": {
+          "operationId": "plant.get",
+          "params": {
+            "id": "$route.id"
+          },
+          "fields": [
+            "photo",
+            "name",
+            "collectionId",
+            "price",
+            "size",
+            "lightNeed",
+            "petSafe",
+            "stockCount",
+            "careNote",
+            "createdAt"
+          ]
+        },
+        "actions": [
+          "add-cart-items",
+          "edit",
+          "delete"
+        ]
+      }
+    ],
+    "/management/plants/[id]/cart-items/new": [
+      {
+        "id": "cart-item-create-in-plant-form",
+        "component": "AppForm",
+        "form": "management_cartItem_create_in_plant",
+        "actions": []
+      }
+    ],
+    "/management/plants/[id]/edit": [
+      {
+        "id": "plants-edit-form",
+        "component": "AppForm",
+        "form": "management_plant_update",
+        "actions": []
+      }
+    ],
+    "/order-items": [
+      {
+        "id": "order-items-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "orderItem.list",
+          "fields": [
+            "id",
+            "orderId",
+            "plantId",
+            "unitPrice",
+            "quantity"
+          ]
+        },
+        "actions": []
+      }
+    ],
+    "/orders": [
+      {
+        "id": "orders-actions",
+        "component": "AppActions",
+        "actions": [
+          "checkout"
+        ]
+      },
+      {
+        "id": "orders-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "order.list",
+          "fields": [
+            "createdAt",
+            "totalAmount",
+            "status",
+            "paymentStatus"
+          ]
+        },
+        "actions": [
+          "view",
+          "pay"
+        ]
+      }
+    ],
+    "/orders/[id]": [
+      {
+        "id": "orders-detail",
+        "component": "AppDetail",
+        "data": {
+          "operationId": "order.get",
+          "params": {
+            "id": "$route.id"
+          },
+          "fields": [
+            "createdAt",
+            "shippingAddress",
+            "totalAmount",
+            "status",
+            "paymentStatus",
+            "ownerId"
+          ]
+        },
+        "actions": [
+          "pay"
+        ]
+      },
+      {
+        "id": "order-items-tab",
+        "component": "AppList",
+        "data": {
+          "operationId": "orderItem.list",
+          "params": {
+            "orderId": "$route.id"
+          },
+          "fields": [
+            "id",
+            "plantId",
+            "unitPrice",
+            "quantity"
+          ]
+        },
+        "actions": []
+      }
+    ],
+    "/payments/cancel": [
+      {
+        "id": "payments-cancel",
+        "component": "AppPayment",
+        "data": {
+          "operationId": "payments.get",
+          "params": {
+            "paymentId": "$query.payment"
+          }
+        },
+        "actions": []
+      }
+    ],
+    "/payments/success": [
+      {
+        "id": "payments-success",
+        "component": "AppPayment",
+        "data": {
+          "operationId": "payments.get",
+          "params": {
+            "paymentId": "$query.payment"
+          }
+        },
+        "actions": []
+      }
+    ],
+    "/plants": [
+      {
+        "id": "plants-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "plant.list",
+          "fields": [
+            "name",
+            "collectionId",
+            "price",
+            "size",
+            "lightNeed"
+          ]
+        },
+        "actions": [
+          "view"
+        ]
+      }
+    ],
+    "/plants/[id]": [
+      {
+        "id": "plants-detail",
+        "component": "AppDetail",
+        "data": {
+          "operationId": "plant.get",
+          "params": {
+            "id": "$route.id"
+          },
+          "fields": [
+            "photo",
+            "name",
+            "collectionId",
+            "price",
+            "size",
+            "lightNeed",
+            "petSafe",
+            "stockCount",
+            "careNote",
+            "createdAt"
+          ]
+        },
+        "actions": [
+          "add-cart-items"
+        ]
+      }
+    ],
+    "/plants/[id]/cart-items/new": [
+      {
+        "id": "cart-item-create-in-plant-form",
+        "component": "AppForm",
+        "form": "cartItem_create_in_plant",
+        "actions": []
+      }
+    ],
+    "/register": [
+      {
+        "id": "register",
+        "component": "AppAuth",
+        "form": "auth_register",
+        "actions": []
+      }
+    ]
+  },
+  "forms": {
+    "cartItem_create_in_plant": {
+      "operationId": "cartItem.create",
+      "fields": [
+        "plantId=$route.id",
+        "quantity"
+      ]
+    },
+    "cartItem_update": {
+      "operationId": "cartItem.update",
+      "fields": [
+        "plantId",
+        "quantity"
+      ]
+    },
+    "auth_login": {
+      "operationId": "auth.login",
+      "fields": [
+        "email",
+        "password"
+      ]
+    },
+    "auth_register": {
+      "operationId": "auth.register",
+      "fields": [
+        "email",
+        "password"
+      ]
+    },
+    "management_collection_create": {
+      "operationId": "collection.create",
+      "fields": [
+        "name",
+        "description"
+      ]
+    },
+    "management_collection_update": {
+      "operationId": "collection.update",
+      "fields": [
+        "name",
+        "description"
+      ]
+    },
+    "management_plant_create_in_collection": {
+      "operationId": "plant.create",
+      "fields": [
+        "collectionId=$route.id",
+        "name",
+        "photo",
+        "price",
+        "size",
+        "lightNeed",
+        "petSafe",
+        "stockCount",
+        "careNote"
+      ]
+    },
+    "management_plant_update": {
+      "operationId": "plant.update",
+      "fields": [
+        "collectionId",
+        "name",
+        "photo",
+        "price",
+        "size",
+        "lightNeed",
+        "petSafe",
+        "stockCount",
+        "careNote"
+      ]
+    },
+    "management_cartItem_create_in_plant": {
+      "operationId": "cartItem.create",
+      "fields": [
+        "plantId=$route.id",
+        "quantity"
+      ]
+    },
+    "management_cartItem_update": {
+      "operationId": "cartItem.update",
+      "fields": [
+        "plantId",
+        "quantity"
+      ]
+    },
+    "management_order_update": {
+      "operationId": "order.update",
+      "fields": [
+        "totalAmount",
+        "status",
+        "shippingAddress"
+      ]
+    }
+  },
+  "navigation": [
+    {
+      "label": "Plants",
+      "page": "plants"
+    },
+    {
+      "label": "Collections",
+      "page": "collections"
+    },
+    {
+      "label": "Cart",
+      "page": "cart-items"
+    },
+    {
+      "label": "My Orders",
+      "page": "orders"
+    },
+    {
+      "label": "Dashboard",
+      "page": "dashboard"
+    },
+    {
+      "label": "Dashboard",
+      "page": "management-home"
+    },
+    {
+      "label": "Plants",
+      "page": "management-plants"
+    },
+    {
+      "label": "Collections",
+      "page": "management-collections"
+    },
+    {
+      "label": "Cart",
+      "page": "management-cart-items"
+    },
+    {
+      "label": "My Orders",
+      "page": "management-orders"
+    }
+  ]
+}

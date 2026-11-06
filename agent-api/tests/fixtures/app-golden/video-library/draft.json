@@ -1,0 +1,25 @@
+{
+  "requirement": "video-library.md",
+  "seconds": 51.6,
+  "repairs": 0,
+  "costUsd": 0.0367,
+  "archetypeCandidates": [
+    "catalogue"
+  ],
+  "productTypes": [
+    "Design System/Component Library",
+    "Academic Journal / Scholarly Publishing",
+    "Calorie & Nutrition Counter"
+  ],
+  "calls": [
+    {
+      "step": "draft",
+      "prompt": "draft_app@v3proto",
+      "model": "gemini-3.8-flash",
+      "durationMs": 51576,
+      "inputTokens": 7658,
+      "outputTokens": 8251,
+      "costUsd": 0.036685
+    }
+  ]
+}

@@ -319,6 +319,18 @@ def _parameters(op: dict[str, Any], model: dict[str, Any] | None) -> list[dict[s
         parameters.append(
             {"name": "sort", "in": "query", "required": False, "schema": {"type": "string", "enum": values}}
         )
+    for rng in op.get("ranges", []):  # Story 23.4: inclusive bounds on a date
+        kind = "date" if rng["type"] == "date" else "date-time"
+        for suffix, word in (("From", "on or after"), ("To", "on or before")):
+            parameters.append(
+                {
+                    "name": f"{rng['param']}{suffix}",
+                    "in": "query",
+                    "required": False,
+                    "description": f"Records whose {rng['param']} is {word} this",
+                    "schema": {"type": "string", "format": kind},
+                }
+            )
     if op.get("search"):
         fields = ", ".join(item["param"] for item in op["search"])
         parameters.append(
@@ -561,6 +573,11 @@ class _Builder:
                 operation["x-bga"]["action"] = "list"
             elif mock_plan == "record" and not bga_action:
                 operation["x-bga"]["action"] = "get"
+        if op.get("ranges"):  # Story 23.4: what a calendar asks for, and what the mocks apply
+            operation["x-bga"]["ranges"] = [
+                {"field": rng["param"], "from": f"{rng['param']}From", "to": f"{rng['param']}To"}
+                for rng in op["ranges"]
+            ]
         if spec_op.get("description"):
             operation["description"] = spec_op["description"]
         parameters = _parameters(op, model)

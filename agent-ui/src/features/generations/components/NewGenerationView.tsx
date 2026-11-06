@@ -13,6 +13,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Stack } from "@/components/layout/Stack";
 import { prettyJson } from "@/lib/files";
 import { DesignPanel } from "@/features/specs/components/DesignPanel";
+import { AppDesignPanel } from "@/features/specs/components/AppDesignPanel";
+import { readAppDesign } from "@/features/specs/lib/app-design";
 import { FrontendImportTab } from "@/features/specs/components/FrontendImportTab";
 import { FrontendSpecSummaryPanel } from "@/features/specs/components/FrontendSpecSummaryPanel";
 import { JsonEditor } from "@/features/specs/components/JsonEditor";
@@ -297,6 +299,18 @@ export function NewGenerationView() {
                 </CardHeader>
                 <CardContent>
                   <DesignPanel design={design} specText={frontendSpecText} onApply={setFrontendSpecText} />
+                </CardContent>
+              </Card>
+            )}
+
+            {mode === "dynamic" && readAppDesign(frontendSpecText) && (
+              <Card size="sm">
+                <CardHeader>
+                  <CardTitle>App design</CardTitle>
+                  <CardDescription>The brief code built the screens from: pick a look, a shell and each list&apos;s view.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <AppDesignPanel specText={frontendSpecText} onApply={setFrontendSpecText} />
                 </CardContent>
               </Card>
             )}

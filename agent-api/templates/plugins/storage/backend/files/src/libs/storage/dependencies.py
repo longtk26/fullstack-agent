@@ -27,8 +27,13 @@ ObjectStorageDep = Annotated[IObjectStorage, Depends(get_storage)]
 
 
 def signed_url(key: str | None) -> str | None:
-    """A record's file as a URL that reads it (a response field), or None without a file."""
-    return None if key is None else get_storage().signed_url(key, config.storage_url_expire_seconds)
+    """A record's file as a URL that reads it (a response field), or None without a file. A seeded record may hold an
+    outside URL instead of a key (a demo photo): it is read as it is. Uploads still take keys only (`check_upload`)."""
+    if key is None:
+        return None
+    if key.startswith(("https://", "http://")):
+        return key
+    return get_storage().signed_url(key, config.storage_url_expire_seconds)
 
 
 def ensure_bucket() -> None:

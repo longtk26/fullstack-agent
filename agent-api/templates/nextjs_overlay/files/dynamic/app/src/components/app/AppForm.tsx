@@ -18,6 +18,7 @@ import { useOperationMutation, useOperationQuery } from "./bindings";
 import { errorMessage, fieldErrors } from "./errors";
 import { FieldInput, isWide } from "./form/FieldInput";
 import { formSchemas } from "./form-schemas";
+import { t } from "./messages";
 
 type TValues = Record<string, unknown>;
 
@@ -139,7 +140,7 @@ export function AppFormBody({ formId, params, onDone, onCancel, submit, submitLa
         )}
         <Button type="submit" disabled={mutation.isPending || unchanged} aria-busy={mutation.isPending || undefined}>
           {mutation.isPending && <Spinner data-icon="inline-start" />}
-          {submitLabel ?? form.submitLabel ?? "Save"}
+          {submitLabel ?? form.submitLabel ?? t("save")}
         </Button>
       </div>
     </form>

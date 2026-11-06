@@ -1,0 +1,279 @@
+{
+  "name": "Gather",
+  "tagline": "Discover and book tickets for independent venues across the city",
+  "icon": "Ticket",
+  "home": "dashboard",
+  "nav": [
+    {
+      "entity": "Event",
+      "label": "Upcoming Events",
+      "icon": "CalendarDays"
+    },
+    {
+      "entity": "Ticket",
+      "label": "My Tickets",
+      "icon": "QrCode"
+    },
+    {
+      "entity": "Venue",
+      "label": "Venues",
+      "icon": "Building2"
+    }
+  ],
+  "entities": {
+    "Event": {
+      "label": "Event",
+      "plural": "Events",
+      "displayField": "title",
+      "listFields": [
+        "title",
+        "category",
+        "venueId",
+        "startTime",
+        "price"
+      ],
+      "listStyle": "cards",
+      "detailFields": [
+        "poster",
+        "title",
+        "category",
+        "venueId",
+        "startTime",
+        "price",
+        "capacity",
+        "status",
+        "description"
+      ],
+      "fieldLabels": {
+        "venueId": "Venue",
+        "startTime": "Date & Time",
+        "capacity": "Total Capacity"
+      },
+      "help": {
+        "capacity": "Maximum ticket capacity allowed for the venue booking."
+      }
+    },
+    "Ticket": {
+      "label": "Ticket",
+      "plural": "Tickets",
+      "displayField": "qrCodeRef",
+      "listFields": [
+        "qrCodeRef",
+        "eventId",
+        "pricePaid",
+        "status",
+        "checkedInAt"
+      ],
+      "listStyle": "cards",
+      "detailFields": [
+        "qrCodeRef",
+        "eventId",
+        "attendeeName",
+        "pricePaid",
+        "status",
+        "paymentStatus",
+        "checkedInAt",
+        "createdAt"
+      ],
+      "fieldLabels": {
+        "eventId": "Event",
+        "qrCodeRef": "QR Reference",
+        "pricePaid": "Amount Paid",
+        "checkedInAt": "Checked-in Time"
+      },
+      "help": {
+        "qrCodeRef": "Present this reference or QR code at the door for entry."
+      }
+    },
+    "Venue": {
+      "label": "Venue",
+      "plural": "Venues",
+      "displayField": "name",
+      "listFields": [
+        "name",
+        "neighborhood",
+        "capacity",
+        "address"
+      ],
+      "listStyle": "cards",
+      "detailFields": [
+        "name",
+        "neighborhood",
+        "address",
+        "capacity",
+        "description"
+      ],
+      "fieldLabels": {
+        "neighborhood": "Neighborhood / District",
+        "capacity": "Room Capacity"
+      }
+    }
+  },
+  "dashboard": [
+    {
+      "label": "Tickets Sold This Week",
+      "kind": "figure",
+      "entity": "Ticket",
+      "fn": "count",
+      "period": "week"
+    },
+    {
+      "label": "Revenue per Event",
+      "kind": "bar",
+      "entity": "Ticket",
+      "fn": "sum",
+      "field": "pricePaid",
+      "groupBy": "eventId"
+    },
+    {
+      "label": "Upcoming Events",
+      "kind": "figure",
+      "entity": "Event",
+      "fn": "count",
+      "filter": {
+        "status": "PUBLISHED"
+      }
+    },
+    {
+      "label": "Tickets by Status",
+      "kind": "pie",
+      "entity": "Ticket",
+      "fn": "count",
+      "groupBy": "status"
+    }
+  ],
+  "design": {
+    "archetype": "booking",
+    "shell": "topbar",
+    "mobileNav": "bottom-tabs",
+    "homeView": "catalogue",
+    "mainEntity": "Event",
+    "entities": {
+      "Event": {
+        "view": "media-grid",
+        "roles": {
+          "media": "poster",
+          "title": "title",
+          "badge": "category",
+          "meta": "startTime",
+          "price": "price"
+        }
+      },
+      "Ticket": {
+        "view": "cards",
+        "roles": {
+          "title": "qrCodeRef",
+          "subtitle": "attendeeName",
+          "badge": "status",
+          "price": "pricePaid"
+        }
+      },
+      "Venue": {
+        "view": "cards",
+        "roles": {
+          "title": "name",
+          "subtitle": "neighborhood",
+          "stat": "capacity"
+        }
+      }
+    },
+    "looks": [
+      {
+        "recipe": "editorial",
+        "reason": "Lends an independent cultural guide feel with bold typography and posters for music and arts events."
+      },
+      {
+        "recipe": "minimal",
+        "reason": "Prioritizes high contrast readability and quick QR ticket scans on mobile devices at venue doors."
+      },
+      {
+        "recipe": "swiss",
+        "reason": "Structured typographic grid perfectly balances catalog browsing and back-office venue management."
+      }
+    ],
+    "reason": "Attendee phone browsing pairs with an image-rich catalogue while organizers utilize a structured dashboard and data tables for doors and sales."
+  },
+  "areas": [
+    {
+      "id": "attendees",
+      "label": "Attendee Experience",
+      "roles": [
+        "attendee"
+      ],
+      "archetype": "booking",
+      "shell": "topbar",
+      "mobileNav": "bottom-tabs",
+      "homeView": "catalogue",
+      "mainEntity": "Event",
+      "entities": {
+        "Event": {
+          "view": "media-grid",
+          "roles": {
+            "media": "poster",
+            "title": "title",
+            "badge": "category",
+            "meta": "startTime",
+            "price": "price"
+          }
+        },
+        "Ticket": {
+          "view": "cards",
+          "roles": {
+            "title": "qrCodeRef",
+            "subtitle": "attendeeName",
+            "badge": "status",
+            "price": "pricePaid"
+          }
+        },
+        "Venue": {
+          "view": "cards",
+          "roles": {
+            "title": "name",
+            "subtitle": "neighborhood",
+            "stat": "capacity"
+          }
+        }
+      }
+    },
+    {
+      "id": "organizers",
+      "label": "Venue Management",
+      "roles": [
+        "organizer"
+      ],
+      "archetype": "back-office",
+      "shell": "sidebar",
+      "mobileNav": "drawer",
+      "homeView": "dashboard",
+      "mainEntity": "Event",
+      "entities": {
+        "Event": {
+          "view": "table",
+          "roles": {
+            "title": "title",
+            "badge": "status",
+            "meta": "startTime",
+            "price": "price"
+          }
+        },
+        "Ticket": {
+          "view": "table",
+          "roles": {
+            "title": "qrCodeRef",
+            "subtitle": "attendeeName",
+            "badge": "status",
+            "price": "pricePaid"
+          }
+        },
+        "Venue": {
+          "view": "table",
+          "roles": {
+            "title": "name",
+            "subtitle": "neighborhood",
+            "stat": "capacity"
+          }
+        }
+      }
+    }
+  ]
+}

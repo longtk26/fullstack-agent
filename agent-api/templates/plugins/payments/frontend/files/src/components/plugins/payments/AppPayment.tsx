@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Spinner } from "@/components/ui/spinner";
 import { fetchOperation } from "@/components/app/bindings";
 import { PAYMENT_KEY } from "./PayAction";
+import { t } from "@/components/app/messages";
 
 type TPayment = { paymentId: string; status: "pending" | "paid" | "failed" | "canceled"; amount?: number; currency?: string };
 
@@ -53,26 +54,26 @@ export const AppPayment: TSectionSlot = ({ section }) => {
   const back = stored?.back ?? "/";
   const canceled = section.content?.variant === "cancel";
   let icon = <Spinner className="size-8" />;
-  let title = "Confirming your payment…";
-  let text = "This takes a few seconds.";
+  let title = t("confirmingPayment");
+  let text = t("takesSeconds");
   if (stored && !paymentId) {
     icon = <CircleX aria-hidden className="size-8 text-muted-foreground" />;
-    title = "No payment here";
-    text = "Start a payment from the record you want to pay for.";
+    title = t("noPayment");
+    text = t("startPayment");
   } else if (payment?.status === "paid") {
     icon = <CircleCheck aria-hidden className="size-8 text-primary" />;
-    title = "Payment received";
-    text = payment.amount !== undefined ? `${payment.amount} ${payment.currency ?? ""} paid. Thank you.` : "Thank you.";
+    title = t("paymentReceived");
+    text = payment.amount !== undefined ? t("paidThanks", { amount: `${payment.amount} ${payment.currency ?? ""}`.trim() }) : t("thanks");
   } else if (payment && settled) {
     icon = <CircleX aria-hidden className="size-8 text-destructive" />;
-    title = payment.status === "failed" ? "The payment failed" : "Payment canceled";
-    text = "Nothing was charged. You can try again from the record.";
+    title = payment.status === "failed" ? t("paymentFailed") : t("paymentCanceled");
+    text = t("nothingCharged");
   } else if (canceled && !payment) {
     icon = <Clock aria-hidden className="size-8 text-muted-foreground" />;
   } else if (query.isError || (payment?.status === "pending" && tries >= POLL_TRIES)) {
     icon = <Clock aria-hidden className="size-8 text-muted-foreground" />;
-    title = "Still waiting for the provider";
-    text = "Check the record again in a minute.";
+    title = t("stillWaiting");
+    text = t("checkAgain");
   }
   return (
     <div className="mx-auto w-full max-w-md pt-6" data-bga-payment={payment?.status ?? "pending"}>

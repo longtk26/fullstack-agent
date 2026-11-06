@@ -301,8 +301,20 @@ class _SemanticChecker:
                     "entity's module, so without one it is left out of the backend and the API contract",
                     hint=f"Set it to the entity the operation mostly reads or changes. {self._known_entities()}",
                 )
-            for key in ("filters", "sort", "search"):
+            for key in ("filters", "sort", "search", "ranges"):
                 self._field_refs(entity, getattr(op, key), f"{path}/{key}")
+            if op.ranges:  # Story 23.4: a range is a list's, on a date
+                for r_index, name in enumerate(op.ranges):
+                    field = self.fields.get(entity.name, {}).get(name) if entity else None
+                    if op.action != "list":
+                        self._add(C.SCHEMA_VIOLATION, f"{path}/ranges", "Only a list operation takes 'ranges'")
+                        break
+                    if field is not None and getattr(field, "type", None) not in ("date", "datetime"):
+                        self._add(
+                            C.SCHEMA_VIOLATION,
+                            f"{path}/ranges/{r_index}",
+                            f"A range needs a date or datetime field; '{name}' is a {getattr(field, 'type', '?')}",
+                        )
             for key in ("request", "response"):
                 self._check_payload(getattr(op, key), f"{path}/{key}")
             for r_index, rule_id in enumerate(op.rules):
@@ -405,6 +417,8 @@ class _SemanticChecker:
                 self._add(C.SCHEMA_VIOLATION, f"/policies/{p_index}/roles", "Role policies need at least one role")
             if policy.type == "ownership" and not policy.owner_field:
                 self._add(C.SCHEMA_VIOLATION, f"/policies/{p_index}/ownerField", "Ownership policies need 'ownerField'")
+            if policy.type == "visibility":  # Story 23.9: which records some roles may see
+                self._check_visibility(policy, p_index)
             if auth is not None and auth.roles:
                 for key, roles in (("roles", policy.roles), ("bypassRoles", policy.bypass_roles)):
                     for r_index, role in enumerate(roles):
@@ -428,6 +442,13 @@ class _SemanticChecker:
             policy = self.policies.get(op.policy)
             if policy is None:
                 self._add(C.UNKNOWN_POLICY_REF, f"{path}/policy", f"Unknown policy '{op.policy}'")
+            elif policy.type == "visibility":
+                self._add(
+                    C.SCHEMA_VIOLATION,
+                    f"{path}/policy",
+                    f"Policy '{policy.name}' is a visibility policy: it applies to its entity's reads by itself",
+                    hint="Remove 'policy' from the operation; name a role or ownership policy here instead.",
+                )
             elif policy.type == "ownership" and policy.owner_field and op.entity in self.fields:
                 if policy.owner_field not in self.fields[op.entity]:
                     self._add(
@@ -435,6 +456,30 @@ class _SemanticChecker:
                         f"{path}/policy",
                         f"Policy '{policy.name}' uses ownerField '{policy.owner_field}', missing on '{op.entity}'",
                     )
+
+    def _check_visibility(self, policy: Any, p_index: int) -> None:
+        path = f"/policies/{p_index}"
+        if not policy.entity or policy.entity not in self.entities:
+            self._add(C.UNKNOWN_ENTITY_REF, f"{path}/entity", f"Visibility policy '{policy.name}' needs a known entity")
+            return
+        if not policy.where:
+            self._add(C.SCHEMA_VIOLATION, f"{path}/where", "A visibility policy needs 'where': {field: value}")
+        fields = self.fields[policy.entity]
+        for name, value in policy.where.items():
+            field = fields.get(name)
+            if field is None:
+                self._add(
+                    C.UNKNOWN_FIELD_REF, f"{path}/where/{name}", f"Entity '{policy.entity}' has no field '{name}'"
+                )
+            elif field.type == "enum" and field.values and value not in field.values:
+                self._add(
+                    C.SCHEMA_VIOLATION,
+                    f"{path}/where/{name}",
+                    f"'{value}' is not a value of {policy.entity}.{name}",
+                    hint=f"Use one of {', '.join(map(str, field.values))}",
+                )
+            elif field.type == "boolean" and not isinstance(value, bool):
+                self._add(C.SCHEMA_VIOLATION, f"{path}/where/{name}", f"{policy.entity}.{name} takes true or false")
 
     def _check_rules(self) -> None:
         seen: dict[str, int] = {}

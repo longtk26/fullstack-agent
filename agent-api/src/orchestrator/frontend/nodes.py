@@ -17,6 +17,10 @@ from ..backend.validation import generator_bug_files, write_report
 from ..context import EngineFailure, JobContext
 from ..integration.integrate import package_lane_preview
 from ..state import GenerationState, NodeResult, Outcome
+from .app.recipes import first_recipe
+from .app.slots import REGISTRY as SLOTS_REGISTRY
+from .app.slots import SLOT_INPUT, Slot, planned_slots, refusal, registry_ts, slot_input
+from .app.slots import enabled as view_slots_enabled
 from .assets import (
     copy_uploads,
     due_fallbacks,
@@ -28,7 +32,7 @@ from .assets import (
 from .component_cache import CUSTOM_DIR, drop_files
 from .custom_components import CustomComponents, Resolved
 from .planner import dump_frontend_plan, plan_frontend
-from .scaffold import OWNED_INFO, scaffold_frontend
+from .scaffold import OWNED_INFO, scaffold_frontend, update_owned
 from .validation import FrontendValidationRequest
 
 logger = get_logger(__name__)
@@ -135,15 +139,55 @@ def _components_summary(resolved: list[Resolved]) -> dict[str, Any]:
     }
 
 
+async def _view_slots(state: GenerationState, ctx: JobContext) -> dict[str, Any]:
+    """Story 23.11: one engine call per slot (the shell, the main records' cards), each checked by code; a refused
+    slot falls back to the kit's view. The registry names the accepted ones."""
+    spec = _json(Path(state["frontend_ref"]))
+    project = ctx.workspace.repo("frontend")
+    props_types = ctx.frontend_path("src/components/app/slot-types.ts").read_text()
+    recipe = first_recipe((spec.get("app") or {}).get("design") or {})
+    accepted: list[Slot] = []
+    refused: list[str] = []
+    calls = 0
+    for slot in planned_slots(spec):
+        asked = slot_input(slot, spec)
+        ctx.frontend_path(SLOT_INPUT).write_text(json.dumps(asked, indent=2, ensure_ascii=False) + "\n")
+        prompt = ctx.prompts.render(
+            "generate_view_slot",
+            "v1",
+            slot=asked,
+            slot_json=json.dumps(asked, indent=2, ensure_ascii=False),
+            props_types=props_types,
+            recipe=recipe,
+        )
+        result = await ctx.run_engine("generate_frontend", "generate_view_slot", prompt, repo="frontend")
+        calls += 1
+        path = ctx.frontend_path(slot.file)
+        text = path.read_text() if path.is_file() else ""
+        why = "the engine stopped" if not result.ok else ("it wrote no file" if not text else refusal(text))
+        if why is None:
+            accepted.append(slot)
+        else:
+            path.unlink(missing_ok=True)
+            refused.append(f"{slot.name}: {why}; the kit's view is used")
+    ctx.frontend_path(SLOTS_REGISTRY).write_text(registry_ts(accepted))
+    update_owned(project, [SLOTS_REGISTRY])  # generator-owned: auto-fix must not restore the empty registry
+    await ctx.emit("frontend.slots", step="generate_frontend", accepted=[s.name for s in accepted], refused=refused)
+    return {"engineCalls": calls, "viewSlots": [s.name for s in accepted], "slotFallbacks": refused}
+
+
 async def generate_frontend(state: GenerationState, ctx: JobContext) -> NodeResult:
     """Story 13.3: outside-in — the shell and shared components first, then one engine call per page.
     Story 17.2: a plan the section library can render was fully written by the scaffold; no engine call.
     Story 17.3: except for its custom components, generated in parallel or taken from the component cache."""
     plan = _plan(ctx, state)
     if plan.get("rendering") == "app":
-        # Epic 22 (decision D5): the app kit renders every screen from the plan's sections; nothing for the engine.
+        # Epic 22 (decision D5): the app kit renders every screen from the plan's sections; nothing for the engine,
+        # unless the opt-in view slots are on (Story 23.11, `APP_VIEW_SLOTS=engine` or `options.viewSlots`).
         sections = sum(len(route["sections"]) for route in plan["routes"])
-        summary = {"pages": len(plan["routes"]), "sections": sections, "engineCalls": 0}
+        summary: dict[str, Any] = {"pages": len(plan["routes"]), "sections": sections, "engineCalls": 0}
+        if view_slots_enabled(state.get("options") or {}):
+            summary |= await _view_slots(state, ctx)
         await ctx.emit("frontend.rendered", step="generate_frontend", **summary)
         return {}, {**summary, "rendering": "app"}
     if plan.get("rendering") == "renderer":

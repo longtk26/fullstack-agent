@@ -13,6 +13,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { onUnauthorized } from "@/lib/api/client";
 import { clearToken } from "@/lib/auth/token";
 import { SESSION_KEY, signOut, useSession } from "./session";
+import { t } from "@/components/app/messages";
 
 /** The top bar's account (Story 22.7): sign in and sign up when signed out; the user, their role and sign out when
  *  signed in. A 401 on a call (an expired session) signs the user out and asks them to sign in again. */
@@ -39,13 +40,9 @@ export const UserMenu: TUserMenu = () => {
     const next = `?next=${encodeURIComponent(pathname)}`;
     return (
       <div className="flex items-center gap-1">
-        <Link href={`${auth.signIn}${next}`} className={buttonVariants({ variant: "ghost", size: "sm" })} data-bga-action="sign-in">
-          Sign in
-        </Link>
+        <Link href={`${auth.signIn}${next}`} className={buttonVariants({ variant: "ghost", size: "sm" })} data-bga-action="sign-in">{t("signIn")}</Link>
         {auth.signUp && (
-          <Link href={`${auth.signUp}${next}`} className={buttonVariants({ size: "sm" })} data-bga-action="sign-up">
-            Sign up
-          </Link>
+          <Link href={`${auth.signUp}${next}`} className={buttonVariants({ size: "sm" })} data-bga-action="sign-up">{t("signUp")}</Link>
         )}
       </div>
     );
@@ -56,7 +53,7 @@ export const UserMenu: TUserMenu = () => {
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
-          <Button variant="ghost" size="sm" className="gap-2" aria-label={`Account: ${login}`} data-bga-action="account">
+          <Button variant="ghost" size="sm" className="gap-2" aria-label={t("account", { name: login })} data-bga-action="account">
             <span className="flex size-6 items-center justify-center rounded-full bg-primary text-[0.625rem] font-semibold text-primary-foreground">
               {initials}
             </span>
@@ -83,9 +80,7 @@ export const UserMenu: TUserMenu = () => {
             router.push("/");
           }}
         >
-          <LogOut aria-hidden />
-          Sign out
-        </DropdownMenuItem>
+          <LogOut aria-hidden />{t("signOut")}</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

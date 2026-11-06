@@ -444,6 +444,8 @@ def _operation(op: dict[str, Any], model: dict[str, Any] | None) -> dict[str, An
         planned["responseDto"] = f"{to_pascal(handler)}ResponseDto"
         planned["dtoFile"] = f"{handler}_dto.py"
         planned["transactional"] = False
+        if op.get("auth") == "jwt" or op.get("policy"):  # Story 23.9: a figure for some roles only (was ignored)
+            planned["auth"] = {"auth": "jwt", "policy": op.get("policy")}
         return planned
     entity = model["entity"] if model else None
     if action in ("get", "update", "delete") or (action is None and "{" in op["path"]):
@@ -480,6 +482,13 @@ def _operation(op: dict[str, Any], model: dict[str, Any] | None) -> dict[str, An
         planned["search"] = [
             {"param": name, "attr": by_api[name]["attr"]} for name in op.get("search", []) if name in by_api
         ]
+        ranges = [
+            {"param": name, "attr": by_api[name]["attr"], "type": by_api[name]["type"]}
+            for name in op.get("ranges", [])
+            if name in by_api and action == "list"
+        ]
+        if ranges:  # Story 23.4: `<param>From` / `<param>To`, inclusive
+            planned["ranges"] = ranges
         if planned["sort"]:
             planned["errors"].append({"status": 422, "exception": None, "code": "VALIDATION_ERROR"})
     if op.get("rules"):
@@ -535,6 +544,9 @@ def _tests(module: dict[str, Any], model: dict[str, Any]) -> list[dict[str, Any]
             for flt in op.get("filters", []):
                 what = f"{{{flt['param']}}} in the path" if flt.get("in") == "path" else f"?{flt['param']}="
                 add(op, f"filter_{to_snake(flt['param'])}", 200, f"{what} returns only matching records")
+            for rng in op.get("ranges", []):  # Story 23.4
+                what = f"?{rng['param']}From= and ?{rng['param']}To="
+                add(op, f"range_{to_snake(rng['param'])}", 200, f"{what} limit the records to a range, inclusive")
             if op.get("sort"):
                 add(op, "sort", 200, "?sort=<field> ascending and ?sort=-<field> descending")
                 add(op, "invalid_sort", 422, "sorting by an undeclared field is rejected")

@@ -29,9 +29,31 @@ from src.modules.shared.domain.frontend_spec.coverage import uncovered_operation
 from src.orchestrator.integration.contract import build_contract, contract_operations, resolve
 
 from ...checks.consistency import _response_record
+from .design import list_features
 from .outline import humanize
 
 SPEC_VERSION = "1.0"
+# The planner's own words (Story 23.8): (English, Japanese); `{x}` is a label, lowercased in English.
+WORDS = {
+    "view": ("View", "表示"),
+    "edit": ("Edit", "編集"),
+    "pay": ("Pay", "支払う"),
+    "delete": ("Delete", "削除"),
+    "confirmDelete": ("Delete this {x}? This cannot be undone.", "この{x}を削除しますか？元に戻せません。"),
+    "new": ("New {x}", "{x}を追加"),
+    "create": ("Create {x}", "{x}を作成"),
+    "editOne": ("Edit {x}", "{x}を編集"),
+    "add": ("Add {x}", "{x}を追加"),
+    "recent": ("Recent {x}", "最近の{x}"),
+    "dashboard": ("Dashboard", "ダッシュボード"),
+    "created": ("{x} created", "{x}を作成しました"),
+    "signIn": ("Sign in", "ログイン"),
+    "createAccount": ("Create an account", "アカウントを作成"),
+    "createShort": ("Create account", "登録する"),
+    "email": ("E-mail", "メールアドレス"),
+    "password": ("Password", "パスワード"),
+    "saved": ("{x} saved", "{x}を保存しました"),
+}
 LIST_CONTROLS = frozenset({"limit", "offset", "sort", "q", "search", "page", "pageSize"})
 SKIPPED_SOURCES = frozenset({"currentUser", "server"})  # the server sets them
 RECENT = 5  # records in a dashboard's recent list
@@ -185,6 +207,8 @@ def ensure_aggregates(
     an item whose operation would make the BackendSpec invalid is dropped with a note."""
     entities = {entity["name"]: entity for entity in backend.get("entities") or []}
     operations, notes = parent_lists(backend)
+    operations, feature_notes = list_features(backend, operations, outline)  # Epic 23: what the views need
+    notes += feature_notes
     dashboard: list[dict[str, Any]] = []
     used: set[str] = set()
     for index, item in enumerate(outline.get("dashboard") or []):
@@ -292,9 +316,17 @@ def parent_lists(backend: dict[str, Any]) -> tuple[list[dict[str, Any]], list[di
 
 
 class _Screens:
-    def __init__(self, backend: dict[str, Any], outline: dict[str, Any], contract: dict[str, Any]):
+    def __init__(
+        self,
+        backend: dict[str, Any],
+        outline: dict[str, Any],
+        contract: dict[str, Any],
+        allowed: set[str] | None = None,
+    ):
         self.backend, self.outline, self.contract = backend, outline, contract
         self.operations = contract_operations(contract)
+        if allowed is not None:  # Story 23.10: an area plans only what its roles may call
+            self.operations = {op_id: found for op_id, found in self.operations.items() if op_id in allowed}
         self.spec_ops = {op["operationId"]: op for op in backend.get("operations") or []}
         self.entities = {entity["name"]: entity for entity in backend.get("entities") or []}
         self.info = ((contract.get("x-bga") or {}).get("entities")) or {}
@@ -374,6 +406,13 @@ class _Screens:
 
     def children_of(self, entity: str) -> list[tuple[str, dict[str, Any]]]:
         return [(name, ref) for name in self.entities if (ref := self.parent_of(name)) and ref["entity"] == entity]
+
+    def w(self, key: str, x: str | None = None, lower: bool = True) -> str:
+        """The planner's own words in the outline's language (Story 23.8): English, or Japanese for `ja`."""
+        english, japanese = WORDS[key]
+        if (self.outline.get("locale") or "en").split("-")[0] == "ja":
+            return japanese.format(x=x or "")
+        return english.format(x=(x or "").lower() if lower else (x or ""))
 
     def query_params(self, op_id: str | None) -> dict[str, dict[str, Any]]:
         operation = self.operations[op_id]["operation"] if op_id else {}
@@ -537,7 +576,11 @@ class _Screens:
             field = {
                 "name": name,
                 "type": input_kind(name, schema, types, None, bool(enum)),
-                "label": "E-mail" if name == "email" else humanize(name),
+                "label": self.w("email")
+                if name == "email"
+                else self.w("password")
+                if name == "password"
+                else humanize(name),
                 "required": name in required,
             }
             if enum:
@@ -552,8 +595,8 @@ class _Screens:
         if self.auth:
             login = (self.auth.get("login") or {}).get("operationId") or "auth.login"
             for page_id, route, title, variant, op_id, submit in (
-                ("login", "/login", "Sign in", "signIn", login, "Sign in"),
-                ("register", "/register", "Create an account", "signUp", "auth.register", "Create account"),
+                ("login", "/login", self.w("signIn"), "signIn", login, self.w("signIn")),
+                ("register", "/register", self.w("createAccount"), "signUp", "auth.register", self.w("createShort")),
             ):
                 if op_id not in self.operations:
                     continue
@@ -663,11 +706,17 @@ class _Screens:
         actions: list[dict[str, Any]] = []
         if not detail and "get" in crud:
             actions.append(
-                {"id": "view", "label": "View", "kind": "link", "page": f"{slug}-id", "params": {"id": record}}
+                {"id": "view", "label": self.w("view"), "kind": "link", "page": f"{slug}-id", "params": {"id": record}}
             )
         if "update" in crud:
             actions.append(
-                {"id": "edit", "label": "Edit", "kind": "link", "page": f"{slug}-id-edit", "params": {"id": record}}
+                {
+                    "id": "edit",
+                    "label": self.w("edit"),
+                    "kind": "link",
+                    "page": f"{slug}-id-edit",
+                    "params": {"id": record},
+                }
             )
         for op_id in self.custom[entity]:
             found = self.operations[op_id]
@@ -723,7 +772,7 @@ class _Screens:
             actions.append(
                 {
                     "id": "pay",
-                    "label": "Pay",
+                    "label": self.w("pay"),
                     "kind": "pay",
                     "operationId": self.payments["checkout"],
                     "params": {"recordId": record},
@@ -734,11 +783,11 @@ class _Screens:
         if "delete" in crud:
             delete: dict[str, Any] = {
                 "id": "delete",
-                "label": "Delete",
+                "label": self.w("delete"),
                 "kind": "mutation",
                 "operationId": crud["delete"],
                 "params": {"id": record},
-                "confirm": f"Delete this {label.lower()}? This cannot be undone.",
+                "confirm": self.w("confirmDelete", label),
                 "variant": "destructive",
                 "onSuccess": {"toast": f"{label} deleted"},
             }
@@ -765,9 +814,21 @@ class _Screens:
         controls: dict[str, Any] = {}
         if "q" in query:
             controls["search"] = True
-        filters = [name for name in query if name not in LIST_CONTROLS and name not in references and name not in skip]
+        operation = self.operations[op_id]["operation"]
+        ranges = (operation.get("x-bga") or {}).get("ranges") or []  # Story 23.4: a calendar's date range
+        bounds = {name for rng in ranges for name in (rng["from"], rng["to"])}
+        filters = [
+            name
+            for name in query
+            if name not in LIST_CONTROLS and name not in references and name not in skip and name not in bounds
+        ]
         if filters:
             controls["filters"] = filters
+        if ranges:
+            controls["ranges"] = ranges
+        most = ((query.get("limit") or {}).get("schema") or {}).get("maximum")
+        if most:
+            controls["maxLimit"] = most  # what a board or a calendar may load at once
         sort_enum = resolve(self.contract, (query.get("sort") or {}).get("schema") or {}).get("enum") or []
         sort = [value for value in sort_enum if not str(value).startswith("-")]
         if sort:
@@ -800,7 +861,7 @@ class _Screens:
         list_sections: list[dict[str, Any]] = []
         list_sections += self.collection_sections(entity)
         if "list" in crud:
-            create = {"create": {"page": f"{slug}-new", "label": f"New {label.lower()}"}} if standalone_create else {}
+            create = {"create": {"page": f"{slug}-new", "label": self.w("new", label)}} if standalone_create else {}
             list_sections.append(self.list_section(entity, crud["list"], f"{slug}-list", **create))
         if list_sections:
             self.page(slug, f"/{slug}", plural, list_sections)
@@ -832,13 +893,13 @@ class _Screens:
                 "id": f"{to_camel(entity)}_create{suffix}",
                 "operationId": op_id,
                 "fields": self.form_fields(entity, op_id, hidden),
-                "submitLabel": f"Create {label.lower()}",
-                "onSuccess": {"toast": f"{label} created", "navigate": after},
+                "submitLabel": self.w("create", label),
+                "onSuccess": {"toast": self.w("created", label, lower=False), "navigate": after},
             }
         )
         if form_id:
             section = {"id": f"{to_kebab(form_id)}-form", "component": "AppForm", "form": form_id}
-            self.page(page_id, route, f"New {label.lower()}", [{**section, "content": {"entity": entity}}])
+            self.page(page_id, route, self.w("new", label), [{**section, "content": {"entity": entity}}])
 
     def edit_page(self, entity: str) -> None:
         crud, slug, label = self.crud[entity], self.slug(entity), self.label(entity)
@@ -854,7 +915,7 @@ class _Screens:
         form |= {
             "fields": self.form_fields(entity, crud["update"], readable=readable),
             "submitLabel": "Save changes",
-            "onSuccess": {"toast": f"{label} saved", "navigate": after},
+            "onSuccess": {"toast": self.w("saved", label, lower=False), "navigate": after},
         }
         form_id = self.add_form(form)
         if form_id:
@@ -864,7 +925,7 @@ class _Screens:
                 "form": form_id,
                 "content": {"entity": entity},
             }
-            self.page(f"{slug}-id-edit", f"/{slug}/[id]/edit", f"Edit {label.lower()}", [section])
+            self.page(f"{slug}-id-edit", f"/{slug}/[id]/edit", self.w("editOne", label), [section])
 
     def detail_page(self, entity: str) -> None:
         crud, slug, label = self.crud[entity], self.slug(entity), self.label(entity)
@@ -910,7 +971,7 @@ class _Screens:
                 0,
                 {
                     "id": f"add-{self.slug(child)}",
-                    "label": f"Add {self.label(child).lower()}",
+                    "label": self.w("add", self.label(child)),
                     "kind": "link",
                     "page": f"{slug}-id-{self.slug(child)}-new",
                     "params": {"id": "$route.id"},
@@ -927,12 +988,12 @@ class _Screens:
                 create = {
                     "create": {
                         "page": f"{slug}-id-{child_slug}-new",
-                        "label": f"Add {self.label(child).lower()}",
+                        "label": self.w("add", self.label(child)),
                         "params": {"id": "$route.id"},
                     }
                 }
             elif "create" in child_crud:
-                create = {"create": {"page": f"{child_slug}-new", "label": f"Add {self.label(child).lower()}"}}
+                create = {"create": {"page": f"{child_slug}-new", "label": self.w("add", self.label(child))}}
             sections.append(
                 self.list_section(
                     child,
@@ -1071,7 +1132,7 @@ class _Screens:
             if newest:
                 params["sort"] = newest
             section = self.list_section(entity, op_id, f"recent-{self.slug(entity)}", params or None, variant="recent")
-            section["content"]["title"] = f"Recent {self.plural(entity).lower()}"
+            section["content"]["title"] = self.w("recent", self.plural(entity))
             section["data"]["fields"] = section["data"]["fields"][:3]
             sections.append(section)
         if not sections:
@@ -1093,7 +1154,7 @@ class _Screens:
                     _note("/layout/header/navigation", f"{self.plural(entity)} joined the navigation")
                 )
             elif slug not in pages and f"{slug}-new" in pages and f"{slug}-new" not in in_nav:
-                label = f"New {self.label(entity).lower()}"
+                label = self.w("new", self.label(entity))
                 self.nav.append({"label": label, "page": f"{slug}-new", "entity": entity})
 
     def build(self, name: str) -> list[dict[str, Any]]:
@@ -1113,9 +1174,17 @@ class _Screens:
         if home != "dashboard" and self.slug(home) in listed:
             home_page = next(page for page in self.pages if page["id"] == self.slug(home))
             self.page("home", "/", home_page["title"], [dict(section) for section in home_page["sections"]])
+            # Story 23.1: an app that opens on a list keeps its figures on a dashboard page of their own, so every
+            # aggregate has a screen (found on the golden apps: a catalogue home left `channel.count` unused)
+            figures = [
+                item for item in self.outline.get("dashboard") or [] if item.get("operationId") in self.operations
+            ]
+            if figures and "/dashboard" not in {page["route"] for page in self.pages}:
+                self.page("dashboard", "/dashboard", self.w("dashboard"), self.dashboard(name))
+                nav.append({"label": self.w("dashboard"), "page": "dashboard"})
         else:
             self.page("home", "/", name, self.dashboard(name))
-            nav.insert(0, {"label": "Dashboard", "page": "home"})
+            nav.insert(0, {"label": self.w("dashboard"), "page": "home"})
         self.nav = nav + self.nav
         self.reach_every_page()
         self.pages.sort(key=lambda page: (page["route"] != "/", page["route"]))
@@ -1144,10 +1213,15 @@ def app_frontend_spec(
         ]
         spec = _spec(name, project, theme, app, pages, [], [])
         return AppScreens(spec)
-    screens = _Screens(backend, outline, contract)
-    pages = screens.build(name)
-    navigation = [{"label": item["label"][:60], "page": item["page"]} for item in screens.nav]
-    spec = _spec(name, project, theme, app, pages, screens.forms, navigation)
+    areas = outline.get("areas") or []
+    if areas:  # Story 23.10: a set of screens per group of roles, each under its prefix
+        screens, pages, forms, navigation = _area_screens(backend, outline, contract, name, areas)
+    else:
+        screens = _Screens(backend, outline, contract)
+        pages = screens.build(name)
+        forms = screens.forms
+        navigation = [{"label": item["label"][:60], "page": item["page"]} for item in screens.nav]
+    spec = _spec(name, project, theme, app, pages, forms, navigation)
     if screens.auth and any(page["id"] == "login" for page in pages):  # Story 22.7: the app signs in
         spec["auth"] = {"signIn": "login", "signUp": "register", "login": "auth.login", "me": "auth.me"}
     for op_id in uncovered_operations(spec, contract):
@@ -1161,6 +1235,98 @@ def app_frontend_spec(
     return AppScreens(spec, screens.assumptions, screens.unresolved)
 
 
+PLUGIN_PAGES = frozenset({"AppAuth", "AppPayment"})  # shared by every area: one sign-in, one payment return
+
+
+def _callable(contract: dict[str, Any], roles: list[str]) -> set[str]:
+    """The operations these roles may call (public ones too): the same rules as the kit's access map."""
+    out = set()
+    for op_id, found in contract_operations(contract).items():
+        operation = found["operation"]
+        policy = (operation.get("x-bga") or {}).get("policy") or {}
+        if policy.get("type") == "role" and not set(policy.get("roles") or []) & set(roles):
+            continue
+        out.add(op_id)
+    return out
+
+
+def _renamed(value: Any, ids: dict[str, str], forms: dict[str, str]) -> Any:
+    """A page part with its links to the area's pages and forms renamed (`page`, `form`, `formId` keys)."""
+    if isinstance(value, list):
+        return [_renamed(item, ids, forms) for item in value]
+    if not isinstance(value, dict):
+        return value
+    out = {}
+    for key, item in value.items():
+        if key in ("page", "navigate") and isinstance(item, str) and item in ids:
+            out[key] = ids[item]
+        elif key in ("form", "formId") and isinstance(item, str) and item in forms:
+            out[key] = forms[item]
+        else:
+            out[key] = _renamed(item, ids, forms)
+    return out
+
+
+def _area_screens(
+    backend: dict[str, Any], outline: dict[str, Any], contract: dict[str, Any], name: str, areas: list[dict[str, Any]]
+) -> tuple[Any, list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Story 23.10: each area's screens from the operations its roles may call; the first area at `/`, the others
+    under their prefix with their pages and forms renamed (`<area>-<id>`); sign-in and payment pages once. Every
+    operation must be on a screen of some area whose roles may call it (the coverage check runs on the union)."""
+    from .design import home_entity
+
+    first: _Screens | None = None
+    pages: list[dict[str, Any]] = []
+    forms: list[dict[str, Any]] = []
+    navigation: list[dict[str, Any]] = []
+    shared: set[str] = set()
+    for index, area in enumerate(areas):
+        design = area.get("design") or {}
+        allowed = _callable(contract, area.get("roles") or [])
+        entities = {item.get("entity") for item in outline.get("nav") or []}
+        listed = {
+            entity for entity in entities
+            if any(f"{entity[:1].lower()}{entity[1:]}.list" == op_id for op_id in allowed)
+        }  # fmt: skip
+        area_outline = {
+            **outline,
+            "home": home_entity(design) or "dashboard",
+            "nav": [item for item in outline.get("nav") or [] if item.get("entity") in listed] or outline.get("nav"),
+        }
+        screens = _Screens(backend, area_outline, contract, allowed)
+        built = screens.build(name)
+        if index == 0:
+            first = screens
+            shared = {page["id"] for page in built if any(s.get("component") in PLUGIN_PAGES for s in page["sections"])}
+            pages += built
+            forms += screens.forms
+            navigation += [{"label": item["label"][:60], "page": item["page"]} for item in screens.nav]
+            continue
+        prefix = area["prefix"].rstrip("/")
+        own = [page for page in built if page["id"] not in shared]
+        ids = {page["id"]: f"{area['id']}-{page['id']}" for page in own}
+        stem = re.sub(r"[^A-Za-z0-9]+", "_", area["id"])  # form ids are identifiers
+        form_ids = {form["id"]: f"{stem}_{form['id']}" for form in screens.forms}
+        for page in own:
+            renamed = _renamed(page, ids, form_ids)
+            renamed["id"] = ids[page["id"]]
+            renamed["route"] = prefix + ("" if page["route"] == "/" else page["route"])
+            pages.append(renamed)
+        used = {s.get("form") for page in own for s in page["sections"]}
+        for form in screens.forms:
+            if form["id"] in used:
+                forms.append({**_renamed(form, ids, form_ids), "id": form_ids[form["id"]]})
+        navigation += [
+            {"label": item["label"][:60], "page": ids.get(item["page"], item["page"])}
+            for item in screens.nav
+            if item["page"] in ids
+        ]
+        first.assumptions += screens.assumptions  # type: ignore[union-attr]
+        first.unresolved += screens.unresolved  # type: ignore[union-attr]
+    pages.sort(key=lambda page: (page["route"] != "/", page["route"]))
+    return first, pages, forms, navigation
+
+
 def _spec(
     name: str,
     project: dict[str, Any],
@@ -1172,7 +1338,13 @@ def _spec(
 ) -> dict[str, Any]:
     spec: dict[str, Any] = {
         "specVersion": SPEC_VERSION,
-        "project": {"name": name, "mode": "dynamic", "flow": "app", **_description(project)},
+        "project": {
+            "name": name,
+            "mode": "dynamic",
+            "flow": "app",
+            **_description(project),
+            **({"locale": app["locale"]} if app.get("locale") else {}),  # Story 23.8
+        },
         "theme": theme,
         "layout": {"shell": "sidebar", "header": {"logoText": name, "navigation": navigation}},
         "app": app,

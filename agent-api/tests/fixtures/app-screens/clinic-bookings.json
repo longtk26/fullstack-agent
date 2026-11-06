@@ -1,0 +1,725 @@
+{
+  "pages": {
+    "/": [
+      {
+        "id": "appointments-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "appointment.list",
+          "fields": [
+            "dentistId",
+            "treatmentId",
+            "startAt",
+            "endAt",
+            "status"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "transition-confirmed",
+          "transition-cancelled",
+          "transition-completed"
+        ]
+      }
+    ],
+    "/appointments": [
+      {
+        "id": "appointments-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "appointment.list",
+          "fields": [
+            "dentistId",
+            "treatmentId",
+            "startAt",
+            "endAt",
+            "status"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "transition-confirmed",
+          "transition-cancelled",
+          "transition-completed"
+        ]
+      }
+    ],
+    "/appointments/[id]": [
+      {
+        "id": "appointments-detail",
+        "component": "AppDetail",
+        "data": {
+          "operationId": "appointment.get",
+          "params": {
+            "id": "$route.id"
+          },
+          "fields": [
+            "dentistId",
+            "treatmentId",
+            "startAt",
+            "endAt",
+            "status",
+            "notes",
+            "patientId",
+            "createdAt"
+          ]
+        },
+        "actions": [
+          "edit",
+          "transition-confirmed",
+          "transition-cancelled",
+          "transition-completed"
+        ]
+      }
+    ],
+    "/appointments/[id]/edit": [
+      {
+        "id": "appointments-edit-form",
+        "component": "AppForm",
+        "form": "appointment_update",
+        "actions": []
+      }
+    ],
+    "/dashboard": [
+      {
+        "id": "figure-1",
+        "component": "AppDashboard",
+        "data": {
+          "operationId": "appointment.countThisWeekOnStartAtWhereStatusConfirmed"
+        },
+        "actions": []
+      },
+      {
+        "id": "figure-2",
+        "component": "AppDashboard",
+        "data": {
+          "operationId": "appointment.countWhereStatusRequested"
+        },
+        "actions": []
+      },
+      {
+        "id": "figure-3",
+        "component": "AppDashboard",
+        "data": {
+          "operationId": "appointment.countThisDayOnStartAt"
+        },
+        "actions": []
+      },
+      {
+        "id": "figure-4",
+        "component": "AppDashboard",
+        "data": {
+          "operationId": "appointment.countByStatus"
+        },
+        "actions": []
+      },
+      {
+        "id": "recent-appointments",
+        "component": "AppList",
+        "data": {
+          "operationId": "appointment.list",
+          "params": {
+            "limit": 5,
+            "sort": "-createdAt"
+          },
+          "fields": [
+            "dentistId",
+            "treatmentId",
+            "startAt"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "transition-confirmed",
+          "transition-cancelled",
+          "transition-completed"
+        ]
+      },
+      {
+        "id": "recent-dentists",
+        "component": "AppList",
+        "data": {
+          "operationId": "dentist.list",
+          "params": {
+            "limit": 5
+          },
+          "fields": [
+            "name",
+            "specialty",
+            "email"
+          ]
+        },
+        "actions": [
+          "view"
+        ]
+      }
+    ],
+    "/dentists": [
+      {
+        "id": "dentists-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "dentist.list",
+          "fields": [
+            "name",
+            "specialty",
+            "email"
+          ]
+        },
+        "actions": [
+          "view"
+        ]
+      }
+    ],
+    "/dentists/[id]": [
+      {
+        "id": "dentists-detail",
+        "component": "AppDetail",
+        "data": {
+          "operationId": "dentist.get",
+          "params": {
+            "id": "$route.id"
+          },
+          "fields": [
+            "photo",
+            "name",
+            "specialty",
+            "bio",
+            "email",
+            "createdAt"
+          ]
+        },
+        "actions": []
+      },
+      {
+        "id": "appointments-tab",
+        "component": "AppList",
+        "data": {
+          "operationId": "appointment.list",
+          "params": {
+            "dentistId": "$route.id"
+          },
+          "fields": [
+            "treatmentId",
+            "startAt",
+            "endAt",
+            "status"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "transition-confirmed",
+          "transition-cancelled",
+          "transition-completed"
+        ]
+      }
+    ],
+    "/dentists/[id]/appointments/new": [
+      {
+        "id": "appointment-create-in-dentist-form",
+        "component": "AppForm",
+        "form": "appointment_create_in_dentist",
+        "actions": []
+      }
+    ],
+    "/front-desk": [
+      {
+        "id": "appointments-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "appointment.list",
+          "fields": [
+            "dentistId",
+            "treatmentId",
+            "startAt",
+            "endAt",
+            "status"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "transition-confirmed",
+          "transition-cancelled",
+          "transition-completed",
+          "delete"
+        ]
+      }
+    ],
+    "/front-desk/appointments": [
+      {
+        "id": "appointments-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "appointment.list",
+          "fields": [
+            "dentistId",
+            "treatmentId",
+            "startAt",
+            "endAt",
+            "status"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "transition-confirmed",
+          "transition-cancelled",
+          "transition-completed",
+          "delete"
+        ]
+      }
+    ],
+    "/front-desk/appointments/[id]": [
+      {
+        "id": "appointments-detail",
+        "component": "AppDetail",
+        "data": {
+          "operationId": "appointment.get",
+          "params": {
+            "id": "$route.id"
+          },
+          "fields": [
+            "dentistId",
+            "treatmentId",
+            "startAt",
+            "endAt",
+            "status",
+            "notes",
+            "patientId",
+            "createdAt"
+          ]
+        },
+        "actions": [
+          "edit",
+          "transition-confirmed",
+          "transition-cancelled",
+          "transition-completed",
+          "delete"
+        ]
+      }
+    ],
+    "/front-desk/appointments/[id]/edit": [
+      {
+        "id": "appointments-edit-form",
+        "component": "AppForm",
+        "form": "front_desk_appointment_update",
+        "actions": []
+      }
+    ],
+    "/front-desk/dashboard": [
+      {
+        "id": "figure-1",
+        "component": "AppDashboard",
+        "data": {
+          "operationId": "appointment.countThisWeekOnStartAtWhereStatusConfirmed"
+        },
+        "actions": []
+      },
+      {
+        "id": "figure-2",
+        "component": "AppDashboard",
+        "data": {
+          "operationId": "appointment.countWhereStatusRequested"
+        },
+        "actions": []
+      },
+      {
+        "id": "figure-3",
+        "component": "AppDashboard",
+        "data": {
+          "operationId": "appointment.countThisDayOnStartAt"
+        },
+        "actions": []
+      },
+      {
+        "id": "figure-4",
+        "component": "AppDashboard",
+        "data": {
+          "operationId": "appointment.countByStatus"
+        },
+        "actions": []
+      },
+      {
+        "id": "recent-appointments",
+        "component": "AppList",
+        "data": {
+          "operationId": "appointment.list",
+          "params": {
+            "limit": 5,
+            "sort": "-createdAt"
+          },
+          "fields": [
+            "dentistId",
+            "treatmentId",
+            "startAt"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "transition-confirmed",
+          "transition-cancelled",
+          "transition-completed",
+          "delete"
+        ]
+      },
+      {
+        "id": "recent-dentists",
+        "component": "AppList",
+        "data": {
+          "operationId": "dentist.list",
+          "params": {
+            "limit": 5
+          },
+          "fields": [
+            "name",
+            "specialty",
+            "email"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "delete"
+        ]
+      }
+    ],
+    "/front-desk/dentists": [
+      {
+        "id": "dentists-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "dentist.list",
+          "fields": [
+            "name",
+            "specialty",
+            "email"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "delete"
+        ]
+      }
+    ],
+    "/front-desk/dentists/[id]": [
+      {
+        "id": "dentists-detail",
+        "component": "AppDetail",
+        "data": {
+          "operationId": "dentist.get",
+          "params": {
+            "id": "$route.id"
+          },
+          "fields": [
+            "photo",
+            "name",
+            "specialty",
+            "bio",
+            "email",
+            "createdAt"
+          ]
+        },
+        "actions": [
+          "edit",
+          "delete"
+        ]
+      },
+      {
+        "id": "appointments-tab",
+        "component": "AppList",
+        "data": {
+          "operationId": "appointment.list",
+          "params": {
+            "dentistId": "$route.id"
+          },
+          "fields": [
+            "treatmentId",
+            "startAt",
+            "endAt",
+            "status"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "transition-confirmed",
+          "transition-cancelled",
+          "transition-completed",
+          "delete"
+        ]
+      }
+    ],
+    "/front-desk/dentists/[id]/appointments/new": [
+      {
+        "id": "appointment-create-in-dentist-form",
+        "component": "AppForm",
+        "form": "front_desk_appointment_create_in_dentist",
+        "actions": []
+      }
+    ],
+    "/front-desk/dentists/[id]/edit": [
+      {
+        "id": "dentists-edit-form",
+        "component": "AppForm",
+        "form": "front_desk_dentist_update",
+        "actions": []
+      }
+    ],
+    "/front-desk/dentists/new": [
+      {
+        "id": "dentist-create-form",
+        "component": "AppForm",
+        "form": "front_desk_dentist_create",
+        "actions": []
+      }
+    ],
+    "/front-desk/treatments": [
+      {
+        "id": "treatments-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "treatment.list",
+          "fields": [
+            "name",
+            "durationMinutes",
+            "price"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "delete"
+        ]
+      }
+    ],
+    "/front-desk/treatments/[id]": [
+      {
+        "id": "treatments-detail",
+        "component": "AppDetail",
+        "data": {
+          "operationId": "treatment.get",
+          "params": {
+            "id": "$route.id"
+          },
+          "fields": [
+            "name",
+            "durationMinutes",
+            "price",
+            "description",
+            "createdAt"
+          ]
+        },
+        "actions": [
+          "edit",
+          "delete"
+        ]
+      }
+    ],
+    "/front-desk/treatments/[id]/edit": [
+      {
+        "id": "treatments-edit-form",
+        "component": "AppForm",
+        "form": "front_desk_treatment_update",
+        "actions": []
+      }
+    ],
+    "/front-desk/treatments/new": [
+      {
+        "id": "treatment-create-form",
+        "component": "AppForm",
+        "form": "front_desk_treatment_create",
+        "actions": []
+      }
+    ],
+    "/login": [
+      {
+        "id": "login",
+        "component": "AppAuth",
+        "form": "auth_login",
+        "actions": []
+      }
+    ],
+    "/register": [
+      {
+        "id": "register",
+        "component": "AppAuth",
+        "form": "auth_register",
+        "actions": []
+      }
+    ],
+    "/treatments": [
+      {
+        "id": "treatments-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "treatment.list",
+          "fields": [
+            "name",
+            "durationMinutes",
+            "price"
+          ]
+        },
+        "actions": [
+          "view"
+        ]
+      }
+    ],
+    "/treatments/[id]": [
+      {
+        "id": "treatments-detail",
+        "component": "AppDetail",
+        "data": {
+          "operationId": "treatment.get",
+          "params": {
+            "id": "$route.id"
+          },
+          "fields": [
+            "name",
+            "durationMinutes",
+            "price",
+            "description",
+            "createdAt"
+          ]
+        },
+        "actions": []
+      }
+    ]
+  },
+  "forms": {
+    "appointment_create_in_dentist": {
+      "operationId": "appointment.create",
+      "fields": [
+        "dentistId=$route.id",
+        "treatmentId",
+        "startAt",
+        "endAt",
+        "notes"
+      ]
+    },
+    "appointment_update": {
+      "operationId": "appointment.update",
+      "fields": [
+        "dentistId",
+        "treatmentId",
+        "startAt",
+        "endAt",
+        "status",
+        "notes"
+      ]
+    },
+    "auth_login": {
+      "operationId": "auth.login",
+      "fields": [
+        "email",
+        "password"
+      ]
+    },
+    "auth_register": {
+      "operationId": "auth.register",
+      "fields": [
+        "email",
+        "password"
+      ]
+    },
+    "front_desk_dentist_create": {
+      "operationId": "dentist.create",
+      "fields": [
+        "name",
+        "specialty",
+        "photo",
+        "bio",
+        "email"
+      ]
+    },
+    "front_desk_dentist_update": {
+      "operationId": "dentist.update",
+      "fields": [
+        "name",
+        "specialty",
+        "photo",
+        "bio",
+        "email"
+      ]
+    },
+    "front_desk_treatment_create": {
+      "operationId": "treatment.create",
+      "fields": [
+        "name",
+        "description",
+        "durationMinutes",
+        "price"
+      ]
+    },
+    "front_desk_treatment_update": {
+      "operationId": "treatment.update",
+      "fields": [
+        "name",
+        "description",
+        "durationMinutes",
+        "price"
+      ]
+    },
+    "front_desk_appointment_create_in_dentist": {
+      "operationId": "appointment.create",
+      "fields": [
+        "dentistId=$route.id",
+        "treatmentId",
+        "startAt",
+        "endAt",
+        "notes"
+      ]
+    },
+    "front_desk_appointment_update": {
+      "operationId": "appointment.update",
+      "fields": [
+        "dentistId",
+        "treatmentId",
+        "startAt",
+        "endAt",
+        "status",
+        "notes"
+      ]
+    }
+  },
+  "navigation": [
+    {
+      "label": "Appointments",
+      "page": "appointments"
+    },
+    {
+      "label": "Dentists",
+      "page": "dentists"
+    },
+    {
+      "label": "Treatments",
+      "page": "treatments"
+    },
+    {
+      "label": "Dashboard",
+      "page": "dashboard"
+    },
+    {
+      "label": "Appointments",
+      "page": "front-desk-appointments"
+    },
+    {
+      "label": "Dentists",
+      "page": "front-desk-dentists"
+    },
+    {
+      "label": "Treatments",
+      "page": "front-desk-treatments"
+    },
+    {
+      "label": "Dashboard",
+      "page": "front-desk-dashboard"
+    }
+  ]
+}

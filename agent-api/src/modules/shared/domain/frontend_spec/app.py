@@ -83,6 +83,85 @@ class AppLanding(SpecModel):
     cta: str | None = Field(default=None, max_length=40)
 
 
+# -- Epic 23: the design space (how the app is presented; code checks every choice against the contract) -----------
+
+Archetype = Literal["back-office", "catalogue", "feed", "workspace", "booking", "learning", "storefront"]
+Shell = Literal["sidebar", "topbar", "topbar-tabs", "rail"]
+MobileNav = Literal["drawer", "bottom-tabs"]
+Frame = Literal["narrow", "standard", "wide", "full"]
+Density = Literal["compact", "comfortable", "spacious"]
+HomeView = Literal["dashboard", "feed", "catalogue", "agenda", "bento"]
+ListView = Literal["table", "cards", "media-grid", "feed", "board", "calendar"]
+DetailView = Literal["record", "media", "profile"]
+FiltersStyle = Literal["toolbar", "chips", "facets", "search-first"]
+Recipe = Literal[
+    "minimal", "swiss", "material", "enterprise", "soft", "clay",
+    "glass", "aurora", "brutalist", "neon", "playful", "editorial",
+]  # fmt: skip
+FieldName = Annotated[str, Field(pattern=IDENTIFIER, max_length=63)]
+MAX_META = 3  # short fields on a card's meta line
+
+
+class AppFieldRoles(SpecModel):
+    """Which field plays which part on a card or a row (Story 23.3); code checks each against the field's type."""
+
+    media: FieldName | None = None  # an image
+    title: FieldName | None = None
+    subtitle: FieldName | None = None
+    meta: list[FieldName] = Field(default=[], max_length=MAX_META)  # a date, a duration, a source
+    badge: FieldName | None = None  # a status or a category
+    stat: FieldName | None = None  # a count: views, upvotes
+    price: FieldName | None = None
+    avatar: FieldName | None = None  # a small image of who or what the record is from
+
+
+class AppEntityDesign(SpecModel):
+    """How one entity's records are shown (Stories 23.3–23.5)."""
+
+    view: ListView | None = None
+    detail_view: DetailView | None = None
+    roles: AppFieldRoles = AppFieldRoles()
+    filters_style: FiltersStyle | None = None
+    group_by: FieldName | None = None  # a board's column field (a status)
+    date_field: FieldName | None = None  # a calendar's or an agenda's date
+    end_field: FieldName | None = None  # a calendar's end
+
+
+class AppLook(SpecModel):
+    """One look the user can pick (Story 23.7): a style recipe and why it fits."""
+
+    recipe: Recipe
+    reason: str | None = Field(default=None, max_length=200)
+
+
+class AppDesign(SpecModel):
+    """The design brief (Epic 23): the model chooses from these values, code checks them against the contract and
+    replaces what does not fit (`replaced`, one line each)."""
+
+    archetype: Archetype | None = None
+    shell: Shell | None = None
+    mobile_nav: MobileNav | None = None
+    frame: Frame | None = None
+    density: Density | None = None
+    home_view: HomeView | None = None
+    main_entity: Annotated[str, Field(pattern=ENTITY_NAME, max_length=63)] | None = None
+    entities: dict[str, AppEntityDesign] = {}
+    looks: list[AppLook] = Field(default=[], max_length=3)
+    recipe: Recipe | None = None  # the look the user picked in the review (Story 23.7); none: the first look
+    reason: str | None = Field(default=None, max_length=300)
+    replaced: list[str] = []
+
+
+class AppArea(SpecModel):
+    """A group of roles with its own layout (Story 23.10): its own routes (`prefix`), shell, home and views."""
+
+    id: Annotated[str, Field(pattern=r"^[a-z][a-z0-9-]*$", max_length=40)]
+    label: str = Field(min_length=1, max_length=40)
+    roles: list[str] = Field(min_length=1)
+    prefix: str = Field(default="/", pattern=r"^/[a-z0-9-]*$", max_length=40)
+    design: AppDesign = AppDesign()
+
+
 class AppOutline(SpecModel):
     """What the app is, as the model drafts it: entities, navigation, labels and figures, never layout, routes,
     operations or parameters (code binds every screen, Story 22.3)."""
@@ -95,6 +174,10 @@ class AppOutline(SpecModel):
     entities: dict[str, AppEntity] = {}  # by entity name; unknown names are dropped by code
     dashboard: list[AppDashboardItem] = Field(default=[], max_length=MAX_DASHBOARD)
     landing: AppLanding | None = None
+    design: AppDesign | None = None  # Epic 23: how the app is presented
+    # Story 23.8: the language of the app's labels and the kit's own strings (`en`, `ja`); none: English
+    locale: Annotated[str, Field(pattern=r"^[a-z]{2}(-[A-Z]{2})?$")] | None = None
+    areas: list[AppArea] = []  # Story 23.10: a layout per group of roles; none: one area
 
 
 def is_app_spec(spec: dict[str, Any]) -> bool:
@@ -118,6 +201,25 @@ _APP_ONLY_DEFS = (
     "FormFieldReference",
     "FormFieldUpload",
 )
+DESIGN_DEFS = ("AppDesign", "AppEntityDesign", "AppFieldRoles", "AppLook", "AppArea")  # Epic 23
+_APP_ONLY_DEFS += DESIGN_DEFS
+# Epic 23: the outline's parts the `draft_app@v2` prompt does not explain; its outline digest and answer schema leave
+# them out, so v2 reads as before (`draft_app@v3` asks for them).
+DESIGN_PARTS = ("design", "areas")
+
+
+def outline_schema(design: bool = True) -> dict[str, Any]:
+    """The AppOutline JSON schema (camelCase), without the design parts unless asked."""
+    schema = AppOutline.model_json_schema(by_alias=True)
+    if design:
+        return schema
+    out = {**schema, "properties": {k: v for k, v in schema["properties"].items() if k not in DESIGN_PARTS}}
+    defs = {k: v for k, v in (schema.get("$defs") or {}).items() if k not in DESIGN_DEFS}
+    if defs:
+        out["$defs"] = defs
+    else:
+        out.pop("$defs", None)
+    return out
 
 
 def site_schema(schema: dict[str, Any]) -> dict[str, Any]:

@@ -36,6 +36,8 @@ type TMockOperation = {
   primaryKey: string;
   status: number;
   filters: string[];
+  /** Story 23.4: a range's parameters (`<field>From`, `<field>To`) → the field and the bound. */
+  ranges?: Record<string, { field: string; bound: "gte" | "lte" }>;
   sort: string[];
   search: boolean;
   defaultLimit: number;
@@ -172,7 +174,16 @@ function list(op: TMockOperation, url: URL, params: Record<string, unknown> = {}
   }
   for (const [name, value] of url.searchParams.entries()) {
     if (!value || ["limit", "offset", "sort", "q"].includes(name)) continue;
-    if (name.endsWith("Before")) {
+    const range = op.ranges?.[name];
+    if (range) {
+      // Story 23.4: a date range, inclusive; a date bound covers its whole day for a datetime value
+      items = items.filter((item) => {
+        const v = item[range.field];
+        if (v === undefined || v === null) return false;
+        const text = String(v);
+        return range.bound === "gte" ? text >= value : text.slice(0, value.length) <= value;
+      });
+    } else if (name.endsWith("Before")) {
       const field = name.slice(0, -"Before".length);
       items = items.filter((item) => {
         const v = item[field];
@@ -288,7 +299,10 @@ function handler(op: TMockOperation): HttpHandler {
     }
     if (op.action === "create" || op.mock === "create") {
       const body = ((await request.json().catch(() => ({}))) || {}) as TRecord;
-      const refusal = refused(op, body, true) ?? ruleRefusal(op, null, body, records);
+      // the rules see the owner the server sets from the session, as the backend's do (a pair with the signed-in user)
+      const owned = { ...body };
+      stamp(op.entity, op.entity ? presentation[op.entity] : undefined, user, owned);
+      const refusal = refused(op, body, true) ?? ruleRefusal(op, null, owned, records);
       if (refusal) return refusal;
       const created = { [op.primaryKey]: newId(op.entity, op.primaryKey), createdAt: new Date().toISOString(), ...defaults(op.entity), ...body };
       stamp(op.entity, op.entity ? presentation[op.entity] : undefined, user, created);

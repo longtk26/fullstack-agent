@@ -1,0 +1,268 @@
+{
+  "name": "Bright Smile Clinic",
+  "tagline": "Modern dental care with seamless online appointment booking",
+  "icon": "Smile",
+  "nav": [
+    {
+      "entity": "Appointment",
+      "label": "Appointments",
+      "icon": "CalendarDays"
+    },
+    {
+      "entity": "Dentist",
+      "label": "Dentists",
+      "icon": "UserCheck"
+    },
+    {
+      "entity": "Treatment",
+      "label": "Treatments",
+      "icon": "Sparkles"
+    }
+  ],
+  "home": "Appointment",
+  "dashboard": [
+    {
+      "label": "Upcoming appointments this week",
+      "entity": "Appointment",
+      "fn": "count",
+      "period": "week",
+      "dateField": "startAt",
+      "filter": {
+        "status": "CONFIRMED"
+      }
+    },
+    {
+      "label": "New requests to review",
+      "entity": "Appointment",
+      "fn": "count",
+      "filter": {
+        "status": "REQUESTED"
+      }
+    },
+    {
+      "label": "Appointments today",
+      "entity": "Appointment",
+      "fn": "count",
+      "period": "day",
+      "dateField": "startAt"
+    },
+    {
+      "label": "Appointments by status",
+      "kind": "pie",
+      "entity": "Appointment",
+      "fn": "count",
+      "groupBy": "status"
+    }
+  ],
+  "entities": {
+    "Dentist": {
+      "label": "Dentist",
+      "plural": "Dentists",
+      "displayField": "name",
+      "listFields": [
+        "name",
+        "specialty",
+        "email"
+      ],
+      "listStyle": "cards",
+      "detailFields": [
+        "photo",
+        "name",
+        "specialty",
+        "bio",
+        "email"
+      ],
+      "fieldLabels": {
+        "name": "Dentist Name",
+        "specialty": "Speciality",
+        "photo": "Photo",
+        "bio": "Biography",
+        "email": "Contact Email"
+      }
+    },
+    "Treatment": {
+      "label": "Treatment",
+      "plural": "Treatments",
+      "displayField": "name",
+      "listFields": [
+        "name",
+        "durationMinutes",
+        "price"
+      ],
+      "listStyle": "cards",
+      "detailFields": [
+        "name",
+        "durationMinutes",
+        "price",
+        "description"
+      ],
+      "fieldLabels": {
+        "name": "Treatment",
+        "durationMinutes": "Duration (min)",
+        "price": "Fee ($)",
+        "description": "Details"
+      }
+    },
+    "Appointment": {
+      "label": "Appointment",
+      "plural": "Appointments",
+      "displayField": "startAt",
+      "listFields": [
+        "dentistId",
+        "treatmentId",
+        "startAt",
+        "endAt",
+        "status"
+      ],
+      "listStyle": "table",
+      "detailFields": [
+        "dentistId",
+        "treatmentId",
+        "startAt",
+        "endAt",
+        "status",
+        "notes"
+      ],
+      "fieldLabels": {
+        "dentistId": "Dentist",
+        "treatmentId": "Treatment",
+        "startAt": "Start Time",
+        "endAt": "End Time",
+        "status": "Status",
+        "notes": "Notes"
+      },
+      "help": {
+        "status": "Appointments are requested, confirmed or cancelled by front desk, and marked completed after the visit."
+      }
+    }
+  },
+  "design": {
+    "archetype": "booking",
+    "shell": "sidebar",
+    "mobileNav": "bottom-tabs",
+    "homeView": "agenda",
+    "mainEntity": "Appointment",
+    "entities": {
+      "Appointment": {
+        "view": "calendar",
+        "roles": {
+          "title": "treatmentId",
+          "subtitle": "dentistId",
+          "meta": "startAt",
+          "badge": "status"
+        }
+      },
+      "Dentist": {
+        "view": "media-grid",
+        "roles": {
+          "media": "photo",
+          "title": "name",
+          "subtitle": "specialty"
+        }
+      },
+      "Treatment": {
+        "view": "cards",
+        "roles": {
+          "title": "name",
+          "meta": "durationMinutes",
+          "price": "price"
+        }
+      }
+    },
+    "looks": [
+      {
+        "recipe": "minimal",
+        "reason": "Clean, hygienic, and distraction-free visual aesthetic suited for a healthcare clinic."
+      },
+      {
+        "recipe": "swiss",
+        "reason": "Structured typographic grid offering clear legibility for calendar schedules and medical appointment slots."
+      },
+      {
+        "recipe": "soft",
+        "reason": "Friendly, approachable feel that eases patient dental anxiety while maintaining professional clinical structure."
+      }
+    ],
+    "reason": "The clinic centers on booking time slots and preventing double bookings across dentists, fitting the booking archetype with agenda and calendar views."
+  },
+  "areas": [
+    {
+      "id": "front_desk",
+      "label": "Front Desk",
+      "roles": [
+        "front_desk"
+      ],
+      "archetype": "booking",
+      "shell": "sidebar",
+      "mobileNav": "bottom-tabs",
+      "homeView": "agenda",
+      "mainEntity": "Appointment",
+      "entities": {
+        "Appointment": {
+          "view": "calendar",
+          "roles": {
+            "title": "treatmentId",
+            "subtitle": "dentistId",
+            "meta": "startAt",
+            "badge": "status"
+          }
+        },
+        "Dentist": {
+          "view": "table",
+          "roles": {
+            "title": "name",
+            "subtitle": "specialty",
+            "avatar": "photo"
+          }
+        },
+        "Treatment": {
+          "view": "table",
+          "roles": {
+            "title": "name",
+            "meta": "durationMinutes",
+            "price": "price"
+          }
+        }
+      }
+    },
+    {
+      "id": "patient",
+      "label": "Patient Portal",
+      "roles": [
+        "patient"
+      ],
+      "archetype": "booking",
+      "shell": "topbar",
+      "mobileNav": "bottom-tabs",
+      "homeView": "catalogue",
+      "mainEntity": "Appointment",
+      "entities": {
+        "Appointment": {
+          "view": "cards",
+          "roles": {
+            "title": "treatmentId",
+            "subtitle": "dentistId",
+            "meta": "startAt",
+            "badge": "status"
+          }
+        },
+        "Dentist": {
+          "view": "media-grid",
+          "roles": {
+            "media": "photo",
+            "title": "name",
+            "subtitle": "specialty"
+          }
+        },
+        "Treatment": {
+          "view": "cards",
+          "roles": {
+            "title": "name",
+            "meta": "durationMinutes",
+            "price": "price"
+          }
+        }
+      }
+    }
+  ]
+}

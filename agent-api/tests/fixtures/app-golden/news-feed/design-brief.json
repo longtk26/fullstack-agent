@@ -1,0 +1,58 @@
+{
+  "archetype": "feed",
+  "shell": "topbar",
+  "mobileNav": "bottom-tabs",
+  "homeView": "feed",
+  "mainEntity": "Post",
+  "entities": {
+    "Post": {
+      "view": "feed",
+      "roles": {
+        "title": "title",
+        "subtitle": "summary",
+        "meta": "publishedAt",
+        "badge": "sourceId",
+        "stat": "upvoteCount",
+        "media": "coverImage"
+      }
+    },
+    "Bookmark": {
+      "view": "cards",
+      "roles": {
+        "title": "postId",
+        "meta": "createdAt"
+      }
+    },
+    "Source": {
+      "view": "cards",
+      "roles": {
+        "title": "name",
+        "subtitle": "description",
+        "avatar": "logo",
+        "meta": "website"
+      }
+    },
+    "Tag": {
+      "view": "table",
+      "roles": {
+        "title": "name",
+        "subtitle": "description"
+      }
+    }
+  },
+  "looks": [
+    {
+      "recipe": "minimal",
+      "reason": "High-density clean typography optimizes reading speed and scanning across technical headlines."
+    },
+    {
+      "recipe": "editorial",
+      "reason": "Publication-inspired layout gives engineering blogs and summaries an authoritative magazine feel."
+    },
+    {
+      "recipe": "swiss",
+      "reason": "Crisp grids, high contrast, and neutral surfaces fit technical documentation and news feeds."
+    }
+  ],
+  "reason": "DevPulse is focused on content consumption where engineers scan chronological headlines, filter sources, and bookmark articles."
+}

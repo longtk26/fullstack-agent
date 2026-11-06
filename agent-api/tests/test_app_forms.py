@@ -151,7 +151,9 @@ def test_no_form_field_is_a_native_date_input_and_each_kind_has_its_component():
     choice = (KIT / "form/ChoiceField.tsx").read_text()
     assert "<Select" in choice and "<RadioGroup" in choice and "<ToggleGroup" in choice
     inputs = (KIT / "form/InputFields.tsx").read_text()
-    assert "Show password" in inputs and "{text.length} / {field.maxLength}" in inputs and "InputGroupAddon" in inputs
+    assert (
+        't("showPassword")' in inputs and "{text.length} / {field.maxLength}" in inputs and "InputGroupAddon" in inputs
+    )
 
 
 def test_every_app_form_has_a_zod_schema_with_the_contracts_types(venue):

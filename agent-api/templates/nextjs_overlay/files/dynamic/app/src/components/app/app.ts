@@ -20,7 +20,14 @@ export type TAppAction = {
 
 export type TAppLink = { page: string; label: string; params?: Record<string, unknown> };
 
-export type TListControls = { search?: boolean; filters?: string[]; sort?: string[] };
+export type TListControls = {
+  search?: boolean;
+  filters?: string[];
+  sort?: string[];
+  /** Story 23.4: a date range per date field (`<field>From`, `<field>To`) and what one call may load. */
+  ranges?: { field: string; from: string; to: string }[];
+  maxLimit?: number;
+};
 
 /** A section's content as the screen planner writes it; each component reads its part. */
 export type TAppContent = {
@@ -92,6 +99,8 @@ export type TAppEntity = {
   list?: string | null;
   /** The list operation that names this entity's records (a parent's name in a chart, a picker in 22.6). */
   listOperation?: string | null;
+  /** Story 23.9: `roles` (and signed-out callers) see only the records where `where` holds; the backend decides. */
+  visibility?: { roles: string[]; where: Record<string, unknown> };
 };
 
 export type TFormField = {
@@ -153,12 +162,54 @@ export type TAppAuth = {
 /** Story 22.7: who may call an operation: signed in, and the roles of a role policy. */
 export type TAccess = { secured: boolean; roles?: string[] };
 
+/** Epic 23: which field plays which part on a card or a row. */
+export type TFieldRoles = {
+  media?: string;
+  title?: string;
+  subtitle?: string;
+  meta?: string[];
+  badge?: string;
+  stat?: string;
+  price?: string;
+  avatar?: string;
+};
+
+export type TListView = "table" | "cards" | "media-grid" | "feed" | "board" | "calendar";
+
+/** Epic 23: how one entity's records are shown. */
+export type TEntityDesign = {
+  view: TListView;
+  roles: TFieldRoles;
+  detailView?: "record" | "media" | "profile";
+  filtersStyle?: "toolbar" | "chips" | "facets" | "search-first";
+  groupBy?: string;
+  dateField?: string;
+  endField?: string;
+};
+
+/** Epic 23: one layout (the app's, or an area's): the frame, the home and the entities' views. */
+export type TDesign = {
+  archetype: string;
+  shell: "sidebar" | "topbar" | "topbar-tabs" | "rail";
+  mobileNav: "drawer" | "bottom-tabs";
+  frame: "narrow" | "standard" | "wide" | "full";
+  density?: "compact" | "comfortable" | "spacious";
+  homeView: "dashboard" | "feed" | "catalogue" | "agenda" | "bento";
+  mainEntity: string | null;
+  entities: Record<string, TEntityDesign>;
+  looks: { recipe: string; reason?: string }[];
+  recipe?: string;
+};
+
+/** Story 23.10: a group of roles with its own routes (`prefix`) and layout. */
+export type TArea = { id: string; label: string; roles: string[]; prefix: string; design: Partial<TDesign> };
+
 export type TApp = {
   name: string;
   tagline: string | null;
   icon: string;
   home: string;
-  density: "compact" | "comfortable";
+  density: "compact" | "comfortable" | "spacious";
   locale: string;
   nav: TAppNavItem[];
   pages: Record<string, TAppPage>;
@@ -168,6 +219,8 @@ export type TApp = {
   errors: Record<string, TAppError[]>;
   auth: TAppAuth | null;
   access: Record<string, TAccess>;
+  design: TDesign;
+  areas: TArea[];
 };
 
 export type TRecord = Record<string, unknown> & { id?: unknown; allowedActions?: string[] };

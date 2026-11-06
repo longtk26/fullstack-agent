@@ -30,6 +30,7 @@ import { useOperationMutation } from "./bindings";
 import { AppFormBody } from "./AppForm";
 import { errorMessage } from "./errors";
 import { PayAction } from "./plugins";
+import { t } from "./messages";
 
 /** A mutation action: confirms first when it says so, opens its form in a dialog when it has one (Story 22.3). */
 function useAction(action: TAppAction, record: TRecord | undefined, onClose?: () => void) {
@@ -80,7 +81,7 @@ function useAction(action: TAppAction, record: TRecord | undefined, onClose?: ()
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
               <AlertDialogAction variant={action.variant === "destructive" ? "destructive" : "default"} onClick={run}>
                 {action.label}
               </AlertDialogAction>
@@ -185,7 +186,7 @@ export function RowActions({ actions, record, label }: { actions: TAppAction[]; 
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
-            <Button variant="ghost" size="icon-sm" aria-label={`Actions for ${label}`}>
+            <Button variant="ghost" size="icon-sm" aria-label={t("actionsFor", { name: label })}>
               <MoreHorizontal aria-hidden />
             </Button>
           }

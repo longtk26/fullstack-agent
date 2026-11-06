@@ -86,6 +86,46 @@ def _prompt(inline: bool) -> str:
     return PromptLibrary().render("draft_app", "v2", **context).text
 
 
+def _prompt_v3(inline: bool, requirement: str) -> str:
+    from src.orchestrator.drafting.app import product_rows
+    from src.orchestrator.frontend.app.design import archetype_candidates
+    from src.orchestrator.frontend.app.recipes import recommended_looks, style_words
+
+    rows = product_rows(requirement)
+    context = {
+        "requirement_text": requirement,
+        "requirement_format": "text",
+        "backend_schema_path": ".bga/backend-spec.schema.json",
+        "backend_schema_digest_path": ".bga/backend-spec.schema.md",
+        "backend_example_path": ".bga/examples/backend-spec.json",
+        "output_backend_path": "backend-spec.json",
+        "notes_path": "notes.json",
+        "inline": inline,
+        "archetype_candidates": ", ".join(archetype_candidates(requirement, [r["Product Type"] for r in rows])),
+        "recommended_looks": recommended_looks(rows),
+        "style_words": style_words(requirement),
+        **app_inputs(EXAMPLES, design=True),
+    }
+    if inline:
+        context |= {"backend_schema_digest": "<BackendSpec digest>", "backend_example": "{}"}
+    return PromptLibrary().render("draft_app", "v3", **context).text
+
+
+def test_draft_app_v3_prompt_asks_for_the_brief():
+    """Story 23.6: the design brief, areas, code's candidates, the data's looks and the requirement's own words."""
+    requirement = "A video library for our training videos, in channels. Make it feel like liquid glass."
+    for inline in (False, True):
+        text = _prompt_v3(inline, requirement)
+        _snapshot(f"draft_app.v3{'.inline' if inline else ''}.md", text)
+        assert "type AppDesign = {" in text and "type AppArea = {" in text
+        assert "## The design brief" in text and "## Areas" in text
+        assert "Code ranked these for this requirement: catalogue" in text
+        assert "**The requirement asks for glass: the first look must be that.**" in text
+        assert text.count("DevPulse, a news feed") == 1 and text.count("Gather, event ticketing") == 1
+    plain = _prompt_v3(False, "A reading log: books I read, with a rating and notes.")
+    assert "The requirement asks for" not in plain
+
+
 def test_draft_app_prompt_snapshots():
     """The prompt carries the outline digest and both examples, and no layout, colour or font instructions."""
     for inline in (False, True):
@@ -194,7 +234,7 @@ def test_an_app_draft_is_one_call_and_bad_outlines_cost_no_repair(
     }
     draft = _draft(client, user_headers, tmp_path, "Vocabulary decks to learn new words", scenario)
     assert draft["status"] == "SUCCEEDED", draft["validation"]
-    assert [call["prompt"] for call in draft["usage"]["calls"]] == ["draft_app@v2"]
+    assert [call["prompt"] for call in draft["usage"]["calls"]] == ["draft_app@v3"]
     messages = {note["path"]: note["message"] for note in draft["assumptions"]}
     assert messages["/app/nav"] == "Decks first", "the model's own notes point into the FrontendSpec"
     assert "names no entity" in messages["/app/nav/0"] and "/app/entities/Card/listStyle" in messages
@@ -211,7 +251,7 @@ def test_an_invalid_backend_spec_gets_one_repair(client, user_headers, tmp_path,
     }
     draft = _draft(client, user_headers, tmp_path, "A team's projects and their tasks", scenario)
     assert draft["status"] == "SUCCEEDED", draft["validation"]
-    assert [call["prompt"] for call in draft["usage"]["calls"]] == ["draft_app@v2", "repair_spec@v3"]
+    assert [call["prompt"] for call in draft["usage"]["calls"]] == ["draft_app@v3", "repair_spec@v3"]
     assert draft["frontend_spec"]["app"]["tagline"] == "Projects and their tasks, in one place"
 
 
@@ -244,7 +284,7 @@ def test_a_real_antigravity_draft_becomes_an_app(client, user_headers, tmp_path,
         {"draft_app": [FakeStep(write=files)]},
     )
     assert draft["status"] == "SUCCEEDED", draft["validation"]
-    assert [call["prompt"] for call in draft["usage"]["calls"]] == ["draft_app@v2"], "no repair round"
+    assert [call["prompt"] for call in draft["usage"]["calls"]] == ["draft_app@v3"], "no repair round"
     assert any("default 'today' is written 'now'" in note["message"] for note in draft["assumptions"])
     assert draft["validation"]["pair"]["errors"] == [] and draft["validation"]["pair"]["warnings"] == []
     spec = draft["frontend_spec"]

@@ -143,6 +143,8 @@ class GeminiApiEngine(ICodeEngine):
             if on_event is not None:
                 await on_event(EngineEvent(kind=kind, summary=summary, data=data))
 
+        schema = request.response_schema  # read by `finish`: dropped below if the API refuses it
+
         def finish(
             status: EngineStatus,
             reason: EngineErrorReason | None = None,
@@ -153,6 +155,7 @@ class GeminiApiEngine(ICodeEngine):
             self._cancels.pop(request.invocation_id, None)
             self._requests.pop(request.invocation_id, None)
             return EngineResult(
+                structured=None if request.response_schema is None else schema is not None,
                 invocation_id=request.invocation_id,
                 engine=self.name,
                 purpose=request.purpose,

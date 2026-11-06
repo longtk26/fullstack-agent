@@ -18,16 +18,19 @@ from src.engines.prompts import PromptLibrary
 from src.modules.shared.domain.backend_spec import validate_spec_data
 from src.modules.shared.domain.entities import SpecDraftEntity
 from src.modules.shared.domain.enums import GenerationMode
-from src.modules.shared.domain.frontend_spec.app import AppOutline
+from src.modules.shared.domain.frontend_spec.app import outline_schema
 from src.modules.shared.domain.schema_digest import schema_digest
 
 from ..backend.planner import build_plan
+from ..frontend.app.design import archetype_candidates, archetype_for, design_notes
 from ..frontend.app.outline import complete_outline
+from ..frontend.app.recipes import complete_looks, recommended_looks, style_words
 from ..frontend.app.screens import app_frontend_spec, ensure_aggregates
+from ..frontend.app.typesetting import locale_of
 from ..integration.contract import build_contract
 from .answer_schema import app_answer_schema
 
-PROMPT = ("draft_app", "v2")  # v2 (Story 22.8): sign-in, roles and the plugins' features
+PROMPT = ("draft_app", "v3")  # v3 (Story 23.6): the design brief and areas; v2 (22.8): sign-in, roles, plugins
 OUTLINE_FILE = "app-outline.json"  # what the model drafts next to the BackendSpec (code folds it into the FrontendSpec)
 # Outline examples shown in the prompt, relative to EXAMPLES_DIR; they fit `specs/flashcards.json`,
 # `specs/two-entity.json` and `specs/workshop-bookings.json` (the fake engine drafts from them too).
@@ -36,6 +39,13 @@ OUTLINE_EXAMPLES = {
     "Project tracker (projects and their tasks)": "app-outlines/project-tracker.json",
     "Workshop bookings (sign-in, roles, own bookings, a status flow, seats, a cover image, payment, tags)": (
         "app-outlines/workshop-bookings.json"
+    ),
+}
+# Story 23.6: outlines with a design brief (real drafts of Story 23.0), shown by `draft_app@v3` after the others.
+DESIGN_EXAMPLES = {
+    "DevPulse, a news feed for developers (a feed home, posts as a feed, a top bar)": "app-outlines/news-feed.json",
+    "Gather, event ticketing (attendees browse a catalogue, organizers run a back office: two areas)": (
+        "app-outlines/event-tickets.json"
     ),
 }
 # The BackendSpec example of an app draft (Story 22.8): one that uses every plugin, so the model sees how sign-in,
@@ -62,15 +72,15 @@ class AppDraft:
     attempts: int = 0  # repair rounds
 
 
-def app_inputs(examples_dir: Path) -> dict[str, Any]:
+def app_inputs(examples_dir: Path, design: bool = False) -> dict[str, Any]:
     """The prompt context the app flow adds to the BackendSpec inputs: the outline's schema digest, its examples and
     the file to write. All text, so file and inline engines read the same."""
     examples = []
-    for title, name in OUTLINE_EXAMPLES.items():
+    for title, name in (OUTLINE_EXAMPLES | DESIGN_EXAMPLES if design else OUTLINE_EXAMPLES).items():
         source = examples_dir / name
         if source.is_file():
             examples.append({"title": title, "json": json.dumps(json.loads(source.read_text()), ensure_ascii=False)})
-    digest = schema_digest(AppOutline.model_json_schema(by_alias=True), "AppOutline").split("\n", 2)[-1].strip()
+    digest = schema_digest(outline_schema(design), "AppOutline").split("\n", 2)[-1].strip()
     return {"output_app_path": OUTLINE_FILE, "outline_digest": digest, "outline_examples": examples}
 
 
@@ -186,7 +196,17 @@ async def draft_app(
     the FrontendSpec by code: the outline completed from the BackendSpec and the contract, the screens planned."""
     await progress("drafting")
     # Story 22.8: an API engine answers in the shape of the three files (structured output); a CLI engine writes them
-    schema = app_answer_schema(backend_file, OUTLINE_FILE, context["notes_path"]) if context.get("inline") else None
+    inline = context.get("inline")
+    schema = app_answer_schema(backend_file, OUTLINE_FILE, context["notes_path"], design=True) if inline else None
+    requirement = context.get("requirement_text") or ""
+    products = product_rows(requirement)
+    product_types = [row.get("Product Type", "") for row in products]
+    context = {  # Story 23.6: code's candidates for the brief, the data's looks, the requirement's style words
+        **context,
+        "archetype_candidates": ", ".join(archetype_candidates(requirement, product_types)),
+        "recommended_looks": recommended_looks(products),
+        "style_words": style_words(requirement),
+    }
     result = await call("draft", prompts.render(*PROMPT, **context), response_schema=schema)
     if result.status != EngineStatus.OK:
         from .drafts import DraftFailed
@@ -218,7 +238,12 @@ async def draft_app(
     if not isinstance(drafted, dict):
         message = "The draft came without an app outline; every name and list comes from the BackendSpec"
         notes.append({"spec": "frontend", "path": "/app", "message": message, "suggestion": None})
-    outline, outline_fixes = complete_outline(drafted, backend, build_contract(backend, build_plan(backend)))
+    # Epic 23: code's archetype for a brief that names none (the requirement's words, then the direction's product)
+    hint = archetype_for(requirement, [*product_types, (chosen or {}).get("productType") or ""])
+    outline, outline_fixes = complete_outline(drafted, backend, build_contract(backend, build_plan(backend)), hint)
+    outline_fixes += finish_looks(outline, requirement, products)
+    if not outline.get("locale") and locale_of(requirement):  # Story 23.8: a Japanese requirement, a Japanese app
+        outline["locale"] = locale_of(requirement)
     # Story 22.3: the dashboard's figures are aggregate operations, templated like CRUD; code adds the missing ones.
     extended, outline, aggregate_notes = ensure_aggregates(backend, outline)
     added = [op for op in extended["operations"] if op not in backend["operations"]]
@@ -233,3 +258,24 @@ async def draft_app(
     notes += outline_fixes + aggregate_notes + screens.assumptions
     check = check_draft(work, GenerationMode.DYNAMIC)
     return AppDraft(check=check, notes=notes, unresolved=screens.unresolved, error=error, attempts=attempts)
+
+
+def product_rows(requirement: str, count: int = 3) -> list[dict[str, str]]:
+    """UI UX Pro Max's product types that best match the requirement (its rows: styles, dashboard style)."""
+    from .design_direction import design_data, rank_products
+
+    if not requirement.strip():
+        return []
+    data = design_data()
+    return [data.products[index] for index, _ in rank_products(requirement, data)[:count]]
+
+
+def finish_looks(outline: dict[str, Any], requirement: str, products: list[dict[str, str]]) -> list[dict[str, Any]]:
+    """Story 23.7: the brief's three looks completed (the requirement's words first, the data's styles, guards for
+    sensitive products, a range); changes the outline's design in place and returns the notes."""
+    types = [row.get("Product Type", "") for row in products]
+    design = outline.setdefault("design", {})
+    looks, notes = complete_looks(design.get("looks") or [], requirement, recommended_looks(products), types)
+    design["looks"] = looks
+    design["replaced"] = [*design.get("replaced", []), *notes]
+    return design_notes(notes)

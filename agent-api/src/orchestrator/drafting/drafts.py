@@ -208,7 +208,7 @@ def write_inputs(
             "output_backend_path": BACKEND_FILE,
         }
     if app:
-        context |= app_inputs(examples_dir)
+        context |= app_inputs(examples_dir, design=True)  # Story 23.6: `draft_app@v3` asks for the brief
     if mode == GenerationMode.STATIC:
         # Epic 22: without the app flow's fields, so static drafts read the schema they always did.
         site = frontend_spec_json_schema(app=False)
@@ -631,6 +631,7 @@ def usage_record(result: EngineResult, prompt: RenderedPrompt) -> dict[str, Any]
         "costUsd": usage.cost_usd if usage else None,
         "costSource": usage.cost_source if usage else None,
         "modelCalls": len(result.model_calls),
+        **({"structured": result.structured} if result.structured is not None else {}),
     }
 
 

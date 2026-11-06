@@ -73,8 +73,30 @@ def _secured(op: dict[str, Any]) -> bool:
     return (op.get("auth") or {}).get("auth") == "jwt"
 
 
+def _visibility(op: dict[str, Any]) -> dict[str, Any] | None:
+    """Story 23.9: which records the caller may see (`roles` and signed-out callers see only `where`)."""
+    return (op.get("auth") or {}).get("visibility")
+
+
+def _visibility_policies(spec: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Entity → its visibility policy (the first one, when an entity has several)."""
+    out: dict[str, dict[str, Any]] = {}
+    for policy in spec.get("policies") or []:
+        if policy.get("type") == "visibility" and policy.get("entity"):
+            out.setdefault(policy["entity"], policy)
+    return out
+
+
+def _restricted(visibility: dict[str, Any]) -> str:
+    """Python: whether the caller (`current_user`, maybe None) sees only the visible records."""
+    roles = visibility["roles"]
+    if not roles:
+        return "current_user is None"
+    return f"current_user is None or current_user.role in {_tuple(roles)}"
+
+
 def _policed(module: dict[str, Any]) -> bool:
-    return any(_roles(op) or _ownership(op) or op.get("ownerSource") for op in module["operations"])
+    return any(_roles(op) or _ownership(op) or op.get("ownerSource") or _visibility(op) for op in module["operations"])
 
 
 def _record_op(module: dict[str, Any], action: str) -> dict[str, Any] | None:
@@ -128,13 +150,15 @@ class PoliciesPlugin(Plugin):
         super().__init__(name="policies", requires=("auth-jwt",))
 
     def applies(self, spec: dict[str, Any]) -> bool:
-        return (spec.get("auth") or {}).get("type") == "jwt" and any(
-            op.get("policy") or _owner_only(spec, op) for op in spec.get("operations", [])
+        return (spec.get("auth") or {}).get("type") == "jwt" and (
+            any(op.get("policy") or _owner_only(spec, op) for op in spec.get("operations", []))
+            or bool(_visibility_policies(spec))
         )
 
     # -- the spec and the plan ------------------------------------------------------------------------------------
 
     def extend_spec(self, spec: dict[str, Any]) -> None:
+        self._guard_aggregates(spec)
         auth = _auth(spec)
         owned: dict[str, str] = {}  # entity → owner field
         bypass: set[str] = set()
@@ -173,8 +197,32 @@ class PoliciesPlugin(Plugin):
             other[auth["loginField"]] = _demo_login(auth["loginField"], f"{plain[0]['role']}-2")
             block["records"].append(other)
 
+    @staticmethod
+    def _guard_aggregates(spec: dict[str, Any]) -> None:
+        """Story 23.9 (found in Story 23.0: attendees saw the organizers' revenue): the figures of an entity some
+        roles may only partly see are for the other roles: its unguarded aggregates get a role policy for them."""
+        roles = list((spec.get("auth") or {}).get("roles") or [])
+        names = {policy["name"] for policy in spec.get("policies") or []}
+        for entity, visibility in _visibility_policies(spec).items():
+            allowed = [role for role in roles if role not in (visibility.get("roles") or [])]
+            ops = [
+                op
+                for op in spec.get("operations", [])
+                if op.get("type") == "aggregate" and op.get("entity") == entity and not op.get("policy")
+            ]
+            if not ops or not allowed:
+                continue
+            name = f"{entity[:1].lower()}{entity[1:]}Figures"
+            while name in names:
+                name += "2"
+            names.add(name)
+            spec.setdefault("policies", []).append({"name": name, "type": "role", "roles": allowed})
+            for op in ops:
+                op["policy"] = name
+
     def plan(self, plan: dict[str, Any], spec: dict[str, Any]) -> None:
         policies = _policies(spec)
+        hidden = _visibility_policies(spec)
         spec_ops = {op["operationId"]: op for op in spec.get("operations", [])}
         models = {model["entity"]: model for model in plan["models"] if model.get("entity")}
         roles = plan["auth"]["roles"]
@@ -184,7 +232,25 @@ class PoliciesPlugin(Plugin):
             model = models[module["entity"]]
             by_api = {column["apiName"]: column for column in model["columns"]}
             owner = None
+            visible = hidden.get(module["entity"])
             for op in module["operations"]:
+                if visible and op.get("action") in ("list", "get"):
+                    where = [
+                        {"field": name, "attr": by_api[name]["attr"], "value": value}
+                        for name, value in (visible.get("where") or {}).items()
+                        if name in by_api
+                    ]
+                    if where:
+                        op["auth"] = {
+                            **(op.get("auth") or {"policy": None}),
+                            "visibility": {"policy": visible["name"], "roles": list(visible.get("roles") or []),
+                                           "where": where},
+                        }  # fmt: skip
+                        case = "hidden_record" if op["action"] == "get" else "visible_only"
+                        what = "a record the caller may not see is 404" if case == "hidden_record" else (
+                            "the list shows only the records the caller may see"
+                        )  # fmt: skip
+                        module["tests"].append(_test(op, case, 404 if case == "hidden_record" else 200, what))
                 spec_op = spec_ops.get(op["operationId"], {})
                 policy = policies.get((op.get("auth") or {}).get("policy") or "")
                 if policy is not None and policy["type"] == "role":
@@ -297,6 +363,8 @@ class PoliciesPlugin(Plugin):
                     )  # fmt: skip
             if ownership and op.get("action") in OWN and scenarios:
                 self._ownership_scenarios(meta, module, entry["path"], op, scenarios, demo, id_of, login_of)
+            if _visibility(op):
+                self._visibility_contract(meta, module, entry["path"], op, xbga, scenarios, demo)
         for module in plan["modules"]:  # what the mocks need to narrow `allowedActions` per user (Story 22.7)
             info = meta["entities"].get(module["entity"])
             if module.get("plugin") or info is None:
@@ -315,6 +383,48 @@ class PoliciesPlugin(Plugin):
             owner = next((op["ownerSource"] for op in module["operations"] if op.get("ownerSource")), None)
             if owner:
                 info["ownerField"] = owner
+
+    @staticmethod
+    def _visibility_contract(
+        meta: dict[str, Any],
+        module: dict[str, Any],
+        path: str,
+        op: dict[str, Any],
+        xbga: dict[str, Any],
+        scenarios: list[dict[str, Any]],
+        demo: list[dict[str, Any]],
+    ) -> None:
+        """Story 23.9: the rule on the operation and its entity (the frontend explains an empty list with it, the mocks
+        apply it); a restricted demo user asking for a hidden record gets 404; scenarios reading one run as a user
+        who may see it."""
+        visibility = _visibility(op) or {}
+        where = {item["field"]: item["value"] for item in visibility["where"]}
+        rule = {"policy": visibility["policy"], "roles": visibility["roles"], "where": where}
+        xbga["visibility"] = rule
+        info = meta["entities"].get(module["entity"])
+        if info is not None:
+            info["visibility"] = rule
+        if op.get("action") != "get" or not scenarios:
+            return
+        records = meta["fixtures"].get(module["entity"]) or []
+        pk = (info or {}).get("primaryKey") or "id"
+        own = _own_param(path)
+        by_id = {str(row.get(pk)): row for row in records}
+        hidden = lambda row: any(row.get(name) != value for name, value in where.items())  # noqa: E731
+        restricted = next((u for u in demo if u["role"] in visibility["roles"]), None)
+        seeing = next((u for u in demo if u["role"] not in visibility["roles"]), None)
+        for scenario in scenarios:
+            row = by_id.get(str(scenario["params"].get(own)))
+            user = next((u for u in demo if u["login"] == scenario.get("user")), demo[0] if demo else None)
+            if row is not None and hidden(row) and user and user["role"] in visibility["roles"] and seeing:
+                scenario["user"] = seeing["login"]
+                scenario["auth"] = True
+        target = next((row for row in records if hidden(row)), None)
+        if restricted is not None and target is not None:
+            scenarios.append(
+                {"name": "a record this role may not see", "params": {**scenarios[-1]["params"], own: target[pk]},
+                 "auth": True, "user": restricted["login"], "expect": {"status": 404, "code": "NOT_FOUND"}}
+            )  # fmt: skip
 
     @staticmethod
     def _ownership_scenarios(
@@ -365,6 +475,7 @@ class PoliciesPlugin(Plugin):
             return []
         user = plan["auth"]["entityClass"]
         presents = op.get("action") in ("create", "get", "update", "list") and bool(self.action_checks(plan, module))
+        presents = presents or bool(_visibility(op))  # Story 23.9: what the caller may see depends on who it is
         if not _secured(op):
             # Story 22.7: a public read of records whose actions depend on the caller: the signed-in user, if any
             if not presents:
@@ -386,6 +497,33 @@ class PoliciesPlugin(Plugin):
         return [RouterParam("current_user", "CurrentUserDep", usecase, imports, usecase_imports)]
 
     def prechecks(self, plan, module, op, record) -> list[Code]:
+        return self._visibility_checks(module, op, record) + self._ownership_checks(plan, module, op, record)
+
+    @staticmethod
+    def _visibility_checks(module, op, record) -> list[Code]:
+        """Story 23.9: a list narrows to the visible records for a restricted caller; a hidden record is 404."""
+        visibility = _visibility(op)
+        if module.get("plugin") or visibility is None:
+            return []
+        if record is None:
+            if op.get("action") != "list":
+                return []
+            line = f"visible_only = True if {_restricted(visibility)} else None"
+            return [Code((f"# what this caller may see (Story 23.9, {visibility['policy']})", line))]
+        shown = " and ".join(f"{record}.{item['attr']} == {item['value']!r}" for item in visibility["where"])
+        details = f'details={{"id": str({to_snake(module["entity"])}_id)}}'
+        return [
+            Code(
+                (
+                    f"# a record this caller may not see (Story 23.9, {visibility['policy']})",
+                    f"if ({_restricted(visibility)}) and not ({shown}):",
+                    f'    raise NotFoundException("{module["entity"]} not found", {details})',
+                ),
+                (("src.libs.exceptions", ("NotFoundException",)),),
+            )
+        ]
+
+    def _ownership_checks(self, plan, module, op, record) -> list[Code]:
         ownership = _ownership(op)
         if module.get("plugin") or ownership is None:
             return []
@@ -408,8 +546,32 @@ class PoliciesPlugin(Plugin):
         return [Code(("# another user's record (Story 10.3)", f"if {condition}:", raise_line), imports)]
 
     def repository_filters(self, plan, module) -> list[RepositoryFilter]:
+        if module.get("plugin"):
+            return []
+        return self._ownership_filters(plan, module) + self._visibility_filters(module)
+
+    @staticmethod
+    def _visibility_filters(module) -> list[RepositoryFilter]:
+        lists = [op for op in module["operations"] if op.get("action") == "list" and _visibility(op)]
+        if not lists:
+            return []
+        where = (_visibility(lists[0]) or {})["where"]
+        parts = [f"col({{model}}.{item['attr']}) == {item['value']!r}" for item in where]
+        condition = parts[0] if len(parts) == 1 else f"and_({', '.join(parts)})"
+        return [
+            RepositoryFilter(
+                "visible_only",
+                "bool | None",
+                condition,
+                "visible_only",
+                (("sqlmodel", ("and_",)),) if len(parts) > 1 else (),
+                tuple(op["operationId"] for op in lists),
+            )
+        ]
+
+    def _ownership_filters(self, plan, module) -> list[RepositoryFilter]:
         lists = [op for op in module["operations"] if op.get("action") == "list" and _ownership(op)]
-        if module.get("plugin") or not lists:
+        if not lists:
             return []
         ownership = _ownership(lists[0]) or {}
         model = next(m for m in plan["models"] if m.get("entity") == module["entity"])
@@ -460,6 +622,8 @@ class PoliciesPlugin(Plugin):
 
     def test_case(self, plan, module, op, test, ctx: CaseContext) -> Code | None:
         case = test["case"]
+        if not module.get("plugin") and case in ("hidden_record", "visible_only"):
+            return self._visibility_case(plan, module, op, test, ctx)
         if module.get("plugin") or case not in ("missing_role", "other_owner", "bypass", "own_records"):
             return None
         method = op["method"].lower()
@@ -517,6 +681,47 @@ class PoliciesPlugin(Plugin):
             ),
             SIGN_IN,
         )
+
+    @staticmethod
+    def _visibility_case(plan, module, op, test, ctx: CaseContext) -> Code | None:
+        """Story 23.9: as a restricted role, a hidden record is 404 and the list shows only the visible ones."""
+        visibility = _visibility(op) or {}
+        model = next(m for m in plan["models"] if m.get("entity") == module["entity"])
+        columns = {column["attr"]: column for column in model["columns"]}
+        shown, other = [], []
+        for item in visibility["where"]:
+            column, value = columns[item["attr"]], item["value"]
+            values = ((column.get("enum") or {}).get("values")) or []
+            if isinstance(value, bool):
+                miss = not value
+            elif values:
+                miss = next((v for v in values if v != value), None)
+            else:
+                miss = f"{value}-other" if isinstance(value, str) else None
+            if miss is None:
+                return None
+            shown.append(f"{item['attr']}={value!r}")
+            other.append(f"{item['attr']}={miss!r}")
+        lines = [f"def {test['id']}(client):"]
+        if visibility["roles"]:
+            lines.append(f"    {_sign_in(visibility['roles'][0])}")
+        if test["case"] == "hidden_record":
+            if ctx.record_path is None:
+                return None
+            return Code(
+                (*lines, f"    record = {ctx.seed}({', '.join(other)})", "",
+                 f"    response = client.get({ctx.record_path})", "",
+                 "    assert response.status_code == 404",
+                 '    assert response.json()["error"]["code"] == "NOT_FOUND"'),
+                SIGN_IN,
+            )  # fmt: skip
+        pk = next(column for column in model["columns"] if column["primaryKey"])
+        return Code(
+            (*lines, f"    visible = {ctx.seed}({', '.join(shown)})", f"    {ctx.seed}({', '.join(other)})", "",
+             f"    body = client.get({_quoted(op['path'])}).json()", "",
+             f'    assert [item["{pk["apiName"]}"] for item in body["items"]] == [str(visible.{pk["attr"]})]'),
+            SIGN_IN,
+        )  # fmt: skip
 
     def engine_note(self, plan: dict[str, Any]) -> str:
         return (

@@ -1,0 +1,999 @@
+{
+  "specVersion": "1.0",
+  "project": {
+    "name": "Learnly",
+    "description": "Online course platform for a small training company where managers publish courses and track revenue, and learners enrol and track their progress."
+  },
+  "stack": {
+    "framework": "fastapi",
+    "database": "postgresql",
+    "orm": "sqlmodel",
+    "migration": "alembic"
+  },
+  "auth": {
+    "type": "jwt",
+    "roles": [
+      "learner",
+      "manager"
+    ]
+  },
+  "policies": [
+    {
+      "name": "managersOnly",
+      "type": "role",
+      "roles": [
+        "manager"
+      ]
+    },
+    {
+      "name": "ownEnrolments",
+      "type": "ownership",
+      "ownerField": "learnerId",
+      "bypassRoles": [
+        "manager"
+      ]
+    },
+    {
+      "name": "ownCompletions",
+      "type": "ownership",
+      "ownerField": "learnerId",
+      "bypassRoles": [
+        "manager"
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "id": "courseStatusTransitions",
+      "kind": "transition",
+      "entity": "Course",
+      "params": {
+        "field": "status",
+        "transitions": {
+          "draft": [
+            "published"
+          ],
+          "published": [
+            "draft"
+          ]
+        }
+      },
+      "description": "Courses can move between draft and published statuses."
+    },
+    {
+      "id": "singleEnrolmentPerUserCourse",
+      "kind": "uniqueTogether",
+      "entity": "Enrolment",
+      "params": {
+        "fields": [
+          "learnerId",
+          "courseId"
+        ]
+      },
+      "description": "A learner cannot enrol in the same course more than once."
+    },
+    {
+      "id": "singleLessonCompletionPerEnrolment",
+      "kind": "uniqueTogether",
+      "entity": "LessonCompletion",
+      "params": {
+        "fields": [
+          "enrolmentId",
+          "lessonId"
+        ]
+      },
+      "description": "A lesson can only be marked completed once per enrolment."
+    }
+  ],
+  "payments": {
+    "provider": "fake",
+    "entity": "Enrolment",
+    "amountField": "amount",
+    "currency": "USD",
+    "statusField": "paymentStatus",
+    "paidStatus": "PAID",
+    "failedStatus": "FAILED"
+  },
+  "entities": [
+    {
+      "name": "Course",
+      "displayField": "title",
+      "description": "Online courses created by managers across Design, Programming, and Marketing.",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "primary": true
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "required": true,
+          "maxLength": 140
+        },
+        {
+          "name": "coverImage",
+          "type": "image",
+          "required": false,
+          "nullable": true
+        },
+        {
+          "name": "level",
+          "type": "enum",
+          "values": [
+            "beginner",
+            "intermediate",
+            "advanced"
+          ],
+          "required": true
+        },
+        {
+          "name": "category",
+          "type": "string",
+          "required": true,
+          "maxLength": 60,
+          "index": true
+        },
+        {
+          "name": "price",
+          "type": "decimal",
+          "required": true,
+          "min": 0
+        },
+        {
+          "name": "summary",
+          "type": "text",
+          "required": true,
+          "maxLength": 1500
+        },
+        {
+          "name": "status",
+          "type": "enum",
+          "values": [
+            "draft",
+            "published"
+          ],
+          "required": true,
+          "default": "draft",
+          "index": true
+        },
+        {
+          "name": "createdAt",
+          "type": "datetime",
+          "required": true,
+          "default": "now"
+        }
+      ]
+    },
+    {
+      "name": "Lesson",
+      "displayField": "title",
+      "description": "Ordered video lessons belonging to a specific course.",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "primary": true
+        },
+        {
+          "name": "courseId",
+          "type": "uuid",
+          "required": true,
+          "index": true
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "required": true,
+          "maxLength": 140
+        },
+        {
+          "name": "durationMinutes",
+          "type": "integer",
+          "required": true,
+          "min": 1,
+          "max": 600
+        },
+        {
+          "name": "videoUrl",
+          "type": "string",
+          "required": true,
+          "maxLength": 500
+        },
+        {
+          "name": "orderIndex",
+          "type": "integer",
+          "required": true,
+          "min": 1
+        },
+        {
+          "name": "createdAt",
+          "type": "datetime",
+          "required": true,
+          "default": "now"
+        }
+      ]
+    },
+    {
+      "name": "Enrolment",
+      "displayField": "courseTitle",
+      "description": "A learner's enrolment in a published course with tracked progress.",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "primary": true
+        },
+        {
+          "name": "courseId",
+          "type": "uuid",
+          "required": true,
+          "index": true
+        },
+        {
+          "name": "courseTitle",
+          "type": "string",
+          "required": true,
+          "maxLength": 140
+        },
+        {
+          "name": "category",
+          "type": "string",
+          "required": true,
+          "maxLength": 60,
+          "index": true
+        },
+        {
+          "name": "learnerId",
+          "type": "uuid",
+          "required": true,
+          "index": true
+        },
+        {
+          "name": "learnerName",
+          "type": "string",
+          "required": true,
+          "maxLength": 120
+        },
+        {
+          "name": "amount",
+          "type": "decimal",
+          "required": true,
+          "min": 0
+        },
+        {
+          "name": "paymentStatus",
+          "type": "enum",
+          "values": [
+            "UNPAID",
+            "PAID",
+            "FAILED"
+          ],
+          "required": true,
+          "default": "PAID"
+        },
+        {
+          "name": "progressPercent",
+          "type": "integer",
+          "required": true,
+          "default": 0,
+          "min": 0,
+          "max": 100
+        },
+        {
+          "name": "enrolledAt",
+          "type": "datetime",
+          "required": true,
+          "default": "now",
+          "index": true
+        }
+      ]
+    },
+    {
+      "name": "LessonCompletion",
+      "displayField": "id",
+      "description": "Completion markers for lessons marked as done by learners.",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "primary": true
+        },
+        {
+          "name": "enrolmentId",
+          "type": "uuid",
+          "required": true,
+          "index": true
+        },
+        {
+          "name": "lessonId",
+          "type": "uuid",
+          "required": true,
+          "index": true
+        },
+        {
+          "name": "learnerId",
+          "type": "uuid",
+          "required": true,
+          "index": true
+        },
+        {
+          "name": "completedAt",
+          "type": "datetime",
+          "required": true,
+          "default": "now"
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "name": "courseLessons",
+      "type": "one-to-many",
+      "from": "Course",
+      "to": "Lesson",
+      "foreignKey": "courseId",
+      "onDelete": "CASCADE"
+    },
+    {
+      "name": "courseEnrolments",
+      "type": "one-to-many",
+      "from": "Course",
+      "to": "Enrolment",
+      "foreignKey": "courseId",
+      "onDelete": "RESTRICT"
+    },
+    {
+      "name": "enrolmentCompletions",
+      "type": "one-to-many",
+      "from": "Enrolment",
+      "to": "LessonCompletion",
+      "foreignKey": "enrolmentId",
+      "onDelete": "CASCADE"
+    },
+    {
+      "name": "lessonCompletions",
+      "type": "one-to-many",
+      "from": "Lesson",
+      "to": "LessonCompletion",
+      "foreignKey": "lessonId",
+      "onDelete": "CASCADE"
+    }
+  ],
+  "operations": [
+    {
+      "operationId": "course.create",
+      "type": "crud",
+      "action": "create",
+      "entity": "Course",
+      "method": "POST",
+      "path": "/courses",
+      "policy": "managersOnly"
+    },
+    {
+      "operationId": "course.get",
+      "type": "crud",
+      "action": "get",
+      "entity": "Course",
+      "method": "GET",
+      "path": "/courses/{id}"
+    },
+    {
+      "operationId": "course.list",
+      "type": "crud",
+      "action": "list",
+      "entity": "Course",
+      "method": "GET",
+      "path": "/courses",
+      "pagination": true,
+      "filters": [
+        "status",
+        "level",
+        "category"
+      ],
+      "search": [
+        "title",
+        "summary"
+      ],
+      "sort": [
+        "createdAt",
+        "price",
+        "title"
+      ]
+    },
+    {
+      "operationId": "course.update",
+      "type": "crud",
+      "action": "update",
+      "entity": "Course",
+      "method": "PATCH",
+      "path": "/courses/{id}",
+      "policy": "managersOnly",
+      "rules": [
+        "courseStatusTransitions"
+      ]
+    },
+    {
+      "operationId": "course.delete",
+      "type": "crud",
+      "action": "delete",
+      "entity": "Course",
+      "method": "DELETE",
+      "path": "/courses/{id}",
+      "policy": "managersOnly"
+    },
+    {
+      "operationId": "course.publish",
+      "type": "custom",
+      "method": "POST",
+      "path": "/courses/{id}/publish",
+      "policy": "managersOnly",
+      "description": "Sets the course status to published, making it visible for learners to browse and enrol.",
+      "response": {
+        "entity": "Course"
+      }
+    },
+    {
+      "operationId": "course.unpublish",
+      "type": "custom",
+      "method": "POST",
+      "path": "/courses/{id}/unpublish",
+      "policy": "managersOnly",
+      "description": "Sets the course status back to draft, hiding it from public enrolment.",
+      "response": {
+        "entity": "Course"
+      }
+    },
+    {
+      "operationId": "lesson.create",
+      "type": "crud",
+      "action": "create",
+      "entity": "Lesson",
+      "method": "POST",
+      "path": "/lessons",
+      "policy": "managersOnly"
+    },
+    {
+      "operationId": "lesson.get",
+      "type": "crud",
+      "action": "get",
+      "entity": "Lesson",
+      "method": "GET",
+      "path": "/lessons/{id}",
+      "auth": "jwt"
+    },
+    {
+      "operationId": "lesson.list",
+      "type": "crud",
+      "action": "list",
+      "entity": "Lesson",
+      "method": "GET",
+      "path": "/lessons",
+      "auth": "jwt",
+      "pagination": true,
+      "filters": [
+        "courseId"
+      ],
+      "sort": [
+        "orderIndex",
+        "title"
+      ],
+      "search": [
+        "title"
+      ]
+    },
+    {
+      "operationId": "lesson.update",
+      "type": "crud",
+      "action": "update",
+      "entity": "Lesson",
+      "method": "PATCH",
+      "path": "/lessons/{id}",
+      "policy": "managersOnly"
+    },
+    {
+      "operationId": "lesson.delete",
+      "type": "crud",
+      "action": "delete",
+      "entity": "Lesson",
+      "method": "DELETE",
+      "path": "/lessons/{id}",
+      "policy": "managersOnly"
+    },
+    {
+      "operationId": "enrolment.create",
+      "type": "crud",
+      "action": "create",
+      "entity": "Enrolment",
+      "method": "POST",
+      "path": "/enrolments",
+      "auth": "jwt",
+      "rules": [
+        "singleEnrolmentPerUserCourse"
+      ]
+    },
+    {
+      "operationId": "enrolment.get",
+      "type": "crud",
+      "action": "get",
+      "entity": "Enrolment",
+      "method": "GET",
+      "path": "/enrolments/{id}",
+      "policy": "ownEnrolments"
+    },
+    {
+      "operationId": "enrolment.list",
+      "type": "crud",
+      "action": "list",
+      "entity": "Enrolment",
+      "method": "GET",
+      "path": "/enrolments",
+      "policy": "ownEnrolments",
+      "pagination": true,
+      "filters": [
+        "courseId",
+        "learnerId",
+        "paymentStatus",
+        "category"
+      ],
+      "sort": [
+        "enrolledAt",
+        "progressPercent"
+      ]
+    },
+    {
+      "operationId": "enrolment.update",
+      "type": "crud",
+      "action": "update",
+      "entity": "Enrolment",
+      "method": "PATCH",
+      "path": "/enrolments/{id}",
+      "policy": "ownEnrolments"
+    },
+    {
+      "operationId": "enrolment.markLessonDone",
+      "type": "custom",
+      "method": "POST",
+      "path": "/enrolments/{id}/complete-lesson",
+      "policy": "ownEnrolments",
+      "description": "Accepts lessonId in body. Creates a LessonCompletion record if not already completed, calculates new progress percent as (completed lessons / total course lessons) * 100, updates enrolment.progressPercent, and returns the updated Enrolment.",
+      "response": {
+        "entity": "Enrolment"
+      }
+    },
+    {
+      "operationId": "lessonCompletion.list",
+      "type": "crud",
+      "action": "list",
+      "entity": "LessonCompletion",
+      "method": "GET",
+      "path": "/lesson-completions",
+      "policy": "ownCompletions",
+      "pagination": true,
+      "filters": [
+        "enrolmentId",
+        "lessonId",
+        "learnerId"
+      ]
+    },
+    {
+      "operationId": "lessonCompletion.delete",
+      "type": "crud",
+      "action": "delete",
+      "entity": "LessonCompletion",
+      "method": "DELETE",
+      "path": "/lesson-completions/{id}",
+      "policy": "ownCompletions"
+    },
+    {
+      "operationId": "dashboard.enrolmentsThisMonth",
+      "type": "aggregate",
+      "entity": "Enrolment",
+      "method": "GET",
+      "path": "/enrolments/aggregate/this-month",
+      "policy": "managersOnly",
+      "aggregate": {
+        "fn": "count",
+        "period": "month",
+        "dateField": "enrolledAt"
+      }
+    },
+    {
+      "operationId": "dashboard.revenuePerCourse",
+      "type": "aggregate",
+      "entity": "Enrolment",
+      "method": "GET",
+      "path": "/enrolments/aggregate/revenue-per-course",
+      "policy": "managersOnly",
+      "aggregate": {
+        "fn": "sum",
+        "field": "amount",
+        "groupBy": "courseTitle"
+      }
+    },
+    {
+      "operationId": "dashboard.popularCategories",
+      "type": "aggregate",
+      "entity": "Enrolment",
+      "method": "GET",
+      "path": "/enrolments/aggregate/popular-categories",
+      "policy": "managersOnly",
+      "aggregate": {
+        "fn": "count",
+        "groupBy": "category"
+      }
+    },
+    {
+      "operationId": "course.countWhereStatusPublished",
+      "type": "aggregate",
+      "entity": "Course",
+      "method": "GET",
+      "path": "/courses/aggregate/count-where-status-published",
+      "summary": "Published courses",
+      "aggregate": {
+        "fn": "count",
+        "filters": {
+          "status": "published"
+        }
+      }
+    }
+  ],
+  "seed": [
+    {
+      "entity": "Course",
+      "records": [
+        {
+          "id": "11111111-1111-4111-8111-111111111111",
+          "title": "UI & Visual Design Foundations",
+          "level": "beginner",
+          "category": "Design",
+          "price": 49.0,
+          "summary": "Master color harmony, typography hierarchies, layout grids, and visual composition principles.",
+          "status": "published",
+          "createdAt": "2025-04-01T09:00:00Z"
+        },
+        {
+          "id": "22222222-2222-4222-8222-222222222222",
+          "title": "Design Systems at Scale",
+          "level": "advanced",
+          "category": "Design",
+          "price": 89.0,
+          "summary": "Build maintainable token architectures, component variants, and multi-brand systems in Figma.",
+          "status": "published",
+          "createdAt": "2025-04-05T10:30:00Z"
+        },
+        {
+          "id": "33333333-3333-4333-8333-333333333333",
+          "title": "Modern Python Programming",
+          "level": "beginner",
+          "category": "Programming",
+          "price": 59.0,
+          "summary": "Learn modern Python syntax, standard library modules, object-oriented concepts, and clean coding habits.",
+          "status": "published",
+          "createdAt": "2025-04-10T11:00:00Z"
+        },
+        {
+          "id": "44444444-4444-4444-8444-444444444444",
+          "title": "Full-Stack Web APIs with FastAPI",
+          "level": "intermediate",
+          "category": "Programming",
+          "price": 99.0,
+          "summary": "Build high-performance asynchronous REST APIs with Pydantic validation, SQLModel ORM, and JWT authentication.",
+          "status": "published",
+          "createdAt": "2025-04-12T14:15:00Z"
+        },
+        {
+          "id": "55555555-5555-4555-8555-555555555555",
+          "title": "Growth Marketing & Acquisition",
+          "level": "beginner",
+          "category": "Marketing",
+          "price": 39.0,
+          "summary": "Discover proven growth loops, channel experimentation, analytics tracking, and conversion optimization.",
+          "status": "published",
+          "createdAt": "2025-04-15T08:45:00Z"
+        },
+        {
+          "id": "66666666-6666-4666-8666-666666666666",
+          "title": "Search Engine Optimization & Content Strategy",
+          "level": "intermediate",
+          "category": "Marketing",
+          "price": 69.0,
+          "summary": "Execute search intent mapping, technical SEO audits, and content production workflows that rank.",
+          "status": "draft",
+          "createdAt": "2025-04-18T16:00:00Z"
+        }
+      ]
+    },
+    {
+      "entity": "Lesson",
+      "records": [
+        {
+          "id": "a1111111-0001-4000-8000-000000000001",
+          "courseId": "11111111-1111-4111-8111-111111111111",
+          "title": "Introduction to Typography & Contrast",
+          "durationMinutes": 18,
+          "videoUrl": "https://videos.learnly.io/design-foundations/lesson-1.mp4",
+          "orderIndex": 1,
+          "createdAt": "2025-04-01T10:00:00Z"
+        },
+        {
+          "id": "a1111111-0001-4000-8000-000000000002",
+          "courseId": "11111111-1111-4111-8111-111111111111",
+          "title": "Color Systems and Accessible Palettes",
+          "durationMinutes": 24,
+          "videoUrl": "https://videos.learnly.io/design-foundations/lesson-2.mp4",
+          "orderIndex": 2,
+          "createdAt": "2025-04-01T11:00:00Z"
+        },
+        {
+          "id": "a1111111-0001-4000-8000-000000000003",
+          "courseId": "11111111-1111-4111-8111-111111111111",
+          "title": "Grid Layouts and Spatial Hierarchy",
+          "durationMinutes": 30,
+          "videoUrl": "https://videos.learnly.io/design-foundations/lesson-3.mp4",
+          "orderIndex": 3,
+          "createdAt": "2025-04-01T12:00:00Z"
+        },
+        {
+          "id": "a2222222-0002-4000-8000-000000000001",
+          "courseId": "22222222-2222-4222-8222-222222222222",
+          "title": "Design Tokens & Semantic Variables",
+          "durationMinutes": 25,
+          "videoUrl": "https://videos.learnly.io/design-systems/lesson-1.mp4",
+          "orderIndex": 1,
+          "createdAt": "2025-04-05T11:00:00Z"
+        },
+        {
+          "id": "a2222222-0002-4000-8000-000000000002",
+          "courseId": "22222222-2222-4222-8222-222222222222",
+          "title": "Compound Components & Interactive States",
+          "durationMinutes": 35,
+          "videoUrl": "https://videos.learnly.io/design-systems/lesson-2.mp4",
+          "orderIndex": 2,
+          "createdAt": "2025-04-05T12:00:00Z"
+        },
+        {
+          "id": "a2222222-0002-4000-8000-000000000003",
+          "courseId": "22222222-2222-4222-8222-222222222222",
+          "title": "Versioning, Documentation and Sync",
+          "durationMinutes": 28,
+          "videoUrl": "https://videos.learnly.io/design-systems/lesson-3.mp4",
+          "orderIndex": 3,
+          "createdAt": "2025-04-05T13:00:00Z"
+        },
+        {
+          "id": "a3333333-0003-4000-8000-000000000001",
+          "courseId": "33333333-3333-4333-8333-333333333333",
+          "title": "Environment Setup & Python Fundamentals",
+          "durationMinutes": 20,
+          "videoUrl": "https://videos.learnly.io/python-basics/lesson-1.mp4",
+          "orderIndex": 1,
+          "createdAt": "2025-04-10T12:00:00Z"
+        },
+        {
+          "id": "a3333333-0003-4000-8000-000000000002",
+          "courseId": "33333333-3333-4333-8333-333333333333",
+          "title": "Data Structures: Lists, Tuples & Dicts",
+          "durationMinutes": 32,
+          "videoUrl": "https://videos.learnly.io/python-basics/lesson-2.mp4",
+          "orderIndex": 2,
+          "createdAt": "2025-04-10T13:00:00Z"
+        },
+        {
+          "id": "a3333333-0003-4000-8000-000000000003",
+          "courseId": "33333333-3333-4333-8333-333333333333",
+          "title": "Functions, Scope and Exception Handling",
+          "durationMinutes": 26,
+          "videoUrl": "https://videos.learnly.io/python-basics/lesson-3.mp4",
+          "orderIndex": 3,
+          "createdAt": "2025-04-10T14:00:00Z"
+        },
+        {
+          "id": "a4444444-0004-4000-8000-000000000001",
+          "courseId": "44444444-4444-4444-8444-444444444444",
+          "title": "FastAPI Project Structure & Dependency Injection",
+          "durationMinutes": 28,
+          "videoUrl": "https://videos.learnly.io/fastapi/lesson-1.mp4",
+          "orderIndex": 1,
+          "createdAt": "2025-04-12T15:00:00Z"
+        },
+        {
+          "id": "a4444444-0004-4000-8000-000000000002",
+          "courseId": "44444444-4444-4444-8444-444444444444",
+          "title": "Async Endpoints and Database Sessions",
+          "durationMinutes": 42,
+          "videoUrl": "https://videos.learnly.io/fastapi/lesson-2.mp4",
+          "orderIndex": 2,
+          "createdAt": "2025-04-12T16:00:00Z"
+        },
+        {
+          "id": "a4444444-0004-4000-8000-000000000003",
+          "courseId": "44444444-4444-4444-8444-444444444444",
+          "title": "JWT Auth & Role-Based Access Control",
+          "durationMinutes": 38,
+          "videoUrl": "https://videos.learnly.io/fastapi/lesson-3.mp4",
+          "orderIndex": 3,
+          "createdAt": "2025-04-12T17:00:00Z"
+        },
+        {
+          "id": "a5555555-0005-4000-8000-000000000001",
+          "courseId": "55555555-5555-4555-8555-555555555555",
+          "title": "Understanding Acquisition Funnels",
+          "durationMinutes": 22,
+          "videoUrl": "https://videos.learnly.io/growth/lesson-1.mp4",
+          "orderIndex": 1,
+          "createdAt": "2025-04-15T09:30:00Z"
+        },
+        {
+          "id": "a5555555-0005-4000-8000-000000000002",
+          "courseId": "55555555-5555-4555-8555-555555555555",
+          "title": "High-Converting Ad Campaigns & Creative",
+          "durationMinutes": 34,
+          "videoUrl": "https://videos.learnly.io/growth/lesson-2.mp4",
+          "orderIndex": 2,
+          "createdAt": "2025-04-15T10:30:00Z"
+        },
+        {
+          "id": "a5555555-0005-4000-8000-000000000003",
+          "courseId": "55555555-5555-4555-8555-555555555555",
+          "title": "A/B Testing Landing Pages & Analytics",
+          "durationMinutes": 29,
+          "videoUrl": "https://videos.learnly.io/growth/lesson-3.mp4",
+          "orderIndex": 3,
+          "createdAt": "2025-04-15T11:30:00Z"
+        },
+        {
+          "id": "a6666666-0006-4000-8000-000000000001",
+          "courseId": "66666666-6666-4666-8666-666666666666",
+          "title": "Keyword Research & Topical Clustering",
+          "durationMinutes": 25,
+          "videoUrl": "https://videos.learnly.io/seo/lesson-1.mp4",
+          "orderIndex": 1,
+          "createdAt": "2025-04-18T17:00:00Z"
+        },
+        {
+          "id": "a6666666-0006-4000-8000-000000000002",
+          "courseId": "66666666-6666-4666-8666-666666666666",
+          "title": "On-Page Semantic Optimization",
+          "durationMinutes": 31,
+          "videoUrl": "https://videos.learnly.io/seo/lesson-2.mp4",
+          "orderIndex": 2,
+          "createdAt": "2025-04-18T18:00:00Z"
+        },
+        {
+          "id": "a6666666-0006-4000-8000-000000000003",
+          "courseId": "66666666-6666-4666-8666-666666666666",
+          "title": "Backlink Outreach & Technical SEO",
+          "durationMinutes": 33,
+          "videoUrl": "https://videos.learnly.io/seo/lesson-3.mp4",
+          "orderIndex": 3,
+          "createdAt": "2025-04-18T19:00:00Z"
+        }
+      ]
+    },
+    {
+      "entity": "Enrolment",
+      "records": [
+        {
+          "id": "e1111111-1111-4111-8111-111111111111",
+          "courseId": "11111111-1111-4111-8111-111111111111",
+          "courseTitle": "UI & Visual Design Foundations",
+          "category": "Design",
+          "learnerId": "91111111-1111-4111-8111-111111111111",
+          "learnerName": "Alex Chen",
+          "amount": 49.0,
+          "paymentStatus": "PAID",
+          "progressPercent": 67,
+          "enrolledAt": "2025-05-02T10:14:00Z"
+        },
+        {
+          "id": "e2222222-2222-4222-8222-222222222222",
+          "courseId": "44444444-4444-4444-8444-444444444444",
+          "courseTitle": "Full-Stack Web APIs with FastAPI",
+          "category": "Programming",
+          "learnerId": "91111111-1111-4111-8111-111111111111",
+          "learnerName": "Alex Chen",
+          "amount": 99.0,
+          "paymentStatus": "PAID",
+          "progressPercent": 33,
+          "enrolledAt": "2025-05-03T14:20:00Z"
+        },
+        {
+          "id": "e3333333-3333-4333-8333-333333333333",
+          "courseId": "33333333-3333-4333-8333-333333333333",
+          "courseTitle": "Modern Python Programming",
+          "category": "Programming",
+          "learnerId": "92222222-2222-4222-8222-222222222222",
+          "learnerName": "Maya Lin",
+          "amount": 59.0,
+          "paymentStatus": "PAID",
+          "progressPercent": 100,
+          "enrolledAt": "2025-05-04T09:00:00Z"
+        },
+        {
+          "id": "e4444444-4444-4444-8444-444444444444",
+          "courseId": "55555555-5555-4555-8555-555555555555",
+          "courseTitle": "Growth Marketing & Acquisition",
+          "category": "Marketing",
+          "learnerId": "92222222-2222-4222-8222-222222222222",
+          "learnerName": "Maya Lin",
+          "amount": 39.0,
+          "paymentStatus": "PAID",
+          "progressPercent": 33,
+          "enrolledAt": "2025-05-05T16:45:00Z"
+        },
+        {
+          "id": "e5555555-5555-4555-8555-555555555555",
+          "courseId": "22222222-2222-4222-8222-222222222222",
+          "courseTitle": "Design Systems at Scale",
+          "category": "Design",
+          "learnerId": "93333333-3333-4333-8333-333333333333",
+          "learnerName": "Lucas Silva",
+          "amount": 89.0,
+          "paymentStatus": "PAID",
+          "progressPercent": 0,
+          "enrolledAt": "2025-05-06T11:30:00Z"
+        },
+        {
+          "id": "e6666666-6666-4666-8666-666666666666",
+          "courseId": "33333333-3333-4333-8333-333333333333",
+          "courseTitle": "Modern Python Programming",
+          "category": "Programming",
+          "learnerId": "93333333-3333-4333-8333-333333333333",
+          "learnerName": "Lucas Silva",
+          "amount": 59.0,
+          "paymentStatus": "PAID",
+          "progressPercent": 67,
+          "enrolledAt": "2025-05-08T13:10:00Z"
+        }
+      ]
+    },
+    {
+      "entity": "LessonCompletion",
+      "records": [
+        {
+          "id": "f1111111-1111-4111-8111-111111111111",
+          "enrolmentId": "e1111111-1111-4111-8111-111111111111",
+          "lessonId": "a1111111-0001-4000-8000-000000000001",
+          "learnerId": "91111111-1111-4111-8111-111111111111",
+          "completedAt": "2025-05-02T11:00:00Z"
+        },
+        {
+          "id": "f2222222-2222-4222-8222-222222222222",
+          "enrolmentId": "e1111111-1111-4111-8111-111111111111",
+          "lessonId": "a1111111-0001-4000-8000-000000000002",
+          "learnerId": "91111111-1111-4111-8111-111111111111",
+          "completedAt": "2025-05-02T12:30:00Z"
+        },
+        {
+          "id": "f3333333-3333-4333-8333-333333333333",
+          "enrolmentId": "e2222222-2222-4222-8222-222222222222",
+          "lessonId": "a4444444-0004-4000-8000-000000000001",
+          "learnerId": "91111111-1111-4111-8111-111111111111",
+          "completedAt": "2025-05-03T16:00:00Z"
+        },
+        {
+          "id": "f4444444-4444-4444-8444-444444444444",
+          "enrolmentId": "e3333333-3333-4333-8333-333333333333",
+          "lessonId": "a3333333-0003-4000-8000-000000000001",
+          "learnerId": "92222222-2222-4222-8222-222222222222",
+          "completedAt": "2025-05-04T10:15:00Z"
+        },
+        {
+          "id": "f5555555-5555-4555-8555-555555555555",
+          "enrolmentId": "e3333333-3333-4333-8333-333333333333",
+          "lessonId": "a3333333-0003-4000-8000-000000000002",
+          "learnerId": "92222222-2222-4222-8222-222222222222",
+          "completedAt": "2025-05-04T12:00:00Z"
+        },
+        {
+          "id": "f6666666-6666-4666-8666-666666666666",
+          "enrolmentId": "e3333333-3333-4333-8333-333333333333",
+          "lessonId": "a3333333-0003-4000-8000-000000000003",
+          "learnerId": "92222222-2222-4222-8222-222222222222",
+          "completedAt": "2025-05-04T15:00:00Z"
+        }
+      ]
+    }
+  ]
+}

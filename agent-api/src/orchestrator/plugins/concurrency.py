@@ -284,6 +284,19 @@ def concurrent_test(
     return tuple(lines), imports
 
 
+def _caller_id(meta: dict[str, Any], plan: dict[str, Any], scenario: dict[str, Any]) -> Any:
+    """The seeded id of the demo user a scenario runs as (`scenario.user`, else the default one), or None."""
+    auth = plan.get("auth") or {}
+    demo = auth.get("demoUsers") or []
+    login = scenario.get("user") or (demo[0]["login"] if demo else None)
+    user_model = next((m for m in plan["models"] if m.get("entity") == auth.get("userEntity")), None)
+    if login is None or user_model is None:
+        return None
+    pk = next(c["apiName"] for c in user_model["columns"] if c["primaryKey"])
+    users = meta["fixtures"].get(auth["userEntity"]) or []
+    return next((row.get(pk) for row in users if row.get(auth.get("loginField")) == login), None)
+
+
 def contract_scenarios(
     contract: dict[str, Any],
     plan: dict[str, Any],
@@ -374,23 +387,27 @@ def contract_scenarios(
                     }
                 )
         else:
-            pairs = {tuple(r.get(f) for f in rule["fields"]) for r in records if counts(r, rule["where"])}
-            mine = tuple(success["body"].get(f) for f in rule["fields"])
-            if mine in pairs:  # the success would be a duplicate of a seeded record
-                first = rule["fields"][0]
-                column = next(
-                    c for m in plan["models"] if m["entity"] == entity for c in m["columns"] if c["apiName"] == first
-                )
+            fields = rule["fields"]
+            columns = {c["apiName"]: c for m in plan["models"] if m["entity"] == entity for c in m["columns"]}
+            # the owner the server sets from the signed-in user is not in the body: the scenario's user's id
+            server_set = {f for f in fields if (columns.get(f) or {}).get("source") == "currentUser"}
+            caller = _caller_id(meta, plan, success) if server_set else None
+            pairs = {tuple(r.get(f) for f in fields) for r in records if counts(r, rule["where"])}
+            mine = tuple(caller if f in server_set else success["body"].get(f) for f in fields)
+            varied = next((f for f in fields if f not in server_set and f in success["body"]), None)
+            if mine in pairs and varied is not None:  # the success would be a duplicate of a seeded record
+                at = fields.index(varied)
+                column = columns[varied]
                 if column.get("foreignKey"):
                     table = column["foreignKey"]["references"].partition(".")[0]
                     parent = next(m for m in plan["models"] if m["table"] == table)
                     pk = next(c["apiName"] for c in parent["columns"] if c["primaryKey"])
                     options = [p[pk] for p in meta["fixtures"].get(parent["entity"]) or []]
-                    free = next((o for o in options if (o, *mine[1:]) not in pairs), None)
+                    free = next((o for o in options if (*mine[:at], o, *mine[at + 1 :]) not in pairs), None)
                     if free is not None:
-                        success["body"][first] = free
-                elif isinstance(success["body"].get(first), str):
-                    success["body"][first] = f"{success['body'][first]} (new)"
+                        success["body"][varied] = free
+                elif isinstance(success["body"].get(varied), str):
+                    success["body"][varied] = f"{success['body'][varied]} (new)"
             text_field = next(
                 (f for f in rule["fields"] if isinstance(success["body"].get(f), str) and not f.endswith("Id")), None
             )
@@ -399,9 +416,23 @@ def contract_scenarios(
                 if scenario is success or not isinstance(body, dict) or not isinstance(body.get(text_field), str):
                     continue
                 body[text_field] = f"s{index}-{body[text_field]}"
-            taken = open_record(rule)
+            # a seeded pair of the scenario's own user (the server sets the owner: another user's pair is no clash)
+            taken = (
+                open_record(rule)
+                if not server_set
+                else next(
+                    (
+                        r
+                        for r in records
+                        if counts(r, rule["where"])
+                        and all(r.get(f) == caller for f in server_set)
+                        and all(r.get(f) not in values for f, values in blocked.items())
+                    ),
+                    None,
+                )
+            )
             if taken is not None:
-                body = {**success["body"], **{f: taken[f] for f in rule["fields"]}}
+                body = {**success["body"], **{f: taken[f] for f in fields if f not in server_set}}
                 for other in rules_of(op, "noOverlap"):  # a slot of its own: the success took the body's
                     date = other["startType"] == "date"
                     body[other["start"]] = "2027-08-01" if date else "2027-08-01T09:00:00Z"

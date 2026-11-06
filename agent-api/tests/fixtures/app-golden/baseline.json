@@ -1,0 +1,54 @@
+{
+  "date": "2026-11-06",
+  "distinctFrames": 3,
+  "home": {
+    "mean": 0.7422,
+    "max": 0.9804
+  },
+  "list": {
+    "mean": 0.7592,
+    "max": 0.9914
+  },
+  "frames": {
+    "news-feed": [
+      "sidebar",
+      "list",
+      "cards"
+    ],
+    "video-library": [
+      "sidebar",
+      "list",
+      "cards"
+    ],
+    "learning-platform": [
+      "sidebar",
+      "dashboard",
+      "cards"
+    ],
+    "agency-projects": [
+      "sidebar",
+      "dashboard",
+      "cards"
+    ],
+    "clinic-bookings": [
+      "sidebar",
+      "list",
+      "table"
+    ],
+    "plant-shop": [
+      "sidebar",
+      "dashboard",
+      "cards"
+    ],
+    "event-tickets": [
+      "sidebar",
+      "dashboard",
+      "cards"
+    ],
+    "workshop-bookings": [
+      "sidebar",
+      "dashboard",
+      "cards"
+    ]
+  }
+}

@@ -1,0 +1,318 @@
+{
+  "pages": {
+    "/": [
+      {
+        "id": "figure-1",
+        "component": "AppDashboard",
+        "data": {
+          "operationId": "task.countWhereStatusInProgress"
+        },
+        "actions": []
+      },
+      {
+        "id": "figure-2",
+        "component": "AppDashboard",
+        "data": {
+          "operationId": "task.countWhereStatusInReview"
+        },
+        "actions": []
+      },
+      {
+        "id": "figure-3",
+        "component": "AppDashboard",
+        "data": {
+          "operationId": "project.count"
+        },
+        "actions": []
+      },
+      {
+        "id": "figure-4",
+        "component": "AppDashboard",
+        "data": {
+          "operationId": "project.sumBudget"
+        },
+        "actions": []
+      },
+      {
+        "id": "figure-5",
+        "component": "AppDashboard",
+        "data": {
+          "operationId": "task.countByStatus"
+        },
+        "actions": []
+      },
+      {
+        "id": "figure-6",
+        "component": "AppDashboard",
+        "data": {
+          "operationId": "task.countByPriority"
+        },
+        "actions": []
+      },
+      {
+        "id": "recent-tasks",
+        "component": "AppList",
+        "data": {
+          "operationId": "task.list",
+          "params": {
+            "limit": 5,
+            "sort": "-createdAt"
+          },
+          "fields": [
+            "title",
+            "projectId",
+            "assigneeName"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "transition-in-progress",
+          "transition-in-review",
+          "transition-done",
+          "delete"
+        ]
+      },
+      {
+        "id": "recent-projects",
+        "component": "AppList",
+        "data": {
+          "operationId": "project.list",
+          "params": {
+            "limit": 5,
+            "sort": "-createdAt"
+          },
+          "fields": [
+            "name",
+            "clientName",
+            "budget"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "delete"
+        ]
+      }
+    ],
+    "/projects": [
+      {
+        "id": "projects-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "project.list",
+          "fields": [
+            "name",
+            "clientName",
+            "budget",
+            "spent",
+            "deadline"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "delete"
+        ]
+      }
+    ],
+    "/projects/[id]": [
+      {
+        "id": "projects-detail",
+        "component": "AppDetail",
+        "data": {
+          "operationId": "project.get",
+          "params": {
+            "id": "$route.id"
+          },
+          "fields": [
+            "name",
+            "clientName",
+            "budget",
+            "spent",
+            "deadline",
+            "color",
+            "createdAt"
+          ]
+        },
+        "actions": [
+          "edit",
+          "delete"
+        ]
+      },
+      {
+        "id": "tasks-tab",
+        "component": "AppList",
+        "data": {
+          "operationId": "task.list",
+          "params": {
+            "projectId": "$route.id"
+          },
+          "fields": [
+            "title",
+            "assigneeName",
+            "priority",
+            "status"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "transition-in-progress",
+          "transition-in-review",
+          "transition-done",
+          "delete"
+        ]
+      }
+    ],
+    "/projects/[id]/edit": [
+      {
+        "id": "projects-edit-form",
+        "component": "AppForm",
+        "form": "project_update",
+        "actions": []
+      }
+    ],
+    "/projects/[id]/tasks/new": [
+      {
+        "id": "task-create-in-project-form",
+        "component": "AppForm",
+        "form": "task_create_in_project",
+        "actions": []
+      }
+    ],
+    "/projects/new": [
+      {
+        "id": "project-create-form",
+        "component": "AppForm",
+        "form": "project_create",
+        "actions": []
+      }
+    ],
+    "/tasks": [
+      {
+        "id": "tasks-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "task.list",
+          "fields": [
+            "title",
+            "projectId",
+            "assigneeName",
+            "priority",
+            "status"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "transition-in-progress",
+          "transition-in-review",
+          "transition-done",
+          "delete"
+        ]
+      }
+    ],
+    "/tasks/[id]": [
+      {
+        "id": "tasks-detail",
+        "component": "AppDetail",
+        "data": {
+          "operationId": "task.get",
+          "params": {
+            "id": "$route.id"
+          },
+          "fields": [
+            "title",
+            "projectId",
+            "description",
+            "assigneeName",
+            "priority",
+            "estimateHours",
+            "status",
+            "dueDate",
+            "createdAt"
+          ]
+        },
+        "actions": [
+          "edit",
+          "transition-in-progress",
+          "transition-in-review",
+          "transition-done",
+          "delete"
+        ]
+      }
+    ],
+    "/tasks/[id]/edit": [
+      {
+        "id": "tasks-edit-form",
+        "component": "AppForm",
+        "form": "task_update",
+        "actions": []
+      }
+    ]
+  },
+  "forms": {
+    "project_create": {
+      "operationId": "project.create",
+      "fields": [
+        "name",
+        "clientName",
+        "budget",
+        "spent",
+        "deadline",
+        "color"
+      ]
+    },
+    "project_update": {
+      "operationId": "project.update",
+      "fields": [
+        "name",
+        "clientName",
+        "budget",
+        "spent",
+        "deadline",
+        "color"
+      ]
+    },
+    "task_create_in_project": {
+      "operationId": "task.create",
+      "fields": [
+        "projectId=$route.id",
+        "title",
+        "description",
+        "assigneeName",
+        "priority",
+        "estimateHours",
+        "dueDate"
+      ]
+    },
+    "task_update": {
+      "operationId": "task.update",
+      "fields": [
+        "projectId",
+        "title",
+        "description",
+        "assigneeName",
+        "priority",
+        "estimateHours",
+        "dueDate",
+        "status"
+      ]
+    }
+  },
+  "navigation": [
+    {
+      "label": "Dashboard",
+      "page": "home"
+    },
+    {
+      "label": "Tasks",
+      "page": "tasks"
+    },
+    {
+      "label": "Projects",
+      "page": "projects"
+    }
+  ]
+}

@@ -7,7 +7,9 @@ import { cn } from "@/lib/utils";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { app, canUse, pageOperation, type TAppSection } from "./app";
 import { AppSection } from "./AppSection";
+import { FRAME_WIDTH, useLayout } from "./layout";
 import { useSession } from "./plugins";
+import { inSentence, t } from "./messages";
 
 type AppPageProps = {
   pageId: string;
@@ -30,11 +32,12 @@ function blocks(sections: TAppSection[]): TBlock[] {
   return out;
 }
 
-/** One screen of the app (Epic 22): its app sections in the kit's one layout: one page width, one gap, the first
- *  list or the record as the page heading, figures in a grid, a parent's children in tabs. */
+/** One screen of the app (Epic 22): its app sections at the layout's width (Epic 23 frame), one gap, the first list
+ *  or the record as the page heading, figures in a grid, a parent's children in tabs. */
 export function AppPage({ pageId }: AppPageProps) {
   const page = app.pages[pageId];
   const session = useSession();
+  const layout = useLayout();
   const router = useRouter();
   const pathname = usePathname();
   // Story 22.7: a page on an operation behind sign-in sends a signed-out user to sign in, and back here after
@@ -49,17 +52,21 @@ export function AppPage({ pageId }: AppPageProps) {
     return (
       <Empty className="mx-auto max-w-md">
         <EmptyHeader>
-          <EmptyTitle>Not for your role</EmptyTitle>
-          <EmptyDescription>Your account cannot open {page.title.toLowerCase()}.</EmptyDescription>
+          <EmptyTitle>{t("notForYourRole")}</EmptyTitle>
+          <EmptyDescription>{t("cannotOpen", { name: inSentence(page.title) })}</EmptyDescription>
         </EmptyHeader>
       </Empty>
     );
   }
+  const bento = layout.homeView === "bento" && pageId === "home";
+  const firstChart = page.sections
+    .filter((s) => s.component === "AppDashboard")
+    .findIndex((s) => (s.content?.kind ?? "figure") !== "figure");
   const firstList = page.sections.find((s) => s.component === "AppList" && !s.content?.tab && s.content?.variant !== "recent");
   const hasHeading = page.sections.some((s) => s.component === "AppDetail" || s.component === "AppForm") || Boolean(firstList);
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-8" data-page={pageId}>
+    <div className={cn("mx-auto flex w-full flex-col gap-8", FRAME_WIDTH[layout.frame] ?? "max-w-6xl")} data-page={pageId}>
       {!hasHeading && <h1 className="text-2xl font-semibold tracking-tight">{page.title}</h1>}
       {blocks(page.sections).map((block, index) => {
         if (block.kind === "one") {
@@ -76,11 +83,19 @@ export function AppPage({ pageId }: AppPageProps) {
         }
         if (block.kind === "figures") {
           return (
-            <div key={`figures-${index}`} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {block.sections.map((section) => (
+            <div
+              key={`figures-${index}`}
+              className={cn("grid gap-4 sm:grid-cols-2 lg:grid-cols-4", bento && "lg:auto-rows-[minmax(9rem,auto)]")}
+              data-bga-figures={bento ? "bento" : undefined}
+            >
+              {block.sections.map((section, position) => (
                 <div
                   key={section.id}
-                  className={cn((section.content?.kind ?? "figure") !== "figure" && "sm:col-span-2")}
+                  className={cn(
+                    (section.content?.kind ?? "figure") !== "figure" && "sm:col-span-2",
+                    // Story 23.5: a bento home gives its first chart a large tile
+                    bento && position === firstChart && "lg:row-span-2",
+                  )}
                 >
                   <AppSection pageId={pageId} section={section} title={page.title} heading="h2" />
                 </div>

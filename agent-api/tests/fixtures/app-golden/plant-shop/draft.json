@@ -1,0 +1,34 @@
+{
+  "requirement": "plant-shop.md",
+  "seconds": 218.6,
+  "repairs": 1,
+  "costUsd": 0.1375,
+  "archetypeCandidates": [
+    "storefront"
+  ],
+  "productTypes": [
+    "Plant Care Tracker",
+    "Florist/Plant Shop",
+    "Pet Tech App"
+  ],
+  "calls": [
+    {
+      "step": "draft",
+      "prompt": "draft_app@v3proto",
+      "model": "gemini-3.8-flash",
+      "durationMs": 130350,
+      "inputTokens": 7797,
+      "outputTokens": 19984,
+      "costUsd": 0.080788
+    },
+    {
+      "step": "repair",
+      "prompt": "repair_spec@v3",
+      "model": "gemini-3.8-flash",
+      "durationMs": 88118,
+      "inputTokens": 15723,
+      "outputTokens": 11990,
+      "costUsd": 0.056755
+    }
+  ]
+}

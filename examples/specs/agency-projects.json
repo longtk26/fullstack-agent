@@ -1,0 +1,551 @@
+{
+  "specVersion": "1.0",
+  "project": {
+    "name": "Studio Flow",
+    "description": "Work and project tracker for a design agency managing client projects, budgets, deadlines, and task workflows."
+  },
+  "stack": {
+    "framework": "fastapi",
+    "database": "postgresql",
+    "orm": "sqlmodel",
+    "migration": "alembic"
+  },
+  "entities": [
+    {
+      "name": "Project",
+      "displayField": "name",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "primary": true
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "maxLength": 120
+        },
+        {
+          "name": "clientName",
+          "type": "string",
+          "required": true,
+          "maxLength": 120
+        },
+        {
+          "name": "budget",
+          "type": "decimal",
+          "required": true,
+          "min": 0
+        },
+        {
+          "name": "spent",
+          "type": "decimal",
+          "required": false,
+          "default": 0,
+          "min": 0
+        },
+        {
+          "name": "deadline",
+          "type": "date",
+          "required": true
+        },
+        {
+          "name": "color",
+          "type": "string",
+          "required": true,
+          "maxLength": 30
+        },
+        {
+          "name": "createdAt",
+          "type": "datetime",
+          "required": true,
+          "default": "now"
+        }
+      ]
+    },
+    {
+      "name": "Task",
+      "displayField": "title",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "primary": true
+        },
+        {
+          "name": "projectId",
+          "type": "uuid",
+          "required": true,
+          "index": true
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "required": true,
+          "maxLength": 160
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "required": false,
+          "nullable": true
+        },
+        {
+          "name": "assigneeName",
+          "type": "string",
+          "required": true,
+          "maxLength": 80
+        },
+        {
+          "name": "priority",
+          "type": "enum",
+          "values": [
+            "LOW",
+            "NORMAL",
+            "URGENT"
+          ],
+          "required": true,
+          "default": "NORMAL"
+        },
+        {
+          "name": "estimateHours",
+          "type": "float",
+          "required": true,
+          "min": 0
+        },
+        {
+          "name": "dueDate",
+          "type": "date",
+          "required": true
+        },
+        {
+          "name": "status",
+          "type": "enum",
+          "values": [
+            "BACKLOG",
+            "IN_PROGRESS",
+            "IN_REVIEW",
+            "DONE"
+          ],
+          "required": true,
+          "default": "BACKLOG"
+        },
+        {
+          "name": "createdAt",
+          "type": "datetime",
+          "required": true,
+          "default": "now"
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "name": "projectTasks",
+      "type": "one-to-many",
+      "from": "Project",
+      "to": "Task",
+      "foreignKey": "projectId",
+      "onDelete": "CASCADE"
+    }
+  ],
+  "rules": [
+    {
+      "id": "taskStatusFlow",
+      "kind": "transition",
+      "entity": "Task",
+      "description": "Tasks move from backlog to in progress, then in review, and done. Tasks in review can also return to in progress.",
+      "params": {
+        "field": "status",
+        "transitions": {
+          "BACKLOG": [
+            "IN_PROGRESS"
+          ],
+          "IN_PROGRESS": [
+            "IN_REVIEW"
+          ],
+          "IN_REVIEW": [
+            "IN_PROGRESS",
+            "DONE"
+          ],
+          "DONE": []
+        }
+      }
+    }
+  ],
+  "operations": [
+    {
+      "operationId": "project.create",
+      "type": "crud",
+      "action": "create",
+      "entity": "Project",
+      "method": "POST",
+      "path": "/projects"
+    },
+    {
+      "operationId": "project.get",
+      "type": "crud",
+      "action": "get",
+      "entity": "Project",
+      "method": "GET",
+      "path": "/projects/{id}"
+    },
+    {
+      "operationId": "project.list",
+      "type": "crud",
+      "action": "list",
+      "entity": "Project",
+      "method": "GET",
+      "path": "/projects",
+      "pagination": true,
+      "search": [
+        "name",
+        "clientName"
+      ],
+      "sort": [
+        "deadline",
+        "name",
+        "budget",
+        "createdAt"
+      ]
+    },
+    {
+      "operationId": "project.update",
+      "type": "crud",
+      "action": "update",
+      "entity": "Project",
+      "method": "PATCH",
+      "path": "/projects/{id}"
+    },
+    {
+      "operationId": "project.delete",
+      "type": "crud",
+      "action": "delete",
+      "entity": "Project",
+      "method": "DELETE",
+      "path": "/projects/{id}"
+    },
+    {
+      "operationId": "task.create",
+      "type": "crud",
+      "action": "create",
+      "entity": "Task",
+      "method": "POST",
+      "path": "/tasks"
+    },
+    {
+      "operationId": "task.get",
+      "type": "crud",
+      "action": "get",
+      "entity": "Task",
+      "method": "GET",
+      "path": "/tasks/{id}"
+    },
+    {
+      "operationId": "task.list",
+      "type": "crud",
+      "action": "list",
+      "entity": "Task",
+      "method": "GET",
+      "path": "/tasks",
+      "pagination": true,
+      "filters": [
+        "projectId",
+        "status",
+        "priority",
+        "assigneeName"
+      ],
+      "search": [
+        "title",
+        "assigneeName"
+      ],
+      "sort": [
+        "dueDate",
+        "priority",
+        "status",
+        "createdAt"
+      ]
+    },
+    {
+      "operationId": "task.update",
+      "type": "crud",
+      "action": "update",
+      "entity": "Task",
+      "method": "PATCH",
+      "path": "/tasks/{id}",
+      "rules": [
+        "taskStatusFlow"
+      ]
+    },
+    {
+      "operationId": "task.delete",
+      "type": "crud",
+      "action": "delete",
+      "entity": "Task",
+      "method": "DELETE",
+      "path": "/tasks/{id}"
+    },
+    {
+      "operationId": "task.countWhereStatusInProgress",
+      "type": "aggregate",
+      "entity": "Task",
+      "method": "GET",
+      "path": "/tasks/aggregate/count-where-status-in-progress",
+      "summary": "In Progress",
+      "aggregate": {
+        "fn": "count",
+        "filters": {
+          "status": "IN_PROGRESS"
+        }
+      }
+    },
+    {
+      "operationId": "task.countWhereStatusInReview",
+      "type": "aggregate",
+      "entity": "Task",
+      "method": "GET",
+      "path": "/tasks/aggregate/count-where-status-in-review",
+      "summary": "Awaiting Review",
+      "aggregate": {
+        "fn": "count",
+        "filters": {
+          "status": "IN_REVIEW"
+        }
+      }
+    },
+    {
+      "operationId": "project.count",
+      "type": "aggregate",
+      "entity": "Project",
+      "method": "GET",
+      "path": "/projects/aggregate/count",
+      "summary": "Active Projects",
+      "aggregate": {
+        "fn": "count"
+      }
+    },
+    {
+      "operationId": "project.sumBudget",
+      "type": "aggregate",
+      "entity": "Project",
+      "method": "GET",
+      "path": "/projects/aggregate/sum-budget",
+      "summary": "Total Committed Budget",
+      "aggregate": {
+        "fn": "sum",
+        "field": "budget"
+      }
+    },
+    {
+      "operationId": "task.countByStatus",
+      "type": "aggregate",
+      "entity": "Task",
+      "method": "GET",
+      "path": "/tasks/aggregate/count-by-status",
+      "summary": "Tasks by Status",
+      "aggregate": {
+        "fn": "count",
+        "groupBy": "status"
+      }
+    },
+    {
+      "operationId": "task.countByPriority",
+      "type": "aggregate",
+      "entity": "Task",
+      "method": "GET",
+      "path": "/tasks/aggregate/count-by-priority",
+      "summary": "Tasks by Priority",
+      "aggregate": {
+        "fn": "count",
+        "groupBy": "priority"
+      }
+    }
+  ],
+  "seed": [
+    {
+      "entity": "Project",
+      "records": [
+        {
+          "id": "c4b1e2a0-1111-4000-8000-000000000001",
+          "name": "Coffee Brand Refresh",
+          "clientName": "Artisan Roast Co.",
+          "budget": 18500.0,
+          "spent": 14200.0,
+          "deadline": "2025-05-15",
+          "color": "#D97706",
+          "createdAt": "2025-03-01T09:00:00Z"
+        },
+        {
+          "id": "c4b1e2a0-2222-4000-8000-000000000002",
+          "name": "Bank Mobile App",
+          "clientName": "Apex Financial Bank",
+          "budget": 45000.0,
+          "spent": 47250.0,
+          "deadline": "2025-04-20",
+          "color": "#2563EB",
+          "createdAt": "2025-02-15T09:00:00Z"
+        },
+        {
+          "id": "c4b1e2a0-3333-4000-8000-000000000003",
+          "name": "Museum Website",
+          "clientName": "City Museum of Modern Art",
+          "budget": 28000.0,
+          "spent": 19800.0,
+          "deadline": "2025-06-30",
+          "color": "#059669",
+          "createdAt": "2025-03-10T09:00:00Z"
+        }
+      ]
+    },
+    {
+      "entity": "Task",
+      "records": [
+        {
+          "id": "d1010001-0000-4000-8000-000000000001",
+          "projectId": "c4b1e2a0-1111-4000-8000-000000000001",
+          "title": "Packaging label foil stamp mockups",
+          "description": "Create 3D renders of retail coffee pouches with gold foil stamp variations.",
+          "assigneeName": "Elena Rostova",
+          "priority": "NORMAL",
+          "estimateHours": 12.0,
+          "dueDate": "2025-04-28",
+          "status": "BACKLOG",
+          "createdAt": "2025-04-01T10:00:00Z"
+        },
+        {
+          "id": "d1010001-0000-4000-8000-000000000002",
+          "projectId": "c4b1e2a0-1111-4000-8000-000000000001",
+          "title": "Secondary typography pairing exploration",
+          "description": "Select secondary serif font for tasting notes and brand story copy.",
+          "assigneeName": "David Kim",
+          "priority": "LOW",
+          "estimateHours": 6.0,
+          "dueDate": "2025-04-22",
+          "status": "IN_PROGRESS",
+          "createdAt": "2025-04-02T11:00:00Z"
+        },
+        {
+          "id": "d1010001-0000-4000-8000-000000000003",
+          "projectId": "c4b1e2a0-1111-4000-8000-000000000001",
+          "title": "Primary brand mark lockups and color guide",
+          "description": "Final vector assets for logo lockups with RGB, CMYK, and Pantone specifications.",
+          "assigneeName": "Marcus Chen",
+          "priority": "URGENT",
+          "estimateHours": 16.0,
+          "dueDate": "2025-04-18",
+          "status": "IN_REVIEW",
+          "createdAt": "2025-04-03T09:30:00Z"
+        },
+        {
+          "id": "d1010001-0000-4000-8000-000000000004",
+          "projectId": "c4b1e2a0-1111-4000-8000-000000000001",
+          "title": "Client moodboard and positioning deck",
+          "description": "Initial aesthetic alignment deck approved by Roastery leadership.",
+          "assigneeName": "Elena Rostova",
+          "priority": "NORMAL",
+          "estimateHours": 14.0,
+          "dueDate": "2025-03-20",
+          "status": "DONE",
+          "createdAt": "2025-03-05T14:00:00Z"
+        },
+        {
+          "id": "d1010001-0000-4000-8000-000000000005",
+          "projectId": "c4b1e2a0-2222-4000-8000-000000000002",
+          "title": "Biometric authentication error state flows",
+          "description": "Map fallback screen scenarios when FaceID fails or lockout threshold is reached.",
+          "assigneeName": "Sarah Jenkins",
+          "priority": "NORMAL",
+          "estimateHours": 10.0,
+          "dueDate": "2025-04-30",
+          "status": "BACKLOG",
+          "createdAt": "2025-04-05T08:30:00Z"
+        },
+        {
+          "id": "d1010001-0000-4000-8000-000000000006",
+          "projectId": "c4b1e2a0-2222-4000-8000-000000000002",
+          "title": "Transfer money interactive prototype",
+          "description": "High-fidelity Figma prototype for peer transfers with haptic cues.",
+          "assigneeName": "Sarah Jenkins",
+          "priority": "URGENT",
+          "estimateHours": 20.0,
+          "dueDate": "2025-04-19",
+          "status": "IN_PROGRESS",
+          "createdAt": "2025-04-04T13:00:00Z"
+        },
+        {
+          "id": "d1010001-0000-4000-8000-000000000007",
+          "projectId": "c4b1e2a0-2222-4000-8000-000000000002",
+          "title": "Account dashboard financial summary cards",
+          "description": "Modular spending chart and account balance widgets for the main tab.",
+          "assigneeName": "David Kim",
+          "priority": "NORMAL",
+          "estimateHours": 18.0,
+          "dueDate": "2025-04-17",
+          "status": "IN_REVIEW",
+          "createdAt": "2025-03-28T16:00:00Z"
+        },
+        {
+          "id": "d1010001-0000-4000-8000-000000000008",
+          "projectId": "c4b1e2a0-2222-4000-8000-000000000002",
+          "title": "Design system tokens and contrast audit",
+          "description": "WCAG AAA compliance pass on all digital banking palette combinations.",
+          "assigneeName": "Marcus Chen",
+          "priority": "NORMAL",
+          "estimateHours": 24.0,
+          "dueDate": "2025-03-25",
+          "status": "DONE",
+          "createdAt": "2025-03-01T10:00:00Z"
+        },
+        {
+          "id": "d1010001-0000-4000-8000-000000000009",
+          "projectId": "c4b1e2a0-3333-4000-8000-000000000003",
+          "title": "Audio tour web player interface",
+          "description": "Persistent bottom mini-player for exhibition track narration and transcripts.",
+          "assigneeName": "Elena Rostova",
+          "priority": "LOW",
+          "estimateHours": 15.0,
+          "dueDate": "2025-05-10",
+          "status": "BACKLOG",
+          "createdAt": "2025-04-06T15:00:00Z"
+        },
+        {
+          "id": "d1010001-0000-4000-8000-000000000010",
+          "projectId": "c4b1e2a0-3333-4000-8000-000000000003",
+          "title": "Exhibition calendar filtering by gallery",
+          "description": "Filter component for permanent collections versus seasonal installations.",
+          "assigneeName": "Marcus Chen",
+          "priority": "NORMAL",
+          "estimateHours": 12.0,
+          "dueDate": "2025-04-25",
+          "status": "IN_PROGRESS",
+          "createdAt": "2025-04-08T09:00:00Z"
+        },
+        {
+          "id": "d1010001-0000-4000-8000-000000000011",
+          "projectId": "c4b1e2a0-3333-4000-8000-000000000003",
+          "title": "Ticket checkout modal and timeslot picker",
+          "description": "Two-step booking overlay for general admission and member preview tiers.",
+          "assigneeName": "Sarah Jenkins",
+          "priority": "URGENT",
+          "estimateHours": 16.0,
+          "dueDate": "2025-04-16",
+          "status": "IN_REVIEW",
+          "createdAt": "2025-04-02T14:30:00Z"
+        },
+        {
+          "id": "d1010001-0000-4000-8000-000000000012",
+          "projectId": "c4b1e2a0-3333-4000-8000-000000000003",
+          "title": "Homepage hero video art direction",
+          "description": "Curated 10-second silent background loops highlighting kinetic sculptures.",
+          "assigneeName": "David Kim",
+          "priority": "LOW",
+          "estimateHours": 8.0,
+          "dueDate": "2025-03-31",
+          "status": "DONE",
+          "createdAt": "2025-03-12T11:00:00Z"
+        }
+      ]
+    }
+  ]
+}

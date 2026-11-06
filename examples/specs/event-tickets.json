@@ -1,0 +1,827 @@
+{
+  "specVersion": "1.0",
+  "project": {
+    "name": "Gather",
+    "description": "Event ticketing platform for independent city venues connecting attendees with concerts, workshops, talks, and markets."
+  },
+  "stack": {
+    "framework": "fastapi",
+    "database": "postgresql",
+    "orm": "sqlmodel",
+    "migration": "alembic"
+  },
+  "auth": {
+    "type": "jwt",
+    "roles": [
+      "attendee",
+      "organizer"
+    ]
+  },
+  "entities": [
+    {
+      "name": "Venue",
+      "displayField": "name",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "primary": true
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "maxLength": 120
+        },
+        {
+          "name": "neighborhood",
+          "type": "string",
+          "required": true,
+          "maxLength": 100
+        },
+        {
+          "name": "address",
+          "type": "string",
+          "required": true,
+          "maxLength": 200
+        },
+        {
+          "name": "capacity",
+          "type": "integer",
+          "required": true,
+          "min": 1,
+          "max": 5000
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "maxLength": 1000
+        },
+        {
+          "name": "createdAt",
+          "type": "datetime",
+          "required": true,
+          "default": "now"
+        }
+      ]
+    },
+    {
+      "name": "Event",
+      "displayField": "title",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "primary": true
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "required": true,
+          "maxLength": 150
+        },
+        {
+          "name": "category",
+          "type": "enum",
+          "values": [
+            "CONCERT",
+            "WORKSHOP",
+            "TALK",
+            "MARKET"
+          ],
+          "required": true,
+          "index": true
+        },
+        {
+          "name": "poster",
+          "type": "image",
+          "required": false,
+          "nullable": true
+        },
+        {
+          "name": "venueId",
+          "type": "uuid",
+          "required": true,
+          "index": true
+        },
+        {
+          "name": "startTime",
+          "type": "datetime",
+          "required": true,
+          "index": true
+        },
+        {
+          "name": "price",
+          "type": "decimal",
+          "required": true,
+          "min": 0
+        },
+        {
+          "name": "capacity",
+          "type": "integer",
+          "required": true,
+          "min": 1,
+          "max": 5000
+        },
+        {
+          "name": "status",
+          "type": "enum",
+          "values": [
+            "DRAFT",
+            "PUBLISHED",
+            "CANCELLED"
+          ],
+          "required": true,
+          "default": "DRAFT",
+          "index": true
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "maxLength": 3000
+        },
+        {
+          "name": "createdAt",
+          "type": "datetime",
+          "required": true,
+          "default": "now"
+        }
+      ]
+    },
+    {
+      "name": "Ticket",
+      "displayField": "qrCodeRef",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "primary": true
+        },
+        {
+          "name": "eventId",
+          "type": "uuid",
+          "required": true,
+          "index": true
+        },
+        {
+          "name": "attendeeId",
+          "type": "uuid",
+          "required": true,
+          "index": true
+        },
+        {
+          "name": "attendeeName",
+          "type": "string",
+          "required": true,
+          "maxLength": 120
+        },
+        {
+          "name": "pricePaid",
+          "type": "decimal",
+          "required": true,
+          "min": 0
+        },
+        {
+          "name": "qrCodeRef",
+          "type": "string",
+          "required": true,
+          "unique": true,
+          "maxLength": 32
+        },
+        {
+          "name": "status",
+          "type": "enum",
+          "values": [
+            "VALID",
+            "CHECKED_IN",
+            "CANCELLED"
+          ],
+          "required": true,
+          "default": "VALID",
+          "index": true
+        },
+        {
+          "name": "paymentStatus",
+          "type": "enum",
+          "values": [
+            "UNPAID",
+            "PAID",
+            "FAILED"
+          ],
+          "required": true,
+          "default": "PAID"
+        },
+        {
+          "name": "checkedInAt",
+          "type": "datetime",
+          "required": false,
+          "nullable": true
+        },
+        {
+          "name": "createdAt",
+          "type": "datetime",
+          "required": true,
+          "default": "now"
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "name": "venueEvents",
+      "type": "one-to-many",
+      "from": "Venue",
+      "to": "Event",
+      "foreignKey": "venueId",
+      "onDelete": "RESTRICT"
+    },
+    {
+      "name": "eventTickets",
+      "type": "one-to-many",
+      "from": "Event",
+      "to": "Ticket",
+      "foreignKey": "eventId",
+      "onDelete": "CASCADE"
+    }
+  ],
+  "policies": [
+    {
+      "name": "organizersOnly",
+      "type": "role",
+      "roles": [
+        "organizer"
+      ]
+    },
+    {
+      "name": "ownTickets",
+      "type": "ownership",
+      "ownerField": "attendeeId",
+      "bypassRoles": [
+        "organizer"
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "id": "eventStatusFlow",
+      "kind": "transition",
+      "entity": "Event",
+      "params": {
+        "field": "status",
+        "transitions": {
+          "DRAFT": [
+            "PUBLISHED",
+            "CANCELLED"
+          ],
+          "PUBLISHED": [
+            "CANCELLED"
+          ]
+        }
+      }
+    },
+    {
+      "id": "eventCancelledFinal",
+      "kind": "immutableAfter",
+      "entity": "Event",
+      "params": {
+        "field": "status",
+        "states": [
+          "CANCELLED"
+        ]
+      }
+    },
+    {
+      "id": "ticketStatusFlow",
+      "kind": "transition",
+      "entity": "Ticket",
+      "params": {
+        "field": "status",
+        "transitions": {
+          "VALID": [
+            "CHECKED_IN",
+            "CANCELLED"
+          ],
+          "CHECKED_IN": []
+        }
+      }
+    },
+    {
+      "id": "ticketCapacityLimit",
+      "kind": "capacity",
+      "entity": "Ticket",
+      "params": {
+        "parent": "eventId",
+        "capacityField": "capacity",
+        "where": {
+          "status": {
+            "ne": "CANCELLED"
+          }
+        }
+      }
+    }
+  ],
+  "payments": {
+    "provider": "fake",
+    "entity": "Ticket",
+    "amountField": "pricePaid",
+    "currency": "USD",
+    "statusField": "paymentStatus",
+    "paidStatus": "PAID",
+    "failedStatus": "FAILED"
+  },
+  "operations": [
+    {
+      "operationId": "venue.create",
+      "type": "crud",
+      "action": "create",
+      "entity": "Venue",
+      "method": "POST",
+      "path": "/venues",
+      "policy": "organizersOnly"
+    },
+    {
+      "operationId": "venue.get",
+      "type": "crud",
+      "action": "get",
+      "entity": "Venue",
+      "method": "GET",
+      "path": "/venues/{id}"
+    },
+    {
+      "operationId": "venue.list",
+      "type": "crud",
+      "action": "list",
+      "entity": "Venue",
+      "method": "GET",
+      "path": "/venues",
+      "pagination": true,
+      "search": [
+        "name",
+        "neighborhood"
+      ],
+      "sort": [
+        "name"
+      ]
+    },
+    {
+      "operationId": "venue.update",
+      "type": "crud",
+      "action": "update",
+      "entity": "Venue",
+      "method": "PATCH",
+      "path": "/venues/{id}",
+      "policy": "organizersOnly"
+    },
+    {
+      "operationId": "venue.delete",
+      "type": "crud",
+      "action": "delete",
+      "entity": "Venue",
+      "method": "DELETE",
+      "path": "/venues/{id}",
+      "policy": "organizersOnly"
+    },
+    {
+      "operationId": "event.create",
+      "type": "crud",
+      "action": "create",
+      "entity": "Event",
+      "method": "POST",
+      "path": "/events",
+      "policy": "organizersOnly"
+    },
+    {
+      "operationId": "event.get",
+      "type": "crud",
+      "action": "get",
+      "entity": "Event",
+      "method": "GET",
+      "path": "/events/{id}"
+    },
+    {
+      "operationId": "event.list",
+      "type": "crud",
+      "action": "list",
+      "entity": "Event",
+      "method": "GET",
+      "path": "/events",
+      "pagination": true,
+      "filters": [
+        "category",
+        "venueId",
+        "status"
+      ],
+      "search": [
+        "title"
+      ],
+      "sort": [
+        "startTime",
+        "price",
+        "createdAt"
+      ]
+    },
+    {
+      "operationId": "event.update",
+      "type": "crud",
+      "action": "update",
+      "entity": "Event",
+      "method": "PATCH",
+      "path": "/events/{id}",
+      "policy": "organizersOnly",
+      "rules": [
+        "eventStatusFlow",
+        "eventCancelledFinal"
+      ]
+    },
+    {
+      "operationId": "event.delete",
+      "type": "crud",
+      "action": "delete",
+      "entity": "Event",
+      "method": "DELETE",
+      "path": "/events/{id}",
+      "policy": "organizersOnly",
+      "rules": [
+        "eventCancelledFinal"
+      ]
+    },
+    {
+      "operationId": "ticket.create",
+      "type": "crud",
+      "action": "create",
+      "entity": "Ticket",
+      "method": "POST",
+      "path": "/tickets",
+      "auth": "jwt",
+      "rules": [
+        "ticketCapacityLimit"
+      ]
+    },
+    {
+      "operationId": "ticket.get",
+      "type": "crud",
+      "action": "get",
+      "entity": "Ticket",
+      "method": "GET",
+      "path": "/tickets/{id}",
+      "policy": "ownTickets"
+    },
+    {
+      "operationId": "ticket.list",
+      "type": "crud",
+      "action": "list",
+      "entity": "Ticket",
+      "method": "GET",
+      "path": "/tickets",
+      "policy": "ownTickets",
+      "pagination": true,
+      "filters": [
+        "eventId",
+        "status",
+        "attendeeId"
+      ],
+      "sort": [
+        "createdAt"
+      ]
+    },
+    {
+      "operationId": "ticket.update",
+      "type": "crud",
+      "action": "update",
+      "entity": "Ticket",
+      "method": "PATCH",
+      "path": "/tickets/{id}",
+      "policy": "organizersOnly",
+      "rules": [
+        "ticketStatusFlow"
+      ]
+    },
+    {
+      "operationId": "ticket.checkIn",
+      "type": "custom",
+      "method": "POST",
+      "path": "/tickets/{id}/check-in",
+      "policy": "organizersOnly",
+      "summary": "Check in ticket",
+      "description": "Validates the QR code reference and marks a valid ticket as CHECKED_IN, setting checkedInAt to the current timestamp. Returns 400 if already checked in or cancelled."
+    },
+    {
+      "operationId": "organizer.ticketsThisWeek",
+      "type": "aggregate",
+      "entity": "Ticket",
+      "method": "GET",
+      "path": "/organizer/analytics/tickets-this-week",
+      "policy": "organizersOnly",
+      "aggregate": {
+        "fn": "count",
+        "period": "week",
+        "dateField": "createdAt",
+        "filters": {
+          "paymentStatus": "PAID"
+        }
+      }
+    },
+    {
+      "operationId": "organizer.revenuePerEvent",
+      "type": "aggregate",
+      "entity": "Ticket",
+      "method": "GET",
+      "path": "/organizer/analytics/revenue-per-event",
+      "policy": "organizersOnly",
+      "aggregate": {
+        "fn": "sum",
+        "field": "pricePaid",
+        "groupBy": "eventId",
+        "filters": {
+          "paymentStatus": "PAID"
+        }
+      }
+    },
+    {
+      "operationId": "ticket.countThisWeek",
+      "type": "aggregate",
+      "entity": "Ticket",
+      "method": "GET",
+      "path": "/tickets/aggregate/count-this-week",
+      "summary": "Tickets Sold This Week",
+      "aggregate": {
+        "fn": "count",
+        "period": "week",
+        "dateField": "createdAt"
+      }
+    },
+    {
+      "operationId": "ticket.sumPricePaidByEventId",
+      "type": "aggregate",
+      "entity": "Ticket",
+      "method": "GET",
+      "path": "/tickets/aggregate/sum-price-paid-by-event-id",
+      "summary": "Revenue per Event",
+      "aggregate": {
+        "fn": "sum",
+        "field": "pricePaid",
+        "groupBy": "eventId"
+      }
+    },
+    {
+      "operationId": "event.countWhereStatusPublished",
+      "type": "aggregate",
+      "entity": "Event",
+      "method": "GET",
+      "path": "/events/aggregate/count-where-status-published",
+      "summary": "Upcoming Events",
+      "aggregate": {
+        "fn": "count",
+        "filters": {
+          "status": "PUBLISHED"
+        }
+      }
+    },
+    {
+      "operationId": "ticket.countByStatus",
+      "type": "aggregate",
+      "entity": "Ticket",
+      "method": "GET",
+      "path": "/tickets/aggregate/count-by-status",
+      "summary": "Tickets by Status",
+      "aggregate": {
+        "fn": "count",
+        "groupBy": "status"
+      }
+    }
+  ],
+  "seed": [
+    {
+      "entity": "Venue",
+      "records": [
+        {
+          "id": "11111111-1111-1111-1111-111111111101",
+          "name": "The Basement Vault",
+          "neighborhood": "Old Quarter",
+          "address": "42 Cobblestone Lane",
+          "capacity": 150,
+          "description": "Atmospheric subterranean space dedicated to indie rock, acoustic sets, and intimate gigs."
+        },
+        {
+          "id": "11111111-1111-1111-1111-111111111102",
+          "name": "Kiln & Canopy Studios",
+          "neighborhood": "Arts Basin",
+          "address": "88 Riverside Mill Way",
+          "capacity": 60,
+          "description": "Sunlit loft space converted into artisan craft and educational workshop studios."
+        },
+        {
+          "id": "11111111-1111-1111-1111-111111111103",
+          "name": "The Lantern Forum",
+          "neighborhood": "Civic Centre",
+          "address": "15 Heritage Court",
+          "capacity": 120,
+          "description": "A restored Victorian lecture hall hosting literary panels, civic debates, and author talks."
+        },
+        {
+          "id": "11111111-1111-1111-1111-111111111104",
+          "name": "Foundry Yard",
+          "neighborhood": "Ironworks District",
+          "address": "304 Old Forge Road",
+          "capacity": 400,
+          "description": "Semi-covered historic ironworks courtyard welcoming weekend flea markets and street fairs."
+        },
+        {
+          "id": "11111111-1111-1111-1111-111111111105",
+          "name": "Neon Cellar",
+          "neighborhood": "East End",
+          "address": "7 Commerce Mews",
+          "capacity": 200,
+          "description": "Underground sound lab and experimental audio lounge with analog synthesizers."
+        }
+      ]
+    },
+    {
+      "entity": "Event",
+      "records": [
+        {
+          "id": "22222222-2222-2222-2222-222222222201",
+          "title": "Velvet Echoes Live EP Release",
+          "category": "CONCERT",
+          "venueId": "11111111-1111-1111-1111-111111111101",
+          "startTime": "2025-04-12T20:00:00Z",
+          "capacity": 150,
+          "status": "PUBLISHED",
+          "description": "Dream-pop quartet Velvet Echoes perform their brand new 5-track release with guest synth support.",
+          "price": 18.5
+        },
+        {
+          "id": "22222222-2222-2222-2222-222222222202",
+          "title": "Wheel-Thrown Stoneware Masterclass",
+          "category": "WORKSHOP",
+          "venueId": "11111111-1111-1111-1111-111111111102",
+          "startTime": "2025-04-15T14:00:00Z",
+          "capacity": 20,
+          "status": "PUBLISHED",
+          "description": "Hands-on pottery workshop focused on trimming, glazing, and kiln prep. All clay and firings included.",
+          "price": 45.0
+        },
+        {
+          "id": "22222222-2222-2222-2222-222222222203",
+          "title": "The Future of Public Architecture",
+          "category": "TALK",
+          "venueId": "11111111-1111-1111-1111-111111111103",
+          "startTime": "2025-04-17T18:30:00Z",
+          "capacity": 100,
+          "status": "PUBLISHED",
+          "description": "Urban designers and civic architects unpack climate-resilient community infrastructure.",
+          "price": 12.0
+        },
+        {
+          "id": "22222222-2222-2222-2222-222222222204",
+          "title": "Spring Printmakers & Zine Fair",
+          "category": "MARKET",
+          "venueId": "11111111-1111-1111-1111-111111111104",
+          "startTime": "2025-04-19T10:00:00Z",
+          "capacity": 350,
+          "status": "PUBLISHED",
+          "description": "Browse prints, risographs, handmade zines, and typography posters from 30 independent regional makers.",
+          "price": 5.0
+        },
+        {
+          "id": "22222222-2222-2222-2222-222222222205",
+          "title": "Analog Ambient Night: Modular Explorations",
+          "category": "CONCERT",
+          "venueId": "11111111-1111-1111-1111-111111111105",
+          "startTime": "2025-04-22T21:00:00Z",
+          "capacity": 180,
+          "status": "PUBLISHED",
+          "description": "Immersive surround sound performance featuring three experimental tape-loop and modular patch artists.",
+          "price": 15.0
+        },
+        {
+          "id": "22222222-2222-2222-2222-222222222206",
+          "title": "Natural Indigo Dyeing & Shibori",
+          "category": "WORKSHOP",
+          "venueId": "11111111-1111-1111-1111-111111111102",
+          "startTime": "2025-04-26T11:00:00Z",
+          "capacity": 25,
+          "status": "PUBLISHED",
+          "description": "Learn Japanese resist-dyeing methods using organic indigo vats. Bring your own natural fabric scraps.",
+          "price": 38.0
+        },
+        {
+          "id": "22222222-2222-2222-2222-222222222207",
+          "title": "Independent Journalism in the Digital Era",
+          "category": "TALK",
+          "venueId": "11111111-1111-1111-1111-111111111103",
+          "startTime": "2025-04-28T19:00:00Z",
+          "capacity": 110,
+          "status": "PUBLISHED",
+          "description": "Investigative reporters discuss community-funded newsrooms, media ethics, and open records investigation.",
+          "price": 10.0
+        },
+        {
+          "id": "22222222-2222-2222-2222-222222222208",
+          "title": "Midtown Vintage Record & Cassette Exchange",
+          "category": "MARKET",
+          "venueId": "11111111-1111-1111-1111-111111111104",
+          "startTime": "2025-05-03T09:30:00Z",
+          "capacity": 300,
+          "status": "PUBLISHED",
+          "description": "Rare vinyl crates, collector 45s, tape decks, and coffee trucks all morning at the covered yard.",
+          "price": 4.0
+        },
+        {
+          "id": "22222222-2222-2222-2222-222222222209",
+          "title": "Post-Punk Matinee: The Silver Grate",
+          "category": "CONCERT",
+          "venueId": "11111111-1111-1111-1111-111111111101",
+          "startTime": "2025-05-04T16:00:00Z",
+          "capacity": 140,
+          "status": "PUBLISHED",
+          "description": "High-octane angular guitar riffs and driving percussion from local post-punk trailblazers.",
+          "price": 16.0
+        },
+        {
+          "id": "22222222-2222-2222-2222-222222222210",
+          "title": "Bread Fermentation & Sourdough Science",
+          "category": "WORKSHOP",
+          "venueId": "11111111-1111-1111-1111-111111111102",
+          "startTime": "2025-05-10T13:00:00Z",
+          "capacity": 18,
+          "status": "DRAFT",
+          "description": "Master sourdough starters, hydration ratios, and artisanal crust blister technique.",
+          "price": 50.0
+        }
+      ]
+    },
+    {
+      "entity": "Ticket",
+      "records": [
+        {
+          "id": "33333333-3333-3333-3333-333333333301",
+          "eventId": "22222222-2222-2222-2222-222222222201",
+          "attendeeId": "44444444-4444-4444-4444-444444444401",
+          "attendeeName": "Sarah Jenkins",
+          "qrCodeRef": "GATH-VE-8841",
+          "status": "VALID",
+          "paymentStatus": "PAID",
+          "createdAt": "2025-04-01T10:15:00Z",
+          "pricePaid": 18.5
+        },
+        {
+          "id": "33333333-3333-3333-3333-333333333302",
+          "eventId": "22222222-2222-2222-2222-222222222201",
+          "attendeeId": "44444444-4444-4444-4444-444444444402",
+          "attendeeName": "Liam Vance",
+          "qrCodeRef": "GATH-VE-8842",
+          "status": "CHECKED_IN",
+          "paymentStatus": "PAID",
+          "checkedInAt": "2025-04-12T19:45:00Z",
+          "createdAt": "2025-04-02T14:22:00Z",
+          "pricePaid": 18.5
+        },
+        {
+          "id": "33333333-3333-3333-3333-333333333303",
+          "eventId": "22222222-2222-2222-2222-222222222202",
+          "attendeeId": "44444444-4444-4444-4444-444444444401",
+          "attendeeName": "Sarah Jenkins",
+          "qrCodeRef": "GATH-SW-3019",
+          "status": "VALID",
+          "paymentStatus": "PAID",
+          "createdAt": "2025-04-03T11:05:00Z",
+          "pricePaid": 45.0
+        },
+        {
+          "id": "33333333-3333-3333-3333-333333333304",
+          "eventId": "22222222-2222-2222-2222-222222222203",
+          "attendeeId": "44444444-4444-4444-4444-444444444403",
+          "attendeeName": "Elena Rostova",
+          "qrCodeRef": "GATH-PA-4420",
+          "status": "VALID",
+          "paymentStatus": "PAID",
+          "createdAt": "2025-04-05T09:18:00Z",
+          "pricePaid": 12.0
+        },
+        {
+          "id": "33333333-3333-3333-3333-333333333305",
+          "eventId": "22222222-2222-2222-2222-222222222204",
+          "attendeeId": "44444444-4444-4444-4444-444444444404",
+          "attendeeName": "Marcus Thorne",
+          "qrCodeRef": "GATH-ZF-9901",
+          "status": "VALID",
+          "paymentStatus": "PAID",
+          "createdAt": "2025-04-06T16:40:00Z",
+          "pricePaid": 5.0
+        },
+        {
+          "id": "33333333-3333-3333-3333-333333333306",
+          "eventId": "22222222-2222-2222-2222-222222222205",
+          "attendeeId": "44444444-4444-4444-4444-444444444405",
+          "attendeeName": "Chloe Bennett",
+          "qrCodeRef": "GATH-ME-5122",
+          "status": "VALID",
+          "paymentStatus": "PAID",
+          "createdAt": "2025-04-07T18:10:00Z",
+          "pricePaid": 15.0
+        }
+      ]
+    }
+  ]
+}

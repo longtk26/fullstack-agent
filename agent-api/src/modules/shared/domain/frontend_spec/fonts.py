@@ -24,6 +24,8 @@ class Font:
     # Story 20.3: average glyph width against Inter (rough, by eye at display sizes). The hero sizes its headline by
     # character count, so a wide face shrinks the display steps to keep the headline on two lines (frontend_theme).
     width: float = 1.0
+    # Story 23.8: the scripts the face draws; a Japanese face is stacked after the Latin one (`ja_fonts`)
+    scripts: tuple[str, ...] = ("latin",)
 
     @property
     def package(self) -> str:
@@ -66,6 +68,29 @@ FONTS: dict[str, Font] = {
         Font("Familjen Grotesk", "sans"),
     )
 }
+# Story 23.8: Japanese faces, bundled in the base but kept apart from FONTS, so no Latin pairing, suggestion or static
+# site picks one; apps stack one after their Latin face (`frontend/app/typesetting.py`). Fontsource splits them by
+# unicode-range: a page loads only the slices it uses.
+JA_FONTS: dict[str, Font] = {
+    font.name: font
+    for font in (
+        Font("Noto Sans JP", "sans", (400, 500, 700), scripts=("ja", "latin")),
+        Font("Noto Serif JP", "serif", (400, 600, 700), scripts=("ja", "latin")),
+        Font("Zen Kaku Gothic New", "sans", (400, 500, 700), scripts=("ja", "latin")),
+        Font("BIZ UDPGothic", "sans", (400, 700), scripts=("ja", "latin")),
+        Font("Shippori Mincho", "serif", (400, 600, 700), scripts=("ja", "latin")),
+        Font("M PLUS 1p", "sans", (400, 500, 700), scripts=("ja", "latin")),
+    )
+}
+JA_FALLBACK = '"Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", sans-serif'
+JA_SERIF_FALLBACK = '"Hiragino Mincho ProN", "Yu Mincho", serif'
+
+
+def ja_fonts() -> list[str]:
+    """The bundled Japanese faces (Story 23.8)."""
+    return list(JA_FONTS)
+
+
 _DEFAULT_BY_CATEGORY: dict[FontCategory, str] = {
     "sans": "Inter",
     "serif": "Source Serif 4",

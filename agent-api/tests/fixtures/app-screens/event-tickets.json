@@ -1,0 +1,785 @@
+{
+  "pages": {
+    "/": [
+      {
+        "id": "events-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "event.list",
+          "fields": [
+            "title",
+            "category",
+            "venueId",
+            "startTime",
+            "price"
+          ]
+        },
+        "actions": [
+          "view"
+        ]
+      }
+    ],
+    "/dashboard": [
+      {
+        "id": "figure-1",
+        "component": "AppDashboard",
+        "data": {
+          "operationId": "ticket.countThisWeek"
+        },
+        "actions": []
+      },
+      {
+        "id": "figure-2",
+        "component": "AppDashboard",
+        "data": {
+          "operationId": "ticket.sumPricePaidByEventId"
+        },
+        "actions": []
+      },
+      {
+        "id": "figure-3",
+        "component": "AppDashboard",
+        "data": {
+          "operationId": "event.countWhereStatusPublished"
+        },
+        "actions": []
+      },
+      {
+        "id": "figure-4",
+        "component": "AppDashboard",
+        "data": {
+          "operationId": "ticket.countByStatus"
+        },
+        "actions": []
+      },
+      {
+        "id": "recent-events",
+        "component": "AppList",
+        "data": {
+          "operationId": "event.list",
+          "params": {
+            "limit": 5,
+            "sort": "-createdAt"
+          },
+          "fields": [
+            "title",
+            "category",
+            "venueId"
+          ]
+        },
+        "actions": [
+          "view"
+        ]
+      },
+      {
+        "id": "recent-tickets",
+        "component": "AppList",
+        "data": {
+          "operationId": "ticket.list",
+          "params": {
+            "limit": 5,
+            "sort": "-createdAt"
+          },
+          "fields": [
+            "qrCodeRef",
+            "eventId",
+            "pricePaid"
+          ]
+        },
+        "actions": [
+          "view",
+          "pay"
+        ]
+      }
+    ],
+    "/events": [
+      {
+        "id": "events-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "event.list",
+          "fields": [
+            "title",
+            "category",
+            "venueId",
+            "startTime",
+            "price"
+          ]
+        },
+        "actions": [
+          "view"
+        ]
+      }
+    ],
+    "/events/[id]": [
+      {
+        "id": "events-detail",
+        "component": "AppDetail",
+        "data": {
+          "operationId": "event.get",
+          "params": {
+            "id": "$route.id"
+          },
+          "fields": [
+            "poster",
+            "title",
+            "category",
+            "venueId",
+            "startTime",
+            "price",
+            "capacity",
+            "status",
+            "description",
+            "createdAt"
+          ]
+        },
+        "actions": []
+      },
+      {
+        "id": "tickets-tab",
+        "component": "AppList",
+        "data": {
+          "operationId": "ticket.list",
+          "params": {
+            "eventId": "$route.id"
+          },
+          "fields": [
+            "qrCodeRef",
+            "pricePaid",
+            "status",
+            "checkedInAt"
+          ]
+        },
+        "actions": [
+          "view",
+          "pay"
+        ]
+      }
+    ],
+    "/events/[id]/tickets/new": [
+      {
+        "id": "ticket-create-in-event-form",
+        "component": "AppForm",
+        "form": "ticket_create_in_event",
+        "actions": []
+      }
+    ],
+    "/login": [
+      {
+        "id": "login",
+        "component": "AppAuth",
+        "form": "auth_login",
+        "actions": []
+      }
+    ],
+    "/organizers": [
+      {
+        "id": "figure-1",
+        "component": "AppDashboard",
+        "data": {
+          "operationId": "ticket.countThisWeek"
+        },
+        "actions": []
+      },
+      {
+        "id": "figure-2",
+        "component": "AppDashboard",
+        "data": {
+          "operationId": "ticket.sumPricePaidByEventId"
+        },
+        "actions": []
+      },
+      {
+        "id": "figure-3",
+        "component": "AppDashboard",
+        "data": {
+          "operationId": "event.countWhereStatusPublished"
+        },
+        "actions": []
+      },
+      {
+        "id": "figure-4",
+        "component": "AppDashboard",
+        "data": {
+          "operationId": "ticket.countByStatus"
+        },
+        "actions": []
+      },
+      {
+        "id": "figure-5",
+        "component": "AppDashboard",
+        "data": {
+          "operationId": "organizer.ticketsThisWeek"
+        },
+        "actions": []
+      },
+      {
+        "id": "figure-6",
+        "component": "AppDashboard",
+        "data": {
+          "operationId": "organizer.revenuePerEvent"
+        },
+        "actions": []
+      },
+      {
+        "id": "recent-events",
+        "component": "AppList",
+        "data": {
+          "operationId": "event.list",
+          "params": {
+            "limit": 5,
+            "sort": "-createdAt"
+          },
+          "fields": [
+            "title",
+            "category",
+            "venueId"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "transition-published",
+          "transition-cancelled",
+          "delete"
+        ]
+      },
+      {
+        "id": "recent-tickets",
+        "component": "AppList",
+        "data": {
+          "operationId": "ticket.list",
+          "params": {
+            "limit": 5,
+            "sort": "-createdAt"
+          },
+          "fields": [
+            "qrCodeRef",
+            "eventId",
+            "pricePaid"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "check-in",
+          "transition-checked-in",
+          "transition-cancelled",
+          "pay"
+        ]
+      }
+    ],
+    "/organizers/events": [
+      {
+        "id": "events-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "event.list",
+          "fields": [
+            "title",
+            "category",
+            "venueId",
+            "startTime",
+            "price"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "transition-published",
+          "transition-cancelled",
+          "delete"
+        ]
+      }
+    ],
+    "/organizers/events/[id]": [
+      {
+        "id": "events-detail",
+        "component": "AppDetail",
+        "data": {
+          "operationId": "event.get",
+          "params": {
+            "id": "$route.id"
+          },
+          "fields": [
+            "poster",
+            "title",
+            "category",
+            "venueId",
+            "startTime",
+            "price",
+            "capacity",
+            "status",
+            "description",
+            "createdAt"
+          ]
+        },
+        "actions": [
+          "edit",
+          "transition-published",
+          "transition-cancelled",
+          "delete"
+        ]
+      },
+      {
+        "id": "tickets-tab",
+        "component": "AppList",
+        "data": {
+          "operationId": "ticket.list",
+          "params": {
+            "eventId": "$route.id"
+          },
+          "fields": [
+            "qrCodeRef",
+            "pricePaid",
+            "status",
+            "checkedInAt"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "check-in",
+          "transition-checked-in",
+          "transition-cancelled",
+          "pay"
+        ]
+      }
+    ],
+    "/organizers/events/[id]/edit": [
+      {
+        "id": "events-edit-form",
+        "component": "AppForm",
+        "form": "organizers_event_update",
+        "actions": []
+      }
+    ],
+    "/organizers/events/[id]/tickets/new": [
+      {
+        "id": "ticket-create-in-event-form",
+        "component": "AppForm",
+        "form": "organizers_ticket_create_in_event",
+        "actions": []
+      }
+    ],
+    "/organizers/tickets": [
+      {
+        "id": "tickets-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "ticket.list",
+          "fields": [
+            "qrCodeRef",
+            "eventId",
+            "pricePaid",
+            "status",
+            "checkedInAt"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "check-in",
+          "transition-checked-in",
+          "transition-cancelled",
+          "pay"
+        ]
+      }
+    ],
+    "/organizers/tickets/[id]": [
+      {
+        "id": "tickets-detail",
+        "component": "AppDetail",
+        "data": {
+          "operationId": "ticket.get",
+          "params": {
+            "id": "$route.id"
+          },
+          "fields": [
+            "qrCodeRef",
+            "eventId",
+            "attendeeName",
+            "pricePaid",
+            "status",
+            "paymentStatus",
+            "checkedInAt",
+            "createdAt",
+            "attendeeId"
+          ]
+        },
+        "actions": [
+          "edit",
+          "check-in",
+          "transition-checked-in",
+          "transition-cancelled",
+          "pay"
+        ]
+      }
+    ],
+    "/organizers/tickets/[id]/edit": [
+      {
+        "id": "tickets-edit-form",
+        "component": "AppForm",
+        "form": "organizers_ticket_update",
+        "actions": []
+      }
+    ],
+    "/organizers/venues": [
+      {
+        "id": "venues-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "venue.list",
+          "fields": [
+            "name",
+            "neighborhood",
+            "capacity",
+            "address"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "delete"
+        ]
+      }
+    ],
+    "/organizers/venues/[id]": [
+      {
+        "id": "venues-detail",
+        "component": "AppDetail",
+        "data": {
+          "operationId": "venue.get",
+          "params": {
+            "id": "$route.id"
+          },
+          "fields": [
+            "name",
+            "neighborhood",
+            "address",
+            "capacity",
+            "description",
+            "createdAt"
+          ]
+        },
+        "actions": [
+          "edit",
+          "delete"
+        ]
+      },
+      {
+        "id": "events-tab",
+        "component": "AppList",
+        "data": {
+          "operationId": "event.list",
+          "params": {
+            "venueId": "$route.id"
+          },
+          "fields": [
+            "title",
+            "category",
+            "startTime",
+            "price"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "transition-published",
+          "transition-cancelled",
+          "delete"
+        ]
+      }
+    ],
+    "/organizers/venues/[id]/edit": [
+      {
+        "id": "venues-edit-form",
+        "component": "AppForm",
+        "form": "organizers_venue_update",
+        "actions": []
+      }
+    ],
+    "/organizers/venues/[id]/events/new": [
+      {
+        "id": "event-create-in-venue-form",
+        "component": "AppForm",
+        "form": "organizers_event_create_in_venue",
+        "actions": []
+      }
+    ],
+    "/organizers/venues/new": [
+      {
+        "id": "venue-create-form",
+        "component": "AppForm",
+        "form": "organizers_venue_create",
+        "actions": []
+      }
+    ],
+    "/payments/cancel": [
+      {
+        "id": "payments-cancel",
+        "component": "AppPayment",
+        "data": {
+          "operationId": "payments.get",
+          "params": {
+            "paymentId": "$query.payment"
+          }
+        },
+        "actions": []
+      }
+    ],
+    "/payments/success": [
+      {
+        "id": "payments-success",
+        "component": "AppPayment",
+        "data": {
+          "operationId": "payments.get",
+          "params": {
+            "paymentId": "$query.payment"
+          }
+        },
+        "actions": []
+      }
+    ],
+    "/register": [
+      {
+        "id": "register",
+        "component": "AppAuth",
+        "form": "auth_register",
+        "actions": []
+      }
+    ],
+    "/tickets": [
+      {
+        "id": "tickets-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "ticket.list",
+          "fields": [
+            "qrCodeRef",
+            "eventId",
+            "pricePaid",
+            "status",
+            "checkedInAt"
+          ]
+        },
+        "actions": [
+          "view",
+          "pay"
+        ]
+      }
+    ],
+    "/tickets/[id]": [
+      {
+        "id": "tickets-detail",
+        "component": "AppDetail",
+        "data": {
+          "operationId": "ticket.get",
+          "params": {
+            "id": "$route.id"
+          },
+          "fields": [
+            "qrCodeRef",
+            "eventId",
+            "attendeeName",
+            "pricePaid",
+            "status",
+            "paymentStatus",
+            "checkedInAt",
+            "createdAt",
+            "attendeeId"
+          ]
+        },
+        "actions": [
+          "pay"
+        ]
+      }
+    ],
+    "/venues": [
+      {
+        "id": "venues-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "venue.list",
+          "fields": [
+            "name",
+            "neighborhood",
+            "capacity",
+            "address"
+          ]
+        },
+        "actions": [
+          "view"
+        ]
+      }
+    ],
+    "/venues/[id]": [
+      {
+        "id": "venues-detail",
+        "component": "AppDetail",
+        "data": {
+          "operationId": "venue.get",
+          "params": {
+            "id": "$route.id"
+          },
+          "fields": [
+            "name",
+            "neighborhood",
+            "address",
+            "capacity",
+            "description",
+            "createdAt"
+          ]
+        },
+        "actions": []
+      },
+      {
+        "id": "events-tab",
+        "component": "AppList",
+        "data": {
+          "operationId": "event.list",
+          "params": {
+            "venueId": "$route.id"
+          },
+          "fields": [
+            "title",
+            "category",
+            "startTime",
+            "price"
+          ]
+        },
+        "actions": [
+          "view"
+        ]
+      }
+    ]
+  },
+  "forms": {
+    "ticket_create_in_event": {
+      "operationId": "ticket.create",
+      "fields": [
+        "eventId=$route.id",
+        "attendeeName",
+        "pricePaid",
+        "qrCodeRef",
+        "checkedInAt"
+      ]
+    },
+    "auth_login": {
+      "operationId": "auth.login",
+      "fields": [
+        "email",
+        "password"
+      ]
+    },
+    "auth_register": {
+      "operationId": "auth.register",
+      "fields": [
+        "email",
+        "password"
+      ]
+    },
+    "organizers_venue_create": {
+      "operationId": "venue.create",
+      "fields": [
+        "name",
+        "neighborhood",
+        "address",
+        "capacity",
+        "description"
+      ]
+    },
+    "organizers_venue_update": {
+      "operationId": "venue.update",
+      "fields": [
+        "name",
+        "neighborhood",
+        "address",
+        "capacity",
+        "description"
+      ]
+    },
+    "organizers_event_create_in_venue": {
+      "operationId": "event.create",
+      "fields": [
+        "title",
+        "category",
+        "poster",
+        "venueId=$route.id",
+        "startTime",
+        "price",
+        "capacity",
+        "description"
+      ]
+    },
+    "organizers_event_update": {
+      "operationId": "event.update",
+      "fields": [
+        "title",
+        "category",
+        "poster",
+        "venueId",
+        "startTime",
+        "price",
+        "capacity",
+        "status",
+        "description"
+      ]
+    },
+    "organizers_ticket_create_in_event": {
+      "operationId": "ticket.create",
+      "fields": [
+        "eventId=$route.id",
+        "attendeeName",
+        "pricePaid",
+        "qrCodeRef",
+        "checkedInAt"
+      ]
+    },
+    "organizers_ticket_update": {
+      "operationId": "ticket.update",
+      "fields": [
+        "eventId",
+        "attendeeName",
+        "pricePaid",
+        "qrCodeRef",
+        "status",
+        "checkedInAt"
+      ]
+    }
+  },
+  "navigation": [
+    {
+      "label": "Upcoming Events",
+      "page": "events"
+    },
+    {
+      "label": "My Tickets",
+      "page": "tickets"
+    },
+    {
+      "label": "Venues",
+      "page": "venues"
+    },
+    {
+      "label": "Dashboard",
+      "page": "dashboard"
+    },
+    {
+      "label": "Dashboard",
+      "page": "organizers-home"
+    },
+    {
+      "label": "Upcoming Events",
+      "page": "organizers-events"
+    },
+    {
+      "label": "My Tickets",
+      "page": "organizers-tickets"
+    },
+    {
+      "label": "Venues",
+      "page": "organizers-venues"
+    }
+  ]
+}

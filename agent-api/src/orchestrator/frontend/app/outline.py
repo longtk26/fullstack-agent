@@ -17,6 +17,7 @@ from src.modules.shared.domain.frontend_spec.app import (
     AppNavItem,
     AppOutline,
 )
+from src.orchestrator.frontend.app.design import complete_design, design_notes, home_entity
 
 NUMERIC = frozenset({"integer", "float", "decimal"})
 HIDDEN = frozenset({"id", "allowedActions", "passwordHash", "password"})
@@ -95,13 +96,17 @@ class _Entity:
 
 
 def complete_outline(
-    raw: Any, backend: dict[str, Any], contract: dict[str, Any]
+    raw: Any, backend: dict[str, Any], contract: dict[str, Any], archetype_hint: str | None = None
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    """The drafted outline (any JSON) → a complete outline (`AppOutline` fields, camelCase) and the notes."""
+    """The drafted outline (any JSON) → a complete outline (`AppOutline` fields, camelCase) and the notes. Epic 23:
+    the design brief and the areas are completed by `design.complete_design` (`archetype_hint`: code's pick from the
+    requirement when the brief names no archetype)."""
     notes: list[dict[str, Any]] = []
     info = ((contract.get("x-bga") or {}).get("entities")) or {}
     entities = {e["name"]: _Entity(e, info.get(e["name"]) or {}) for e in backend.get("entities") or []}
-    outline = _parse(_capped(raw if isinstance(raw, dict) else {}, notes), notes)
+    raw = dict(raw) if isinstance(raw, dict) else {}
+    raw_design, raw_areas = raw.pop("design", None), raw.pop("areas", None)
+    outline = _parse(_capped(raw, notes), notes)
 
     nav = []
     for index, item in enumerate(outline.nav):
@@ -133,7 +138,27 @@ def complete_outline(
         else:
             dashboard.append(item)
     outline.dashboard = dashboard
-    return outline.model_dump(by_alias=True, mode="json", exclude_none=True), notes
+    out = outline.model_dump(by_alias=True, mode="json", exclude_none=True)
+    out.pop("areas", None)
+    briefed = isinstance(raw_design, dict)
+    if not briefed:  # no brief (a draft before Epic 23, or none written): the outline's own choices are the defaults
+        raw_design = {
+            "homeView": "dashboard" if out.get("home", "dashboard") == "dashboard" else None,
+            "mainEntity": None if out.get("home", "dashboard") == "dashboard" else out["home"],
+            "entities": {
+                name: {"view": item["listStyle"]} for name, item in out["entities"].items() if item.get("listStyle")
+            },
+        }
+    design, areas, replaced = complete_design(raw_design, raw_areas, backend, archetype_hint)
+    if not briefed and out.get("home", "dashboard") != "dashboard" and design["homeView"] == "dashboard":
+        design["homeView"] = "catalogue"  # the outline opens on a list: keep that
+    if briefed:  # the brief decides the home page: a list home opens on the main entity's list
+        out["home"] = home_entity(design) or "dashboard"
+    out["design"] = design
+    if areas:
+        out["areas"] = areas
+    notes += design_notes(replaced)
+    return out, notes
 
 
 def _capped(raw: dict[str, Any], notes: list[dict[str, Any]]) -> dict[str, Any]:

@@ -7,12 +7,15 @@ import { app, fieldLabel, recordTitle, resolveParams, type TAppSection, type TRe
 import { useOperationQuery } from "./bindings";
 import { FieldValue } from "./FieldValue";
 import { LoadError } from "./AppList";
+import { entityDesign, useLayout } from "./layout";
 import { ActionButtons } from "./RecordActions";
+import { Media } from "./views";
+import { t } from "./messages";
 
 function SummaryValue({ value }: { value: unknown }) {
   if (value === null || value === undefined || value === "") return <span className="text-muted-foreground">—</span>;
   if (typeof value === "number") return <span className="tabular-nums">{new Intl.NumberFormat().format(value)}</span>;
-  if (typeof value === "boolean") return <span>{value ? "Yes" : "No"}</span>;
+  if (typeof value === "boolean") return <span>{value ? t("yes") : t("no")}</span>;
   if (typeof value === "object") return <span className="text-muted-foreground">…</span>;
   if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}(T|$)/.test(value)) {
     const date = new Date(value.length === 10 ? `${value}T00:00:00` : value);
@@ -56,6 +59,7 @@ export function AppDetail({ section }: { section: TAppSection }) {
   const query = useOperationQuery(section.data?.operationId, resolveParams(section.data?.params, route));
   const record = query.data as TRecord | undefined;
   const summary = section.content?.variant === "summary";
+  const design = entityDesign(useLayout(), section.content?.entity);
 
   if (query.isLoading) {
     return (
@@ -69,19 +73,26 @@ export function AppDetail({ section }: { section: TAppSection }) {
   if (summary) return <Summary section={section} record={record} />;
 
   const fields = section.data?.fields?.length ? section.data.fields : (entity?.detailFields ?? []);
+  const title = recordTitle(entity, record);
+  // Epic 23 (Story 23.3): a media record opens on its image, a profile on its picture beside the name
+  const media = design.detailView === "media" ? design.roles.media : undefined;
+  const picture = design.detailView === "profile" ? (design.roles.avatar ?? design.roles.media) : undefined;
+  const shown = fields.filter((field) => field !== media && field !== picture);
   return (
     <div className="flex flex-col gap-6">
+      {media && <Media entity={entity} record={record} field={media} title={title} className="aspect-[21/9] w-full rounded-xl" />}
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-col gap-1">
+        {picture && <Media entity={entity} record={record} field={picture} title={title} className="size-20 shrink-0 rounded-full" />}
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
           <p className="text-sm text-muted-foreground">{section.content?.title ?? entity?.label}</p>
-          <h1 className="text-2xl font-semibold tracking-tight break-words">{recordTitle(entity, record)}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight break-words">{title}</h1>
         </div>
         <ActionButtons actions={section.content?.actions ?? []} record={record} />
       </div>
       <Card>
         <CardContent>
           <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
-            {fields
+            {shown
               .filter((field) => field !== entity?.displayField)
               .map((field) => (
                 <div key={field} className="flex min-w-0 flex-col gap-1">

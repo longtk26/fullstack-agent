@@ -42,7 +42,7 @@ DEV_ENV := DB_URL=postgresql+psycopg://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@loc
            IMAGE_PROVIDER=$(or $(IMAGE_PROVIDER),gemini)
 
 .PHONY: env up down down-all ps logs dev dev-down dev-api dev-worker dev-ui setup venv migrate test lint template runner runner-node frontend-base icon-index \
-        host-worker host-worker-stop design-data design-diversity design-check-fixture design-check-app
+        host-worker host-worker-stop design-data design-diversity design-check-fixture design-check-app app-design-report app-design-proto
 
 env:
 	@test -f .env && echo ".env already exists" || ( \
@@ -82,7 +82,7 @@ frontend-base:
 	  -v "$(CURDIR)/scripts/icon-index.mjs:/icon-index.mjs:ro" \
 	  -v "$(CURDIR)/$(API_DIR)/templates/nextjs_base:/out" node:22-bookworm-slim sh /frontend-base.sh \
 	  "$$(cd $(API_DIR) && $(PY)/python -c 'from src.modules.shared.domain.frontend_spec.catalogue import SHADCN_PRIMITIVES as P; print(" ".join(sorted(P)))')" \
-	  "$$(cd $(API_DIR) && $(PY)/python -c 'from src.modules.shared.domain.frontend_spec.fonts import FONTS; print(" ".join(f.package for f in FONTS.values()))')"
+	  "$$(cd $(API_DIR) && $(PY)/python -c 'from src.modules.shared.domain.frontend_spec.fonts import FONTS, JA_FONTS; print(" ".join(f.package for f in [*FONTS.values(), *JA_FONTS.values()]))')"
 	cd $(API_DIR) && $(PY)/python -c 'import json; from src.orchestrator.frontend.scaffold import build_manifest, OVERLAY_DIR; \
 	  (OVERLAY_DIR / "overlay.json").write_text(json.dumps(build_manifest(), indent=2, sort_keys=True) + "\n")'
 
@@ -108,6 +108,15 @@ design-check-fixture:
 # The app kit's design check (Story 22.4): an app's screens at 375 / 1440 px, light and dark, on its mock API.
 design-check-app:
 	cd $(API_DIR) && $(DEV_ENV) $(PY)/python -m scripts.design_check_app $(ARGS)
+
+# The app design report (Story 23.1): the golden apps' similarity, frames and design checks, no model call.
+app-design-report:
+	cd $(API_DIR) && $(DEV_ENV) IMAGE_PROVIDER=none LANGSMITH_TRACING=false $(PY)/python -m scripts.app_design_report $(ARGS)
+
+# Story 23.0 prototype harness (dev tool): requirement → spec with a design brief → UI screenshots on the app kit.
+# `draft` calls the Gemini API (paid); `build` and `page` make no model call. See scripts/app_design_proto/.
+app-design-proto:
+	cd $(API_DIR) && $(DEV_ENV) LANGSMITH_TRACING=false $(PY)/python -m scripts.app_design_proto $(ARGS)
 
 # Local checkout of the pinned base template (the worker image bakes its own copy).
 template:

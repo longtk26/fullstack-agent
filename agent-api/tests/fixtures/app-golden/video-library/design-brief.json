@@ -1,0 +1,58 @@
+{
+  "archetype": "catalogue",
+  "shell": "topbar",
+  "mobileNav": "bottom-tabs",
+  "homeView": "catalogue",
+  "mainEntity": "Video",
+  "entities": {
+    "Video": {
+      "view": "media-grid",
+      "roles": {
+        "media": "thumbnail",
+        "title": "title",
+        "subtitle": "category",
+        "meta": "publishDate",
+        "badge": "category",
+        "stat": "viewCount"
+      }
+    },
+    "Channel": {
+      "view": "cards",
+      "roles": {
+        "media": "bannerImage",
+        "title": "name",
+        "subtitle": "shortDescription",
+        "stat": "subscriberCount"
+      }
+    },
+    "Playlist": {
+      "view": "cards",
+      "roles": {
+        "title": "title",
+        "subtitle": "description"
+      }
+    },
+    "PlaylistItem": {
+      "view": "table",
+      "roles": {
+        "title": "videoId",
+        "meta": "addedAt"
+      }
+    }
+  },
+  "looks": [
+    {
+      "recipe": "minimal",
+      "reason": "Clean, content-first presentation with distraction-free video playback and high visual clarity"
+    },
+    {
+      "recipe": "swiss",
+      "reason": "Structured typographic grid emphasizing channels, categorized hierarchies, and metadata"
+    },
+    {
+      "recipe": "enterprise",
+      "reason": "Professional corporate portal styling tailored for internal company training repositories"
+    }
+  ],
+  "reason": "StudioTube is centered around browsing and discovering media items with video previews, topbar searching, and channel badges."
+}

@@ -1,0 +1,43 @@
+{
+  "archetype": "back-office",
+  "shell": "sidebar",
+  "mobileNav": "bottom-tabs",
+  "homeView": "dashboard",
+  "mainEntity": "Task",
+  "entities": {
+    "Project": {
+      "view": "table",
+      "roles": {
+        "title": "name",
+        "subtitle": "clientName",
+        "badge": "color",
+        "meta": "deadline",
+        "price": "budget"
+      }
+    },
+    "Task": {
+      "view": "board",
+      "roles": {
+        "title": "title",
+        "subtitle": "assigneeName",
+        "badge": "status",
+        "meta": "dueDate"
+      }
+    }
+  },
+  "looks": [
+    {
+      "recipe": "swiss",
+      "reason": "Clear grid alignment and rational typography suited for studio project schedules and daily standup checks."
+    },
+    {
+      "recipe": "minimal",
+      "reason": "Clean, distraction-free interface keeping attention focused on deadlines and task velocity."
+    },
+    {
+      "recipe": "editorial",
+      "reason": "Refined visual structure resonating with agency and creative studio aesthetics."
+    }
+  ],
+  "reason": "A back-office layout with a sidebar shell and board view enables agency team members to review tasks each morning and monitor project budgets and deadlines."
+}

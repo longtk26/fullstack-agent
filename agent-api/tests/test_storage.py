@@ -133,3 +133,33 @@ def test_the_local_store_names_buckets_and_spots_projects_with_files(tmp_path):
     with zipfile.ZipFile(tmp_path / "without.zip", "w") as archive:
         archive.writestr("src/main.py", "")
     assert _has_storage(tmp_path / "with.zip") and not _has_storage(tmp_path / "without.zip")
+
+
+def test_a_seeds_outside_photo_urls_are_kept_and_the_calls_send_keys(tmp_path):
+    """A drafted seed with demo photos (Unsplash links): the records keep and show them; the smoke seed uploads the
+    key code would have given each such row, and the scenarios send that key, since uploads take keys only."""
+    spec = storage_spec(tmp_path)
+    photos = ["https://images.unsplash.com/photo-1519741497674-611481863552", "http://example.org/b.jpg"]
+    spec["seed"] = [
+        {"entity": "Project", "records": [{"name": f"Series {n}", "cover": url} for n, url in enumerate(photos, 1)]}
+    ]
+    contract = build_contract(spec)
+    fixtures = contract["x-bga"]["fixtures"]["Project"]
+    assert [row["cover"] for row in fixtures] == photos, "the records keep the photos"
+    keys = [item["key"] for item in contract["x-bga"]["storage"]["objects"]]
+    assert "project/cover/shared/seed/1.png" in keys and "project/cover/shared/seed/2.png" in keys
+    assert not any(key.startswith("http") for key in keys), "nothing uploads under a URL"
+    ops = {op_id: found["operation"] for op_id, found in contract_operations(contract).items()}
+    for op_id in ("project.create", "project.update"):
+        for scenario in ops[op_id]["x-bga"].get("scenarios", []):
+            cover = (scenario.get("body") or {}).get("cover")
+            assert cover is None or not cover.startswith("http"), (op_id, scenario["name"], cover)
+    success = next(s for s in ops["project.create"]["x-bga"]["scenarios"] if s["name"] == "success")
+    assert success["body"]["cover"] == "project/cover/shared/seed/1.png"
+
+
+def test_the_read_url_of_an_outside_link_is_the_link():
+    library = (
+        Path(__file__).parents[1] / "templates/plugins/storage/backend/files/src/libs/storage/dependencies.py"
+    ).read_text()
+    assert 'if key.startswith(("https://", "http://")):\n        return key' in library

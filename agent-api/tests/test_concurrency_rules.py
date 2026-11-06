@@ -159,3 +159,54 @@ def test_a_status_rule_next_to_a_concurrency_rule_on_one_operation(tmp_path):
     assert any("transition" in scenario["name"] for scenario in update["scenarios"]), [
         s["name"] for s in update["scenarios"]
     ]
+
+
+def test_a_pair_with_the_signed_in_owner_is_checked_for_the_scenarios_user(tmp_path):
+    """Lumen (2026-11-06): `uniqueTogether (ownerId, seriesId)` where the server sets `ownerId` from the signed-in
+    user. The success must favourite a series its user has not, and the duplicate repeats a pair of that user's own,
+    without the read-only owner in the body."""
+    uuid_pk = {"name": "id", "type": "uuid", "primary": True}
+    raw = {
+        "specVersion": "1.0",
+        "project": {"name": "Photo Series"},
+        "stack": {"framework": "fastapi", "database": "postgresql", "orm": "sqlmodel", "migration": "alembic"},
+        "entities": [
+            {"name": "Series", "fields": [uuid_pk, {"name": "title", "type": "string", "required": True,
+                                                     "maxLength": 120}]},
+            {"name": "Favourite", "fields": [uuid_pk, {"name": "ownerId", "type": "uuid", "required": True},
+                                              {"name": "seriesId", "type": "uuid", "required": True}]},
+        ],
+        "relationships": [{"name": "seriesFavourites", "type": "one-to-many", "from": "Series", "to": "Favourite",
+                           "foreignKey": "seriesId", "onDelete": "CASCADE"}],
+        "auth": {"type": "jwt", "userEntity": "User", "loginField": "email", "roles": ["client", "photographer"]},
+        "policies": [{"name": "ownFavourites", "type": "ownership", "ownerField": "ownerId",
+                      "bypassRoles": ["photographer"]}],
+        "operations": [
+            *_crud("Series", "series"),
+            {"operationId": "favourite.list", "type": "crud", "action": "list", "entity": "Favourite",
+             "method": "GET", "path": "/favourites", "auth": "jwt", "policy": "ownFavourites"},
+            {"operationId": "favourite.create", "type": "crud", "action": "create", "entity": "Favourite",
+             "method": "POST", "path": "/favourites", "auth": "jwt", "rules": ["oncePerSeries"]},
+        ],
+        "rules": [{"id": "oncePerSeries", "kind": "uniqueTogether", "entity": "Favourite",
+                   "params": {"fields": ["ownerId", "seriesId"]}}],
+    }  # fmt: skip
+    (tmp_path / "favourites.json").write_text(json.dumps(raw))
+    spec = normalized(tmp_path / "favourites.json")
+    plan = build_plan(spec)
+    contract = build_contract(spec, plan)
+    meta = contract["x-bga"]
+    create = contract_operations(contract)["favourite.create"]["operation"]["x-bga"]
+    scenarios = {s["name"]: s for s in create["scenarios"]}
+    users = {row["email"]: row["id"] for row in meta["fixtures"]["User"]}
+    pairs = {(row["ownerId"], row["seriesId"]) for row in meta["fixtures"]["Favourite"]}
+
+    def caller(scenario):
+        return users[scenario.get("user") or plan["auth"]["demoUsers"][0]["login"]]
+
+    success, duplicate = scenarios["success"], scenarios["duplicate"]
+    first = meta["fixtures"]["Favourite"][0]
+    assert first["ownerId"] == caller(success), "the trap: row 0 (the body's source) is the success user's own pair"
+    assert (caller(success), success["body"]["seriesId"]) not in pairs, "the success is no duplicate"
+    assert (caller(duplicate), duplicate["body"]["seriesId"]) in pairs, "the duplicate is one of the user's own"
+    assert "ownerId" not in duplicate["body"], "the server sets the owner"

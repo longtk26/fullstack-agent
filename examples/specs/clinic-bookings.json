@@ -1,0 +1,648 @@
+{
+  "specVersion": "1.0",
+  "project": {
+    "name": "Bright Smile Clinic",
+    "description": "Appointment booking system for a dental clinic with dentists, treatments, schedule conflict prevention, and front desk workflow.",
+    "slug": "bright-smile-clinic"
+  },
+  "stack": {
+    "framework": "fastapi",
+    "database": "postgresql",
+    "orm": "sqlmodel",
+    "migration": "alembic"
+  },
+  "auth": {
+    "type": "jwt",
+    "roles": [
+      "patient",
+      "front_desk"
+    ]
+  },
+  "entities": [
+    {
+      "name": "Dentist",
+      "displayField": "name",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "primary": true
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "maxLength": 100
+        },
+        {
+          "name": "specialty",
+          "type": "string",
+          "required": true,
+          "maxLength": 120
+        },
+        {
+          "name": "photo",
+          "type": "image",
+          "required": false,
+          "nullable": true
+        },
+        {
+          "name": "bio",
+          "type": "text",
+          "required": false,
+          "nullable": true,
+          "maxLength": 1000
+        },
+        {
+          "name": "email",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "maxLength": 120
+        },
+        {
+          "name": "createdAt",
+          "type": "datetime",
+          "required": true,
+          "default": "now"
+        }
+      ]
+    },
+    {
+      "name": "Treatment",
+      "displayField": "name",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "primary": true
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "maxLength": 80
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "required": false,
+          "nullable": true,
+          "maxLength": 1000
+        },
+        {
+          "name": "durationMinutes",
+          "type": "integer",
+          "required": true,
+          "min": 10,
+          "max": 240
+        },
+        {
+          "name": "price",
+          "type": "decimal",
+          "required": true,
+          "min": 0
+        },
+        {
+          "name": "createdAt",
+          "type": "datetime",
+          "required": true,
+          "default": "now"
+        }
+      ]
+    },
+    {
+      "name": "Appointment",
+      "displayField": "startAt",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "primary": true
+        },
+        {
+          "name": "patientId",
+          "type": "uuid",
+          "required": true,
+          "index": true
+        },
+        {
+          "name": "dentistId",
+          "type": "uuid",
+          "required": true,
+          "index": true
+        },
+        {
+          "name": "treatmentId",
+          "type": "uuid",
+          "required": true,
+          "index": true
+        },
+        {
+          "name": "startAt",
+          "type": "datetime",
+          "required": true,
+          "index": true
+        },
+        {
+          "name": "endAt",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "name": "status",
+          "type": "enum",
+          "values": [
+            "REQUESTED",
+            "CONFIRMED",
+            "CANCELLED",
+            "COMPLETED"
+          ],
+          "default": "REQUESTED",
+          "required": true
+        },
+        {
+          "name": "notes",
+          "type": "text",
+          "required": false,
+          "nullable": true,
+          "maxLength": 1000
+        },
+        {
+          "name": "createdAt",
+          "type": "datetime",
+          "required": true,
+          "default": "now"
+        }
+      ],
+      "indexes": [
+        {
+          "fields": [
+            "dentistId",
+            "startAt"
+          ],
+          "name": "idx_appointment_dentist_time"
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "name": "dentistAppointments",
+      "type": "one-to-many",
+      "from": "Dentist",
+      "to": "Appointment",
+      "foreignKey": "dentistId",
+      "onDelete": "RESTRICT"
+    },
+    {
+      "name": "treatmentAppointments",
+      "type": "one-to-many",
+      "from": "Treatment",
+      "to": "Appointment",
+      "foreignKey": "treatmentId",
+      "onDelete": "RESTRICT"
+    }
+  ],
+  "policies": [
+    {
+      "name": "frontDeskOnly",
+      "type": "role",
+      "roles": [
+        "front_desk"
+      ]
+    },
+    {
+      "name": "ownAppointments",
+      "type": "ownership",
+      "ownerField": "patientId",
+      "bypassRoles": [
+        "front_desk"
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "id": "noDentistDoubleBooking",
+      "kind": "noOverlap",
+      "entity": "Appointment",
+      "params": {
+        "start": "startAt",
+        "end": "endAt",
+        "scope": [
+          "dentistId"
+        ],
+        "where": {
+          "status": {
+            "ne": "CANCELLED"
+          }
+        }
+      },
+      "description": "A dentist cannot have two overlapping appointments unless one is cancelled."
+    },
+    {
+      "id": "appointmentStatusFlow",
+      "kind": "transition",
+      "entity": "Appointment",
+      "params": {
+        "field": "status",
+        "transitions": {
+          "REQUESTED": [
+            "CONFIRMED",
+            "CANCELLED"
+          ],
+          "CONFIRMED": [
+            "COMPLETED",
+            "CANCELLED"
+          ]
+        }
+      },
+      "description": "Appointments move from requested to confirmed or cancelled, and from confirmed to completed or cancelled."
+    },
+    {
+      "id": "finishedAppointmentIsFinal",
+      "kind": "immutableAfter",
+      "entity": "Appointment",
+      "params": {
+        "field": "status",
+        "states": [
+          "CANCELLED",
+          "COMPLETED"
+        ]
+      },
+      "description": "Cancelled and completed appointments cannot be modified."
+    }
+  ],
+  "operations": [
+    {
+      "operationId": "dentist.list",
+      "type": "crud",
+      "action": "list",
+      "entity": "Dentist",
+      "method": "GET",
+      "path": "/dentists",
+      "pagination": true,
+      "search": [
+        "name",
+        "specialty"
+      ],
+      "sort": [
+        "name",
+        "specialty"
+      ]
+    },
+    {
+      "operationId": "dentist.get",
+      "type": "crud",
+      "action": "get",
+      "entity": "Dentist",
+      "method": "GET",
+      "path": "/dentists/{id}"
+    },
+    {
+      "operationId": "dentist.create",
+      "type": "crud",
+      "action": "create",
+      "entity": "Dentist",
+      "method": "POST",
+      "path": "/dentists",
+      "policy": "frontDeskOnly"
+    },
+    {
+      "operationId": "dentist.update",
+      "type": "crud",
+      "action": "update",
+      "entity": "Dentist",
+      "method": "PATCH",
+      "path": "/dentists/{id}",
+      "policy": "frontDeskOnly"
+    },
+    {
+      "operationId": "dentist.delete",
+      "type": "crud",
+      "action": "delete",
+      "entity": "Dentist",
+      "method": "DELETE",
+      "path": "/dentists/{id}",
+      "policy": "frontDeskOnly"
+    },
+    {
+      "operationId": "treatment.list",
+      "type": "crud",
+      "action": "list",
+      "entity": "Treatment",
+      "method": "GET",
+      "path": "/treatments",
+      "pagination": true,
+      "search": [
+        "name"
+      ],
+      "sort": [
+        "price",
+        "durationMinutes",
+        "name"
+      ]
+    },
+    {
+      "operationId": "treatment.get",
+      "type": "crud",
+      "action": "get",
+      "entity": "Treatment",
+      "method": "GET",
+      "path": "/treatments/{id}"
+    },
+    {
+      "operationId": "treatment.create",
+      "type": "crud",
+      "action": "create",
+      "entity": "Treatment",
+      "method": "POST",
+      "path": "/treatments",
+      "policy": "frontDeskOnly"
+    },
+    {
+      "operationId": "treatment.update",
+      "type": "crud",
+      "action": "update",
+      "entity": "Treatment",
+      "method": "PATCH",
+      "path": "/treatments/{id}",
+      "policy": "frontDeskOnly"
+    },
+    {
+      "operationId": "treatment.delete",
+      "type": "crud",
+      "action": "delete",
+      "entity": "Treatment",
+      "method": "DELETE",
+      "path": "/treatments/{id}",
+      "policy": "frontDeskOnly"
+    },
+    {
+      "operationId": "appointment.create",
+      "type": "crud",
+      "action": "create",
+      "entity": "Appointment",
+      "method": "POST",
+      "path": "/appointments",
+      "auth": "jwt",
+      "rules": [
+        "noDentistDoubleBooking"
+      ]
+    },
+    {
+      "operationId": "appointment.list",
+      "type": "crud",
+      "action": "list",
+      "entity": "Appointment",
+      "method": "GET",
+      "path": "/appointments",
+      "policy": "ownAppointments",
+      "pagination": true,
+      "filters": [
+        "dentistId",
+        "treatmentId",
+        "status",
+        "startAt"
+      ],
+      "sort": [
+        "startAt",
+        "createdAt"
+      ]
+    },
+    {
+      "operationId": "appointment.get",
+      "type": "crud",
+      "action": "get",
+      "entity": "Appointment",
+      "method": "GET",
+      "path": "/appointments/{id}",
+      "policy": "ownAppointments"
+    },
+    {
+      "operationId": "appointment.update",
+      "type": "crud",
+      "action": "update",
+      "entity": "Appointment",
+      "method": "PATCH",
+      "path": "/appointments/{id}",
+      "policy": "ownAppointments",
+      "rules": [
+        "appointmentStatusFlow",
+        "finishedAppointmentIsFinal",
+        "noDentistDoubleBooking"
+      ]
+    },
+    {
+      "operationId": "appointment.delete",
+      "type": "crud",
+      "action": "delete",
+      "entity": "Appointment",
+      "method": "DELETE",
+      "path": "/appointments/{id}",
+      "policy": "frontDeskOnly"
+    },
+    {
+      "operationId": "appointment.countThisWeekOnStartAtWhereStatusConfirmed",
+      "type": "aggregate",
+      "entity": "Appointment",
+      "method": "GET",
+      "path": "/appointments/aggregate/count-this-week-on-start-at-where-status-confirmed",
+      "summary": "Upcoming appointments this week",
+      "aggregate": {
+        "fn": "count",
+        "period": "week",
+        "dateField": "startAt",
+        "filters": {
+          "status": "CONFIRMED"
+        }
+      }
+    },
+    {
+      "operationId": "appointment.countWhereStatusRequested",
+      "type": "aggregate",
+      "entity": "Appointment",
+      "method": "GET",
+      "path": "/appointments/aggregate/count-where-status-requested",
+      "summary": "New requests to review",
+      "aggregate": {
+        "fn": "count",
+        "filters": {
+          "status": "REQUESTED"
+        }
+      }
+    },
+    {
+      "operationId": "appointment.countThisDayOnStartAt",
+      "type": "aggregate",
+      "entity": "Appointment",
+      "method": "GET",
+      "path": "/appointments/aggregate/count-this-day-on-start-at",
+      "summary": "Appointments today",
+      "aggregate": {
+        "fn": "count",
+        "period": "day",
+        "dateField": "startAt"
+      }
+    },
+    {
+      "operationId": "appointment.countByStatus",
+      "type": "aggregate",
+      "entity": "Appointment",
+      "method": "GET",
+      "path": "/appointments/aggregate/count-by-status",
+      "summary": "Appointments by status",
+      "aggregate": {
+        "fn": "count",
+        "groupBy": "status"
+      }
+    }
+  ],
+  "seed": [
+    {
+      "entity": "Dentist",
+      "records": [
+        {
+          "id": "11111111-1111-1111-1111-111111111101",
+          "name": "Dr. Sarah Lin",
+          "specialty": "General Dentistry & Diagnostics",
+          "photo": "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=600",
+          "bio": "Over 12 years of gentle preventive care, routine oral exams, and restorative dentistry.",
+          "email": "sarah.lin@brightsmile.clinic"
+        },
+        {
+          "id": "11111111-1111-1111-1111-111111111102",
+          "name": "Dr. Marcus Vance",
+          "specialty": "Endodontics & Restorative Care",
+          "photo": "https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=600",
+          "bio": "Specialist in composite restorations, root canal treatments, and structural tooth preservation.",
+          "email": "marcus.vance@brightsmile.clinic"
+        },
+        {
+          "id": "11111111-1111-1111-1111-111111111103",
+          "name": "Dr. Elena Rostova",
+          "specialty": "Cosmetic Dentistry & Whitening",
+          "photo": "https://images.unsplash.com/photo-1594824813583-05ecbe287a55?auto=format&fit=crop&q=80&w=600",
+          "bio": "Passionate about aesthetic smile design, safe enamel whitening, and porcelain veneers.",
+          "email": "elena.rostova@brightsmile.clinic"
+        },
+        {
+          "id": "11111111-1111-1111-1111-111111111104",
+          "name": "Dr. Julian Patel",
+          "specialty": "Periodontics & Dental Hygiene",
+          "photo": "https://images.unsplash.com/photo-1537368910025-700350fe46c7?auto=format&fit=crop&q=80&w=600",
+          "bio": "Focused on periodontal health, deep ultrasonic cleanings, and long-term gum wellness.",
+          "email": "julian.patel@brightsmile.clinic"
+        }
+      ]
+    },
+    {
+      "entity": "Treatment",
+      "records": [
+        {
+          "id": "22222222-2222-2222-2222-222222222201",
+          "name": "Check-up",
+          "description": "Comprehensive dental examination with digital x-rays, oral cancer screening, and gum assessment.",
+          "durationMinutes": 30,
+          "price": 65.0
+        },
+        {
+          "id": "22222222-2222-2222-2222-222222222202",
+          "name": "Cleaning",
+          "description": "Professional dental prophylaxis, ultrasonic scaling, plaque removal, and polishing.",
+          "durationMinutes": 45,
+          "price": 95.0
+        },
+        {
+          "id": "22222222-2222-2222-2222-222222222203",
+          "name": "Filling",
+          "description": "Tooth-colored composite restoration to repair cavities, chipped teeth, and localized decay.",
+          "durationMinutes": 60,
+          "price": 140.0
+        },
+        {
+          "id": "22222222-2222-2222-2222-222222222204",
+          "name": "Whitening",
+          "description": "Clinical in-office LED tooth whitening treatment for noticeably brighter enamel in one session.",
+          "durationMinutes": 60,
+          "price": 220.0
+        }
+      ]
+    },
+    {
+      "entity": "Appointment",
+      "records": [
+        {
+          "id": "33333333-3333-3333-3333-333333333301",
+          "patientId": "44444444-4444-4444-4444-444444444401",
+          "dentistId": "11111111-1111-1111-1111-111111111101",
+          "treatmentId": "22222222-2222-2222-2222-222222222201",
+          "startAt": "2025-05-12T09:00:00Z",
+          "endAt": "2025-05-12T09:30:00Z",
+          "status": "CONFIRMED",
+          "notes": "Routine biannual checkup."
+        },
+        {
+          "id": "33333333-3333-3333-3333-333333333302",
+          "patientId": "44444444-4444-4444-4444-444444444402",
+          "dentistId": "11111111-1111-1111-1111-111111111104",
+          "treatmentId": "22222222-2222-2222-2222-222222222202",
+          "startAt": "2025-05-12T10:00:00Z",
+          "endAt": "2025-05-12T10:45:00Z",
+          "status": "CONFIRMED",
+          "notes": "Teeth sensitivity around lower molars."
+        },
+        {
+          "id": "33333333-3333-3333-3333-333333333303",
+          "patientId": "44444444-4444-4444-4444-444444444403",
+          "dentistId": "11111111-1111-1111-1111-111111111102",
+          "treatmentId": "22222222-2222-2222-2222-222222222203",
+          "startAt": "2025-05-13T11:00:00Z",
+          "endAt": "2025-05-13T12:00:00Z",
+          "status": "REQUESTED",
+          "notes": "Patient reports minor discomfort when chewing."
+        },
+        {
+          "id": "33333333-3333-3333-3333-333333333304",
+          "patientId": "44444444-4444-4444-4444-444444444401",
+          "dentistId": "11111111-1111-1111-1111-111111111103",
+          "treatmentId": "22222222-2222-2222-2222-222222222204",
+          "startAt": "2025-05-14T14:00:00Z",
+          "endAt": "2025-05-14T15:00:00Z",
+          "status": "REQUESTED",
+          "notes": "First-time whitening treatment."
+        },
+        {
+          "id": "33333333-3333-3333-3333-333333333305",
+          "patientId": "44444444-4444-4444-4444-444444444404",
+          "dentistId": "11111111-1111-1111-1111-111111111101",
+          "treatmentId": "22222222-2222-2222-2222-222222222202",
+          "startAt": "2025-05-15T09:30:00Z",
+          "endAt": "2025-05-15T10:15:00Z",
+          "status": "CONFIRMED",
+          "notes": "Regular scaling appointment."
+        },
+        {
+          "id": "33333333-3333-3333-3333-333333333306",
+          "patientId": "44444444-4444-4444-4444-444444444405",
+          "dentistId": "11111111-1111-1111-1111-111111111102",
+          "treatmentId": "22222222-2222-2222-2222-222222222203",
+          "startAt": "2025-05-15T14:30:00Z",
+          "endAt": "2025-05-15T15:30:00Z",
+          "status": "COMPLETED",
+          "notes": "Composite filling on upper right premolar completed."
+        },
+        {
+          "id": "33333333-3333-3333-3333-333333333307",
+          "patientId": "44444444-4444-4444-4444-444444444406",
+          "dentistId": "11111111-1111-1111-1111-111111111103",
+          "treatmentId": "22222222-2222-2222-2222-222222222201",
+          "startAt": "2025-05-16T10:00:00Z",
+          "endAt": "2025-05-16T10:30:00Z",
+          "status": "CANCELLED",
+          "notes": "Patient rescheduled due to travel conflict."
+        }
+      ]
+    }
+  ]
+}

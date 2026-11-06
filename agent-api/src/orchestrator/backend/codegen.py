@@ -563,8 +563,12 @@ class _Module:
             methods.append(
                 "    def list(\n" + self._list_params_line(params) + f"    ) -> tuple[list[{entity}], int]:\n"
                 f"        query = select({model})\n"
-                "        for attribute, value in filters.items():\n"
-                f"            query = query.where(col(getattr({model}, attribute)) == value)\n"
+                + (
+                    self._bounded_filters(model)
+                    if self._ranged()
+                    else "        for attribute, value in filters.items():\n"
+                    f"            query = query.where(col(getattr({model}, attribute)) == value)\n"
+                )
                 + scope
                 + q_block
                 + "        total = self.session.exec(select(func.count()).select_from(query.subquery())).one()\n"
@@ -1206,6 +1210,24 @@ class _Module:
         files[f"{self.dir}/usecases/__init__.py"] = _package(exports)
         return files
 
+    def _ranged(self) -> bool:
+        """Story 23.4: a list of this module takes date ranges (its repository reads `__gte` / `__lte` bounds)."""
+        return any(op.get("ranges") for op in self.module["operations"])
+
+    @staticmethod
+    def _bounded_filters(model: str) -> str:
+        return (
+            "        for attribute, value in filters.items():\n"
+            '            name, _, bound = attribute.partition("__")\n'
+            f"            column = col(getattr({model}, name))\n"
+            '            if bound == "gte":\n'
+            "                query = query.where(column >= value)\n"
+            '            elif bound == "lte":\n'
+            "                query = query.where(column <= value)\n"
+            "            else:\n"
+            "                query = query.where(column == value)\n"
+        )
+
     def _filter_params(self, op: dict[str, Any], imports: Imports) -> list[tuple[str, str, dict[str, Any]]]:
         """(variable, annotation, filter) per list filter."""
         by_attr = {column["attr"]: column for column in self.model["columns"]}
@@ -1214,6 +1236,11 @@ class _Module:
             column = by_attr[flt["attr"]]
             variable = flt["attr"] if flt["attr"] not in RESERVED else f"{flt['attr']}_filter"
             params.append((variable, _type(column, imports), flt))
+        for rng in op.get("ranges", []):  # Story 23.4: two bounds, `<attr>__gte` / `<attr>__lte` in `filters`
+            column = by_attr[rng["attr"]]
+            for suffix, bound, word in (("From", "gte", "from"), ("To", "lte", "to")):
+                bounded = {"param": f"{rng['param']}{suffix}", "attr": f"{rng['attr']}__{bound}"}
+                params.append((f"{rng['attr']}_{word}", _type(column, imports), bounded))
         return params
 
     def _list_usecase(self, op: dict[str, Any], imports: Imports) -> str:
@@ -1281,10 +1308,21 @@ class _Module:
             if op.get("type") == "aggregate":  # Epic 21: declared before the `/{id}` routes below
                 imports.add(usecases, op["usecaseDep"]).add(dtos, op["responseDto"])
                 returns = f"list[{op['responseDto']}]" if self._grouped(op) else op["responseDto"]
+                # Story 23.9: a role policy guards the figure (the plugins' dependencies; the use case takes none)
+                guards = [param for param in self._router_params(op) if not param.usecase_annotation]
+                for param in guards:
+                    self._imports(imports, param.imports)
+                extra = "".join(f", {param.name}: {param.annotation}" for param in guards)
+                signature = f"async def {op['handler']}(usecase: {op['usecaseDep']}{extra}) -> {returns}:"
+                if len(signature) > 120:
+                    params = [f"usecase: {op['usecaseDep']}", *(f"{p.name}: {p.annotation}" for p in guards)]
+                    signature = (
+                        f"async def {op['handler']}(\n" + "".join(f"    {p},\n" for p in params) + f") -> {returns}:"
+                    )
                 handlers.insert(
                     0,
                     f'@{variable}.get("{op["path"]}", operation_id="{op["operationId"]}", response_model={returns})\n'
-                    f"async def {op['handler']}(usecase: {op['usecaseDep']}) -> {returns}:\n"
+                    f"{signature}\n"
                     "    return await usecase.execute()\n",
                 )
                 continue
@@ -1848,6 +1886,23 @@ class _Tests:
                 f"    {call(f'{attr}={high[0]}')}\n\n"
                 f'    body = client.get({path}, params={{"{flt["param"]}": {query}}}).json()\n\n'
                 f"    assert {ids} == [str(first.{pk['attr']})]\n"
+            )
+        if case.startswith("range_"):  # Story 23.4
+            rng = next(r for r in op.get("ranges", []) if f"range_{to_snake(r['param'])}" == case)
+            column = next(c for c in self.crud.model["columns"] if c["attr"] == rng["attr"])
+            low, high = self._fixed(column, 0), self._fixed(column, 1)
+            if low is None or high is None:
+                return None
+            if column["type"] == "datetime":  # the seeds' times (`_fixed`), as the query sends them
+                low, high = (low[0], "2026-01-01T09:00:00Z"), (high[0], "2026-01-02T09:00:00Z")
+            attr = column["attr"]
+            return (
+                f"{head}    early = {call(f'{attr}={low[0]}')}\n"
+                f"    late = {call(f'{attr}={high[0]}')}\n\n"
+                f'    body = client.get({path}, params={{"{rng["param"]}From": {_py(high[1])}}}).json()\n'
+                f"    assert {ids} == [str(late.{pk['attr']})]\n"
+                f'    body = client.get({path}, params={{"{rng["param"]}To": {_py(low[1])}}}).json()\n'
+                f"    assert {ids} == [str(early.{pk['attr']})]\n"
             )
         if case == "sort":
             item = op["sort"][0]

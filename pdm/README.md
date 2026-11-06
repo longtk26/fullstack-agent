@@ -85,6 +85,7 @@ lane, tracing, results, and an OpenAPI explorer that sends test calls to the run
 | 20 | [Design diversity: distinct directions, icons and motion](epic20_design_diversity/epic20_design_diversity.md) (in progress) | Phase 7 | 11 |
 | 21 | [Designed pages: element trees for static and dynamic sites](epic21_designed_pages/epic21_designed_pages.md) (approved, next after 18.10) | Phase 7 | 7 (outline) |
 | 22 | [Dynamic app frontend: screens from the contract, separate from static sites](epic22_dynamic_app_frontend/epic22_dynamic_app_frontend.md) (done 2026-11-06; the only dynamic flow) | Phase 5 | 8 |
+| 23 | [App design: layouts that fit the data, looks to choose from, areas per role](epic23_app_design/epic23_app_design.md) (implemented 2026-11-06 on the fake engine; real tests next) | Phase 5 | 13 |
 
 ### Suggested delivery order
 
@@ -165,6 +166,7 @@ workflow to be built before real generation works.
 | 18.13 | done 2026-11-04, merged to `main` 2026-11-05: `complete_backend@v5` carries a context pack per module (no file reads), modules run in parallel in scratch copies with a conflict rerun, frontend conventions and test-only type errors are warnings; the paid timing open |
 | 10 | re-planned 2026-11-04, backend only since 2026-11-05: 12 stories in checkpoints A–E (contract and framework, core plugins, infrastructure, integrations, domain shapes); in progress on `feat/epic10-backend-plugins`: 10.0b, 10.1 (Checkpoint A), 10.2–10.4 (Checkpoint B: JWT auth, roles and ownership, business rules) committed; 10.5 (file storage), 10.6 (jobs and events), 10.7 (email) committed (Checkpoint C); 10.8 (webhooks), 10.9 (payments) committed (Checkpoint D); all 12 stories done 2026-11-05 (Checkpoints A–E); open items in the stories' deviations; branch under review |
 | 22 | done 2026-11-06: 8 stories in checkpoints A–D (the flow, forms, plugin frontends, switch-over); the legacy dynamic flow is removed (22.8) |
+| 23 | implemented 2026-11-06 on `feat/epic23-app-design` (gate 23.0 with 10 real Gemini drafts, then 23.1–23.12 on the fake engine, no paid call, per the user); the real tests (Gemini drafts, live backends, app walks) and the review are next |
 | 11, 16 | open (16 to be revised after Epic 20) |
 
 ### Next up (re-planned 2026-10-30)

@@ -1,0 +1,881 @@
+{
+  "specVersion": "1.0",
+  "project": {
+    "name": "Leafy Corner",
+    "description": "An online plant shop where shoppers browse plants across collections, filter by size and light needs, add to cart, and track orders, while the shop owner manages inventory and order fulfillment."
+  },
+  "stack": {
+    "framework": "fastapi",
+    "database": "postgresql",
+    "orm": "sqlmodel",
+    "migration": "alembic"
+  },
+  "auth": {
+    "type": "jwt",
+    "roles": [
+      "shopper",
+      "owner"
+    ]
+  },
+  "entities": [
+    {
+      "name": "Collection",
+      "displayField": "name",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "primary": true
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "unique": true,
+          "maxLength": 80
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "maxLength": 500
+        },
+        {
+          "name": "createdAt",
+          "type": "datetime",
+          "required": true,
+          "default": "now"
+        }
+      ]
+    },
+    {
+      "name": "Plant",
+      "displayField": "name",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "primary": true
+        },
+        {
+          "name": "collectionId",
+          "type": "uuid",
+          "required": true,
+          "index": true
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "maxLength": 100
+        },
+        {
+          "name": "photo",
+          "type": "image",
+          "required": true
+        },
+        {
+          "name": "price",
+          "type": "decimal",
+          "required": true,
+          "min": 0
+        },
+        {
+          "name": "size",
+          "type": "enum",
+          "values": [
+            "small",
+            "medium",
+            "large"
+          ],
+          "required": true
+        },
+        {
+          "name": "lightNeed",
+          "type": "enum",
+          "values": [
+            "low",
+            "medium",
+            "bright"
+          ],
+          "required": true
+        },
+        {
+          "name": "petSafe",
+          "type": "boolean",
+          "required": true,
+          "default": false
+        },
+        {
+          "name": "stockCount",
+          "type": "integer",
+          "required": true,
+          "min": 0,
+          "default": 0
+        },
+        {
+          "name": "careNote",
+          "type": "text",
+          "required": true,
+          "maxLength": 1000
+        },
+        {
+          "name": "createdAt",
+          "type": "datetime",
+          "required": true,
+          "default": "now"
+        }
+      ]
+    },
+    {
+      "name": "CartItem",
+      "displayField": "id",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "primary": true
+        },
+        {
+          "name": "ownerId",
+          "type": "uuid",
+          "required": true,
+          "index": true
+        },
+        {
+          "name": "plantId",
+          "type": "uuid",
+          "required": true,
+          "index": true
+        },
+        {
+          "name": "quantity",
+          "type": "integer",
+          "required": true,
+          "min": 1,
+          "default": 1
+        },
+        {
+          "name": "createdAt",
+          "type": "datetime",
+          "required": true,
+          "default": "now"
+        }
+      ]
+    },
+    {
+      "name": "Order",
+      "displayField": "id",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "primary": true
+        },
+        {
+          "name": "ownerId",
+          "type": "uuid",
+          "required": true,
+          "index": true
+        },
+        {
+          "name": "totalAmount",
+          "type": "decimal",
+          "required": true,
+          "min": 0
+        },
+        {
+          "name": "status",
+          "type": "enum",
+          "values": [
+            "paid",
+            "packed",
+            "shipped",
+            "delivered"
+          ],
+          "default": "paid"
+        },
+        {
+          "name": "paymentStatus",
+          "type": "enum",
+          "values": [
+            "UNPAID",
+            "PAID",
+            "FAILED"
+          ],
+          "default": "PAID"
+        },
+        {
+          "name": "shippingAddress",
+          "type": "text",
+          "required": true,
+          "maxLength": 300
+        },
+        {
+          "name": "createdAt",
+          "type": "datetime",
+          "required": true,
+          "default": "now"
+        }
+      ]
+    },
+    {
+      "name": "OrderItem",
+      "displayField": "id",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "primary": true
+        },
+        {
+          "name": "orderId",
+          "type": "uuid",
+          "required": true,
+          "index": true
+        },
+        {
+          "name": "plantId",
+          "type": "uuid",
+          "required": true,
+          "index": true
+        },
+        {
+          "name": "unitPrice",
+          "type": "decimal",
+          "required": true,
+          "min": 0
+        },
+        {
+          "name": "quantity",
+          "type": "integer",
+          "required": true,
+          "min": 1
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "name": "collectionPlants",
+      "type": "one-to-many",
+      "from": "Collection",
+      "to": "Plant",
+      "foreignKey": "collectionId",
+      "onDelete": "RESTRICT"
+    },
+    {
+      "name": "plantCartItems",
+      "type": "one-to-many",
+      "from": "Plant",
+      "to": "CartItem",
+      "foreignKey": "plantId",
+      "onDelete": "CASCADE"
+    },
+    {
+      "name": "orderItems",
+      "type": "one-to-many",
+      "from": "Order",
+      "to": "OrderItem",
+      "foreignKey": "orderId",
+      "onDelete": "CASCADE"
+    },
+    {
+      "name": "plantOrderItems",
+      "type": "one-to-many",
+      "from": "Plant",
+      "to": "OrderItem",
+      "foreignKey": "plantId",
+      "onDelete": "RESTRICT"
+    }
+  ],
+  "policies": [
+    {
+      "name": "ownerOnly",
+      "type": "role",
+      "roles": [
+        "owner"
+      ]
+    },
+    {
+      "name": "ownCart",
+      "type": "ownership",
+      "ownerField": "ownerId"
+    },
+    {
+      "name": "ownOrders",
+      "type": "ownership",
+      "ownerField": "ownerId",
+      "bypassRoles": [
+        "owner"
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "id": "orderStatusFlow",
+      "kind": "transition",
+      "entity": "Order",
+      "params": {
+        "field": "status",
+        "transitions": {
+          "paid": [
+            "packed"
+          ],
+          "packed": [
+            "shipped"
+          ],
+          "shipped": [
+            "delivered"
+          ]
+        }
+      },
+      "description": "Orders progress strictly from paid to packed, packed to shipped, and shipped to delivered."
+    },
+    {
+      "id": "deliveredIsFinal",
+      "kind": "immutableAfter",
+      "entity": "Order",
+      "params": {
+        "field": "status",
+        "states": [
+          "delivered"
+        ]
+      },
+      "description": "Delivered orders cannot be modified."
+    }
+  ],
+  "payments": {
+    "provider": "fake",
+    "entity": "Order",
+    "amountField": "totalAmount",
+    "currency": "USD",
+    "statusField": "paymentStatus",
+    "paidStatus": "PAID",
+    "failedStatus": "FAILED"
+  },
+  "operations": [
+    {
+      "operationId": "collection.list",
+      "type": "crud",
+      "action": "list",
+      "entity": "Collection",
+      "method": "GET",
+      "path": "/collections",
+      "pagination": true,
+      "search": [
+        "name"
+      ],
+      "sort": [
+        "name"
+      ]
+    },
+    {
+      "operationId": "collection.get",
+      "type": "crud",
+      "action": "get",
+      "entity": "Collection",
+      "method": "GET",
+      "path": "/collections/{id}"
+    },
+    {
+      "operationId": "collection.create",
+      "type": "crud",
+      "action": "create",
+      "entity": "Collection",
+      "method": "POST",
+      "path": "/collections",
+      "policy": "ownerOnly"
+    },
+    {
+      "operationId": "collection.update",
+      "type": "crud",
+      "action": "update",
+      "entity": "Collection",
+      "method": "PATCH",
+      "path": "/collections/{id}",
+      "policy": "ownerOnly"
+    },
+    {
+      "operationId": "collection.delete",
+      "type": "crud",
+      "action": "delete",
+      "entity": "Collection",
+      "method": "DELETE",
+      "path": "/collections/{id}",
+      "policy": "ownerOnly"
+    },
+    {
+      "operationId": "plant.list",
+      "type": "crud",
+      "action": "list",
+      "entity": "Plant",
+      "method": "GET",
+      "path": "/plants",
+      "pagination": true,
+      "filters": [
+        "collectionId",
+        "size",
+        "lightNeed",
+        "petSafe"
+      ],
+      "search": [
+        "name"
+      ],
+      "sort": [
+        "price",
+        "name",
+        "createdAt"
+      ]
+    },
+    {
+      "operationId": "plant.get",
+      "type": "crud",
+      "action": "get",
+      "entity": "Plant",
+      "method": "GET",
+      "path": "/plants/{id}"
+    },
+    {
+      "operationId": "plant.create",
+      "type": "crud",
+      "action": "create",
+      "entity": "Plant",
+      "method": "POST",
+      "path": "/plants",
+      "policy": "ownerOnly"
+    },
+    {
+      "operationId": "plant.update",
+      "type": "crud",
+      "action": "update",
+      "entity": "Plant",
+      "method": "PATCH",
+      "path": "/plants/{id}",
+      "policy": "ownerOnly"
+    },
+    {
+      "operationId": "plant.delete",
+      "type": "crud",
+      "action": "delete",
+      "entity": "Plant",
+      "method": "DELETE",
+      "path": "/plants/{id}",
+      "policy": "ownerOnly"
+    },
+    {
+      "operationId": "cartItem.list",
+      "type": "crud",
+      "action": "list",
+      "entity": "CartItem",
+      "method": "GET",
+      "path": "/cart-items",
+      "policy": "ownCart",
+      "pagination": true,
+      "sort": [
+        "createdAt"
+      ]
+    },
+    {
+      "operationId": "cartItem.create",
+      "type": "crud",
+      "action": "create",
+      "entity": "CartItem",
+      "method": "POST",
+      "path": "/cart-items",
+      "auth": "jwt"
+    },
+    {
+      "operationId": "cartItem.update",
+      "type": "crud",
+      "action": "update",
+      "entity": "CartItem",
+      "method": "PATCH",
+      "path": "/cart-items/{id}",
+      "policy": "ownCart"
+    },
+    {
+      "operationId": "cartItem.delete",
+      "type": "crud",
+      "action": "delete",
+      "entity": "CartItem",
+      "method": "DELETE",
+      "path": "/cart-items/{id}",
+      "policy": "ownCart"
+    },
+    {
+      "operationId": "order.list",
+      "type": "crud",
+      "action": "list",
+      "entity": "Order",
+      "method": "GET",
+      "path": "/orders",
+      "policy": "ownOrders",
+      "pagination": true,
+      "filters": [
+        "status",
+        "paymentStatus"
+      ],
+      "sort": [
+        "createdAt"
+      ]
+    },
+    {
+      "operationId": "order.get",
+      "type": "crud",
+      "action": "get",
+      "entity": "Order",
+      "method": "GET",
+      "path": "/orders/{id}",
+      "policy": "ownOrders"
+    },
+    {
+      "operationId": "order.checkout",
+      "type": "custom",
+      "method": "POST",
+      "path": "/orders/checkout",
+      "auth": "jwt",
+      "description": "Takes a shipping address, creates an Order and OrderItems for the signed-in shopper from their active cart items, calculates total amount, reduces plant stock count, clears cart items, and initializes payment."
+    },
+    {
+      "operationId": "order.update",
+      "type": "crud",
+      "action": "update",
+      "entity": "Order",
+      "method": "PATCH",
+      "path": "/orders/{id}",
+      "policy": "ownerOnly",
+      "rules": [
+        "orderStatusFlow",
+        "deliveredIsFinal"
+      ]
+    },
+    {
+      "operationId": "orderItem.list",
+      "type": "crud",
+      "action": "list",
+      "entity": "OrderItem",
+      "method": "GET",
+      "path": "/order-items",
+      "auth": "jwt",
+      "filters": [
+        "orderId"
+      ]
+    },
+    {
+      "operationId": "plant.count",
+      "type": "aggregate",
+      "entity": "Plant",
+      "method": "GET",
+      "path": "/plants/aggregate/count",
+      "summary": "Available plants",
+      "aggregate": {
+        "fn": "count"
+      }
+    },
+    {
+      "operationId": "order.countWhereStatusPaid",
+      "type": "aggregate",
+      "entity": "Order",
+      "method": "GET",
+      "path": "/orders/aggregate/count-where-status-paid",
+      "summary": "Active orders to fulfill",
+      "aggregate": {
+        "fn": "count",
+        "filters": {
+          "status": "paid"
+        }
+      }
+    },
+    {
+      "operationId": "order.countByStatus",
+      "type": "aggregate",
+      "entity": "Order",
+      "method": "GET",
+      "path": "/orders/aggregate/count-by-status",
+      "summary": "Orders by status",
+      "aggregate": {
+        "fn": "count",
+        "groupBy": "status"
+      }
+    },
+    {
+      "operationId": "plant.countByLightNeed",
+      "type": "aggregate",
+      "entity": "Plant",
+      "method": "GET",
+      "path": "/plants/aggregate/count-by-light-need",
+      "summary": "Plants by light need",
+      "aggregate": {
+        "fn": "count",
+        "groupBy": "lightNeed"
+      }
+    }
+  ],
+  "seed": [
+    {
+      "entity": "Collection",
+      "records": [
+        {
+          "id": "11111111-1111-4111-8111-111111111111",
+          "name": "Easy care",
+          "description": "Forgiving, low-fuss greenery ideal for beginners or busy plant parents.",
+          "createdAt": "2025-01-15T09:00:00Z"
+        },
+        {
+          "id": "22222222-2222-4222-8222-222222222222",
+          "name": "Pet friendly",
+          "description": "Certified non-toxic varieties completely safe for homes with curious cats and dogs.",
+          "createdAt": "2025-01-15T09:05:00Z"
+        },
+        {
+          "id": "33333333-3333-4333-8333-333333333333",
+          "name": "Statement plants",
+          "description": "Bold architectural leaves that transform any corner into a living showpiece.",
+          "createdAt": "2025-01-15T09:10:00Z"
+        },
+        {
+          "id": "44444444-4444-4444-8444-444444444444",
+          "name": "Hanging plants",
+          "description": "Cascading vines and lush trailers designed for shelves, macrame, and high planters.",
+          "createdAt": "2025-01-15T09:15:00Z"
+        }
+      ]
+    },
+    {
+      "entity": "Plant",
+      "records": [
+        {
+          "id": "a0000001-0000-4000-8000-000000000001",
+          "collectionId": "11111111-1111-4111-8111-111111111111",
+          "name": "Snake Plant Laurentii",
+          "photo": "https://images.unsplash.com/photo-1593482892290-f54927ae1eb6",
+          "size": "medium",
+          "lightNeed": "low",
+          "petSafe": false,
+          "stockCount": 16,
+          "careNote": "Thrives on neglect. Water every 2 to 3 weeks once soil is completely dry.",
+          "createdAt": "2025-01-16T10:00:00Z",
+          "price": 28.0
+        },
+        {
+          "id": "a0000002-0000-4000-8000-000000000002",
+          "collectionId": "11111111-1111-4111-8111-111111111111",
+          "name": "ZZ Plant Raven",
+          "photo": "https://images.unsplash.com/photo-1632207691143-643e2a9a9361",
+          "size": "medium",
+          "lightNeed": "low",
+          "petSafe": false,
+          "stockCount": 12,
+          "careNote": "Extremely resilient. Tolerates deep shade and requires water just once a month.",
+          "createdAt": "2025-01-16T10:30:00Z",
+          "price": 34.0
+        },
+        {
+          "id": "a0000003-0000-4000-8000-000000000003",
+          "collectionId": "11111111-1111-4111-8111-111111111111",
+          "name": "Cast Iron Plant",
+          "photo": "https://images.unsplash.com/photo-1614594975525-e45190c55d0b",
+          "size": "large",
+          "lightNeed": "low",
+          "petSafe": true,
+          "stockCount": 7,
+          "careNote": "Nearly indestructible broad foliage. Keep away from harsh direct sunlight.",
+          "createdAt": "2025-01-16T11:00:00Z",
+          "price": 38.0
+        },
+        {
+          "id": "a0000004-0000-4000-8000-000000000004",
+          "collectionId": "22222222-2222-4222-8222-222222222222",
+          "name": "Parlor Palm",
+          "photo": "https://images.unsplash.com/photo-1545241047-6083a3684587",
+          "size": "medium",
+          "lightNeed": "medium",
+          "petSafe": true,
+          "stockCount": 10,
+          "careNote": "Pet-friendly Victorian palm. Maintain light moisture in soil and gentle ambient light.",
+          "createdAt": "2025-01-17T09:00:00Z",
+          "price": 32.0
+        },
+        {
+          "id": "a0000005-0000-4000-8000-000000000005",
+          "collectionId": "22222222-2222-4222-8222-222222222222",
+          "name": "Calathea Rattlesnake",
+          "photo": "https://images.unsplash.com/photo-1599685315640-9ceab2f58944",
+          "size": "small",
+          "lightNeed": "medium",
+          "petSafe": true,
+          "stockCount": 14,
+          "careNote": "Non-toxic with striking patterned leaves. Prefers filtered water and humid air.",
+          "createdAt": "2025-01-17T09:30:00Z",
+          "price": 29.0
+        },
+        {
+          "id": "a0000006-0000-4000-8000-000000000006",
+          "collectionId": "22222222-2222-4222-8222-222222222222",
+          "name": "Spider Plant Ocean",
+          "photo": "https://images.unsplash.com/photo-1572688484437-c4659b43e1d6",
+          "size": "small",
+          "lightNeed": "bright",
+          "petSafe": true,
+          "stockCount": 22,
+          "careNote": "Vibrant arching ribbons that produce easy pups. Water when the top half is dry.",
+          "createdAt": "2025-01-17T10:00:00Z",
+          "price": 18.0
+        },
+        {
+          "id": "a0000007-0000-4000-8000-000000000007",
+          "collectionId": "33333333-3333-4333-8333-333333333333",
+          "name": "Monstera Deliciosa",
+          "photo": "https://images.unsplash.com/photo-1614594975525-e45190c55d0b",
+          "size": "large",
+          "lightNeed": "bright",
+          "petSafe": false,
+          "stockCount": 8,
+          "careNote": "Dramatic swiss-cheese foliage. Provide bright indirect light and weekly watering.",
+          "createdAt": "2025-01-18T11:00:00Z",
+          "price": 58.0
+        },
+        {
+          "id": "a0000008-0000-4000-8000-000000000008",
+          "collectionId": "33333333-3333-4333-8333-333333333333",
+          "name": "Fiddle Leaf Fig",
+          "photo": "https://images.unsplash.com/photo-1545241047-6083a3684587",
+          "size": "large",
+          "lightNeed": "bright",
+          "petSafe": false,
+          "stockCount": 5,
+          "careNote": "Signature violin-shaped leaves. Keep in a consistent bright spot and avoid drafts.",
+          "createdAt": "2025-01-18T11:30:00Z",
+          "price": 76.0
+        },
+        {
+          "id": "a0000009-0000-4000-8000-000000000009",
+          "collectionId": "33333333-3333-4333-8333-333333333333",
+          "name": "Bird of Paradise",
+          "photo": "https://images.unsplash.com/photo-1593482892290-f54927ae1eb6",
+          "size": "large",
+          "lightNeed": "bright",
+          "petSafe": false,
+          "stockCount": 4,
+          "careNote": "Towering tropical leaves. Thrives in abundant direct sun and regular hydration.",
+          "createdAt": "2025-01-18T12:00:00Z",
+          "price": 85.0
+        },
+        {
+          "id": "a0000010-0000-4000-8000-000000000010",
+          "collectionId": "44444444-4444-4444-8444-444444444444",
+          "name": "Golden Pothos",
+          "photo": "https://images.unsplash.com/photo-1596547609652-9cf5d8d76921",
+          "size": "small",
+          "lightNeed": "medium",
+          "petSafe": false,
+          "stockCount": 25,
+          "careNote": "Fast-growing cascading vine. Trim to shape and water whenever soil feels dry.",
+          "createdAt": "2025-01-19T10:00:00Z",
+          "price": 22.0
+        },
+        {
+          "id": "a0000011-0000-4000-8000-000000000011",
+          "collectionId": "44444444-4444-4444-8444-444444444444",
+          "name": "Boston Fern",
+          "photo": "https://images.unsplash.com/photo-1628178233777-66a987d3a2e2",
+          "size": "medium",
+          "lightNeed": "medium",
+          "petSafe": true,
+          "stockCount": 11,
+          "careNote": "Feathery fronds loving mist and dappled light. Ideal for bathroom or shaded porch.",
+          "createdAt": "2025-01-19T10:30:00Z",
+          "price": 26.0
+        }
+      ]
+    },
+    {
+      "entity": "Order",
+      "records": [
+        {
+          "id": "e0000001-0000-4000-8000-000000000001",
+          "ownerId": "d0000001-0000-4000-8000-000000000001",
+          "status": "delivered",
+          "paymentStatus": "PAID",
+          "shippingAddress": "742 Evergreen Terrace, Springfield, OR 97477",
+          "createdAt": "2025-01-20T14:20:00Z",
+          "totalAmount": 62.0
+        },
+        {
+          "id": "e0000002-0000-4000-8000-000000000002",
+          "ownerId": "d0000001-0000-4000-8000-000000000001",
+          "status": "shipped",
+          "paymentStatus": "PAID",
+          "shippingAddress": "742 Evergreen Terrace, Springfield, OR 97477",
+          "createdAt": "2025-01-24T16:45:00Z",
+          "totalAmount": 58.0
+        },
+        {
+          "id": "e0000003-0000-4000-8000-000000000003",
+          "ownerId": "d0000001-0000-4000-8000-000000000001",
+          "status": "packed",
+          "paymentStatus": "PAID",
+          "shippingAddress": "742 Evergreen Terrace, Springfield, OR 97477",
+          "createdAt": "2025-01-27T11:15:00Z",
+          "totalAmount": 48.0
+        },
+        {
+          "id": "e0000004-0000-4000-8000-000000000004",
+          "ownerId": "d0000001-0000-4000-8000-000000000001",
+          "status": "paid",
+          "paymentStatus": "PAID",
+          "shippingAddress": "742 Evergreen Terrace, Springfield, OR 97477",
+          "createdAt": "2025-01-28T09:30:00Z",
+          "totalAmount": 85.0
+        }
+      ]
+    },
+    {
+      "entity": "OrderItem",
+      "records": [
+        {
+          "id": "f0000001-0000-4000-8000-000000000001",
+          "orderId": "e0000001-0000-4000-8000-000000000001",
+          "plantId": "a0000001-0000-4000-8000-000000000001",
+          "quantity": 1,
+          "unitPrice": 28.0
+        },
+        {
+          "id": "f0000002-0000-4000-8000-000000000002",
+          "orderId": "e0000001-0000-4000-8000-000000000001",
+          "plantId": "a0000002-0000-4000-8000-000000000002",
+          "quantity": 1,
+          "unitPrice": 34.0
+        },
+        {
+          "id": "f0000003-0000-4000-8000-000000000003",
+          "orderId": "e0000002-0000-4000-8000-000000000002",
+          "plantId": "a0000007-0000-4000-8000-000000000007",
+          "quantity": 1,
+          "unitPrice": 58.0
+        },
+        {
+          "id": "f0000004-0000-4000-8000-000000000004",
+          "orderId": "e0000003-0000-4000-8000-000000000003",
+          "plantId": "a0000010-0000-4000-8000-000000000010",
+          "quantity": 1,
+          "unitPrice": 22.0
+        },
+        {
+          "id": "f0000005-0000-4000-8000-000000000005",
+          "orderId": "e0000003-0000-4000-8000-000000000003",
+          "plantId": "a0000011-0000-4000-8000-000000000011",
+          "quantity": 1,
+          "unitPrice": 26.0
+        },
+        {
+          "id": "f0000006-0000-4000-8000-000000000006",
+          "orderId": "e0000004-0000-4000-8000-000000000004",
+          "plantId": "a0000009-0000-4000-8000-000000000009",
+          "quantity": 1,
+          "unitPrice": 85.0
+        }
+      ]
+    }
+  ]
+}

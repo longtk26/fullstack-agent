@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, type QueryClient } from "@tanstack/react-query";
 import { app, type TRecord, type TSession } from "@/components/app/app";
 import { ApiError, request } from "@/lib/api/client";
 import { clearToken, readToken, storeToken } from "@/lib/auth/token";
@@ -80,6 +80,14 @@ export async function signOut(): Promise<void> {
 }
 
 /** Where to go after signing in: the page the user was sent from, never another site. */
+/** Story 23.10: where a signed-in user lands without a `next`: the home of the area their role belongs to. */
+export async function homePath(queryClient: QueryClient): Promise<string> {
+  const user = await queryClient.fetchQuery({ queryKey: SESSION_KEY, queryFn: me }).catch(() => null);
+  const role = user && typeof user.role === "string" ? user.role : null;
+  const area = role ? (app.areas ?? []).find((candidate) => candidate.roles.includes(role)) : undefined;
+  return area?.prefix ?? "/";
+}
+
 export function nextPath(fallback = "/"): string {
   if (typeof window === "undefined") return fallback;
   const next = new URLSearchParams(window.location.search).get("next");

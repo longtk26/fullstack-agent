@@ -1,0 +1,26 @@
+{
+  "requirement": "agency-projects.md",
+  "seconds": 95.0,
+  "repairs": 0,
+  "costUsd": 0.0624,
+  "archetypeCandidates": [
+    "back-office",
+    "catalogue"
+  ],
+  "productTypes": [
+    "Book & Reading Tracker",
+    "Micro SaaS",
+    "Portfolio/Personal"
+  ],
+  "calls": [
+    {
+      "step": "draft",
+      "prompt": "draft_app@v3proto",
+      "model": "gemini-3.8-flash",
+      "durationMs": 94974,
+      "inputTokens": 7814,
+      "outputTokens": 15065,
+      "costUsd": 0.062354
+    }
+  ]
+}

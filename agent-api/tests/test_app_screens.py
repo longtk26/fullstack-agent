@@ -27,6 +27,19 @@ APPS = {  # BackendSpec example → its outline (None: what code fills from the 
     "shop": None,
     "task-management": None,
     "workshop-bookings": "workshop-bookings",  # Story 22.7: every plugin
+    # Story 23.1: the golden apps, real Gemini drafts (Story 23.0)
+    **{
+        name: name
+        for name in (
+            "news-feed",
+            "video-library",
+            "learning-platform",
+            "agency-projects",
+            "clinic-bookings",
+            "plant-shop",
+            "event-tickets",
+        )
+    },
 }
 
 
@@ -76,7 +89,10 @@ def test_every_operation_is_on_a_screen_and_the_pair_check_passes(name):
     assert check_spec_pair(result.normalized, backend) == [], "no errors and no warnings (FE_FIELD_SOURCE included)"
     assert uncovered_operations(screens.spec, contract) == []
     assert screens.unresolved == [], "nothing unplaced"
-    assert not any(page["route"].startswith("/manage") for page in screens.spec["pages"]), "no Manage area"
+    prefixes = [area["prefix"] for area in screens.spec["app"].get("areas") or [] if area["prefix"] != "/"]
+    legacy = [p["route"] for p in screens.spec["pages"] if p["route"].startswith("/manage")
+              and not any(p["route"].startswith(prefix) for prefix in prefixes)]  # fmt: skip
+    assert not legacy, "no Manage area (an area of the brief may have its own prefix, Story 23.10)"
 
 
 @pytest.mark.parametrize("name", sorted(APPS))
@@ -216,7 +232,12 @@ def test_the_app_plan_has_a_route_per_page_and_a_sidebar(name):
     plan = plan_frontend(spec, contract)
     assert plan["rendering"] == "app" and plan["rendererGaps"] == []
     assert [route["route"] for route in plan["routes"]] == [page["route"] for page in screens.spec["pages"]]
-    assert plan["app"]["nav"][0] == {"label": "Dashboard", "page": "home", "icon": "LayoutDashboard"}
+    if (screens.spec["app"].get("home") or "dashboard") == "dashboard":  # the completed outline's (a brief decides)
+        assert plan["app"]["nav"][0] == {"label": "Dashboard", "page": "home", "icon": "LayoutDashboard"}
+    else:  # an app that opens on a list (Story 23.1): that list first; its figures on a dashboard page of their own
+        assert plan["app"]["nav"][0]["label"] != "Dashboard"
+        if raw.get("dashboard"):
+            assert {"label": "Dashboard", "page": "dashboard", "icon": "LayoutDashboard"} in plan["app"]["nav"]
 
 
 def test_a_real_antigravity_draft_plans_cleanly():

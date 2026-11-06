@@ -1,0 +1,34 @@
+{
+  "requirement": "event-tickets.md",
+  "seconds": 90.8,
+  "repairs": 1,
+  "costUsd": 0.069,
+  "archetypeCandidates": [
+    "booking"
+  ],
+  "productTypes": [
+    "Ticketing / Box Office",
+    "Event Management",
+    "Wedding/Event Planning"
+  ],
+  "calls": [
+    {
+      "step": "draft",
+      "prompt": "draft_app@v3proto",
+      "model": "gemini-3.8-flash",
+      "durationMs": 58104,
+      "inputTokens": 7817,
+      "outputTokens": 9425,
+      "costUsd": 0.041207
+    },
+    {
+      "step": "repair",
+      "prompt": "repair_spec@v3",
+      "model": "gemini-3.8-flash",
+      "durationMs": 32621,
+      "inputTokens": 13173,
+      "outputTokens": 4787,
+      "costUsd": 0.027831
+    }
+  ]
+}

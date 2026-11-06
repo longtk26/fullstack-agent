@@ -67,6 +67,7 @@ type AppOutline = {
   entities?: Record<string, AppEntity>;
   dashboard?: AppDashboardItem[];
   landing?: AppLanding | null;
+  locale?: string | null;
 };
 
 // A figure (`kind: figure`) or a chart of an aggregate of an entity's records (Epic 21's aggregates).

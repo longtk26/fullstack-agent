@@ -147,6 +147,8 @@ class Operation(SpecModel):
     filters: list[str] = []
     sort: list[str] = []
     search: list[str] = []
+    # Story 23.4: date or datetime fields a list may be limited to a range of (`<field>From`, `<field>To`, inclusive)
+    ranges: list[str] = []
     rules: list[str] = []
 
 
@@ -162,12 +164,17 @@ class Auth(SpecModel):
 
 class Policy(SpecModel):
     name: str = Field(pattern=IDENTIFIER)
-    type: Literal["role", "ownership"]
+    type: Literal["role", "ownership", "visibility"]
     roles: list[str] = []
     owner_field: str | None = None
     # Story 10.3, ownership: roles that reach every record (admins), and what another user's record answers
     bypass_roles: list[str] = []
     deny_status: Literal[403, 404] = 404
+    # Story 23.9, visibility: the entity whose records `roles` (and signed-out callers) see only where every field
+    # equals its value ("learners see only published courses"); other roles see every record. Applies to the
+    # entity's lists and reads; a hidden record is 404, as another user's is.
+    entity: str | None = None
+    where: dict[str, Any] = {}
 
 
 class Rule(SpecModel):

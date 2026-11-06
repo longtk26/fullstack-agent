@@ -1,0 +1,607 @@
+{
+  "specVersion": "1.0",
+  "project": {
+    "name": "DevPulse",
+    "description": "A developer news feed aggregating posts from engineering blogs and communities with bookmarking, tagging, and voting."
+  },
+  "stack": {
+    "framework": "fastapi",
+    "database": "postgresql",
+    "orm": "sqlmodel",
+    "migration": "alembic"
+  },
+  "auth": {
+    "type": "jwt",
+    "roles": [
+      "member",
+      "editor"
+    ]
+  },
+  "entities": [
+    {
+      "name": "Source",
+      "displayField": "name",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "primary": true
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "unique": true,
+          "maxLength": 80
+        },
+        {
+          "name": "website",
+          "type": "string",
+          "required": true,
+          "maxLength": 255
+        },
+        {
+          "name": "logo",
+          "type": "image",
+          "required": false,
+          "nullable": true
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "required": false,
+          "nullable": true,
+          "maxLength": 500
+        },
+        {
+          "name": "createdAt",
+          "type": "datetime",
+          "required": true,
+          "default": "now"
+        }
+      ]
+    },
+    {
+      "name": "Tag",
+      "displayField": "name",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "primary": true
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "unique": true,
+          "maxLength": 40
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "maxLength": 200
+        }
+      ]
+    },
+    {
+      "name": "Post",
+      "displayField": "title",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "primary": true
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "required": true,
+          "maxLength": 200
+        },
+        {
+          "name": "summary",
+          "type": "text",
+          "required": true,
+          "maxLength": 1000
+        },
+        {
+          "name": "url",
+          "type": "string",
+          "required": true,
+          "maxLength": 500
+        },
+        {
+          "name": "coverImage",
+          "type": "image",
+          "required": false,
+          "nullable": true
+        },
+        {
+          "name": "sourceId",
+          "type": "uuid",
+          "required": true,
+          "index": true
+        },
+        {
+          "name": "readingTime",
+          "type": "integer",
+          "required": true,
+          "min": 1,
+          "max": 180
+        },
+        {
+          "name": "upvoteCount",
+          "type": "integer",
+          "required": true,
+          "default": 0,
+          "min": 0
+        },
+        {
+          "name": "publishedAt",
+          "type": "datetime",
+          "required": true,
+          "default": "now",
+          "index": true
+        },
+        {
+          "name": "isHidden",
+          "type": "boolean",
+          "required": true,
+          "default": false
+        },
+        {
+          "name": "createdAt",
+          "type": "datetime",
+          "required": true,
+          "default": "now"
+        }
+      ]
+    },
+    {
+      "name": "Bookmark",
+      "displayField": "id",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "primary": true
+        },
+        {
+          "name": "ownerId",
+          "type": "uuid",
+          "required": true,
+          "index": true
+        },
+        {
+          "name": "postId",
+          "type": "uuid",
+          "required": true,
+          "index": true
+        },
+        {
+          "name": "createdAt",
+          "type": "datetime",
+          "required": true,
+          "default": "now"
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "name": "sourcePosts",
+      "type": "one-to-many",
+      "from": "Source",
+      "to": "Post",
+      "foreignKey": "sourceId",
+      "onDelete": "CASCADE"
+    },
+    {
+      "name": "postTags",
+      "type": "many-to-many",
+      "from": "Post",
+      "to": "Tag"
+    },
+    {
+      "name": "postBookmarks",
+      "type": "one-to-many",
+      "from": "Post",
+      "to": "Bookmark",
+      "foreignKey": "postId",
+      "onDelete": "CASCADE"
+    }
+  ],
+  "policies": [
+    {
+      "name": "editorsOnly",
+      "type": "role",
+      "roles": [
+        "editor"
+      ]
+    },
+    {
+      "name": "ownBookmarks",
+      "type": "ownership",
+      "ownerField": "ownerId",
+      "bypassRoles": [
+        "editor"
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "id": "singleBookmarkPerUser",
+      "kind": "uniqueTogether",
+      "entity": "Bookmark",
+      "params": {
+        "fields": [
+          "ownerId",
+          "postId"
+        ]
+      },
+      "description": "A member can only bookmark a specific post once"
+    }
+  ],
+  "operations": [
+    {
+      "operationId": "source.list",
+      "type": "crud",
+      "action": "list",
+      "entity": "Source",
+      "method": "GET",
+      "path": "/sources",
+      "pagination": true,
+      "search": [
+        "name",
+        "website"
+      ],
+      "sort": [
+        "name",
+        "createdAt"
+      ]
+    },
+    {
+      "operationId": "source.get",
+      "type": "crud",
+      "action": "get",
+      "entity": "Source",
+      "method": "GET",
+      "path": "/sources/{id}"
+    },
+    {
+      "operationId": "source.create",
+      "type": "crud",
+      "action": "create",
+      "entity": "Source",
+      "method": "POST",
+      "path": "/sources",
+      "policy": "editorsOnly"
+    },
+    {
+      "operationId": "source.update",
+      "type": "crud",
+      "action": "update",
+      "entity": "Source",
+      "method": "PATCH",
+      "path": "/sources/{id}",
+      "policy": "editorsOnly"
+    },
+    {
+      "operationId": "source.delete",
+      "type": "crud",
+      "action": "delete",
+      "entity": "Source",
+      "method": "DELETE",
+      "path": "/sources/{id}",
+      "policy": "editorsOnly"
+    },
+    {
+      "operationId": "tag.list",
+      "type": "crud",
+      "action": "list",
+      "entity": "Tag",
+      "method": "GET",
+      "path": "/tags",
+      "pagination": true,
+      "search": [
+        "name"
+      ],
+      "sort": [
+        "name"
+      ]
+    },
+    {
+      "operationId": "tag.get",
+      "type": "crud",
+      "action": "get",
+      "entity": "Tag",
+      "method": "GET",
+      "path": "/tags/{id}"
+    },
+    {
+      "operationId": "tag.create",
+      "type": "crud",
+      "action": "create",
+      "entity": "Tag",
+      "method": "POST",
+      "path": "/tags",
+      "policy": "editorsOnly"
+    },
+    {
+      "operationId": "tag.update",
+      "type": "crud",
+      "action": "update",
+      "entity": "Tag",
+      "method": "PATCH",
+      "path": "/tags/{id}",
+      "policy": "editorsOnly"
+    },
+    {
+      "operationId": "tag.delete",
+      "type": "crud",
+      "action": "delete",
+      "entity": "Tag",
+      "method": "DELETE",
+      "path": "/tags/{id}",
+      "policy": "editorsOnly"
+    },
+    {
+      "operationId": "post.list",
+      "type": "crud",
+      "action": "list",
+      "entity": "Post",
+      "method": "GET",
+      "path": "/posts",
+      "pagination": true,
+      "filters": [
+        "sourceId",
+        "isHidden"
+      ],
+      "search": [
+        "title",
+        "summary"
+      ],
+      "sort": [
+        "publishedAt",
+        "upvoteCount",
+        "createdAt"
+      ]
+    },
+    {
+      "operationId": "post.get",
+      "type": "crud",
+      "action": "get",
+      "entity": "Post",
+      "method": "GET",
+      "path": "/posts/{id}"
+    },
+    {
+      "operationId": "post.create",
+      "type": "crud",
+      "action": "create",
+      "entity": "Post",
+      "method": "POST",
+      "path": "/posts",
+      "policy": "editorsOnly"
+    },
+    {
+      "operationId": "post.update",
+      "type": "crud",
+      "action": "update",
+      "entity": "Post",
+      "method": "PATCH",
+      "path": "/posts/{id}",
+      "policy": "editorsOnly"
+    },
+    {
+      "operationId": "post.delete",
+      "type": "crud",
+      "action": "delete",
+      "entity": "Post",
+      "method": "DELETE",
+      "path": "/posts/{id}",
+      "policy": "editorsOnly"
+    },
+    {
+      "operationId": "post.upvote",
+      "type": "custom",
+      "entity": "Post",
+      "method": "POST",
+      "path": "/posts/{id}/upvote",
+      "auth": "jwt",
+      "summary": "Upvote a post",
+      "description": "Increments the post's upvoteCount by 1 for authenticated members."
+    },
+    {
+      "operationId": "bookmark.list",
+      "type": "crud",
+      "action": "list",
+      "entity": "Bookmark",
+      "method": "GET",
+      "path": "/bookmarks",
+      "policy": "ownBookmarks",
+      "pagination": true,
+      "filters": [
+        "postId"
+      ],
+      "sort": [
+        "createdAt"
+      ]
+    },
+    {
+      "operationId": "bookmark.get",
+      "type": "crud",
+      "action": "get",
+      "entity": "Bookmark",
+      "method": "GET",
+      "path": "/bookmarks/{id}",
+      "policy": "ownBookmarks"
+    },
+    {
+      "operationId": "bookmark.create",
+      "type": "crud",
+      "action": "create",
+      "entity": "Bookmark",
+      "method": "POST",
+      "path": "/bookmarks",
+      "auth": "jwt",
+      "rules": [
+        "singleBookmarkPerUser"
+      ]
+    },
+    {
+      "operationId": "bookmark.delete",
+      "type": "crud",
+      "action": "delete",
+      "entity": "Bookmark",
+      "method": "DELETE",
+      "path": "/bookmarks/{id}",
+      "policy": "ownBookmarks"
+    }
+  ],
+  "seed": [
+    {
+      "entity": "Source",
+      "records": [
+        {
+          "id": "11111111-1111-1111-1111-111111111101",
+          "name": "Vercel Blog",
+          "website": "https://vercel.com/blog",
+          "description": "Updates on Next.js, web development architecture, frontend infrastructure, and edge computing.",
+          "createdAt": "2024-01-01T00:00:00Z"
+        },
+        {
+          "id": "11111111-1111-1111-1111-111111111102",
+          "name": "GitHub Blog",
+          "website": "https://github.blog",
+          "description": "Engineering stories, AI workflows, DevSecOps insights, and platform reliability at GitHub scale.",
+          "createdAt": "2024-01-01T00:00:00Z"
+        },
+        {
+          "id": "11111111-1111-1111-1111-111111111103",
+          "name": "Hacker News",
+          "website": "https://news.ycombinator.com",
+          "description": "Curated technology news, startup discussions, and computer science breakthroughs.",
+          "createdAt": "2024-01-01T00:00:00Z"
+        },
+        {
+          "id": "11111111-1111-1111-1111-111111111104",
+          "name": "Dev.to",
+          "website": "https://dev.to",
+          "description": "Constructive and inclusive community discussions, practical tutorials, and software career guides.",
+          "createdAt": "2024-01-01T00:00:00Z"
+        }
+      ]
+    },
+    {
+      "entity": "Tag",
+      "records": [
+        {
+          "id": "22222222-2222-2222-2222-222222222201",
+          "name": "React",
+          "description": "Frontend UI library, component state, and hooks"
+        },
+        {
+          "id": "22222222-2222-2222-2222-222222222202",
+          "name": "Python",
+          "description": "Backend services, data engineering, and automation"
+        },
+        {
+          "id": "22222222-2222-2222-2222-222222222203",
+          "name": "DevOps",
+          "description": "CI/CD pipelines, container orchestration, and cloud infrastructure"
+        },
+        {
+          "id": "22222222-2222-2222-2222-222222222204",
+          "name": "Next.js",
+          "description": "The React framework for high-performance production apps"
+        },
+        {
+          "id": "22222222-2222-2222-2222-222222222205",
+          "name": "Architecture",
+          "description": "System design, distributed systems, and performance tuning"
+        }
+      ]
+    },
+    {
+      "entity": "Post",
+      "records": [
+        {
+          "id": "33333333-3333-3333-3333-333333333301",
+          "title": "Optimizing Server Components for Zero-Bundle State Transitions",
+          "summary": "Deep dive into React 19 Server Components and how streaming SSR reduces First Input Delay by up to 45%.",
+          "url": "https://vercel.com/blog/optimizing-server-components",
+          "sourceId": "11111111-1111-1111-1111-111111111101",
+          "readingTime": 6,
+          "upvoteCount": 342,
+          "publishedAt": "2024-10-14T09:30:00Z",
+          "isHidden": false,
+          "createdAt": "2024-10-14T09:30:00Z"
+        },
+        {
+          "id": "33333333-3333-3333-3333-333333333302",
+          "title": "How GitHub Scaled Git Virtual File System to Billions of Repositories",
+          "summary": "The storage architecture improvements behind handling 100k writes per second without degraded read performance.",
+          "url": "https://github.blog/scaling-git-virtual-file-system",
+          "sourceId": "11111111-1111-1111-1111-111111111102",
+          "readingTime": 11,
+          "upvoteCount": 519,
+          "publishedAt": "2024-10-13T14:15:00Z",
+          "isHidden": false,
+          "createdAt": "2024-10-13T14:15:00Z"
+        },
+        {
+          "id": "33333333-3333-3333-3333-333333333303",
+          "title": "Show HN: FastKV - A Lock-Free In-Memory Key-Value Store in Rust",
+          "summary": "Benchmarking lock-free concurrent hash tables against Redis and Memcached with predictable sub-millisecond p99 latency.",
+          "url": "https://news.ycombinator.com/item?id=38192011",
+          "sourceId": "11111111-1111-1111-1111-111111111103",
+          "readingTime": 4,
+          "upvoteCount": 278,
+          "publishedAt": "2024-10-12T18:00:00Z",
+          "isHidden": false,
+          "createdAt": "2024-10-12T18:00:00Z"
+        },
+        {
+          "id": "33333333-3333-3333-3333-333333333304",
+          "title": "Building Production-Ready Observability Pipelines with OpenTelemetry and Python",
+          "summary": "A step-by-step blueprint for collecting structured metrics and distributed traces in async FastAPI microservices.",
+          "url": "https://dev.to/engineering/opentelemetry-fastapi-pipelines",
+          "sourceId": "11111111-1111-1111-1111-111111111104",
+          "readingTime": 8,
+          "upvoteCount": 184,
+          "publishedAt": "2024-10-11T11:45:00Z",
+          "isHidden": false,
+          "createdAt": "2024-10-11T11:45:00Z"
+        },
+        {
+          "id": "33333333-3333-3333-3333-333333333305",
+          "title": "Zero-Downtime Database Migrations with Postgres and Kubernetes Operators",
+          "summary": "Best practices for multi-phase schema migrations avoiding lock contention on tables with over 50 million rows.",
+          "url": "https://dev.to/devops/zero-downtime-migrations-postgres",
+          "sourceId": "11111111-1111-1111-1111-111111111104",
+          "readingTime": 9,
+          "upvoteCount": 230,
+          "publishedAt": "2024-10-10T16:20:00Z",
+          "isHidden": false,
+          "createdAt": "2024-10-10T16:20:00Z"
+        },
+        {
+          "id": "33333333-3333-3333-3333-333333333306",
+          "title": "Turborepo 2.0: Remote Cache Graphs and Hermetic Task Execution",
+          "summary": "How monorepo build caching scales to thousands of concurrent engineering commits per day.",
+          "url": "https://vercel.com/blog/turborepo-2-release",
+          "sourceId": "11111111-1111-1111-1111-111111111101",
+          "readingTime": 5,
+          "upvoteCount": 395,
+          "publishedAt": "2024-10-09T13:00:00Z",
+          "isHidden": false,
+          "createdAt": "2024-10-09T13:00:00Z"
+        }
+      ]
+    }
+  ]
+}

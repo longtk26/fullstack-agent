@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { dateLocale } from "../date-locale";
 import type { TFieldProps } from "./types";
+import { t } from "../messages";
 
 const YEARS_BACK = 100;
 const YEARS_AHEAD = 10;
@@ -63,7 +64,7 @@ export function DateField({ field, id, value, onChange, invalid }: TFieldProps) 
   return (
     <div className="flex items-center gap-1">
       <Popover open={open} onOpenChange={setOpen}>
-        <Trigger id={id} invalid={invalid} text={day ? format(day, "PPP", { locale: dateLocale }) : undefined} placeholder="Pick a date" />
+        <Trigger id={id} invalid={invalid} text={day ? format(day, "PPP", { locale: dateLocale }) : undefined} placeholder={t("pickDate")} />
         <PopoverContent className="w-auto p-0" align="start">
           <Calendar
             mode="single"
@@ -80,7 +81,7 @@ export function DateField({ field, id, value, onChange, invalid }: TFieldProps) 
         </PopoverContent>
       </Popover>
       {!field.required && day && (
-        <Button type="button" variant="ghost" size="icon" aria-label={`Clear ${field.label ?? field.name}`} onClick={() => onChange(undefined)}>
+        <Button type="button" variant="ghost" size="icon" aria-label={t("clear", { name: field.label ?? field.name })} onClick={() => onChange(undefined)}>
           <XIcon aria-hidden />
         </Button>
       )}
@@ -105,7 +106,7 @@ export function DateTimeField({ field, id, value, onChange, invalid }: TFieldPro
     <div className="flex items-center gap-2">
       <div className="min-w-0 flex-1">
         <Popover open={open} onOpenChange={setOpen}>
-          <Trigger id={id} invalid={invalid} text={moment ? format(moment, "PPP", { locale: dateLocale }) : undefined} placeholder="Pick a date" />
+          <Trigger id={id} invalid={invalid} text={moment ? format(moment, "PPP", { locale: dateLocale }) : undefined} placeholder={t("pickDate")} />
           <PopoverContent className="w-auto p-0" align="start">
             <Calendar
               mode="single"
@@ -132,7 +133,7 @@ export function DateTimeField({ field, id, value, onChange, invalid }: TFieldPro
         onChange={(e) => emit(moment, e.target.value)}
       />
       {!field.required && moment && (
-        <Button type="button" variant="ghost" size="icon" aria-label={`Clear ${field.label ?? field.name}`} onClick={() => onChange(undefined)}>
+        <Button type="button" variant="ghost" size="icon" aria-label={t("clear", { name: field.label ?? field.name })} onClick={() => onChange(undefined)}>
           <XIcon aria-hidden />
         </Button>
       )}

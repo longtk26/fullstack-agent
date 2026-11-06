@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { app, listOf, recordTitle, type TRecord } from "../app";
 import { useOperationQuery } from "../bindings";
 import type { TFieldProps } from "./types";
+import { inSentence, t } from "../messages";
 
 
 /** A record's name in the picker: the contract's label field, else the outline's display field. */
@@ -59,7 +60,7 @@ export function ReferenceField({ field, id, value, onChange, invalid }: TFieldPr
         </PopoverTrigger>
         <PopoverContent className="w-(--anchor-width) min-w-64 p-0" align="start">
           <Command shouldFilter={!reference.searchParam}>
-            <CommandInput placeholder={`Search ${(app.entities[reference.entity]?.plural ?? entityLabel).toLowerCase()}…`} value={query} onValueChange={setQuery} />
+            <CommandInput placeholder={`${t("search", { name: inSentence(app.entities[reference.entity]?.plural ?? entityLabel) })}…`} value={query} onValueChange={setQuery} />
             <CommandList>
               {list.isLoading ? (
                 <div className="flex flex-col gap-1 p-2" aria-busy="true">
@@ -68,7 +69,7 @@ export function ReferenceField({ field, id, value, onChange, invalid }: TFieldPr
                 </div>
               ) : (
                 <>
-                  <CommandEmpty>{list.isError ? "Could not load the list" : "Nothing found"}</CommandEmpty>
+                  <CommandEmpty>{list.isError ? t("couldNotLoadList") : t("nothingFound")}</CommandEmpty>
                   <CommandGroup>
                     {records.map((record) => {
                       const name = nameOf(reference.entity, reference.labelField, record);
@@ -97,7 +98,7 @@ export function ReferenceField({ field, id, value, onChange, invalid }: TFieldPr
         </PopoverContent>
       </Popover>
       {!field.required && chosen && (
-        <Button type="button" variant="ghost" size="icon" aria-label={`Clear ${field.label ?? field.name}`} onClick={() => onChange(undefined)}>
+        <Button type="button" variant="ghost" size="icon" aria-label={t("clear", { name: field.label ?? field.name })} onClick={() => onChange(undefined)}>
           <XIcon aria-hidden />
         </Button>
       )}

@@ -543,6 +543,12 @@ def mock_operations(contract: dict[str, Any]) -> list[dict[str, Any]]:
         )
         mock_plan = op.raw.get("x-bga", {}).get("mock")
         sample = op.raw.get("x-bga", {}).get("sample")
+        # Story 23.4: a range's two parameters → the field and the bound the mocks apply
+        bounds = {
+            name: {"field": rng["field"], "bound": bound}
+            for rng in op.raw.get("x-bga", {}).get("ranges") or []
+            for name, bound in ((rng["from"], "gte"), (rng["to"], "lte"))
+        }
         envelope = True
         resp2xx = next((r for s, r in sorted(op.raw.get("responses", {}).items()) if s.startswith("2")), {})
         content_schema = (resp2xx.get("content") or {}).get("application/json", {}).get("schema", {})
@@ -560,19 +566,23 @@ def mock_operations(contract: dict[str, Any]) -> list[dict[str, Any]]:
             "envelope": envelope,
             "primaryKey": pk,
             "status": next((int(s) for s in sorted(op.raw.get("responses") or {}) if s.startswith("2")), 200),
-            "filters": [name for name in query if name not in ("limit", "offset", "sort", "q")],
+            "filters": [name for name in query if name not in ("limit", "offset", "sort", "q") and name not in bounds],
             "sort": sorted({value.lstrip("-") for value in sort}),
             "search": "q" in query,
             "defaultLimit": limit.get("default", 20),
             "maxLimit": limit.get("maximum", 100),
             "hasFixtures": op.entity in fixtures,
         }
+        if bounds:
+            entry["ranges"] = bounds
         # Story 22.7: what the mocks check before answering, as the backend's plugins do
         meta = op.raw.get("x-bga") or {}
         if op.raw.get("security"):
             entry["secured"] = True
         if meta.get("policy"):
             entry["policy"] = meta["policy"]
+        if meta.get("visibility"):  # Story 23.9: what a restricted caller may see, as the backend narrows it
+            entry["visibility"] = {key: meta["visibility"][key] for key in ("roles", "where")}
         if meta.get("errors"):
             entry["errors"] = [
                 {key: error[key] for key in ("status", "code", "message", "fields") if error.get(key) is not None}

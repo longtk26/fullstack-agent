@@ -1,0 +1,290 @@
+{
+  "name": "Leafy Corner",
+  "tagline": "Fresh houseplants for every light and lifestyle",
+  "icon": "Leaf",
+  "home": "dashboard",
+  "nav": [
+    {
+      "entity": "Plant",
+      "label": "Plants",
+      "icon": "Leaf"
+    },
+    {
+      "entity": "Collection",
+      "label": "Collections",
+      "icon": "Layers"
+    },
+    {
+      "entity": "CartItem",
+      "label": "Cart",
+      "icon": "ShoppingCart"
+    },
+    {
+      "entity": "Order",
+      "label": "My Orders",
+      "icon": "Package"
+    }
+  ],
+  "entities": {
+    "Plant": {
+      "label": "Plant",
+      "plural": "Plants",
+      "displayField": "name",
+      "listStyle": "cards",
+      "listFields": [
+        "name",
+        "collectionId",
+        "price",
+        "size",
+        "lightNeed",
+        "petSafe"
+      ],
+      "detailFields": [
+        "photo",
+        "name",
+        "collectionId",
+        "price",
+        "size",
+        "lightNeed",
+        "petSafe",
+        "stockCount",
+        "careNote"
+      ],
+      "fieldLabels": {
+        "collectionId": "Collection",
+        "lightNeed": "Light need",
+        "petSafe": "Pet friendly",
+        "stockCount": "In stock",
+        "careNote": "Care note"
+      }
+    },
+    "Collection": {
+      "label": "Collection",
+      "plural": "Collections",
+      "displayField": "name",
+      "listStyle": "cards",
+      "listFields": [
+        "name",
+        "description"
+      ],
+      "detailFields": [
+        "name",
+        "description"
+      ]
+    },
+    "CartItem": {
+      "label": "Cart Item",
+      "plural": "Cart",
+      "displayField": "plantId",
+      "listStyle": "table",
+      "listFields": [
+        "plantId",
+        "quantity",
+        "createdAt"
+      ],
+      "fieldLabels": {
+        "plantId": "Plant",
+        "quantity": "Quantity"
+      }
+    },
+    "Order": {
+      "label": "Order",
+      "plural": "Orders",
+      "displayField": "id",
+      "listStyle": "cards",
+      "listFields": [
+        "id",
+        "createdAt",
+        "totalAmount",
+        "status",
+        "paymentStatus"
+      ],
+      "detailFields": [
+        "id",
+        "createdAt",
+        "shippingAddress",
+        "totalAmount",
+        "status",
+        "paymentStatus"
+      ],
+      "fieldLabels": {
+        "totalAmount": "Total",
+        "paymentStatus": "Payment status",
+        "shippingAddress": "Shipping address"
+      }
+    }
+  },
+  "dashboard": [
+    {
+      "label": "Available plants",
+      "entity": "Plant",
+      "fn": "count"
+    },
+    {
+      "label": "Active orders to fulfill",
+      "entity": "Order",
+      "fn": "count",
+      "filter": {
+        "status": "paid"
+      }
+    },
+    {
+      "label": "Orders by status",
+      "kind": "pie",
+      "entity": "Order",
+      "fn": "count",
+      "groupBy": "status"
+    },
+    {
+      "label": "Plants by light need",
+      "kind": "bar",
+      "entity": "Plant",
+      "fn": "count",
+      "groupBy": "lightNeed"
+    }
+  ],
+  "design": {
+    "archetype": "storefront",
+    "shell": "topbar",
+    "mobileNav": "bottom-tabs",
+    "homeView": "catalogue",
+    "mainEntity": "Plant",
+    "entities": {
+      "Plant": {
+        "view": "media-grid",
+        "roles": {
+          "media": "photo",
+          "title": "name",
+          "subtitle": "collectionId",
+          "badge": "lightNeed",
+          "price": "price"
+        }
+      },
+      "Collection": {
+        "view": "cards",
+        "roles": {
+          "title": "name",
+          "subtitle": "description"
+        }
+      },
+      "CartItem": {
+        "view": "table",
+        "roles": {
+          "title": "plantId",
+          "badge": "quantity"
+        }
+      },
+      "Order": {
+        "view": "cards",
+        "roles": {
+          "title": "id",
+          "badge": "status",
+          "price": "totalAmount",
+          "meta": "createdAt"
+        }
+      }
+    },
+    "looks": [
+      {
+        "recipe": "editorial",
+        "reason": "Rich typography and elegant editorial framing that celebrate vibrant plant photography and care notes."
+      },
+      {
+        "recipe": "minimal",
+        "reason": "Crisp whitespace and clean lines that let lush greenery and natural leaf tones stand out without distraction."
+      },
+      {
+        "recipe": "soft",
+        "reason": "Gentle organic curves and subtle elevated surfaces reflecting an inviting, tactile greenhouse atmosphere."
+      }
+    ],
+    "reason": "Shoppers browse a visual plant storefront with immediate filtering by light and size, while the owner operates a focused back-office dashboard to manage stock and advance order fulfillment."
+  },
+  "areas": [
+    {
+      "id": "storefront",
+      "label": "Shop",
+      "roles": [
+        "shopper"
+      ],
+      "archetype": "storefront",
+      "shell": "topbar",
+      "mobileNav": "bottom-tabs",
+      "homeView": "catalogue",
+      "mainEntity": "Plant",
+      "entities": {
+        "Plant": {
+          "view": "media-grid",
+          "roles": {
+            "media": "photo",
+            "title": "name",
+            "subtitle": "collectionId",
+            "badge": "lightNeed",
+            "price": "price"
+          }
+        },
+        "Collection": {
+          "view": "cards",
+          "roles": {
+            "title": "name",
+            "subtitle": "description"
+          }
+        },
+        "CartItem": {
+          "view": "table",
+          "roles": {
+            "title": "plantId",
+            "badge": "quantity"
+          }
+        },
+        "Order": {
+          "view": "cards",
+          "roles": {
+            "title": "id",
+            "badge": "status",
+            "price": "totalAmount",
+            "meta": "createdAt"
+          }
+        }
+      }
+    },
+    {
+      "id": "management",
+      "label": "Store Management",
+      "roles": [
+        "owner"
+      ],
+      "archetype": "back-office",
+      "shell": "sidebar",
+      "mobileNav": "drawer",
+      "homeView": "dashboard",
+      "mainEntity": "Plant",
+      "entities": {
+        "Plant": {
+          "view": "table",
+          "roles": {
+            "title": "name",
+            "subtitle": "collectionId",
+            "badge": "stockCount",
+            "price": "price"
+          }
+        },
+        "Order": {
+          "view": "table",
+          "roles": {
+            "title": "id",
+            "badge": "status",
+            "price": "totalAmount",
+            "meta": "createdAt"
+          }
+        },
+        "Collection": {
+          "view": "table",
+          "roles": {
+            "title": "name"
+          }
+        }
+      }
+    }
+  ]
+}

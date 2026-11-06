@@ -816,6 +816,14 @@
           "title": "Search",
           "type": "array"
         },
+        "ranges": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Ranges",
+          "type": "array"
+        },
         "rules": {
           "default": [],
           "items": {
@@ -1011,7 +1019,8 @@
         "type": {
           "enum": [
             "role",
-            "ownership"
+            "ownership",
+            "visibility"
           ],
           "title": "Type",
           "type": "string"
@@ -1052,6 +1061,24 @@
           ],
           "title": "Denystatus",
           "type": "integer"
+        },
+        "entity": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Entity"
+        },
+        "where": {
+          "additionalProperties": true,
+          "default": {},
+          "title": "Where",
+          "type": "object"
         }
       },
       "required": [

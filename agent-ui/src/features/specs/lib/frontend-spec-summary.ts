@@ -103,6 +103,8 @@ export type TAppEntitySummary = {
   plural: string;
   listFields: string[];
   listStyle: string | null;
+  /** Epic 23: the brief's view of the entity's list. */
+  view: string | null;
   inNav: boolean;
 };
 export type TAppOutlineSummary = {
@@ -113,6 +115,9 @@ export type TAppOutlineSummary = {
   entities: TAppEntitySummary[];
   dashboard: { label: string; kind: string; entity: string | null }[];
   landing: boolean;
+  /** Epic 23: the brief in one line, and its looks. */
+  design: string | null;
+  looks: string[];
 };
 
 function asStrings(value: unknown): string[] {
@@ -148,6 +153,7 @@ export function summarizeAppOutline(spec: unknown): TAppOutlineSummary | null {
         plural: asString(entity.plural) ?? label,
         listFields: asStrings(entity.listFields).map((field) => asString(asObject(entity.fieldLabels)[field]) ?? field),
         listStyle: asString(entity.listStyle),
+        view: asString(asObject(asObject(asObject(app.design).entities)[name]).view),
         inNav: navEntities.has(name),
       };
     }),
@@ -157,5 +163,19 @@ export function summarizeAppOutline(spec: unknown): TAppOutlineSummary | null {
       entity: asString(item.entity),
     })),
     landing: Object.keys(asObject(app.landing)).length > 0,
+    design: designLine(asObject(app.design)),
+    looks: asArray(asObject(app.design).looks).flatMap((look) => {
+      const recipe = asString(look.recipe);
+      return recipe ? [recipe] : [];
+    }),
   };
+}
+
+function designLine(design: Record<string, unknown>): string | null {
+  const parts = [
+    asString(design.archetype),
+    asString(design.shell) && `${asString(design.shell)} shell`,
+    asString(design.homeView) && `opens on ${asString(design.homeView)}`,
+  ].filter(Boolean);
+  return parts.length ? parts.join(" · ") : null;
 }

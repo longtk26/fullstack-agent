@@ -128,6 +128,7 @@ type Operation = {
   filters?: string[];
   sort?: string[];
   search?: string[];
+  ranges?: string[];
   rules?: string[];
 };
 
@@ -157,11 +158,13 @@ type Payments = {
 
 type Policy = {
   name: string;
-  type: "role" | "ownership";
+  type: "role" | "ownership" | "visibility";
   roles?: string[];
   ownerField?: string | null;
   bypassRoles?: string[];
   denyStatus?: 403 | 404;
+  entity?: string | null;
+  where?: Record<string, unknown>;
 };
 
 type Project = {

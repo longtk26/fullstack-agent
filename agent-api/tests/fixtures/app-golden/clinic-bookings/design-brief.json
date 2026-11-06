@@ -1,0 +1,129 @@
+{
+  "archetype": "booking",
+  "shell": "sidebar",
+  "mobileNav": "bottom-tabs",
+  "homeView": "agenda",
+  "mainEntity": "Appointment",
+  "entities": {
+    "Appointment": {
+      "view": "calendar",
+      "roles": {
+        "title": "treatmentId",
+        "subtitle": "dentistId",
+        "meta": "startAt",
+        "badge": "status"
+      }
+    },
+    "Dentist": {
+      "view": "media-grid",
+      "roles": {
+        "media": "photo",
+        "title": "name",
+        "subtitle": "specialty"
+      }
+    },
+    "Treatment": {
+      "view": "cards",
+      "roles": {
+        "title": "name",
+        "meta": "durationMinutes",
+        "price": "price"
+      }
+    }
+  },
+  "areas": [
+    {
+      "id": "front_desk",
+      "label": "Front Desk",
+      "roles": [
+        "front_desk"
+      ],
+      "archetype": "booking",
+      "shell": "sidebar",
+      "mobileNav": "bottom-tabs",
+      "homeView": "agenda",
+      "mainEntity": "Appointment",
+      "entities": {
+        "Appointment": {
+          "view": "calendar",
+          "roles": {
+            "title": "treatmentId",
+            "subtitle": "dentistId",
+            "meta": "startAt",
+            "badge": "status"
+          }
+        },
+        "Dentist": {
+          "view": "table",
+          "roles": {
+            "title": "name",
+            "subtitle": "specialty",
+            "avatar": "photo"
+          }
+        },
+        "Treatment": {
+          "view": "table",
+          "roles": {
+            "title": "name",
+            "meta": "durationMinutes",
+            "price": "price"
+          }
+        }
+      }
+    },
+    {
+      "id": "patient",
+      "label": "Patient Portal",
+      "roles": [
+        "patient"
+      ],
+      "archetype": "booking",
+      "shell": "topbar",
+      "mobileNav": "bottom-tabs",
+      "homeView": "catalogue",
+      "mainEntity": "Appointment",
+      "entities": {
+        "Appointment": {
+          "view": "cards",
+          "roles": {
+            "title": "treatmentId",
+            "subtitle": "dentistId",
+            "meta": "startAt",
+            "badge": "status"
+          }
+        },
+        "Dentist": {
+          "view": "media-grid",
+          "roles": {
+            "media": "photo",
+            "title": "name",
+            "subtitle": "specialty"
+          }
+        },
+        "Treatment": {
+          "view": "cards",
+          "roles": {
+            "title": "name",
+            "meta": "durationMinutes",
+            "price": "price"
+          }
+        }
+      }
+    }
+  ],
+  "looks": [
+    {
+      "recipe": "minimal",
+      "reason": "Clean, hygienic, and distraction-free visual aesthetic suited for a healthcare clinic."
+    },
+    {
+      "recipe": "swiss",
+      "reason": "Structured typographic grid offering clear legibility for calendar schedules and medical appointment slots."
+    },
+    {
+      "recipe": "soft",
+      "reason": "Friendly, approachable feel that eases patient dental anxiety while maintaining professional clinical structure."
+    }
+  ],
+  "reason": "The clinic centers on booking time slots and preventing double bookings across dentists, fitting the booking archetype with agenda and calendar views."
+}

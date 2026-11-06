@@ -1,0 +1,144 @@
+{
+  "archetype": "storefront",
+  "shell": "topbar",
+  "mobileNav": "bottom-tabs",
+  "homeView": "catalogue",
+  "mainEntity": "Plant",
+  "entities": {
+    "Plant": {
+      "view": "media-grid",
+      "roles": {
+        "media": "photo",
+        "title": "name",
+        "subtitle": "collectionId",
+        "badge": "lightNeed",
+        "price": "price"
+      }
+    },
+    "Collection": {
+      "view": "cards",
+      "roles": {
+        "title": "name",
+        "subtitle": "description"
+      }
+    },
+    "CartItem": {
+      "view": "table",
+      "roles": {
+        "title": "plantId",
+        "badge": "quantity"
+      }
+    },
+    "Order": {
+      "view": "cards",
+      "roles": {
+        "title": "id",
+        "badge": "status",
+        "price": "totalAmount",
+        "meta": "createdAt"
+      }
+    }
+  },
+  "areas": [
+    {
+      "id": "storefront",
+      "label": "Shop",
+      "roles": [
+        "shopper"
+      ],
+      "archetype": "storefront",
+      "shell": "topbar",
+      "mobileNav": "bottom-tabs",
+      "homeView": "catalogue",
+      "mainEntity": "Plant",
+      "entities": {
+        "Plant": {
+          "view": "media-grid",
+          "roles": {
+            "media": "photo",
+            "title": "name",
+            "subtitle": "collectionId",
+            "badge": "lightNeed",
+            "price": "price"
+          }
+        },
+        "Collection": {
+          "view": "cards",
+          "roles": {
+            "title": "name",
+            "subtitle": "description"
+          }
+        },
+        "CartItem": {
+          "view": "table",
+          "roles": {
+            "title": "plantId",
+            "badge": "quantity"
+          }
+        },
+        "Order": {
+          "view": "cards",
+          "roles": {
+            "title": "id",
+            "badge": "status",
+            "price": "totalAmount",
+            "meta": "createdAt"
+          }
+        }
+      }
+    },
+    {
+      "id": "management",
+      "label": "Store Management",
+      "roles": [
+        "owner"
+      ],
+      "archetype": "back-office",
+      "shell": "sidebar",
+      "mobileNav": "drawer",
+      "homeView": "dashboard",
+      "mainEntity": "Plant",
+      "entities": {
+        "Plant": {
+          "view": "table",
+          "roles": {
+            "title": "name",
+            "subtitle": "collectionId",
+            "badge": "stockCount",
+            "price": "price"
+          }
+        },
+        "Order": {
+          "view": "table",
+          "roles": {
+            "title": "id",
+            "badge": "status",
+            "price": "totalAmount",
+            "meta": "createdAt"
+          }
+        },
+        "Collection": {
+          "view": "table",
+          "roles": {
+            "title": "name"
+          }
+        }
+      }
+    }
+  ],
+  "looks": [
+    {
+      "recipe": "editorial",
+      "reason": "Rich typography and elegant editorial framing that celebrate vibrant plant photography and care notes."
+    },
+    {
+      "recipe": "minimal",
+      "reason": "Crisp whitespace and clean lines that let lush greenery and natural leaf tones stand out without distraction."
+    },
+    {
+      "recipe": "soft",
+      "reason": "Gentle organic curves and subtle elevated surfaces reflecting an inviting, tactile greenhouse atmosphere."
+    }
+  ],
+  "reason": "Shoppers browse a visual plant storefront with immediate filtering by light and size, while the owner operates a focused back-office dashboard to manage stock and advance order fulfillment."
+}
