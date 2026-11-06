@@ -318,6 +318,7 @@
     "card_update": {
       "operationId": "card.update",
       "fields": [
+        "deckId",
         "front",
         "back",
         "example",

@@ -25,7 +25,7 @@ from typing import Any
 from src.modules.shared.domain.backend_spec import validate_spec_data
 from src.modules.shared.domain.backend_spec.naming import pluralize, to_camel, to_kebab, to_pascal
 from src.modules.shared.domain.frontend_spec.coverage import uncovered_operations
-from src.orchestrator.integration.contract import contract_operations, resolve
+from src.orchestrator.integration.contract import build_contract, contract_operations, resolve
 
 from ...checks.consistency import _response_record
 from .outline import humanize
@@ -34,6 +34,7 @@ SPEC_VERSION = "1.0"
 LIST_CONTROLS = frozenset({"limit", "offset", "sort", "q", "search", "page", "pageSize"})
 SKIPPED_SOURCES = frozenset({"currentUser", "server", "upload"})  # the server sets them (uploads: Story 22.7)
 RECENT = 5  # records in a dashboard's recent list
+PICKER_PAGE = 50  # records a reference picker loads (searched on the server when the list has search)
 RECENT_LISTS = 2  # entities with a recent list on the dashboard
 
 
@@ -177,13 +178,13 @@ def _aggregate_id(entity: str, aggregate: dict[str, Any], default_date: str | No
 def ensure_aggregates(
     backend: dict[str, Any], outline: dict[str, Any]
 ) -> tuple[dict[str, Any], dict[str, Any], list[dict[str, Any]]]:
-    """The aggregate operations the outline's dashboard names, added to the BackendSpec (templated like CRUD, no
-    engine); aggregates the BackendSpec has that no dashboard item names join the dashboard. Returns the BackendSpec,
-    the outline and notes; an item whose operation would make the BackendSpec invalid is dropped with a note."""
+    """The operations the screens need, added to the BackendSpec (templated like CRUD, no engine): a `list` for every
+    parent a form references (its picker, Story 22.6) and the aggregates the outline's dashboard names; aggregates the
+    BackendSpec has that no dashboard item names join the dashboard. Returns the BackendSpec, the outline and notes;
+    an item whose operation would make the BackendSpec invalid is dropped with a note."""
     entities = {entity["name"]: entity for entity in backend.get("entities") or []}
-    operations = list(backend.get("operations") or [])
+    operations, notes = parent_lists(backend)
     dashboard: list[dict[str, Any]] = []
-    notes: list[dict[str, Any]] = []
     used: set[str] = set()
     for index, item in enumerate(outline.get("dashboard") or []):
         entity = entities[item["entity"]]
@@ -238,6 +239,52 @@ def ensure_aggregates(
         )
         used.add(op["operationId"])
     return {**backend, "operations": operations}, {**outline, "dashboard": dashboard}, notes
+
+
+def parent_lists(backend: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """The BackendSpec's operations with a paginated `list` (searched on the parent's label) for each referenced parent
+    that has none (`x-bga.ref.listOperation: null`): a reference is picked from it (Story 22.6). Returns the
+    operations and notes."""
+    from src.orchestrator.backend.planner import build_plan
+
+    operations = list(backend.get("operations") or [])
+    contract = build_contract(backend, build_plan(backend))
+    missing: dict[str, str | None] = {}
+    for schema in ((contract.get("components") or {}).get("schemas") or {}).values():
+        for prop in (schema.get("properties") or {}).values():
+            ref = (prop.get("x-bga") or {}).get("ref") or {}
+            if ref.get("entity") and not ref.get("listOperation"):
+                missing.setdefault(ref["entity"], ref.get("labelField"))
+    entities = {entity["name"]: entity for entity in backend.get("entities") or []}
+    notes = []
+    for parent, label_field in sorted(missing.items()):
+        if parent not in entities:
+            continue
+        paths = [op["path"] for op in operations if op.get("entity") == parent and op.get("type") == "crud"]
+        base = next((path for path in paths if "{" not in path), None) or next(
+            (path.rsplit("/{", 1)[0] for path in paths), f"/{to_kebab(pluralize(parent))}"
+        )
+        fields = {field["name"]: field for field in entities[parent].get("fields") or []}
+        op_id = f"{to_camel(parent)}.list"
+        listing: dict[str, Any] = {
+            "operationId": op_id,
+            "type": "crud",
+            "action": "list",
+            "entity": parent,
+            "method": "GET",
+            "path": base,
+            "pagination": True,
+        }
+        if label_field and (fields.get(label_field) or {}).get("type") in ("string", "text"):
+            listing["search"] = [label_field]
+        trial = validate_spec_data({**backend, "operations": [*operations, listing]})
+        if any(op["operationId"] == op_id for op in operations) or not trial.report.valid:
+            notes.append(_note("/operations", f"{parent} has no list to pick it from, and one cannot be added"))
+            continue
+        # the normalized form (pagination limits, search params), as the callers' BackendSpec is normalized
+        operations.append(next(op for op in trial.normalized["operations"] if op["operationId"] == op_id))
+        notes.append(_note("/operations", f"{op_id} added: a {humanize(parent).lower()} is picked from its list"))
+    return operations, notes
 
 
 # -- the planner ------------------------------------------------------------------------------------------------------
@@ -361,12 +408,12 @@ class _Screens:
     def form_fields(
         self, entity: str, op_id: str, hidden: dict[str, str] | None = None, readable: list[str] | None = None
     ) -> list[dict[str, Any]]:
-        """The request's fields as a form; `hidden` fields take a fixed value (`$route.id`), references without one
-        are left out (a picker comes with Story 22.6), and `readable` limits an edit form to what `get` returns."""
+        """The request's fields as a form; `hidden` fields take a fixed value (`$route.id`), other references are
+        picked by name (Story 22.6), and `readable` limits an edit form to what `get` returns."""
         properties, required = self.request(op_id)
         hidden = hidden or {}
         shown = self.shown(entity)
-        references = {ref["field"] for ref in self.references(entity)}
+        references = {ref["field"]: ref for ref in self.references(entity)}
         fields = []
         for name, prop in properties.items():
             meta = prop.get("x-bga") or {}
@@ -375,15 +422,27 @@ class _Screens:
             if name in hidden:
                 fields.append({"name": name, "type": "string", "hidden": True, "value": hidden[name], "required": True})
                 continue
-            reference = name in references or meta.get("source") == "reference"
-            if reference and name in required and readable is None and op_id == self.crud[entity].get("create"):
-                # a second parent the route cannot give: typed for now, a picker with Story 22.6
-                fields.append(self.form_field(entity, name, resolve(self.contract, prop), True, shown))
-                self.unresolved.append(
-                    _note("/forms", f"{self.label(entity)}: '{name}' is typed as an id until pickers (22.6)")
-                )
+            if readable and name not in readable:
                 continue
-            if reference or (readable and name not in readable):
+            if name in references or meta.get("source") == "reference":
+                parent = (meta.get("ref") or {}).get("entity") or (references.get(name) or {}).get("entity")
+                picker = self.picker(parent, meta.get("ref") or {})
+                if picker is None:
+                    if name in required:  # the pair check rejects the form; the draft's fixes add the parent's list
+                        self.unresolved.append(
+                            _note("/forms", f"{self.label(entity)}: no list of {parent} to pick from")
+                        )
+                    continue
+                label = (shown.get("fieldLabels") or {}).get(name)
+                fields.append(
+                    {
+                        "name": name,
+                        "type": "string",
+                        "label": label if label and label != humanize(name) else self.label(parent),
+                        "required": name in required,
+                        "reference": picker,
+                    }
+                )
                 continue
             field = self.form_field(entity, name, resolve(self.contract, prop), name in required, shown)
             initial = prefill(field, resolve(self.contract, prop)) if readable is None else None
@@ -422,6 +481,30 @@ class _Screens:
             out.update(self.number_addon(entity, name))
             if out.get("unit") and " " in out["label"] and out["label"] == humanize(name):
                 out["label"] = out["label"].rpartition(" ")[0]  # `Duration minutes` → `Duration` with "min" beside it
+        return out
+
+    def picker(self, parent: str | None, ref: dict[str, Any]) -> dict[str, Any] | None:
+        """A reference's picker (Story 22.6): the parent's list (searched with `q` when it has search), its label field
+        and its `get` for a chosen record the first page does not hold."""
+        if parent not in self.entities:
+            return None
+        list_op = ref.get("listOperation") or self.crud[parent].get("list")
+        if not list_op or list_op not in self.operations:
+            return None
+        query = self.query_params(list_op)
+        detail = ref.get("detailOperation") or self.crud[parent].get("get")
+        out: dict[str, Any] = {"entity": parent, "listOperation": list_op}
+        if detail in self.operations:
+            out["detailOperation"] = detail
+        label_field = ref.get("labelField") or self.shown(parent).get("displayField")
+        if label_field:
+            out["labelField"] = label_field
+        if "q" in query:
+            out["searchParam"] = "q"
+        if "limit" in query:
+            out["limitParam"] = "limit"
+            out["pageSize"] = min(PICKER_PAGE, (query["limit"].get("schema") or {}).get("maximum") or PICKER_PAGE)
+        self.place(list_op)
         return out
 
     def number_addon(self, entity: str, name: str) -> dict[str, str]:

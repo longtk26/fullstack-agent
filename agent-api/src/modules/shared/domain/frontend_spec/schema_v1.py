@@ -242,6 +242,18 @@ class Component(SpecModel):
     props_schema: dict[str, Any] | None = Field(default=None, alias="propsSchema")
 
 
+class FormFieldReference(SpecModel):
+    """Epic 22 (app flow only): a reference picked by its name from the parent's list (`x-bga.ref`)."""
+
+    entity: str = Field(max_length=63)
+    list_operation: str = Field(pattern=OPERATION_ID)
+    detail_operation: str | None = Field(default=None, pattern=OPERATION_ID)
+    label_field: str | None = Field(default=None, max_length=63)
+    search_param: str | None = Field(default=None, max_length=63)  # the list's search query (`q`), if it has one
+    limit_param: str | None = Field(default=None, max_length=63)
+    page_size: int | None = Field(default=None, ge=1, le=200)
+
+
 class FormField(SpecModel):
     name: str = Field(pattern=IDENTIFIER, max_length=63)
     type: FormFieldType = "string"
@@ -258,6 +270,7 @@ class FormField(SpecModel):
     help: str | None = Field(default=None, max_length=200)
     currency: str | None = Field(default=None, pattern=r"^[A-Z]{3}$")
     unit: str | None = Field(default=None, max_length=12)
+    reference: FormFieldReference | None = None  # Story 22.6: a picker instead of an id input
 
 
 class OnSuccess(SpecModel):

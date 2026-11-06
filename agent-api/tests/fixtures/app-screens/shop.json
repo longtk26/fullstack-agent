@@ -125,6 +125,7 @@
     "cartItem_update": {
       "operationId": "cartItem.update",
       "fields": [
+        "productId",
         "quantity"
       ]
     },

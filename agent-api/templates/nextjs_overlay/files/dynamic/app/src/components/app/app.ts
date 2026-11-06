@@ -102,6 +102,16 @@ export type TFormField = {
   /** A number's currency (ISO 4217; shown as a prefix) or unit (a suffix). */
   currency?: string;
   unit?: string;
+  /** A reference picked by its name from the parent's list (Story 22.6); the form sends the record's id. */
+  reference?: {
+    entity: string;
+    listOperation: string;
+    detailOperation?: string;
+    labelField?: string;
+    searchParam?: string;
+    limitParam?: string;
+    pageSize?: number;
+  };
 };
 
 export type TAppForm = {

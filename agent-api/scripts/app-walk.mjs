@@ -60,6 +60,12 @@ async function step(name, run) {
 async function fill(field, form) {
   const id = `${form}-${field.name}`;
   const control = page.locator(`[id="${id}"]`);
+  if (field.reference) {
+    // the kit's picker (Story 22.6): open it, take the first record
+    await control.click();
+    await page.locator('[data-slot="popover-content"] [data-slot="command-item"]').first().click();
+    return;
+  }
   switch (field.type) {
     case "enum": {
       const style = await control.getAttribute("data-bga-input");
@@ -146,8 +152,11 @@ for (const [id, p] of lists) {
           await page.waitForURL(/\/edit$/, { timeout: 10000 });
           await settle();
           const formId = Object.values(app.pages).find((f) => f.route === pageRoutes[action.page])?.sections[0]?.form;
-          const field = app.forms[formId]?.fields.find((f) => !f.hidden && ["string", "text"].includes(f.type));
+          const field = app.forms[formId]?.fields.find((f) => !f.hidden && !f.reference && ["string", "text"].includes(f.type));
           if (field) await page.locator(`[id="${formId}-${field.name}"]`).fill(`Edited ${field.name} ${run}`.slice(0, field.maxLength ?? 60));
+          // a reference is picked by name (Story 22.6): the picker lists the parents and the save sends one
+          const reference = app.forms[formId]?.fields.find((f) => !f.hidden && f.reference);
+          if (reference) await fill(reference, formId);
           const writes = page.waitForResponse((r) => ["PATCH", "PUT"].includes(r.request().method()), { timeout: 10000 });
           await page.locator('form button[type="submit"]').click();
           const response = await writes;

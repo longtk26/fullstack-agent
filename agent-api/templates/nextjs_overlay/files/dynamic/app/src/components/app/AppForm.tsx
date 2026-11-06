@@ -100,6 +100,7 @@ export function AppFormBody({ formId, params, onDone, onCancel }: AppFormBodyPro
   const unchanged = editing && !methods.formState.isDirty;
   return (
     <form onSubmit={methods.handleSubmit(onSubmit)} noValidate className="@container flex flex-col gap-6" data-bga-form={formId}>
+      {/* fields may shrink below their content (a long date truncates) so nothing passes the form's edge */}
       <div className="grid gap-x-4 gap-y-5 @lg:grid-cols-2">
         {visible.map((field) => (
           <Controller
@@ -163,7 +164,7 @@ function FormField({ formId, field, value, onChange, onBlur, error, wide }: {
   const input = <FieldInput field={field} id={id} value={value} onChange={onChange} onBlur={onBlur} invalid={invalid} />;
   if (field.type === "boolean") {
     return (
-      <Field orientation="horizontal" data-invalid={invalid || undefined} className={cn("self-end", wide && "@lg:col-span-2")}>
+      <Field orientation="horizontal" data-invalid={invalid || undefined} className={cn("min-w-0 self-end", wide && "@lg:col-span-2")}>
         {input}
         <FieldContent>
           {label}
@@ -173,7 +174,7 @@ function FormField({ formId, field, value, onChange, onBlur, error, wide }: {
     );
   }
   return (
-    <Field data-invalid={invalid || undefined} className={cn(wide && "@lg:col-span-2")}>
+    <Field data-invalid={invalid || undefined} className={cn("min-w-0", wide && "@lg:col-span-2")}>
       {label}
       {input}
       {note}

@@ -203,6 +203,11 @@ Agent-specific notes:
   (`_zod(..., app=True)`; optional fields through `z.preprocess(blank, …)`: `""` / `null` are not given). Create forms
   start from the contract's defaults (`screens.prefill`); edits send changed fields, a cleared one as `null`. Server
   errors go to fields from 422 `loc` and 409 `details.fields`.
+  Pickers (Story 22.6): no app form asks for an id. `currentUser` / `server` sources are not shown, a parent the page
+  knows is a hidden `$route.id` field, any other reference is a `FormField.reference` (app-only: the parent's list,
+  `get`, label field, `q` search, page size) rendered by `form/ReferenceField.tsx` (Popover + Command). `ensure_aggregates`
+  first adds a paginated `list` for each referenced parent without one (`screens.parent_lists`). `FE_FIELD_SOURCE` is
+  an error for app specs (a warning in the legacy flow).
 
 ## Orchestrator layout
 

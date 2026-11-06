@@ -45,7 +45,7 @@ function Trigger({ id, invalid, text, placeholder }: { id: string; invalid: bool
           variant="outline"
           aria-invalid={invalid || undefined}
           data-bga-input="date"
-          className="w-full justify-start gap-2 font-normal data-[empty=true]:text-muted-foreground"
+          className="w-full min-w-0 shrink justify-start gap-2 font-normal data-[empty=true]:text-muted-foreground"
           data-empty={!text}
         />
       }
@@ -126,7 +126,7 @@ export function DateTimeField({ field, id, value, onChange, invalid }: TFieldPro
         id={`${id}-time`}
         type="time"
         aria-label={`${field.label ?? field.name}, time`}
-        className="w-32 shrink-0"
+        className="w-36 shrink-0"
         value={time}
         disabled={!moment}
         onChange={(e) => emit(moment, e.target.value)}

@@ -97,6 +97,10 @@ function measure() {
           fields: fields.length,
           columns: new Set(fields.map((f) => Math.round(f.getBoundingClientRect().left))).size,
           nativeDateInputs: form.querySelectorAll('input[type="date"], input[type="datetime-local"]').length,
+          // controls past the form's edge (a card clips them, so the page itself does not scroll)
+          clipped: [...form.querySelectorAll("button, input, textarea")]
+            .filter((el) => visible(el) && el.getBoundingClientRect().right > form.getBoundingClientRect().right + 1)
+            .map((el) => el.id || el.getAttribute("aria-label") || el.tagName.toLowerCase()),
           unlabelled: controls.filter((el) => !labelled(el)).map((el) => el.id || el.tagName.toLowerCase()),
           minControlHeight: Math.min(
             ...controls.filter((el) => el.getAttribute("role") !== "switch").map((el) => Math.round(el.getBoundingClientRect().height)),

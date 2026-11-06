@@ -104,8 +104,20 @@ def test_a_child_is_created_from_its_parent_with_the_parent_from_the_route():
     assert tabs["cards-tab"]["content"]["create"]["page"] == "decks-id-cards-new"
     assert tabs["card-list-due-tab"]["data"]["operationId"] == "card.listDue", "a custom list filtered by its parent"
     assert "deckId" not in tabs["cards-tab"]["data"]["fields"], "the parent is the page"
-    for form in spec["forms"]:  # no form asks for an id
-        assert not any(f["name"].endswith("Id") and not f.get("hidden") for f in form["fields"]), form["id"]
+    for form in spec["forms"]:  # no form asks for an id: a parent is the route's or picked by name (22.6)
+        assert all(f.get("hidden") or f.get("reference") for f in form["fields"] if f["name"].endswith("Id")), form[
+            "id"
+        ]
+    move = next(f for f in forms["card_update"]["fields"] if f["name"] == "deckId")
+    assert move["reference"] == {
+        "entity": "Deck",
+        "listOperation": "deck.list",
+        "detailOperation": "deck.get",
+        "labelField": "name",
+        "limitParam": "limit",
+        "pageSize": 50,
+    }
+    assert move["label"] == "Deck" and not move["required"]
 
 
 def test_custom_operations_become_actions_and_lists():
@@ -166,14 +178,33 @@ def test_a_record_created_from_a_parent_that_does_not_list_it():
     assert navigation == ["home", "categories", "products", "cart-items", "contact-messages-new"]
 
 
-def test_a_second_parent_is_typed_until_pickers_and_noted():
+def test_a_second_parent_is_picked_by_name_and_the_pair_check_passes():
+    """Story 22.6: a booking created from its room's page takes the room from the route; the guest (a second parent the
+    route cannot give) is a picker on the guests' list, never an id input, so `FE_FIELD_SOURCE` (an error in apps
+    now) does not fire."""
     import test_concurrency_rules
 
     backend = validate_spec_data(test_concurrency_rules.booking_spec(Path("/tmp"))).normalized
     backend, _, _, screens = _plan(backend, {})
-    assert any("until pickers (22.6)" in note["message"] for note in screens.unresolved)
+    assert not screens.unresolved
+    pickers = [f for form in screens.spec["forms"] for f in form["fields"] if f.get("reference")]
+    assert pickers and all(f["reference"]["listOperation"].endswith(".list") for f in pickers)
     issues = check_spec_pair(validate_frontend_spec_data(screens.spec).normalized, backend)
-    assert {issue.code for issue in issues} == {"FE_FIELD_SOURCE"} and all(i.severity == "warning" for i in issues)
+    assert not issues
+
+
+def test_a_typed_reference_is_an_error_in_an_app_and_a_warning_in_the_legacy_flow():
+    backend, raw = _example("flashcards")
+    backend, _, _, screens = _plan(backend, raw)
+    spec = validate_frontend_spec_data(screens.spec).normalized
+    for form in spec["forms"]:
+        for field in form["fields"]:
+            field.pop("reference", None)  # a picker taken away: the user would type a deck id
+    issues = [i for i in check_spec_pair(spec, backend) if i.code == "FE_FIELD_SOURCE"]
+    assert issues and all(i.severity == "error" for i in issues)
+    legacy = {**spec, "project": {**spec["project"], "flow": None}}
+    issues = [i for i in check_spec_pair(legacy, backend) if i.code == "FE_FIELD_SOURCE"]
+    assert issues and all(i.severity == "warning" for i in issues)
 
 
 @pytest.mark.parametrize("name", sorted(APPS))

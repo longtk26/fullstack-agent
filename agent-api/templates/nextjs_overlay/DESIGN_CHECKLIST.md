@@ -148,7 +148,8 @@ form view's `form` metrics in `report.json`.
 | Two columns when there is room | The form is a container (`@container`): short fields share a row from 32 rem (`@lg:grid-cols-2`), text areas and a lone field take the full width; one column on phones and in narrow dialogs | `columns` 2 at 1440 px, 1 at 375 px (6- and 11-field forms) |
 | One clear submit | Cancel (ghost) and Submit; a spinner and `aria-busy` while saving; an edit form submits only what changed and its Submit stays disabled until something does | `tests/test_app_forms.py`; by review |
 | Errors on the field | 422 `details[].loc` and a 409's `details.fields` (a unique name) go under their field (`setError`); anything else is a toast with the contract's message | `tests/test_app_forms.py`; by review |
-| No sideways scroll | Inputs are `w-full`; the date-time row shrinks the date, not the time | `overflowX` false in all 36 views; 2–5 type sizes per view |
+| Never an id (Story 22.6) | A parent the page knows comes from the route (hidden); any other is a picker (`form/ReferenceField.tsx`): a combobox on the parent's list showing names, searched on the server when the list has search, the chosen one loaded by its `get`; lists and details show parents by name, never the id | `tests/test_app_pickers.py`; the app walk picks a parent on each edit form |
+| No sideways scroll, nothing clipped | Inputs are `w-full`; every field may shrink below its content (`min-w-0`: a long date truncates in its button, the date-time row shrinks the date, not the time); a clear button sits beside its picker | `overflowX` false in all 36 views; `clipped` (controls past the form's edge, which the card would hide) empty in all 16 form views since 22.6 (it found the date-time row widening the 375 px column); 2–5 type sizes per view |
 
 ## Deviations
 

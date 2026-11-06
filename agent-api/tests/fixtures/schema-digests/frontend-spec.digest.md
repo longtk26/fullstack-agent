@@ -136,6 +136,18 @@ type FormField = {
   help?: string | null;
   currency?: string | null;
   unit?: string | null;
+  reference?: FormFieldReference | null;
+};
+
+// Epic 22 (app flow only): a reference picked by its name from the parent's list (`x-bga.ref`).
+type FormFieldReference = {
+  entity: string;
+  listOperation: string;
+  detailOperation?: string | null;
+  labelField?: string | null;
+  searchParam?: string | null;
+  limitParam?: string | null;
+  pageSize?: number | null;
 };
 
 type FormLoad = {

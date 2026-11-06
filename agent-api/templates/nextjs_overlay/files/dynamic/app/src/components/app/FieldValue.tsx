@@ -30,7 +30,8 @@ export function FieldValue({ entity, field, record, link = true }: FieldValuePro
     const summary = record[reference.summary] as { id?: unknown; label?: unknown } | null | undefined;
     const id = summary?.id ?? record[field];
     if (id === undefined || id === null) return <span className="text-muted-foreground">—</span>;
-    const label = summary?.label ? String(summary.label) : String(id);
+    // never the id: a parent without a label field shows as its kind ("Deck")
+    const label = summary?.label ? String(summary.label) : (app.entities[reference.entity]?.label ?? reference.entity);
     if (!link || !reference.href) return <span>{label}</span>;
     return (
       <Link href={pageHref(reference.href, { id })} className="font-medium underline-offset-4 hover:underline">

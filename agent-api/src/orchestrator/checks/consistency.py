@@ -14,6 +14,7 @@ from typing import Any
 
 from src.modules.shared.domain.backend_spec import Severity, SpecIssue
 from src.modules.shared.domain.frontend_spec import FrontendIssueCode, page_id, route_params
+from src.modules.shared.domain.frontend_spec.app import is_app_spec
 from src.orchestrator.integration.contract import build_contract, contract_operations, resolve
 
 C = FrontendIssueCode
@@ -482,9 +483,13 @@ class _Checker:
                 )
 
     def field_source(self, operation_id: str, field: dict, contract_field: dict, path: str) -> None:
-        """Story 10.0b: a visible field for a reference asks the user to type a record's id (`x-bga.source`)."""
+        """Story 10.0b: a visible field for a reference asks the user to type a record's id (`x-bga.source`). An app's
+        field picks the record by name (`reference`, Story 22.6); without one it is an error in an app, a warning in the
+        legacy flow (which has no picker)."""
         meta = contract_field.get("x-bga") or {}
         if meta.get("source") != "reference" or field.get("hidden") or field.get("value") is not None:
+            return
+        if field.get("reference"):
             return
         entity = (meta.get("ref") or {}).get("entity") or "record"
         self.add(
@@ -492,9 +497,9 @@ class _Checker:
             path,
             f"Form field '{field['name']}' asks the user to type a {entity} id",
             backend_path=self.field_pointer(operation_id, field["name"]),
-            hint=f'Show the form on the {entity}\'s page and take it from the route (hidden, value "$route.id"); '
-            "a picker by name comes with the app kit (Story 22.6)",
-            warning=True,
+            hint=f'Show the form on the {entity}\'s page and take it from the route (hidden, value "$route.id"), '
+            "or let the user pick it by name (an app field's `reference`)",
+            warning=not is_app_spec(self.frontend),
         )
 
     def form_field(self, operation_id: str, field: dict, schema: dict, required: bool, path: str) -> None:

@@ -34,13 +34,13 @@ and lets me pick a related record by its name; lists and details show related re
 
 ## Acceptance criteria
 
-- [ ] No app form in the examples (`flashcards`, `project-tracker`, `shop`, book club, `workshop-bookings`) shows an
+- [x] No app form in the examples (`flashcards`, `project-tracker`, `shop`, book club, `workshop-bookings`) shows an
       id input.
-- [ ] A child created on its parent's page takes the parent from the route; elsewhere the parent is picked by its
+- [x] A child created on its parent's page takes the parent from the route; elsewhere the parent is picked by its
       label.
-- [ ] Lists and details show parents by label, on mocks and live.
-- [ ] Agent tests for each source and for the picker's generated code.
-- [ ] Static golden passes.
+- [x] Lists and details show parents by label, on mocks and live.
+- [x] Agent tests for each source and for the picker's generated code.
+- [x] Static golden passes.
 
 ## Verify
 
@@ -49,4 +49,29 @@ page and from the cards page.
 
 ## Status
 
-**Planned (2026-11-05)**, split from 10.0b.
+**Done (2026-11-06).** Fields by source (`screens.form_fields`): `server`, `currentUser` and `upload` are not shown
+(uploads come with 22.7); a parent the page knows is a hidden field with `$route.id`; any other reference, on create
+and edit forms alike (moving a card to another deck), gets a `reference` (app-only `FormField.reference`: the parent's
+`list`, its `get`, the label field, `q` when the list has search, a page size within the list's `maxLimit`); `input`
+fields are the 22.5 components. The kit's `form/ReferenceField.tsx` is a combobox (Popover + Command): it loads the
+first 50 records, searches on the server with `q` when the list has search (else cmdk filters them in the browser),
+shows the label, sends the id, and loads a chosen record missing from the first page through the parent's `get`; a
+clear button when optional. Readable references were in place from 22.4 (`FieldValue`: the `{id, label}` summary as
+a link; the mocks present the same summaries); a parent without a label now shows as its kind, never the id.
+`FE_FIELD_SOURCE` is an error for app specs (a warning still in the legacy flow, which has no picker).
+`screens.parent_lists` (run first in `ensure_aggregates`, so the draft writes it into the BackendSpec) adds a
+paginated `list` searched on the label to each referenced parent without one.
+
+Verified: `tests/test_app_pickers.py` (no id input in any example app or the venue fixture, each source, the route
+vs the picker, the added parent list, the picker's code, readable references, the schema) and the updated
+`test_app_screens.py`; the kit sandbox build; full suite; lint. Live (`make up`, fake engine, `DYNAMIC_FRONTEND=app`): the project tracker and flashcards
+COMPLETED with every check (221 s, 210 s); the app walk passed 12/12 and 17/17 (it now picks a parent on each edit
+form: a card moved to another deck, a task to another project), and a card's edit form shows its deck by name with
+the decks listed. `make design-check-app` on the venue fixture (the booking edit form now has a venue picker): its new
+`clipped` metric found the date-time row widening the 375 px column past the card's edge (the card hid it, so the
+page did not scroll); fields now shrink (`min-w-0`), and all 16 form views pass.
+
+Deviations: the examples named in the criteria include a book club and `workshop-bookings`, which are not in the repo;
+the check runs on the four example apps (`flashcards`, `project-tracker`, `shop`, `task-management`) and the venue
+fixture. The parent list is added by the app flow's `ensure_aggregates`, not by `pair_fixes` (the legacy flow keeps
+its forms as they are until 22.8 removes it).

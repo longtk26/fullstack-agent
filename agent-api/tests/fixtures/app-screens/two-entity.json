@@ -231,6 +231,7 @@
     "task_update": {
       "operationId": "task.update",
       "fields": [
+        "projectId",
         "title",
         "status",
         "priority",
