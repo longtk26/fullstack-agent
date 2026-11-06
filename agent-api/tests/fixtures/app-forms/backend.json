@@ -1,0 +1,59 @@
+{
+  "specVersion": "1.0",
+  "project": {
+    "name": "Venue Bookings",
+    "description": "Form kit fixture (Story 22.5): one input of every kind, a unique name and a child created from its parent"
+  },
+  "stack": { "framework": "fastapi", "database": "postgresql", "orm": "sqlalchemy", "migration": "alembic" },
+  "entities": [
+    {
+      "name": "Venue",
+      "fields": [
+        { "name": "id", "type": "uuid", "primary": true },
+        { "name": "name", "type": "string", "required": true, "unique": true, "maxLength": 120 },
+        { "name": "contactEmail", "type": "string", "maxLength": 254 },
+        { "name": "website", "type": "string", "maxLength": 500 },
+        { "name": "phone", "type": "string", "maxLength": 40 },
+        { "name": "capacity", "type": "integer", "required": true, "min": 1, "max": 5000 },
+        { "name": "accessible", "type": "boolean", "default": false },
+        { "name": "createdAt", "type": "datetime", "required": true, "default": "now" }
+      ]
+    },
+    {
+      "name": "Booking",
+      "fields": [
+        { "name": "id", "type": "uuid", "primary": true },
+        { "name": "venueId", "type": "uuid", "required": true, "index": true },
+        { "name": "guestName", "type": "string", "required": true, "maxLength": 120 },
+        { "name": "notes", "type": "text", "maxLength": 500 },
+        { "name": "guests", "type": "integer", "required": true, "min": 1, "max": 500 },
+        { "name": "deposit", "type": "decimal", "min": 0 },
+        { "name": "durationMinutes", "type": "integer", "min": 15, "max": 720 },
+        { "name": "eventDate", "type": "date", "required": true },
+        { "name": "arrivesAt", "type": "datetime" },
+        { "name": "visibility", "type": "enum", "values": ["PRIVATE", "PUBLIC"], "default": "PRIVATE" },
+        { "name": "slot", "type": "enum", "values": ["MORNING", "AFTERNOON", "EVENING", "NIGHT"], "default": "EVENING" },
+        { "name": "occasion", "type": "enum", "values": ["WEDDING", "BIRTHDAY", "CONFERENCE", "CONCERT", "WORKSHOP", "MEETUP", "OTHER"], "default": "OTHER" },
+        { "name": "confirmed", "type": "boolean", "default": false },
+        { "name": "createdAt", "type": "datetime", "required": true, "default": "now" }
+      ]
+    }
+  ],
+  "relationships": [
+    { "name": "venueBookings", "type": "one-to-many", "from": "Venue", "to": "Booking", "onDelete": "CASCADE" }
+  ],
+  "operations": [
+    { "operationId": "venue.create", "type": "crud", "action": "create", "entity": "Venue", "method": "POST", "path": "/venues" },
+    { "operationId": "venue.get", "type": "crud", "action": "get", "entity": "Venue", "method": "GET", "path": "/venues/{id}" },
+    { "operationId": "venue.list", "type": "crud", "action": "list", "entity": "Venue", "method": "GET", "path": "/venues",
+      "pagination": true, "search": ["name"], "sort": ["name", "capacity"] },
+    { "operationId": "venue.update", "type": "crud", "action": "update", "entity": "Venue", "method": "PATCH", "path": "/venues/{id}" },
+    { "operationId": "venue.delete", "type": "crud", "action": "delete", "entity": "Venue", "method": "DELETE", "path": "/venues/{id}" },
+    { "operationId": "booking.create", "type": "crud", "action": "create", "entity": "Booking", "method": "POST", "path": "/bookings" },
+    { "operationId": "booking.get", "type": "crud", "action": "get", "entity": "Booking", "method": "GET", "path": "/bookings/{id}" },
+    { "operationId": "booking.list", "type": "crud", "action": "list", "entity": "Booking", "method": "GET", "path": "/bookings",
+      "pagination": true, "filters": ["venueId", "occasion"], "sort": ["eventDate", "guests"] },
+    { "operationId": "booking.update", "type": "crud", "action": "update", "entity": "Booking", "method": "PATCH", "path": "/bookings/{id}" },
+    { "operationId": "booking.delete", "type": "crud", "action": "delete", "entity": "Booking", "method": "DELETE", "path": "/bookings/{id}" }
+  ]
+}

@@ -13,19 +13,14 @@ import {
 } from "@/components/ui/chart";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
-import { app, listOf, recordTitle, type TAppSection } from "./app";
+import { app, enumLabel, listOf, recordTitle, type TAppSection } from "./app";
 import { useOperationQuery } from "./bindings";
 import { LoadError } from "./AppList";
 
 type TGroup = { key: unknown; value: number };
 
-const numberFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
+const numberFormat = new Intl.NumberFormat(app.locale, { maximumFractionDigits: 2 });
 const COLORS = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)"];
-
-function enumLabel(value: string): string {
-  const words = value.replace(/_/g, " ").toLowerCase();
-  return words.charAt(0).toUpperCase() + words.slice(1);
-}
 
 /** Group keys as people read them: a parent's name for a foreign key (`bikeId` → the bike), an enum's label. */
 function useGroupLabels(entityName: string | undefined, groupBy: string | undefined): (key: unknown) => string {

@@ -1,0 +1,27 @@
+{
+  "name": "Venue Bookings",
+  "tagline": "Venues and the events booked in them",
+  "icon": "CalendarDays",
+  "nav": [
+    { "entity": "Venue", "icon": "Building2" },
+    { "entity": "Booking", "icon": "CalendarCheck" }
+  ],
+  "entities": {
+    "Venue": {
+      "displayField": "name",
+      "listFields": ["name", "capacity", "accessible"],
+      "fieldLabels": { "contactEmail": "Contact e-mail" },
+      "help": { "capacity": "Standing guests the venue holds" }
+    },
+    "Booking": {
+      "displayField": "guestName",
+      "listFields": ["guestName", "eventDate", "guests", "occasion"],
+      "fieldLabels": { "guestName": "Booked by", "arrivesAt": "Arrival" },
+      "help": { "deposit": "Paid in advance; leave empty when none", "notes": "Anything the venue should know" }
+    }
+  },
+  "dashboard": [
+    { "kind": "figure", "label": "Venues", "entity": "Venue", "fn": "count" },
+    { "kind": "figure", "label": "Bookings", "entity": "Booking", "fn": "count" }
+  ]
+}

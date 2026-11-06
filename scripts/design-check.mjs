@@ -71,6 +71,16 @@ function measure() {
   const paragraphs = [...document.querySelectorAll("main p")].filter((p) => visible(p) && lines(p) >= 2);
   const perLine = paragraphs.map((p) => Math.round(p.textContent.length / lines(p)));
   const body = getComputedStyle(document.body);
+  // Story 22.5: an app form's inputs (the kit's `form[data-bga-form]`)
+  const form = document.querySelector("form[data-bga-form]");
+  const controls = form
+    ? [...form.querySelectorAll('input:not([type="hidden"]), textarea, button[data-bga-input], [role="switch"], button[role="combobox"]')]
+        // primitives' visually hidden inputs (a Select's, a radio's) are not controls a reader sees
+        .filter((el) => visible(el) && el.getBoundingClientRect().height > 4 && el.getAttribute("aria-hidden") !== "true")
+    : [];
+  const labelled = (el) =>
+    (el.labels && el.labels.length > 0) || el.getAttribute("aria-label") || el.getAttribute("aria-labelledby") || el.closest("label");
+  const fields = form ? [...form.querySelectorAll('[data-slot="field"]')].filter(visible) : [];
   return {
     h1Lines: h1 ? lines(h1) : null,
     navHeight: header ? Math.round(header.getBoundingClientRect().height) : null,
@@ -81,6 +91,18 @@ function measure() {
     maxCharsPerLine: perLine.length ? Math.max(...perLine) : null,
     background: body.backgroundColor,
     foreground: body.color,
+    overflowX: document.documentElement.scrollWidth > window.innerWidth,
+    form: form
+      ? {
+          fields: fields.length,
+          columns: new Set(fields.map((f) => Math.round(f.getBoundingClientRect().left))).size,
+          nativeDateInputs: form.querySelectorAll('input[type="date"], input[type="datetime-local"]').length,
+          unlabelled: controls.filter((el) => !labelled(el)).map((el) => el.id || el.tagName.toLowerCase()),
+          minControlHeight: Math.min(
+            ...controls.filter((el) => el.getAttribute("role") !== "switch").map((el) => Math.round(el.getBoundingClientRect().height)),
+          ),
+        }
+      : null,
   };
 }
 

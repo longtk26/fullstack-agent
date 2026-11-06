@@ -135,6 +135,21 @@ dark, on the mock API (`ARGS="--app two-entity:project-tracker"`; screenshots un
 | Density | `theme.density: "compact"` tightens table rows; the rest of the scale stays | by review |
 | Off-black / off-white in dark mode | The theme's dark palette (as for sites) | body `rgb(10, 15, 27)` / `rgb(248, 250, 252)` |
 
+### Forms (Story 22.5)
+
+`make design-check-app ARGS="--app tests/fixtures/app-forms/backend.json:tests/fixtures/app-forms/outline.json"`
+plans the form fixture (a venue and its bookings: every field kind, help, a unit, a unique name) and reports each
+form view's `form` metrics in `report.json`.
+
+| Rule | How the kit keeps it | Measured (venue fixture, `/venues/new`, `/venues/[id]/edit`, `/venues/[id]/bookings/new`; 375 / 1440 px × light / dark) |
+|---|---|---|
+| The right input per kind | `form/FieldInput.tsx`: dates in a calendar popover (shown in `project.locale`, sent `YYYY-MM-DD`), date-times a calendar and a time (ISO 8601 with the offset), enums a segmented control (≤ 3 short values), radios (≤ 5) or a Select, booleans a switch beside its label, numbers with the contract's `min` / `max` and a step by type, a currency prefix or unit suffix, text areas with a count, typed e-mail / URL / phone inputs, passwords with show / hide | `nativeDateInputs` 0 in all 16 form views; `tests/test_app_forms.py` |
+| Labels and help | Every input has its label (`FieldLabel htmlFor`; radios and the segmented control an `aria-label`); required fields marked `*`; the outline's `help` under the field, replaced by the error when there is one | `unlabelled` empty in every form view (primitives' hidden inputs excluded); controls 32 px high |
+| Two columns when there is room | The form is a container (`@container`): short fields share a row from 32 rem (`@lg:grid-cols-2`), text areas and a lone field take the full width; one column on phones and in narrow dialogs | `columns` 2 at 1440 px, 1 at 375 px (6- and 11-field forms) |
+| One clear submit | Cancel (ghost) and Submit; a spinner and `aria-busy` while saving; an edit form submits only what changed and its Submit stays disabled until something does | `tests/test_app_forms.py`; by review |
+| Errors on the field | 422 `details[].loc` and a 409's `details.fields` (a unique name) go under their field (`setError`); anything else is a toast with the contract's message | `tests/test_app_forms.py`; by review |
+| No sideways scroll | Inputs are `w-full`; the date-time row shrinks the date, not the time | `overflowX` false in all 36 views; 2–5 type sizes per view |
+
 ## Deviations
 
 - **45-character minimum:** a full-width paragraph on a 390 px phone holds about 40 characters at 16 px. The

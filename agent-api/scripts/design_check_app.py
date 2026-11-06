@@ -4,6 +4,7 @@ Parameterised routes take the first fixture record. Dev tool, not part of genera
 
     make design-check-app                                    # flashcards → .data/shots/design-check-app/flashcards/
     make design-check-app ARGS="--app two-entity:project-tracker --out .data/shots/story22.4"
+    make design-check-app ARGS="--app tests/fixtures/app-forms/backend.json:tests/fixtures/app-forms/outline.json"
 """
 
 import argparse
@@ -25,8 +26,14 @@ def app_spec(backend_name: str, outline_name: str | None) -> tuple[dict[str, Any
     from src.orchestrator.frontend.app.screens import app_frontend_spec, ensure_aggregates
     from src.orchestrator.integration.contract import build_contract
 
-    backend = validate_spec_data(json.loads((EXAMPLES / "specs" / f"{backend_name}.json").read_text())).normalized
-    raw = json.loads((EXAMPLES / "app-outlines" / f"{outline_name}.json").read_text()) if outline_name else {}
+    backend_file = Path(backend_name) if backend_name.endswith(".json") else EXAMPLES / "specs" / f"{backend_name}.json"
+    outline_file = (
+        Path(outline_name)
+        if (outline_name or "").endswith(".json")
+        else EXAMPLES / "app-outlines" / f"{outline_name}.json"
+    )
+    backend = validate_spec_data(json.loads(backend_file.read_text())).normalized
+    raw = json.loads(outline_file.read_text()) if outline_name else {}
     outline, _ = complete_outline(raw, backend, build_contract(backend, build_plan(backend)))
     backend, outline, _ = ensure_aggregates(backend, outline)
     contract = build_contract(backend, build_plan(backend))
@@ -58,7 +65,11 @@ async def main(args: argparse.Namespace) -> None:
     for item in args.app:
         backend_name, _, outline_name = item.partition(":")
         spec, backend, contract = app_spec(backend_name, outline_name or None)
-        out = Path(args.out) / backend_name
+        out = (
+            Path(args.out) / Path(backend_name).parent.name
+            if backend_name.endswith(".json")
+            else Path(args.out) / backend_name
+        )
         print(f"building {backend_name}")
         report = await check_site(
             spec, out, routes=screen_routes(spec, contract), widths=args.widths, schemes=args.schemes, backend=backend

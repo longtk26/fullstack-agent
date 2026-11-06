@@ -133,6 +133,9 @@ type FormField = {
   max?: number | null;
   maxLength?: number | null;
   placeholder?: string | null;
+  help?: string | null;
+  currency?: string | null;
+  unit?: string | null;
 };
 
 type FormLoad = {

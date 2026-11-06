@@ -195,6 +195,14 @@ Agent-specific notes:
   React Query keys (`_Operation.query_key`). The frontend lane's `scenarios` check (apps only) runs the contract's
   scenarios against the MSW mocks (`src/mocks/scenarios.test.ts`, `scenarios.json`); the mocks refuse missing required
   fields (422) and unknown parents (400) as the API does. `make design-check-app` screenshots an app's screens.
+  Form kit (Story 22.5, `components/app/form/`): the planner types each field (`screens.input_kind`: contract format,
+  BackendSpec type, then the name for email / url / tel / password) and adds the outline's `help`, a currency (the
+  paid amount) or a unit (`durationMinutes` → min); `FormField.help` / `currency` / `unit` are app-only schema fields
+  (`site_schema` drops them). Dates are a calendar (`date-locale.ts`: only `project.locale`'s date-fns locale), enums
+  a segmented control / radios / Select by count, and app forms' Zod checks `z.iso.date()` / `z.iso.datetime()`
+  (`_zod(..., app=True)`; optional fields through `z.preprocess(blank, …)`: `""` / `null` are not given). Create forms
+  start from the contract's defaults (`screens.prefill`); edits send changed fields, a cleared one as `null`. Server
+  errors go to fields from 422 `loc` and 409 `details.fields`.
 
 ## Orchestrator layout
 

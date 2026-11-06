@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import {
+  enumLabel,
   app,
   fieldLabel,
   listOf,
@@ -31,11 +32,6 @@ import { RowActions } from "./RecordActions";
 
 const PAGE_SIZE = 20;
 const RECENT = 5;
-
-function enumLabel(value: string): string {
-  const words = value.replace(/_/g, " ").toLowerCase();
-  return words.charAt(0).toUpperCase() + words.slice(1);
-}
 
 type ListProps = { section: TAppSection; heading: "h1" | "h2"; pageId: string; hideTitle?: boolean };
 

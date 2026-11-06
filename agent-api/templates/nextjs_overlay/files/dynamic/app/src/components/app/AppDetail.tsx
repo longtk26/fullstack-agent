@@ -18,7 +18,7 @@ function SummaryValue({ value }: { value: unknown }) {
     const date = new Date(value.length === 10 ? `${value}T00:00:00` : value);
     if (!Number.isNaN(date.getTime())) {
       const style = value.length === 10 ? { dateStyle: "medium" as const } : { dateStyle: "medium" as const, timeStyle: "short" as const };
-      return <time dateTime={value}>{new Intl.DateTimeFormat(undefined, style).format(date)}</time>;
+      return <time dateTime={value}>{new Intl.DateTimeFormat(app.locale, style).format(date)}</time>;
     }
   }
   return <span>{String(value)}</span>;

@@ -4,6 +4,7 @@ src/content/app.json             the outline's navigation and every page's app s
 src/components/app/bindings.ts   operationId → fetcher / query keys / mutation (`codegen.bindings_ts`)
 src/components/app/icons.ts      the Lucide icons the navigation names, imported one by one
 src/components/app/form-schemas.ts  form id → its generated Zod schema and defaults (`src/lib/forms.ts`)
+src/components/app/date-locale.ts   the date-fns locale of `project.locale` (only that one imported; Story 22.5)
 src/app/<route>/page.tsx         metadata + <AppPage pageId=… />
 """
 
@@ -24,6 +25,14 @@ BINDINGS_FILE = "src/components/app/bindings.ts"
 ICONS_FILE = "src/components/app/icons.ts"
 FORM_SCHEMAS_FILE = "src/components/app/form-schemas.ts"
 SCENARIOS_FILE = "src/mocks/scenarios.json"
+DATE_LOCALE_FILE = "src/components/app/date-locale.ts"
+# date-fns 4's locales (`date-fns/locale/<code>`); a language alone picks its first region here.
+DATE_FNS_LOCALES = (
+    "af ar ar-DZ ar-EG ar-MA ar-SA ar-TN az be be-tarask bg bn bs ca ckb cs cy da de de-AT el en-US en-AU en-CA "
+    "en-GB en-IE en-IN en-NZ en-ZA eo es et eu fa-IR fi fr fr-CA fr-CH fy gd gl gu he hi hr ht hu hy id is it it-CH "
+    "ja ja-Hira ka kk km kn ko lb lt lv mk mn ms mt nb nl nl-BE nn oc pl pt pt-BR ro ru se sk sl sq sr sr-Latn sv ta "
+    "te th tr ug uk uz uz-Cyrl vi zh-CN zh-HK zh-TW"
+).split()
 # The error codes the mock API answers as the backend does (Story 22.4); scenarios expecting another code (a rule, a
 # conflict, sign-in) are listed as not emulated, never as passed.
 EMULATED_CODES = frozenset({"NOT_FOUND", "REFERENCE_NOT_FOUND"})
@@ -138,6 +147,7 @@ def app_data(plan: dict[str, Any], spec: dict[str, Any], contract: dict[str, Any
             for route in plan["routes"]
         },
         "density": (spec.get("theme") or {}).get("density") or "comfortable",
+        "locale": spec["project"].get("locale") or "en",
         "routes": pages,
         "errors": app_errors(contract),
         "entities": app_entities(spec, contract, pages),
@@ -198,6 +208,29 @@ def _form(form: dict[str, Any]) -> dict[str, Any]:
     return {key: form[key] for key in keys if form.get(key) is not None}
 
 
+def date_locale(locale: str) -> str:
+    """`project.locale` → the date-fns locale code: the exact tag, else the language's first region, else en-US."""
+    by_lower = {code.lower(): code for code in DATE_FNS_LOCALES}
+    tag = locale.replace("_", "-").lower()
+    if tag in by_lower:
+        return by_lower[tag]
+    language = tag.split("-")[0]
+    regional = (code for code in DATE_FNS_LOCALES if code.lower().startswith(f"{language}-"))
+    return by_lower.get(language) or next(regional, "en-US")
+
+
+def date_locale_ts(locale: str) -> str:
+    code = date_locale(locale)
+    head, *rest = code.split("-")
+    name = head + "".join(part[:1].upper() + part[1:] for part in rest)
+    return (
+        HEADER
+        + f'import {{ {name} }} from "date-fns/locale/{code}";\n\n'
+        + "/** The app's locale for dates (the calendar, shown dates): only this one is imported. */\n"
+        + f"export const dateLocale = {name};\n"
+    )
+
+
 def icons_ts(data: dict[str, Any]) -> str:
     names = sorted({data["icon"], *(item["icon"] for item in data["nav"])})
     files = lucide_files()
@@ -236,6 +269,7 @@ def app_files(plan: dict[str, Any], spec: dict[str, Any], contract: dict[str, An
         ICONS_FILE: icons_ts(data),
         FORM_SCHEMAS_FILE: form_schemas_ts(plan),
         SCENARIOS_FILE: json.dumps(mock_scenarios(contract), indent=2, ensure_ascii=False) + "\n",
+        DATE_LOCALE_FILE: date_locale_ts(data["locale"]),
     }
     for route in plan["routes"]:
         files[route["file"]] = route_page(route)

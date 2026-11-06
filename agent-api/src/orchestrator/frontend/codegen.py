@@ -473,10 +473,28 @@ def mock_operations(contract: dict[str, Any]) -> list[dict[str, Any]]:
 # -- forms -----------------------------------------------------------------------------------------------------------
 
 
-def _zod(field: dict[str, Any], contract_field: dict[str, Any] | None) -> str:
+# Epic 22: an app form's optional field reads "" and null as not given (an empty e-mail, a cleared date)
+APP_BLANK = 'const blank = (value: unknown) => (value === "" || value === null ? undefined : value);\n'
+
+
+def _zod(field: dict[str, Any], contract_field: dict[str, Any] | None, app: bool = False) -> str:
+    expr = _zod_type(field, contract_field, app)
+    if field.get("required", False) or field.get("type") == "boolean":
+        return expr
+    return f"z.preprocess(blank, {expr}.optional())" if app else expr + ".optional()"
+
+
+def _zod_type(field: dict[str, Any], contract_field: dict[str, Any] | None, app: bool) -> str:
     kind = field.get("type", "string")
     required = field.get("required", False)
     values = field.get("values") or [v for v in (contract_field or {}).get("enum") or [] if v is not None]
+    if app and kind in ("date", "datetime"):
+        # Epic 22: the app kit's calendar sends the contract's format (`YYYY-MM-DD`; ISO 8601 with an offset)
+        return (
+            'z.iso.date("Pick a date")'
+            if kind == "date"
+            else 'z.iso.datetime({ offset: true, message: "Pick a date and time" })'
+        )
     if kind == "enum" and values:
         expr = f"z.enum({_json(values)})"
     elif kind in ("integer", "number", "decimal"):
@@ -498,8 +516,6 @@ def _zod(field: dict[str, Any], contract_field: dict[str, Any] | None) -> str:
         max_length = field.get("maxLength") or (contract_field or {}).get("maxLength")
         if max_length:
             expr += f".max({max_length})"
-    if not required and kind != "boolean":
-        expr += ".optional()"
     return expr
 
 
@@ -553,7 +569,8 @@ def forms_ts(plan: dict[str, Any], contract: dict[str, Any] | None) -> str:
     operations = contract_operations(contract) if contract else {}
     if not plan["forms"]:
         return HEADER + "\n// The FrontendSpec has no forms.\nexport {};\n"
-    out = [HEADER, 'import { z } from "zod";\n']
+    app = plan.get("rendering") == "app"
+    out = [HEADER, 'import { z } from "zod";\n' + (f"\n{APP_BLANK}" if app else "")]
     for form in plan["forms"]:
         request_props: dict[str, Any] = {}
         if form.get("operationId") in operations:
@@ -563,7 +580,7 @@ def forms_ts(plan: dict[str, Any], contract: dict[str, Any] | None) -> str:
         lines = []
         for field in form["fields"]:
             contract_field = resolve(contract, request_props[field["name"]]) if field["name"] in request_props else None
-            lines.append(f"  {_prop(field['name'])}: {_zod(field, contract_field)},")
+            lines.append(f"  {_prop(field['name'])}: {_zod(field, contract_field, app)},")
         defaults = {field["name"]: _default(field) for field in form["fields"]}
         defaults = {name: value for name, value in defaults.items() if value is not None}
         out.append(

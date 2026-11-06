@@ -254,6 +254,10 @@ class FormField(SpecModel):
     max: float | None = None
     max_length: int | None = Field(default=None, ge=1, le=65535)
     placeholder: str | None = None
+    # Epic 22 (app flow only; not in the static schema): a hint under the field, a number's currency or unit
+    help: str | None = Field(default=None, max_length=200)
+    currency: str | None = Field(default=None, pattern=r"^[A-Z]{3}$")
+    unit: str | None = Field(default=None, max_length=12)
 
 
 class OnSuccess(SpecModel):

@@ -7,95 +7,18 @@ import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Field, FieldContent, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
+import { Spinner } from "@/components/ui/spinner";
+import { cn } from "cn";
 import { compactValues } from "@/lib/form-utils";
 import { app, pageHref, resolveParams, type TAppSection, type TFormField, type TRouteParams } from "./app";
 import { useOperationMutation, useOperationQuery } from "./bindings";
 import { errorMessage, fieldErrors } from "./errors";
+import { FieldInput, isWide } from "./form/FieldInput";
 import { formSchemas } from "./form-schemas";
 
 type TValues = Record<string, unknown>;
-
-function enumLabel(value: string): string {
-  const words = value.replace(/_/g, " ").toLowerCase();
-  return words.charAt(0).toUpperCase() + words.slice(1);
-}
-
-function FieldInput({ field, id, value, onChange, invalid }: {
-  field: TFormField;
-  id: string;
-  value: unknown;
-  onChange: (value: unknown) => void;
-  invalid: boolean;
-}) {
-  const common = { id, "aria-invalid": invalid || undefined, required: field.required };
-  switch (field.type) {
-    case "text":
-      return <Textarea {...common} rows={4} value={(value as string) ?? ""} onChange={(e) => onChange(e.target.value)} />;
-    case "boolean":
-      return <Switch id={id} checked={Boolean(value)} onCheckedChange={(checked) => onChange(checked)} />;
-    case "enum":
-      return (
-        <Select
-          items={Object.fromEntries((field.values ?? []).map((option) => [option, enumLabel(option)]))}
-          value={(value as string) ?? null}
-          onValueChange={(next) => onChange(next ?? undefined)}
-        >
-          <SelectTrigger id={id} className="w-full" aria-invalid={invalid || undefined}>
-            <SelectValue placeholder="Choose…" />
-          </SelectTrigger>
-          <SelectContent>
-            {(field.values ?? []).map((option) => (
-              <SelectItem key={option} value={option}>
-                {enumLabel(option)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      );
-    case "integer":
-    case "number":
-    case "decimal":
-      return (
-        <Input
-          {...common}
-          type="number"
-          inputMode={field.type === "integer" ? "numeric" : "decimal"}
-          step={field.type === "integer" ? 1 : "any"}
-          min={field.min}
-          max={field.max}
-          value={value === undefined || value === null ? "" : String(value)}
-          onChange={(e) => onChange(e.target.value === "" ? undefined : Number(e.target.value))}
-        />
-      );
-    case "date":
-      return <Input {...common} type="date" value={(value as string) ?? ""} onChange={(e) => onChange(e.target.value || undefined)} />;
-    case "datetime":
-      return (
-        <Input
-          {...common}
-          type="datetime-local"
-          value={typeof value === "string" ? value.slice(0, 16) : ""}
-          onChange={(e) => onChange(e.target.value ? new Date(e.target.value).toISOString() : undefined)}
-        />
-      );
-    default:
-      return (
-        <Input
-          {...common}
-          type={field.type === "email" ? "email" : field.type === "url" ? "url" : field.type === "password" ? "password" : "text"}
-          maxLength={field.maxLength}
-          value={(value as string) ?? ""}
-          onChange={(e) => onChange(e.target.value)}
-        />
-      );
-  }
-}
 
 type AppFormBodyProps = {
   formId: string;
@@ -105,8 +28,9 @@ type AppFormBodyProps = {
   onCancel?: () => void;
 };
 
-/** A form on its operation's request (Story 22.3 writes the fields; Story 22.5 brings the full form kit): the
- *  generated Zod schema validates, hidden fields take their route values, an edit form loads its record, and server
+/** A form on its operation's request (Story 22.3 writes the fields, Story 22.5 the kit): one input per field kind
+ *  (`form/`), the generated Zod schema validates, hidden fields take their route values, short fields share a row when
+ *  the form is wide enough; an edit form loads its record, sends only what changed and cannot submit unchanged; server
  *  errors show on their field (else a toast). */
 export function AppFormBody({ formId, params, onDone, onCancel }: AppFormBodyProps) {
   const form = app.forms[formId];
@@ -152,8 +76,9 @@ export function AppFormBody({ formId, params, onDone, onCancel }: AppFormBodyPro
   function onSubmit(values: TValues) {
     const patch = Boolean(form.load);
     const dirty = methods.formState.dirtyFields as Record<string, unknown>;
+    // An edit sends only what changed; a cleared optional field (no value after the schema) is sent as null.
     const body = patch
-      ? Object.fromEntries(Object.entries(values).filter(([name]) => dirty[name] && names.includes(name)))
+      ? Object.fromEntries(names.filter((name) => dirty[name]).map((name) => [name, values[name] ?? null]))
       : compactValues(Object.fromEntries(Object.entries(values).filter(([name]) => names.includes(name))));
     mutation.mutate(
       { params: params ?? resolveParams(form.params, route), body },
@@ -171,45 +96,88 @@ export function AppFormBody({ formId, params, onDone, onCancel }: AppFormBodyPro
     );
   }
 
+  const editing = Boolean(form.load);
+  const unchanged = editing && !methods.formState.isDirty;
   return (
-    <form onSubmit={methods.handleSubmit(onSubmit)} noValidate className="flex flex-col gap-6">
-      <FieldGroup>
-        {visible.map((field) => {
-          const id = `${formId}-${field.name}`;
-          return (
-            <Controller
-              key={field.name}
-              control={methods.control}
-              name={field.name}
-              render={({ field: control, fieldState }) => (
-                <Field orientation={field.type === "boolean" ? "horizontal" : "vertical"} data-invalid={fieldState.invalid || undefined}>
-                  <FieldLabel htmlFor={id}>
-                    {field.label ?? field.name}
-                    {field.required && <span className="text-destructive" aria-hidden> *</span>}
-                  </FieldLabel>
-                  <FieldInput field={field} id={id} value={control.value} onChange={control.onChange} invalid={fieldState.invalid} />
-                  {fieldState.error?.message ? (
-                    <FieldError>{fieldState.error.message}</FieldError>
-                  ) : (
-                    field.placeholder && <FieldDescription>{field.placeholder}</FieldDescription>
-                  )}
-                </Field>
-              )}
-            />
-          );
-        })}
-      </FieldGroup>
-      <div className="flex items-center justify-end gap-2">
+    <form onSubmit={methods.handleSubmit(onSubmit)} noValidate className="@container flex flex-col gap-6" data-bga-form={formId}>
+      <div className="grid gap-x-4 gap-y-5 @lg:grid-cols-2">
+        {visible.map((field) => (
+          <Controller
+            key={field.name}
+            control={methods.control}
+            name={field.name}
+            render={({ field: control, fieldState }) => (
+              <FormField
+                formId={formId}
+                field={field}
+                value={control.value}
+                onChange={control.onChange}
+                onBlur={control.onBlur}
+                error={fieldState.error?.message}
+                wide={isWide(field.type) || visible.length === 1}
+              />
+            )}
+          />
+        ))}
+      </div>
+      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
         {onCancel && (
           <Button type="button" variant="ghost" onClick={onCancel}>
             Cancel
           </Button>
         )}
-        <Button type="submit" disabled={mutation.isPending}>
+        <Button type="submit" disabled={mutation.isPending || unchanged} aria-busy={mutation.isPending || undefined}>
+          {mutation.isPending && <Spinner data-icon="inline-start" />}
           {form.submitLabel ?? "Save"}
         </Button>
       </div>
     </form>
+  );
+}
+
+/** One field: label (required marked), its input, then its error, else its help. A switch sits beside its label. */
+function FormField({ formId, field, value, onChange, onBlur, error, wide }: {
+  formId: string;
+  field: TFormField;
+  value: unknown;
+  onChange: (value: unknown) => void;
+  onBlur: () => void;
+  error?: string;
+  wide: boolean;
+}) {
+  const id = `${formId}-${field.name}`;
+  const invalid = Boolean(error);
+  const label = (
+    <FieldLabel htmlFor={id}>
+      <span>
+        {field.label ?? field.name}
+        {field.required && field.type !== "boolean" && (
+          <span className="text-destructive" aria-hidden>
+            {" *"}
+          </span>
+        )}
+      </span>
+    </FieldLabel>
+  );
+  const note = error ? <FieldError>{error}</FieldError> : field.help ? <FieldDescription>{field.help}</FieldDescription> : null;
+  const input = <FieldInput field={field} id={id} value={value} onChange={onChange} onBlur={onBlur} invalid={invalid} />;
+  if (field.type === "boolean") {
+    return (
+      <Field orientation="horizontal" data-invalid={invalid || undefined} className={cn("self-end", wide && "@lg:col-span-2")}>
+        {input}
+        <FieldContent>
+          {label}
+          {note}
+        </FieldContent>
+      </Field>
+    );
+  }
+  return (
+    <Field data-invalid={invalid || undefined} className={cn(wide && "@lg:col-span-2")}>
+      {label}
+      {input}
+      {note}
+    </Field>
   );
 }
 

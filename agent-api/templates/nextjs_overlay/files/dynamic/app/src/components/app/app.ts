@@ -97,6 +97,11 @@ export type TFormField = {
   max?: number;
   maxLength?: number;
   placeholder?: string;
+  /** A hint under the field (the outline's `help`). */
+  help?: string;
+  /** A number's currency (ISO 4217; shown as a prefix) or unit (a suffix). */
+  currency?: string;
+  unit?: string;
 };
 
 export type TAppForm = {
@@ -116,6 +121,7 @@ export type TApp = {
   icon: string;
   home: string;
   density: "compact" | "comfortable";
+  locale: string;
   nav: TAppNavItem[];
   pages: Record<string, TAppPage>;
   routes: Record<string, string>;
@@ -166,6 +172,12 @@ export function allowed(record: TRecord | undefined, action: TAppAction): boolea
   if (action.kind === "link") return action.id !== "edit" || list.includes("update");
   if (action.id === "delete") return list.includes("delete");
   return action.operationId ? list.includes(action.operationId) || list.includes(action.id) : true;
+}
+
+/** An enum value as a label: `in_progress` → `In progress`. */
+export function enumLabel(value: string): string {
+  const words = value.replace(/_/g, " ").toLowerCase();
+  return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
 export function fieldLabel(entity: TAppEntity | undefined, field: string): string {

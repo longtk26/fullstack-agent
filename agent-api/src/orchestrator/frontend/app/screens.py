@@ -37,6 +37,84 @@ RECENT = 5  # records in a dashboard's recent list
 RECENT_LISTS = 2  # entities with a recent list on the dashboard
 
 
+# A number's unit from the last word of its name (Story 22.5), shown as the input's suffix.
+UNITS = {
+    "minutes": "min",
+    "mins": "min",
+    "hours": "h",
+    "hrs": "h",
+    "days": "days",
+    "weeks": "weeks",
+    "seconds": "s",
+    "percent": "%",
+    "percentage": "%",
+    "pct": "%",
+    "kg": "kg",
+    "grams": "g",
+    "km": "km",
+    "miles": "mi",
+    "meters": "m",
+    "metres": "m",
+    "cm": "cm",
+    "liters": "L",
+    "litres": "L",
+    "ml": "mL",
+}
+TYPED_INPUTS = {"email": "email", "uri": "url", "url": "url", "password": "password"}
+
+
+def input_kind(name: str, schema: dict[str, Any], types: list[Any], backend_type: str | None, enum: bool) -> str:
+    """The form kit's input for a request property (Story 22.5): the contract's type and format first, then the
+    BackendSpec's type, then the name for typed text inputs (`email`, `website` → url, `phone` → tel)."""
+    fmt = schema.get("format")
+    if enum:
+        return "enum"
+    if fmt == "date-time" or backend_type == "datetime":
+        return "datetime"
+    if fmt == "date" or backend_type == "date":
+        return "date"
+    if "boolean" in types:
+        return "boolean"
+    if "integer" in types:
+        return "integer"
+    if backend_type == "decimal" or fmt == "decimal":
+        return "decimal"
+    if "number" in types:
+        return "number"
+    if fmt in TYPED_INPUTS:
+        return TYPED_INPUTS[fmt]
+    if backend_type == "text" or (backend_type is None and (schema.get("maxLength") or 0) > 255):
+        return "text"
+    words = humanize(name).lower().split()
+    if "email" in words:
+        return "email"
+    if "password" in words:
+        return "password"
+    if words and words[-1] in ("url", "website", "link", "homepage"):
+        return "url"
+    if words and words[-1] in ("phone", "tel", "telephone", "mobile"):
+        return "tel"
+    return "string"
+
+
+def prefill(field: dict[str, Any], schema: dict[str, Any]) -> Any:
+    """A create form's initial value: the contract's default when it is a literal of the field's kind (never a date:
+    "now" is the server's)."""
+    default = schema.get("default")
+    for option in schema.get("anyOf") or []:
+        default = option.get("default", default)
+    kind = field["type"]
+    if default is None or kind in ("date", "datetime"):
+        return None
+    if kind == "enum":
+        return default if default in (field.get("values") or []) else None
+    if kind == "boolean":
+        return default if isinstance(default, bool) else None
+    if kind in ("integer", "number", "decimal"):
+        return default if isinstance(default, int | float) and not isinstance(default, bool) else None
+    return default if isinstance(default, str) and default else None
+
+
 def _note(path: str, message: str) -> dict[str, Any]:
     return {"spec": "frontend", "path": path, "message": message, "suggestion": None}
 
@@ -307,7 +385,11 @@ class _Screens:
                 continue
             if reference or (readable and name not in readable):
                 continue
-            fields.append(self.form_field(entity, name, resolve(self.contract, prop), name in required, shown))
+            field = self.form_field(entity, name, resolve(self.contract, prop), name in required, shown)
+            initial = prefill(field, resolve(self.contract, prop)) if readable is None else None
+            if initial is not None:
+                field["value"] = initial  # a new record starts from the contract's default (status "TODO")
+            fields.append(field)
         return fields
 
     def form_field(
@@ -321,21 +403,7 @@ class _Screens:
             (f.get("type") for f in self.entities[entity].get("fields") or [] if f["name"] == name), None
         )
         enum = [value for value in schema.get("enum") or [] if value is not None]
-        kind = "string"
-        if enum:
-            kind = "enum"
-        elif schema.get("format") == "date-time":
-            kind = "datetime"
-        elif schema.get("format") == "date":
-            kind = "date"
-        elif "boolean" in types:
-            kind = "boolean"
-        elif "integer" in types:
-            kind = "integer"
-        elif "number" in types:
-            kind = "number"
-        elif backend_type == "text" or (backend_type is None and (schema.get("maxLength") or 0) > 255):
-            kind = "text"
+        kind = input_kind(name, schema, types, backend_type, bool(enum))
         out: dict[str, Any] = {
             "name": name,
             "type": kind,
@@ -347,7 +415,25 @@ class _Screens:
         for key, target in (("minimum", "min"), ("maximum", "max"), ("maxLength", "maxLength")):
             if schema.get(key) is not None:
                 out[target] = schema[key]
+        help_text = (shown.get("help") or {}).get(name)
+        if help_text:
+            out["help"] = help_text
+        if kind in ("integer", "number", "decimal"):
+            out.update(self.number_addon(entity, name))
+            if out.get("unit") and " " in out["label"] and out["label"] == humanize(name):
+                out["label"] = out["label"].rpartition(" ")[0]  # `Duration minutes` → `Duration` with "min" beside it
         return out
+
+    def number_addon(self, entity: str, name: str) -> dict[str, str]:
+        """A number's prefix or suffix (Story 22.5): the paid entity's amount in its currency, else a unit its name
+        ends with (`durationMinutes` → "min")."""
+        payments = self.backend.get("payments") or {}
+        amount = payments.get("amountField") or payments.get("amount_field")
+        if payments.get("entity") == entity and amount == name and payments.get("currency"):
+            return {"currency": payments["currency"]}
+        words = humanize(name).lower().split()
+        unit = UNITS.get(words[-1]) if len(words) > 1 or words[-1] in ("percent", "percentage") else None
+        return {"unit": unit} if unit else {}
 
     def add_form(self, form: dict[str, Any]) -> str | None:
         if not form["fields"]:

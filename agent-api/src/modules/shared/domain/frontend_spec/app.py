@@ -99,7 +99,7 @@ def is_app_spec(spec: dict[str, Any]) -> bool:
 
 
 # Schema parts only the app flow uses: removed from the schema static and legacy dynamic drafts read.
-_APP_ONLY_PROPERTIES = {"FrontendSpecV1": ("app",), "Project": ("flow",)}
+_APP_ONLY_PROPERTIES = {"FrontendSpecV1": ("app",), "Project": ("flow",), "FormField": ("help", "currency", "unit")}
 _APP_ONLY_DEFS = ("AppOutline", "AppNavItem", "AppEntity", "AppDashboardItem", "AppLanding", "AppHighlight")
 
 

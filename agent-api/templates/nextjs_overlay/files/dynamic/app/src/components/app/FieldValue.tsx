@@ -1,15 +1,11 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import { pageHref, type TAppEntity, type TRecord } from "./app";
+import { app, enumLabel, pageHref, type TAppEntity, type TRecord } from "./app";
 
-const dateFormat = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
-const dateTimeFormat = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
-const numberFormat = new Intl.NumberFormat();
-
-function enumLabel(value: string): string {
-  const words = value.replace(/_/g, " ").toLowerCase();
-  return words.charAt(0).toUpperCase() + words.slice(1);
-}
+// The app's locale (`project.locale`), as the form's calendar uses: the server and the browser format alike.
+const dateFormat = new Intl.DateTimeFormat(app.locale, { dateStyle: "medium" });
+const dateTimeFormat = new Intl.DateTimeFormat(app.locale, { dateStyle: "medium", timeStyle: "short" });
+const numberFormat = new Intl.NumberFormat(app.locale);
 
 function asDate(value: unknown): Date | null {
   if (typeof value !== "string" && typeof value !== "number") return null;

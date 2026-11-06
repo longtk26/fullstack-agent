@@ -32,7 +32,6 @@ page.on("requestfailed", (request) => {
   if (request.resourceType() === "fetch" && !request.url().includes("_rsc=")) problems.push(`${request.method()} ${request.url()} failed: ${request.failure()?.errorText}`);
 });
 
-const today = new Date().toISOString().slice(0, 10);
 const run = Date.now().toString(36).slice(-5); // unique values per walk (names may be unique in the API)
 const pageRoutes = Object.fromEntries(Object.entries(app.pages).map(([id, p]) => [id, p.route]));
 
@@ -60,23 +59,32 @@ async function step(name, run) {
 
 async function fill(field, form) {
   const id = `${form}-${field.name}`;
+  const control = page.locator(`[id="${id}"]`);
   switch (field.type) {
     case "enum": {
-      await page.locator(`[id="${id}"]`).click();
+      const style = await control.getAttribute("data-bga-input");
+      if (style === "radio") return control.getByRole("radio").first().click();
+      if (style === "toggle") return control.locator("button").first().click();
+      await control.click();
       await page.getByRole("option").first().click();
       return;
     }
     case "boolean":
       return;
+    case "date":
+    case "datetime": {
+      // the kit's calendar (Story 22.5): today, picked in the popover
+      await control.click();
+      const day = page.locator('[data-slot="popover-content"] [data-today] button, [data-slot="popover-content"] td[data-today="true"] button');
+      await (await day.count() ? day.first() : page.locator('[data-slot="popover-content"] [role="gridcell"] button').nth(10)).click();
+      if (field.type === "datetime") await page.locator(`[id="${id}-time"]`).fill("10:00");
+      return;
+    }
     case "integer":
       return page.locator(`[id="${id}"]`).fill(String(field.min ?? 1));
     case "number":
     case "decimal":
       return page.locator(`[id="${id}"]`).fill(String(field.min ?? 1));
-    case "date":
-      return page.locator(`[id="${id}"]`).fill(today);
-    case "datetime":
-      return page.locator(`[id="${id}"]`).fill(`${today}T10:00`);
     case "email":
       return page.locator(`[id="${id}"]`).fill("walk@example.com");
     case "url":
@@ -192,6 +200,14 @@ for (const [id, p] of lists) {
     });
   }
   if (actions.some((a) => a.id === "delete") && !empty) {
+    // an earlier step may have emptied the list (a review moves a card off the due list): skipped, not failed
+    await page.goto(base + p.route, { waitUntil: "domcontentloaded" });
+    await settle();
+    if ((await page.locator('button[aria-label^="Actions for"]').count()) === 0) {
+      results.push({ step: `${p.route}: delete`, ok: true, skipped: true });
+      console.log(`skip ${p.route}: emptied by an earlier step, nothing to delete`);
+      continue;
+    }
     await step(`${p.route}: delete a record from its row menu`, async () => {
       await page.goto(base + p.route, { waitUntil: "domcontentloaded" });
       await settle();

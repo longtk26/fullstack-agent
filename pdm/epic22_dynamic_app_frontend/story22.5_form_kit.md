@@ -52,15 +52,15 @@ Static sites keep `sections/Form.tsx` as it is; adopting the kit there would be 
 
 ## Acceptance criteria
 
-- [ ] No app form uses a native date input; `date` and `datetime` are picked in a calendar and sent in the contract's
+- [x] No app form uses a native date input; `date` and `datetime` are picked in a calendar and sent in the contract's
       format.
-- [ ] Enum, boolean, number and text fields use the components above, with labels, limits and help.
-- [ ] Every app form has a Zod schema with the contract's types and required fields.
-- [ ] A 422 or a unique-field 409 shows under the field that caused it.
-- [ ] The forms pass the design checklist in light and dark, at 375 px and 1440 px.
-- [ ] Agent tests (pytest, no Node) check the generated form code for each field kind: the calendar for a date, the
+- [x] Enum, boolean, number and text fields use the components above, with labels, limits and help.
+- [x] Every app form has a Zod schema with the contract's types and required fields.
+- [x] A 422 or a unique-field 409 shows under the field that caused it.
+- [x] The forms pass the design checklist in light and dark, at 375 px and 1440 px.
+- [x] Agent tests (pytest, no Node) check the generated form code for each field kind: the calendar for a date, the
       Select for an enum, the Zod schema, and a server error mapped to a field (decision FE-TESTS).
-- [ ] Static golden passes.
+- [x] Static golden passes.
 
 ## Verify
 
@@ -69,4 +69,33 @@ Static sites keep `sections/Form.tsx` as it is; adopting the kit there would be 
 
 ## Status
 
-**Planned (2026-11-05)**, moved from 10.0a.
+**Done (2026-11-06).** The kit's form folder (`files/dynamic/app/src/components/app/form/`; the story's
+`files/dynamic/app/form/` is the same folder under the app's source tree): `DateField` / `DateTimeField` (Popover +
+Calendar with year and month dropdowns, shown with date-fns in `project.locale`, sent as `YYYY-MM-DD` / ISO 8601 with
+the browser's offset; a clear button when optional), `ChoiceField` (a segmented ToggleGroup for up to 3 short values,
+RadioGroup up to 5, else Select), `NumberField` (contract `min` / `max`, step 1 / 0.01 / any, an InputGroup currency
+prefix or unit suffix), `TextAreaField` (character count with `maxLength`), `TextField` (email / url / tel inputs with
+their keyboards and autocomplete; password with show / hide), `BooleanField` (a Switch beside its label). `AppForm`
+lays them out in a container grid (two columns from 32 rem, text areas full width), marks required fields, shows the
+outline's `help` (or the error), Cancel and Submit with a Spinner; an edit form sends only changed fields and its
+Submit stays disabled until something changes.
+
+Planner and generated files: `screens.input_kind` types each field from the contract's format, the BackendSpec's
+type, then the name (email, website / url, phone, password); `form_field` adds `help` and a `currency` (the paid
+amount of `payments`) or `unit` (the last word of the name, which then leaves the label: `durationMinutes` →
+"Duration" + "min"). `FormField.help` / `currency` / `unit` are app-only schema fields, removed from the site schema
+(the static and legacy digest is unchanged). `app.json` gains `locale`; `src/components/app/date-locale.ts` imports
+only that date-fns locale. App forms' Zod uses `z.iso.date()` / `z.iso.datetime({ offset: true })`
+(`codegen._zod(..., app=True)`; static forms unchanged), and an optional field reads `""` and `null` as not given
+(`z.preprocess(blank, …)`; the live walk found an empty optional due date refused as "Pick a date"); an edit sends a
+cleared field as `null`. A create form starts from the contract's defaults (`screens.prefill`: status `TODO`,
+priority 3; never a date). `errors.fieldErrors` also reads a 409's `details.fields`.
+`FieldValue`, `AppDetail` and `AppDashboard` format in `app.locale` too (the server and the browser format alike).
+
+Verified: `tests/test_app_forms.py` (19 tests on a venue-bookings fixture with every field kind,
+`tests/fixtures/app-forms/`), the app kit sandbox build, `make design-check-app` on the fixture (36 views; the form
+metrics added to `scripts/design-check.mjs`: no native date input, no unlabelled control, 2 columns at 1440 px and 1 at
+375 px, no sideways scroll; DESIGN_CHECKLIST "Forms"), full suite, lint. Live (`make up`, fake engine, `DYNAMIC_FRONTEND=app`): the project tracker and flashcards both COMPLETED with every check (215 s), and `scripts/app-walk.mjs` (now picking dates in the calendar and choosing radios or segments) passed 12/12 and 20/20 steps (one list emptied by a review, skipped).
+
+Deviations: enum labels are the value title-cased (the outline has labels per field, not per value); a currency
+comes only from `payments` (the BackendSpec has no money type), units from a fixed list of name endings.
