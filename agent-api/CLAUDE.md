@@ -110,8 +110,12 @@ Agent-specific notes:
   `x-bga.source` (a foreign key: `reference` with `x-bga.ref`); record responses carry a `{id, label}` summary per
   parent and `allowedActions` (the planner's `label`, `references`, `recordActions`); operations list
   `x-bga.errors` and `x-bga.scenarios`; `x-bga.entities` tells the MSW handlers to present records the same way
-  (`presented_record` does it from the contract). The smoke check runs every scenario against the backend, so a new
-  rule or plugin adds its scenarios and its `allowedActions` entries in the same place as its backend code.
+  (`presented_record` does it from the contract). The frontend's `scenarios` check runs every scenario against the
+  mocks, so a new rule or plugin adds its scenarios and its `allowedActions` entries in the same place as its backend
+  code. The backend smoke check (2026-11-06) calls each endpoint once (its first success scenario, else a call built
+  from the fixtures) and fails only on a 5xx or no answer; any 2xx / 4xx passes. The seed (the contract's fixtures)
+  must insert: it is our data, so a seed error fails the check (`build_fixtures` maps a seeded foreign key no parent
+  record has onto one).
 - Requirement drafting (Stories 2.4, 12.4): `POST/GET /api/v1/spec-drafts` (`specs` module) stores a `spec_drafts` row
   and queues it on `bga:drafts:<engine>`; the worker's `_consume_drafts` (own slots, `DRAFT_CONCURRENCY`) runs
   `orchestrator/drafting/drafts.py` in `<WORKSPACE_ROOT>/drafts/<id>/` (inputs in `.bga/`: schemas, an example from
@@ -220,8 +224,8 @@ Agent-specific notes:
   `plugins.json` / `defaults.json`: sessions, policies, per-user `allowedActions`, rules, uploads, checkout, links), so
   signed-in scenarios run on MSW too (`scenarios.json` `login`).
 - `BACKEND_TESTS` (`config.backend_tests`, default off): run_validation runs a generated backend's own pytest suite
-  only when on; off, the `tests` check is the smoke calls alone (every contract scenario against the running app),
-  saving most of the check's time. The agent's tests turn it on (`tests/conftest.py`).
+  only when on; off, the `tests` check is the smoke calls alone (each endpoint once against the running app, no
+  5xx), saving most of the check's time. The agent's tests turn it on (`tests/conftest.py`).
 
 ## Orchestrator layout
 

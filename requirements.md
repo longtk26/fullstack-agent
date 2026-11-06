@@ -515,8 +515,8 @@ After generating backend code, the system must execute:
 8. FastAPI OpenAPI schema generation (from the started application).
 
 Since v1.7 only the checks that prove the application starts (dependencies, syntax, migration upgrade to head,
-startup) and that its API works (OpenAPI, the template tests, one smoke call per custom operation against the
-seeded database) are blocking. Ruff, the conventions check and migration details (downgrade round trip, index and
+startup) and that its API works (OpenAPI; one call per endpoint against the seeded database, which fails only on a
+server error or no answer; the template tests when `BACKEND_TESTS` is on) are blocking. Ruff, the conventions check and migration details (downgrade round trip, index and
 constraint names) are warnings: recorded and shown, never repaired, and they end the job
 `COMPLETED_WITH_WARNINGS`.
 

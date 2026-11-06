@@ -96,6 +96,32 @@ def test_the_contract_carries_the_rule_and_a_404_scenario():
     assert hidden[0]["user"].startswith("demo-learner")
 
 
+def test_a_public_read_with_a_rule_takes_no_token():
+    """gen_01M6RJ17148HNE5MWEK0QKDZKA (2026-11-06): the rule made the public reads `bearerAuth` in the contract, so it
+    expected a 401 the app (an optional user) never answers, and the frontend put the pages behind sign-in."""
+    spec, plan, _ = _built(_learnly())
+    contract = build_contract(spec, plan)
+    for path in ("/courses", "/courses/{id}"):
+        read = contract["paths"][path]["get"]
+        assert "security" not in read and "401" not in read["responses"], path
+        assert not any(s["name"] == "no token" for s in read["x-bga"]["scenarios"]), path
+    assert contract["paths"]["/courses"]["post"]["security"] == [{"bearerAuth": []}]
+
+
+def test_a_figure_for_some_roles_is_signed_in_in_the_contract():
+    """gen_01M6RNS949KSV5QKARTS1ENA46 (2026-11-06): the guarded counts had no `bearerAuth`, so the frontend showed
+    them to every visitor and the live API answered 401."""
+    spec, plan, module = _built(_learnly())
+    contract = build_contract(spec, plan)
+    aggregate = next(op for op in module["operations"] if op["operationId"] == "course.countWhereStatusPublished")
+    path = next(
+        p for p, item in contract["paths"].items() if item.get("get", {}).get("operationId") == aggregate["operationId"]
+    )
+    read = contract["paths"][path]["get"]
+    assert read["security"] == [{"bearerAuth": []}] and "401" in read["responses"]
+    assert read["x-bga"]["action"] == "aggregate"
+
+
 def test_without_a_rule_nothing_changes():
     spec, plan, module = _built(_learnly(None))
     joined = "\n".join(module_files(plan, spec, module).values())

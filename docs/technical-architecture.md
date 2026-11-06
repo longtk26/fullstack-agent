@@ -160,7 +160,7 @@ graph.add_edge("package_artifacts", END)
 3. `generate_backend`: Generates hexagonal ports, persistence repositories, use cases, DTOs, routers and the CRUD
    tests from templates; the engine completes only custom operations, rules and auth (no engine-written tests).
 4. `run_validation`: In the `bga-runner` sandbox. Blocking: dependencies, syntax, migration upgrade, startup, OpenAPI,
-   template tests and one smoke call per custom operation. Lint, conventions and migration details are warnings
+   template tests (`BACKEND_TESTS`) and one smoke call per endpoint (no 5xx, seed must insert). Lint, conventions and migration details are warnings
    (`COMPLETED_WITH_WARNINGS`, never repaired). Failures only in generator-owned files stop at once (generator bug).
 5. `repair_code`: Iterative self-repair loop triggered if a blocking check fails (up to `max_repair_attempts`).
 

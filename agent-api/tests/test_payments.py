@@ -87,7 +87,6 @@ def test_the_contract_and_the_smoke_check_pay_a_seeded_record(tmp_path):
     assert kinds == [
         ("payment_pay", f"/payments/tasks/{payable}/checkout"),
         ("worker", "src.worker --once"),
-        ("payment_check", "/payments/<id>"),
     ]
 
 

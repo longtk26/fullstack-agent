@@ -9,7 +9,7 @@ Order and dependencies (a failed check skips its dependents; independent checks 
     5 migration    autogenerate if models changed; upgrade to head    3
                    (check / down / up and schema == plan: warning)
     6 conventions  fastapi-skills AST checker (static)                1      warning
-    7 tests        pytest (template tests) + a smoke call per custom operation   4, 5
+    7 tests        one call per endpoint, no 5xx (+ pytest with BACKEND_TESTS)   4, 5
     8 openapi      OpenAPI of the started app == planned operations   4
                    (and conforms to the API contract in dynamic mode, Story 12.3)
 
@@ -46,7 +46,6 @@ from ..checks.smoke import (
     SMOKE_SCRIPT,
     SMOKE_SCRIPT_FILE,
     judge,
-    rule_answer,
     smoke_calls,
     smoke_login,
 )
@@ -61,6 +60,8 @@ SKIP_DIRS = {".git", ".claude", ".agents", ".venv", "__pycache__", ".bga"}
 OPENAPI_MARKER = "BGA_OPENAPI_BEGIN"
 FORMAT_FINDING = re.compile(r"^(\S+?):(\d+):\d+: unformatted", re.MULTILINE)
 JUNIT_PATH = ".bga/junit.xml"
+# the exception a failed smoke run ended with, e.g. "sqlalchemy.exc.IntegrityError: (psycopg2.errors...) ..."
+LAST_ERROR = re.compile(r"^((?:[\w.]+\.)?\w*(?:Error|Exception): .+)$", re.MULTILINE)
 DIGEST_LIMIT = 30_000
 
 
@@ -392,18 +393,17 @@ class SandboxValidationRunner(IValidationRunner):
         return result
 
     async def _smoke_only(self, request: ValidationRequest) -> CheckResult:
-        """`BACKEND_TESTS=false`: the generated pytest suite is not run (it stays in the project); the smoke calls
-        check the running app against the contract's scenarios."""
-        skipped = "generated tests not run (BACKEND_TESTS=false)"
+        """`BACKEND_TESTS=false`: the generated pytest suite is not run (it stays in the project); the check is the API
+        alone: the smoke calls run every contract scenario against the started app."""
         smoke = await self._smoke(request) if request.smoke_contract is not None else None
         if smoke is None:
-            return CheckResult(check="tests", status="skipped", summary=skipped)
-        smoke.summary = f"{skipped}; {smoke.summary}"
+            return CheckResult(check="tests", status="skipped", summary="no API calls to make (BACKEND_TESTS=false)")
+        smoke.summary = f"API: {smoke.summary}"
         return smoke
 
     async def _smoke(self, request: ValidationRequest) -> CheckResult | None:
-        """Story 18.11: each custom operation called once against the seeded database, and since Story 10.0b every
-        contract scenario with the status and code it must get (none: nothing to call)."""
+        """Story 18.11 (2026-11-06: one call per endpoint): every endpoint called once against the seeded database;
+        a 5xx or no answer fails it, any 2xx / 4xx passes. A seed that cannot be inserted fails. None: no calls."""
         from ..packaging import build_contract_seed
 
         contract = request.smoke_contract
@@ -425,36 +425,22 @@ class SandboxValidationRunner(IValidationRunner):
         run = await request.sandbox.exec(f"python {SMOKE_SCRIPT_FILE}", timeout_s=120)
         if SMOKE_MARKER not in run.stdout:
             summary = "smoke calls could not run (seed or startup failed)"
+            error = LAST_ERROR.findall(run.output)
+            if error:
+                summary += f": {error[-1][:200]}"
             return self._result("tests", False, summary, run, details=traceback_frames(run.output)[-5:])
         try:
             answers = json.loads(run.stdout.split(SMOKE_MARKER, 1)[1].strip())
         except json.JSONDecodeError:
             return self._result("tests", False, "smoke answers are not JSON", run)
         problems = judge(contract, calls, answers)
+        endpoints = sum(1 for call in calls if call.get("kind") != "worker")
         note = f" ({len(skipped)} skipped: {', '.join(s['operation'] for s in skipped)})" if skipped else ""
-        ruled = [
-            f"{call['operationId']} {answer['status']}"
-            for call, answer in zip(calls, answers, strict=False)
-            if rule_answer(answer) and not call.get("expect")  # a scenario's error is the answer it asked for
-        ]
-        if ruled:
-            note += f"; answered by a business rule: {', '.join(ruled)}"
-        scenarios = sum(1 for call in calls if call.get("expect"))
-        worker = sum(1 for call in calls if call.get("kind"))  # the worker's run, its email and webhook (10.6–10.8)
-        custom = len(calls) - scenarios - worker
-        counted = ", ".join(
-            part
-            for part in (
-                f"{custom} custom operation(s)" if custom else "",
-                f"{scenarios} scenario(s)" if scenarios else "",
-                "the job worker's run" if worker else "",  # (and the inbox, with emails)
-            )
-            if part
-        )
+        worker = " and the job worker" if any(call.get("kind") == "worker" for call in calls) else ""
         summary = (
-            f"{len(problems)} of {len(calls)} smoke call(s) answered wrongly ({counted})"
+            f"{len(problems)} of {len(calls)} call(s) failed (5xx or no answer)"
             if problems
-            else f"{counted} answer as the contract says"
+            else f"{endpoints} endpoint(s){worker} answered without a server error"
         ) + note
         return self._result("tests", not problems, summary, run if problems else None, details=problems)
 

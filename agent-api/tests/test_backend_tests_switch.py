@@ -1,6 +1,6 @@
 """`BACKEND_TESTS` (2026-11-06): run_validation runs a generated backend's own pytest suite only when it is on (the
 tests suite sets it, `conftest.py`); off, the `tests` check is the smoke calls alone (every contract scenario against
-the running app), and says so."""
+the running app): only whether the API works."""
 
 import asyncio
 from pathlib import Path
@@ -42,9 +42,7 @@ def test_off_runs_the_smoke_calls_only(tmp_path, monkeypatch):
     result = asyncio.run(_runner_with_smoke(smoke)._tests(_request(tmp_path, sandbox)))
     assert sandbox.commands == [], "no pytest, no test database"
     assert result.status == "passed"
-    assert (
-        result.summary == "generated tests not run (BACKEND_TESTS=false); 73 scenario(s) answered as the contract says"
-    )
+    assert result.summary == "API: 73 scenario(s) answered as the contract says"
 
 
 def test_off_with_nothing_to_call_is_skipped(tmp_path, monkeypatch):

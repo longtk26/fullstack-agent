@@ -16,7 +16,6 @@ which never take them. An operation that touches both kinds (a backend start res
 
 import asyncio
 import base64
-import json
 import time
 from collections import defaultdict
 from collections.abc import AsyncIterator
@@ -323,16 +322,10 @@ class PreviewService:
         from .integration.integrate import check_backend_ready
 
         generation = self.store.generation(generation_id)
+        if generation is None:
+            return {"switched": False, "mockApi": True, "apiBaseUrl": "", "reason": "generation not found"}
         contract_art = self.store.artifact_by_name(generation_id, "contract.json")
-        if generation is None or contract_art is None:
-            return {"switched": False, "mockApi": True, "apiBaseUrl": "", "reason": "contract not found"}
-        raw = self._file(contract_art).read_bytes()
-        contract = json.loads(raw.decode())
-        plan_art = self.store.artifact_by_name(generation_id, "plan.json")
-        plan = json.loads(self._file(plan_art).read_text()) if plan_art and self._file(plan_art).is_file() else None
-        ok, reason, backend_url = await check_backend_ready(
-            generation_id, self, contract, contract_art.sha256, plan=plan, wait_seconds=0
-        )
+        ok, reason, backend_url = await check_backend_ready(generation_id, self, wait_seconds=0)
         if not ok or not backend_url:
             frontend = self.store.preview(generation_id, "frontend")
             if frontend is not None and frontend.mock_api is not True:
@@ -369,7 +362,7 @@ class PreviewService:
                 payload={
                     "apiBaseUrl": backend_url,
                     "frontendUrl": frontend.url if frontend else None,
-                    "contractSha256": contract_art.sha256,
+                    "contractSha256": contract_art.sha256 if contract_art else None,
                     "mockApi": False,
                 },
                 lane="integration",

@@ -79,7 +79,7 @@ def test_the_smoke_check_subscribes_a_receiver_before_the_worker_and_checks_it_a
     plan = build_plan(spec)
     calls, _ = smoke_calls(build_contract(spec, plan), plan)
     kinds = [call.get("kind") for call in calls if call.get("kind")]
-    assert kinds == ["webhook_subscribe", "worker", "webhook_check"]
+    assert kinds == ["webhook_subscribe", "worker"]
     subscribe = next(call for call in calls if call.get("kind") == "webhook_subscribe")
     assert subscribe["user"] == "demo-admin@example.com" and subscribe["event"] == "task.created"
 

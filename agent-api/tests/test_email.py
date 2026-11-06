@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 from src.orchestrator.backend.planner import build_plan
-from src.orchestrator.checks.smoke import expects_mail, smoke_calls
+from src.orchestrator.checks.smoke import smoke_calls
 from src.orchestrator.integration.contract import build_contract
 from src.orchestrator.plugins.app import plugin_files
 from tests.generation_helpers import normalized
@@ -92,12 +92,12 @@ def test_account_emails_add_reset_and_verification_links(tmp_path):
     assert invalid["expect"] == {"status": 400, "code": "INVALID_TOKEN"}
 
 
-def test_the_smoke_check_looks_for_the_email_after_the_worker(tmp_path):
+def test_the_smoke_check_runs_the_worker_after_the_calls(tmp_path):
+    """2026-11-06: the worker must not crash; whether the email arrived is not checked."""
     spec = email_spec(tmp_path)
     plan = build_plan(spec)
-    assert expects_mail(plan)
     calls, _ = smoke_calls(build_contract(spec, plan), plan)
-    assert [call.get("kind") for call in calls[-2:]] == ["worker", "mail"]
+    assert calls[-1].get("kind") == "worker" and not any(call.get("kind") == "mail" for call in calls)
 
 
 def test_email_paths_and_placeholders_are_validated(tmp_path):

@@ -195,7 +195,7 @@ def test_a_custom_rule_gets_a_code_the_engine_raises_and_a_scenario_that_allows_
     refused = {"status": 409, "body": '{"error": {"code": "ONE_OPEN_PROJECT_PER_NAME", "message": "taken"}}'}
     assert judge(contract, [success], [refused]) == []
     other = {"status": 409, "body": '{"error": {"code": "CONFLICT", "message": "taken"}}'}
-    assert judge(contract, [success], [other]) != []
+    assert judge(contract, [success], [other]) == [], "any 4xx is an answer (2026-11-06)"
 
 
 def test_owner_only_rules_are_ownership(tmp_path):

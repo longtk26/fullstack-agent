@@ -109,11 +109,7 @@ def test_the_smoke_check_signs_in_as_a_demo_user(tmp_path):
     calls, skipped = smoke_calls(contract, plan)
     assert skipped == []
     task_get = [call for call in calls if call["operationId"] == "task.get"]
-    assert [(call["scenario"], call["auth"]) for call in task_get] == [
-        ("no token", False),
-        ("success", True),
-        ("unknown id", True),
-    ]
+    assert [(call["scenario"], call["auth"]) for call in task_get] == [("success", True)], "signed in, once"
 
 
 def test_the_project_has_the_security_library_settings_and_tests(tmp_path):

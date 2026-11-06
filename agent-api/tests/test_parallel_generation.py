@@ -12,7 +12,6 @@ import pytest
 from generation_helpers import app_pair, normalized
 from langgraph.checkpoint.memory import InMemorySaver
 from preview_fakes import FakePreviewRuntime
-from test_component_cache import PassingSandboxes
 
 from src.configs import config
 from src.engines.fake_engine import FakeEngine, demo_scenario
@@ -23,7 +22,6 @@ from src.orchestrator.backend.validation import CheckResult, ValidationOutcome, 
 from src.orchestrator.integration.contract import build_contract, dump_contract, presented_record
 from src.orchestrator.previews import PreviewClient, PreviewService
 from src.orchestrator.store import JobStore
-from src.sandbox import ExecResult, ISandbox, ISandboxProvider
 from workflow_helpers import (
     TWO_ENTITY,
     cli_invocations,
@@ -282,8 +280,9 @@ def test_healthy_backend_switches_frontend_preview_to_live_and_completes(client,
         assert report["integration"]["apiBaseUrl"] == api.url
         checks = {c["check"]: c for c in report["checks"]}
         assert checks["integration:health"]["status"] == "passed"
-        assert checks["integration:contract"]["status"] == "passed"
-        assert checks["integration:smoke"]["status"] == "not_run"
+        # 2026-11-06: integration waits for the backend, switches and checks the switch; nothing else
+        assert {name for name in checks if name.startswith("integration:")} == {"integration:health"}
+        assert {(probe[1], probe[2]) for probe in backend_rt.probes} == {("GET", "/health")}
 
         seed = client.get(
             f"/api/v1/generations/{generation_id}/artifacts/{artifacts['seed.json']['artifactId']}", headers=auth
@@ -339,33 +338,7 @@ def test_failing_backend_lane_keeps_frontend_on_mocks_and_completes_with_warning
         _cleanup_previews(generation_id)
 
 
-@pytest.mark.parametrize(
-    ("health_status", "openapi_override", "expected_reason"),
-    [
-        (503, None, "GET /health returned 503"),
-        (
-            200,
-            {
-                "openapi": "3.1.0",
-                "info": {"title": "Wrong", "version": "0.1.0", "x-bga": {"contractSha256": "deadbeef"}},
-                "paths": {},
-            },
-            "contract sha mismatch",
-        ),
-    ],
-)
-def test_unhealthy_backend_or_openapi_mismatch_keeps_mocks(
-    client, headers, tmp_path, health_status, openapi_override, expected_reason
-):
-    auth = headers()
-    generation_id = _submit_dynamic(client, auth)
-    backend_rt, frontend_rt = FakePreviewRuntime(), FakePreviewRuntime()
-    _configure_healthy_backend(backend_rt)
-    backend_rt.responses[("GET", "/health")] = (health_status, {"status": "down"})
-    if openapi_override is not None:
-        backend_rt.responses[("GET", "/openapi.json")] = (200, openapi_override)
-    store = JobStore()
-
+def _run_dynamic(generation_id, tmp_path, backend_rt, frontend_rt, store):
     async def go():
         redis = redis_client()
         try:
@@ -382,15 +355,40 @@ def test_unhealthy_backend_or_openapi_mismatch_keeps_mocks(
         finally:
             await redis.aclose()
 
+    return asyncio.run(go())
+
+
+def test_a_backend_preview_that_does_not_run_keeps_mocks(client, headers, tmp_path):
+    auth = headers()
+    generation_id = _submit_dynamic(client, auth)
+    backend_rt, frontend_rt = FakePreviewRuntime(fail="image build failed"), FakePreviewRuntime()
+    store = JobStore()
     try:
-        status = asyncio.run(go())
-        assert status == "COMPLETED_WITH_WARNINGS"
+        assert _run_dynamic(generation_id, tmp_path, backend_rt, frontend_rt, store) == "COMPLETED_WITH_WARNINGS"
         row = generation(generation_id)
         assert row.lanes == {"backend": "COMPLETED", "frontend": "COMPLETED", "integration": "SKIPPED"}
-        site = store.preview(generation_id, "frontend")
-        assert site.mock_api is True
-        kept = next(e for e in events(generation_id) if e.type == "integration.kept_mocks")
-        assert expected_reason in kept.payload["reason"]
+        assert store.preview(generation_id, "frontend").mock_api is True
+        assert any(e.type == "integration.kept_mocks" for e in events(generation_id))
+    finally:
+        _cleanup_previews(generation_id)
+
+
+def test_a_running_backend_is_switched_to_and_a_failing_health_check_is_a_warning(client, headers, tmp_path):
+    """2026-11-06: readiness is only "the preview runs" (no /health or OpenAPI probe before the switch); the
+    switch is checked after it (`integration:health`), and its failure is a warning, never a repair."""
+    auth = headers()
+    generation_id = _submit_dynamic(client, auth)
+    backend_rt, frontend_rt = FakePreviewRuntime(), FakePreviewRuntime()
+    _configure_healthy_backend(backend_rt)
+    backend_rt.responses[("GET", "/health")] = (503, {"status": "down"})
+    backend_rt.responses[("GET", "/openapi.json")] = (200, {"openapi": "3.1.0", "info": {}, "paths": {}})
+    store = JobStore()
+    try:
+        assert _run_dynamic(generation_id, tmp_path, backend_rt, frontend_rt, store) == "COMPLETED_WITH_WARNINGS"
+        row = generation(generation_id)
+        assert row.lanes == {"backend": "COMPLETED", "frontend": "COMPLETED", "integration": "FAILED"}
+        assert store.preview(generation_id, "frontend").mock_api is False
+        assert "GET /health returned 503" in row.error_summary
     finally:
         _cleanup_previews(generation_id)
 
@@ -559,10 +557,9 @@ def test_resume_restarts_each_parallel_lane_from_its_own_last_completed_node(cli
 def test_recheck_and_use_mocks_endpoints_switch_frontend_preview(client, headers, tmp_path):
     auth = headers()
     generation_id = _submit_dynamic(client, auth)
-    backend_rt, frontend_rt = FakePreviewRuntime(), FakePreviewRuntime()
+    backend_rt, frontend_rt = FakePreviewRuntime(fail="image build failed"), FakePreviewRuntime()
     _configure_healthy_backend(backend_rt)
-    # Initially backend /health is 503, so integrate keeps mocks.
-    backend_rt.responses[("GET", "/health")] = (503, {"status": "starting"})
+    # Initially the backend preview does not run, so integrate keeps mocks.
     store = JobStore()
 
     async def run_and_drive_commands():
@@ -582,8 +579,10 @@ def test_recheck_and_use_mocks_endpoints_switch_frontend_preview(client, headers
 
                 # Drain any leftover commands from prior tests.
                 await redis.delete("bga:preview:commands")
-                # Now backend becomes healthy; call POST /integration/recheck.
-                backend_rt.responses[("GET", "/health")] = (200, {"status": "ok"})
+                # Now the backend preview runs; call POST /integration/recheck.
+                backend_rt.fail = None
+                await previews.start(generation_id, "backend")
+                assert store.preview(generation_id, "backend").status == "RUNNING"
                 resp = client.post(f"/api/v1/generations/{generation_id}/integration/recheck", headers=auth)
                 assert resp.status_code == 202, resp.text
                 cmd = await bus.next(timeout_s=1)
@@ -617,116 +616,6 @@ def test_recheck_and_use_mocks_endpoints_switch_frontend_preview(client, headers
         stored = events(generation_id)
         assert any(e.type == "integration.switched_to_live" for e in stored)
         assert len([e for e in stored if e.type == "integration.kept_mocks"]) >= 2
-    finally:
-        _cleanup_previews(generation_id)
-
-
-def test_live_contract_response_mismatch_and_playwright_smoke_failure_reported_without_regeneration(
-    client, headers, tmp_path
-):
-    class FakeFrontendSandbox(ISandbox):
-        db_url = ""
-        test_db_url = ""
-
-        async def start(self) -> None:
-            pass
-
-        async def stop(self) -> None:
-            pass
-
-        async def reset_database(self, name: str) -> None:
-            pass
-
-        async def exec(
-            self, command: str, timeout_s: int | None = None, env: dict[str, str] | None = None, egress: bool = False
-        ) -> ExecResult:
-            if "playwright test" in command:
-                return ExecResult(
-                    exit_code=1,
-                    stdout="",
-                    stderr=(
-                        "1) [chromium] › tests/e2e/smoke.spec.ts:24:3 › page /projects renders live data\n"
-                        "Error: expected seed project row to be visible"
-                    ),
-                    duration_ms=120,
-                )
-            return ExecResult(exit_code=0, stdout="ok", stderr="", duration_ms=5)
-
-    class FakeSandboxProvider(ISandboxProvider):
-        def for_job(
-            self, generation_id: str, project_dir: Path, kind: str = "backend", part: str | None = None
-        ) -> ISandbox:
-            if kind == "frontend" and part is None:  # a frontend that ships a Playwright smoke spec
-                (project_dir / "tests" / "e2e").mkdir(parents=True, exist_ok=True)
-                (project_dir / "tests" / "e2e" / "smoke.spec.ts").write_text("// smoke\n")
-            return FakeFrontendSandbox()
-
-        async def job_ids(self) -> set[str]:
-            return set()
-
-        async def remove(self, generation_ids: set[str]) -> int:
-            return 0
-
-    auth = headers()
-    generation_id = _submit_dynamic(client, auth)
-    backend_rt, frontend_rt = FakePreviewRuntime(), FakePreviewRuntime()
-    _configure_healthy_backend(backend_rt)
-    # Break the live response of GET /projects: `name` is an int instead of string!
-    backend_rt.responses[("GET", "/projects")] = (
-        200,
-        {
-            "items": [
-                {
-                    "id": "a3650faa-1ee8-5ee1-a1f1-7bab10838956",
-                    "name": 99999,
-                    "description": "broken",
-                    "createdAt": "2026-01-01T09:00:00Z",
-                }
-            ],
-            "total": 1,
-            "limit": 20,
-            "offset": 0,
-        },
-    )
-    store = JobStore()
-
-    async def go():
-        redis = redis_client()
-        try:
-            events_ = EventPublisher(redis, Redactor())
-            previews = PreviewService(
-                backend_rt, store, events_, PreviewCommandBus(redis), frontend_runtime=frontend_rt
-            )
-            async with runner_ctx(
-                tmp_path,
-                engine=FakeEngine(tmp_path, demo_scenario(0)),
-                previews=previews,
-                sandboxes=FakeSandboxProvider(),
-            ) as runner:
-                return await runner.run(generation_id)
-        finally:
-            await redis.aclose()
-
-    try:
-        status = asyncio.run(go())
-        assert status == "COMPLETED_WITH_WARNINGS"
-        row = generation(generation_id)
-        assert row.lanes == {"backend": "COMPLETED", "frontend": "COMPLETED", "integration": "FAILED"}
-
-        # Neither side was regenerated after `integrate` started.
-        integrate_run = next(r for r in node_runs(generation_id) if r.node == "integrate")
-        assert not [c for c in cli_invocations(generation_id) if c.created_at >= integrate_run.started_at]
-
-        artifacts = _artifacts(client, auth, generation_id)
-        report = client.get(
-            f"/api/v1/generations/{generation_id}/artifacts/{artifacts['report.json']['artifactId']}", headers=auth
-        ).json()
-        checks = {c["check"]: c for c in report["checks"]}
-        assert checks["integration:contract"]["status"] == "failed"
-        items = checks["integration:contract"]["items"]
-        assert any(item["operation"] == "project.list" and "name" in item.get("field", "") for item in items)
-        assert checks["integration:smoke"]["status"] == "failed"
-        assert "/projects" in checks["integration:smoke"]["output"]
     finally:
         _cleanup_previews(generation_id)
 
@@ -980,40 +869,6 @@ def test_story18_8_package_artifacts_reuses_or_rewrites_backend_zip(client, head
         packaged_head = head_file.read_text().strip() if head_file.is_file() else None
         current_head = workspace_mgr._git(ws, "rev-parse", "HEAD", repo="project").strip()
         assert packaged_head != current_head
-    finally:
-        _cleanup_previews(generation_id)
-
-
-def test_live_smoke_is_skipped_when_the_frontend_has_no_playwright_specs(client, headers, tmp_path):
-    """Since the frontend's e2e tests were dropped, `playwright test` found nothing and failed the integration lane;
-    Story 18.12 runs integration on every dynamic job, so the missing specs must read as skipped."""
-    auth = headers()
-    generation_id = _submit_dynamic(client, auth)
-    backend_rt, frontend_rt = FakePreviewRuntime(), FakePreviewRuntime()
-    _configure_healthy_backend(backend_rt)
-    store = JobStore()
-
-    async def go():
-        redis = redis_client()
-        try:
-            events_ = EventPublisher(redis, Redactor())
-            previews = PreviewService(
-                backend_rt, store, events_, PreviewCommandBus(redis), frontend_runtime=frontend_rt
-            )
-            async with runner_ctx(
-                tmp_path,
-                engine=FakeEngine(tmp_path, demo_scenario(0)),
-                previews=previews,
-                sandboxes=PassingSandboxes(),
-            ) as runner:
-                return await runner.run(generation_id)
-        finally:
-            await redis.aclose()
-
-    try:
-        assert asyncio.run(go()) == "COMPLETED", generation(generation_id).error_summary
-        smoke = [e for e in events(generation_id) if e.payload.get("check") == "integration:smoke"]
-        assert [e.status for e in smoke] == ["skipped"]
     finally:
         _cleanup_previews(generation_id)
 

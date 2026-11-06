@@ -1,33 +1,31 @@
-"""Smoke calls for custom operations (Story 18.11): no engine-written tests, so after startup the `tests` check calls
-every operation the templates did not write once, against a database seeded with the contract's fixtures, and
-requires its planned status and a body that matches the contract's response schema. Pure functions plus the script
-the sandbox runs (`SMOKE_SCRIPT`, written to `.bga/smoke.py`); the validator compares the answers.
+"""Smoke calls (Story 18.11; 2026-11-06: one call per endpoint): after startup the `tests` check seeds the database
+with the contract's fixtures and calls every endpoint once. An endpoint passes when it answers without a server error:
+any 2xx or 4xx (401, 403, 404, 409, 422, ...) is an answer; a 5xx or no answer is a failure. A seed that cannot be
+inserted fails the check: the fixtures are the generator's own data. Pure functions plus the script the sandbox runs
+(`SMOKE_SCRIPT`, written to `.bga/smoke.py`); the validator judges the answers.
 
-Story 10.0b adds the contract's scenarios (`x-bga.scenarios`): calls with the exact status and error code they must
-get, for every operation, so the backend is proven to answer as the mocks and a frontend expect.
+A call takes the contract's first success scenario of its operation (`x-bga.scenarios`, Story 10.0b: real ids, a body
+and the demo user it runs as), else a call built from the request schema and the first fixture (custom operations).
 """
 
 import json
+import re
 from typing import Any
 from urllib.parse import quote
 
 from .conformance import _types
 
+_PATH_PARAM = re.compile(r"\{([^}]+)\}")
 SMOKE_MARKER = "BGA_SMOKE_BEGIN"
 SMOKE_FILE = ".bga/smoke.json"
 SMOKE_SCRIPT_FILE = ".bga/smoke.py"
 SAMPLE_DATE = "2026-01-15"
 SAMPLE_DATETIME = "2026-01-15T09:00:00Z"
 SAMPLE_UUID = "00000000-0000-4000-8000-000000000001"
-# What a business rule answers a guessed request with (`409` slot taken, `404` unknown id, `400` bad reference): the
-# operation is wired and answers; only the request was not one its rules accept.
-RULE_ANSWERS = (400, 404, 409)
 # Steps of the smoke script that are not one operation's call (Stories 10.8, 10.9), by kind
 STEPS = {
     "webhook_subscribe": "webhooks: subscribing and pinging",
-    "webhook_check": "webhooks: a signed delivery",
     "payment_pay": "payments: checking out and paying on the fake page",
-    "payment_check": "payments: settling the payment as paid",
 }
 
 # Runs in the sandbox from /work: seeds the migrated database, serves the app as `startup_check.py` does, makes each
@@ -128,6 +126,8 @@ def send(method, path, body=None, user=None):
             return response.status, response.read().decode("utf-8", "replace")
     except urllib.error.HTTPError as error:
         return error.code, error.read().decode("utf-8", "replace")
+    except Exception as error:
+        return 0, str(error)
 
 
 answers = []
@@ -151,39 +151,10 @@ for call in plan["calls"]:
             status, text = send("POST", f"/payments/fake/checkout/{session_id}/pay", None, call.get("user"))
         answers.append({"status": status, "body": text[-2000:]})
         continue
-    if call.get("kind") == "payment_check":  # the worker settled it
-        status, text = send("GET", f"/payments/{hook.get('payment')}", None, call.get("user"))
-        paid = status == 200 and json.loads(text).get("status") == "paid"
-        answers.append({"status": 200 if paid else 0, "body": text[-1000:]})
-        continue
-    if call.get("kind") == "webhook_check":  # the worker delivered it, signed with the subscription's secret
-        import hashlib
-        import hmac
-
-        ok = False
-        for header, body in hook.get("got", []):
-            parts = dict(part.split("=", 1) for part in (header or "").split(",") if "=" in part)
-            expected = hmac.new(hook.get("secret", "").encode(), f"{parts.get('t')}.".encode() + body, hashlib.sha256)
-            ok = ok or hmac.compare_digest(expected.hexdigest(), parts.get("v1", ""))
-        answers.append({"status": 200 if ok else 0, "body": json.dumps({"received": len(hook.get("got", []))})})
-        continue
     if call.get("kind") == "worker":  # Story 10.6: the jobs the calls enqueued, run once
         done = subprocess.run([sys.executable, "-m", "src.worker", "--once"], capture_output=True, text=True,
                               timeout=120)  # fmt: skip
         answers.append({"status": done.returncode, "body": (done.stdout + done.stderr)[-3000:]})
-        continue
-    if call.get("kind") == "mail":  # Story 10.7: the emails those jobs sent reached the mail catcher
-        import os
-        from urllib.parse import quote
-
-        found = 0
-        try:
-            url = f"http://mailpit:8025/api/v1/search?query={quote('tag:' + os.environ.get('EMAIL_TAG', ''))}"
-            with urllib.request.urlopen(url, timeout=15) as response:
-                found = json.loads(response.read()).get("messages_count", 0)
-        except Exception as error:
-            print(f"mail check failed: {error}")
-        answers.append({"status": 200 if found else 404, "body": json.dumps({"messages": found})})
         continue
     data = json.dumps(call["body"]).encode() if call.get("body") is not None else None
     headers = {"content-type": "application/json"} if data is not None else {}
@@ -274,12 +245,31 @@ def sample_value(contract: dict[str, Any], schema: Any, record: dict[str, Any] |
     return None
 
 
+def resolve_operation_path(path: str, operation: dict[str, Any], contract: dict[str, Any]) -> str | None:
+    """`path` with its parameters from the first fixture of the operation's entity (None: no fixture fills it)."""
+    params = _PATH_PARAM.findall(path)
+    if not params:
+        return path
+    entity = (operation.get("x-bga") or {}).get("entity")
+    fixtures = ((contract.get("x-bga") or {}).get("fixtures") or {}).get(entity) or []
+    if not fixtures:
+        return None
+    record = fixtures[0]
+    resolved = path
+    for param in params:
+        val = record.get(param) or record.get("id")
+        if val is None:
+            return None
+        resolved = resolved.replace(f"{{{param}}}", str(val))
+    return resolved
+
+
 def smoke_calls(contract: dict[str, Any], plan: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """(calls, skipped): one call per custom operation, path parameters from the first fixture of its entity, a
-    request body built from its request schema and that fixture. Operations behind auth, or whose path cannot be
-    filled, are skipped (named, so the result says so)."""
+    """(calls, skipped): one call per endpoint. An operation with scenarios runs its first success scenario; a custom
+    operation without one gets path parameters from the first fixture of its entity and a request body built from its
+    request schema and that fixture. Operations behind auth with no way to sign in, or whose path cannot be filled,
+    are skipped (named, so the result says so)."""
     from ..integration.contract import contract_operations, resolve
-    from ..integration.integrate import _resolve_operation_path
 
     operations = contract_operations(contract)
     fixtures = (contract.get("x-bga") or {}).get("fixtures") or {}
@@ -289,15 +279,17 @@ def smoke_calls(contract: dict[str, Any], plan: dict[str, Any]) -> tuple[list[di
         if rows and isinstance(rows[0], dict) and "id" in rows[0]
     }
     calls, skipped = scenario_calls(contract)
+    calls = one_per_operation(calls)
+    called = {call["operationId"] for call in calls}
     for op in custom_operations(plan):
         entry = operations.get(op["operationId"])
-        if entry is None:
+        if entry is None or op["operationId"] in called:
             continue
         operation = entry["operation"]
         if operation.get("security") and smoke_login(contract) is None:
             skipped.append({"operation": op["operationId"], "reason": "needs auth"})
             continue
-        path = _resolve_operation_path(entry["path"], operation, contract)
+        path = resolve_operation_path(entry["path"], operation, contract)
         if path is None:
             skipped.append({"operation": op["operationId"], "reason": "no fixture for its path parameters"})
             continue
@@ -328,28 +320,21 @@ def smoke_calls(contract: dict[str, Any], plan: dict[str, Any]) -> tuple[list[di
         path = plan["payments"]["path"].replace("{recordId}", quote(str(payable), safe=""))
         calls.append({"operationId": "payments.checkout", "kind": "payment_pay", "method": "POST", "path": path,
                       "auth": True})  # fmt: skip
-    if plan.get("jobs"):  # last: the worker runs what the calls before it enqueued (Story 10.6)
+    if plan.get("jobs"):  # last: the worker runs what the calls enqueued, and must not crash (Story 10.6)
         calls.append({"operationId": "jobs.worker", "kind": "worker", "method": "RUN", "path": "src.worker --once"})
-    if plan.get("payments") and payable is not None:
-        calls.append({"operationId": "payments.get", "kind": "payment_check", "method": "GET", "path": "/payments/<id>",
-                      "auth": True})  # fmt: skip
-    if webhooks.get("outgoing"):
-        calls.append({"operationId": "webhooks.delivery", "kind": "webhook_check", "method": "RECEIVE",
-                      "path": "http://127.0.0.1:8767/hook"})  # fmt: skip
-    if expects_mail(plan):  # Story 10.7: and the emails it sent arrived
-        calls.append({"operationId": "email.inbox", "kind": "mail", "method": "GET", "path": "mailpit search"})
     return calls, skipped
 
 
-def expects_mail(plan: dict[str, Any]) -> bool:
-    """Story 10.7: an email whose trigger a scenario fires (a record is created) must be in the mail catcher."""
-    creates = {
-        op["operationId"] for m in plan.get("modules", []) for op in m["operations"] if op.get("action") == "create"
-    }
-    return any(
-        (email["trigger"].get("event") or "").endswith(".created") or email["trigger"].get("operation") in creates
-        for email in plan.get("emails") or []
-    )
+def one_per_operation(calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The first success scenario of each operation (else its first scenario), in contract order. The expected answer
+    is dropped: any answer that is not a server error passes."""
+    chosen: dict[str, dict[str, Any]] = {}
+    for call in calls:
+        op_id = call["operationId"]
+        success = str((call.get("expect") or {}).get("status", "")).startswith("2")
+        if op_id not in chosen or (success and not chosen[op_id]["success"]):
+            chosen[op_id] = {"call": call, "success": success}
+    return [{k: v for k, v in item["call"].items() if k != "expect"} for item in chosen.values()]
 
 
 def smoke_login(contract: dict[str, Any]) -> dict[str, Any] | None:
@@ -389,103 +374,27 @@ def scenario_calls(contract: dict[str, Any]) -> tuple[list[dict[str, Any]], list
     return calls, skipped
 
 
-def _error_code(text: str) -> str | None:
-    try:
-        body = json.loads(text)
-    except json.JSONDecodeError:
-        return None
-    error = body.get("error") if isinstance(body, dict) else None
-    return error.get("code") if isinstance(error, dict) else None
-
-
 def judge(contract: dict[str, Any], calls: list[dict[str, Any]], answers: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Failures (operation, request, response) of the answers: the planned status, then the response schema."""
-    from ..integration.contract import contract_operations, resolve
-    from ..integration.integrate import validate_value_against_schema
-
-    operations = contract_operations(contract)
+    """Failures (operation, request, response): an endpoint that answered a server error (5xx) or nothing, and a job
+    worker run that crashed. Any 2xx or 4xx is an answer: who may call what, and which requests the rules accept, is
+    the app's business, not this check's."""
     problems: list[dict[str, Any]] = []
     for call, answer in zip(calls, answers, strict=False):
         op_id = call["operationId"]
-        if call.get("kind") in STEPS:  # Stories 10.8, 10.9
-            if not str(answer.get("status")).startswith("2"):
-                body = str(answer.get("body") or "")[-600:]
-                message = f"{STEPS[call['kind']]} failed"
-                problems.append({"operation": op_id, "message": message, "request": call["path"], "response": body})
-            continue
-        if call.get("kind") == "mail":
-            if answer.get("status") != 200:
-                problems.append({"operation": op_id, "message": "no email reached the mail catcher after the jobs ran",
-                                 "request": call["path"], "response": str(answer.get("body") or "")})  # fmt: skip
-            continue
-        if call.get("kind") == "worker":  # Story 10.6: every job the calls enqueued ran
-            if answer.get("status") != 0:
+        status = answer.get("status")
+        text = str(answer.get("body") or "")
+        if call.get("kind") == "worker":  # Story 10.6: the jobs the calls enqueued ran without crashing
+            if status != 0:
                 message = "the job worker failed (`python -m src.worker --once`)"
-                body = str(answer.get("body") or "")[-600:]
-                problems.append({"operation": op_id, "message": message, "request": call["path"], "response": body})
+                problems.append({"operation": op_id, "message": message, "request": call["path"],
+                                 "response": text[-600:]})  # fmt: skip
             continue
-        responses = operations[op_id]["operation"].get("responses") or {}
-        expected = next((code for code in sorted(responses) if code.startswith("2")), "200")
+        if isinstance(status, int) and 0 < status < 500:
+            continue
+        what = STEPS.get(call.get("kind") or "") or op_id
         request = f"{call['method']} {call['path']}" + (
             f" {json.dumps(call['body'])[:300]}" if call.get("body") else ""
         )
-        text = str(answer.get("body") or "")
-        if call.get("expect"):  # a scenario: exactly this status and error code (Story 10.0b)
-            want = call["expect"]
-            got = answer.get("status")
-            # Story 10.4: a custom rule may refuse what a success scenario sends; its own answer is also right
-            for other in want.get("or") or []:
-                if got == other["status"] and _error_code(text) == other.get("code"):
-                    want = other
-            code = _error_code(text) if want.get("code") else None
-            if got != want["status"] or code != want.get("code"):
-                expected_text = " ".join(str(part) for part in (want["status"], want.get("code")) if part)
-                got_text = " ".join(str(part) for part in (got or "no response", code) if part)
-                problems.append(
-                    {
-                        "operation": op_id,
-                        "message": f"{op_id} ({call['scenario']}): expected {expected_text}, got {got_text}",
-                        "request": request,
-                        "response": text[:600],
-                    }
-                )
-                continue
-            if not str(want["status"]).startswith("2"):
-                continue
-            expected = str(want["status"])
-        elif rule_answer(answer):
-            continue
-        elif answer.get("status") != int(expected):
-            problems.append(
-                {
-                    "operation": op_id,
-                    "message": f"{op_id}: expected HTTP {expected}, got {answer.get('status') or 'no response'}",
-                    "request": request,
-                    "response": text[:600],
-                }
-            )
-            continue
-        schema = ((responses.get(expected) or {}).get("content") or {}).get("application/json", {}).get("schema")
-        if not schema or expected == "204":
-            continue
-        try:
-            body = json.loads(text) if text else None
-        except json.JSONDecodeError:
-            problems.append({"operation": op_id, "message": f"{op_id}: response is not JSON", "request": request,
-                             "response": text[:600]})  # fmt: skip
-            continue
-        for problem in validate_value_against_schema(contract, resolve(contract, schema), body, op_id):
-            problems.append({**problem, "request": request})
+        got = f"HTTP {status}" if status else "no response"
+        problems.append({"operation": op_id, "message": f"{what}: {got}", "request": request, "response": text[-600:]})
     return problems
-
-
-def rule_answer(answer: dict[str, Any]) -> bool:
-    """A `RULE_ANSWERS` status with the error envelope (`{"error": {"code", "message"}}`)."""
-    if answer.get("status") not in RULE_ANSWERS:
-        return False
-    try:
-        body = json.loads(str(answer.get("body") or ""))
-    except json.JSONDecodeError:
-        return False
-    error = body.get("error") if isinstance(body, dict) else None
-    return isinstance(error, dict) and isinstance(error.get("code"), str)

@@ -33,3 +33,10 @@ frontend preview port) and emits `integration.switched_to_live`. Otherwise it ke
 `POST /api/v1/generations/{id}/integration/recheck` and `POST /api/v1/generations/{id}/integration/use-mocks`
 (`src/modules/previews/presenter/router.py` → `PreviewService.recheck` / `use_mocks`) allow re-running the check or
 switching back to mocks on demand.
+
+**Status (2026-11-06): readiness is "the backend preview runs".** `check_backend_ready` no longer probes `GET /health`
+or compares `GET /openapi.json` with the contract (`verify_openapi_matches_contract` was removed): run_validation has
+already proved the app starts and its API matches the contract, so integration only waits until the backend lane is
+`COMPLETED` and its preview `RUNNING` with a URL, then switches. The switch itself is checked afterwards by
+`integration:health` (Story 14.3). `PreviewService.recheck` uses the same readiness. Deviation from AC 1 (the `/health`
+and OpenAPI gate before the switch).

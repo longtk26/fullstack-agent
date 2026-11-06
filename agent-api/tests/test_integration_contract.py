@@ -9,7 +9,7 @@ from src.modules.shared.domain.frontend_spec import FrontendIssueCode
 from src.orchestrator.backend.codegen import database_files, module_files
 from src.orchestrator.backend.planner import build_plan
 from src.orchestrator.checks.consistency import check_spec_pair, reconcile_spec_pair
-from src.orchestrator.checks.smoke import judge, scenario_calls, smoke_calls
+from src.orchestrator.checks.smoke import judge, one_per_operation, scenario_calls, smoke_calls
 from src.orchestrator.frontend.codegen import types_ts
 from src.orchestrator.integration.contract import (
     UNKNOWN_ID,
@@ -159,49 +159,33 @@ def _answer(status: int, body) -> dict:
     return {"status": status, "body": json.dumps(body)}
 
 
-def test_the_smoke_check_requires_each_scenarios_status_and_code():
+def test_the_smoke_check_calls_each_endpoint_once_with_its_success_scenario():
+    """2026-11-06: one call per endpoint (its first success scenario: real ids, a body, the user it runs as); only a
+    server error or no answer fails it, so a refused duplicate or a different error code is an answer."""
     contract = build_contract(_spec("two-entity"))
-    calls, _ = scenario_calls(contract)
-    project = presented_record(contract, "Project", contract["x-bga"]["fixtures"]["Project"][0])
-    task = presented_record(contract, "Task", contract["x-bga"]["fixtures"]["Task"][0])
-    page = {"items": [], "total": 0, "limit": 20, "offset": 0}
-
-    def right(call: dict) -> dict:
-        want = call["expect"]
-        if want.get("code"):
-            return _answer(want["status"], {"error": {"code": want["code"], "message": "x", "details": None}})
-        if want["status"] == 204:
-            return {"status": 204, "body": ""}
-        if call["operationId"].endswith(".list"):
-            return _answer(200, page)
-        return _answer(want["status"], project if call["operationId"].startswith("project") else task)
-
-    assert judge(contract, calls, [right(call) for call in calls]) == []
-
-    # a planted mismatch: the duplicate is accepted
-    duplicate = next(i for i, call in enumerate(calls) if call["scenario"] == "duplicate name")
-    answers = [right(call) for call in calls]
-    answers[duplicate] = _answer(201, project)
+    scenarios, _ = scenario_calls(contract)
+    calls = one_per_operation(scenarios)
+    assert [call["operationId"] for call in calls] == list(dict.fromkeys(c["operationId"] for c in scenarios))
+    assert all("expect" not in call for call in calls)
+    assert next(c for c in calls if c["operationId"] == "project.create")["scenario"] == "success"
+    answers = [_answer(409, {"error": {"code": "VALIDATION_ERROR", "message": "x"}}) for _ in calls]
+    assert judge(contract, calls, answers) == []
+    answers[0] = {"status": 502, "body": "Bad Gateway"}
     [problem] = judge(contract, calls, answers)
-    assert problem["message"] == "project.create (duplicate name): expected 409 CONFLICT, got 201"
-    # a wrong code is a mismatch too, even with the right status
-    answers[duplicate] = _answer(409, {"error": {"code": "VALIDATION_ERROR", "message": "x"}})
-    assert "got 409 VALIDATION_ERROR" in judge(contract, calls, answers)[0]["message"]
-    # and so is a record without what the contract adds to it
-    success = next(i for i, call in enumerate(calls) if call["operationId"] == "project.get")
-    answers = [right(call) for call in calls]
-    answers[success] = _answer(200, contract["x-bga"]["fixtures"]["Project"][0])
-    assert any("allowedActions" in problem["message"] for problem in judge(contract, calls, answers))
+    assert problem["message"] == f"{calls[0]['operationId']}: HTTP 502"
 
 
-def test_smoke_calls_run_the_scenarios_before_the_custom_operations():
+def test_smoke_calls_run_the_scenarios_before_the_custom_operations_without_one():
     spec = _spec("flashcards")
     contract, plan = build_contract(spec), build_plan(spec)
     calls, _ = smoke_calls(contract, plan)
-    scenarios = [call for call in calls if call.get("expect")]
-    custom = [call for call in calls if not call.get("expect")]
-    assert scenarios and custom and calls == scenarios + custom
-    assert {call["operationId"] for call in custom} == {"card.listDue", "card.review", "deck.stats"}
+    ids = [call["operationId"] for call in calls]
+    assert len(ids) == len(set(ids)), "one call per endpoint"
+    scenarios = [call for call in calls if "scenario" in call]
+    custom = [call for call in calls if "scenario" not in call]
+    assert scenarios and calls == scenarios + custom
+    assert {call["operationId"] for call in custom} <= {"card.listDue", "card.review", "deck.stats"}
+    assert {"card.listDue", "card.review", "deck.stats"} <= set(ids)
 
 
 # -- the pair check and the mocks ------------------------------------------------------------------------------------

@@ -108,6 +108,37 @@ def test_examples_come_from_the_seed_with_consistent_foreign_keys():
     )
 
 
+def test_a_seeded_key_no_parent_record_has_names_one():
+    """gen_01M6RJ17148HNE5MWEK0QKDZKA (2026-11-06): drafted recipes named owners `…0001` / `…0002` while the users are
+    the auth plugin's demo users, so the smoke seed broke the foreign key. Such a key is mapped onto a parent record,
+    the same key to the same record; a key that names one is kept."""
+    from src.modules.shared.domain.backend_spec import validate_spec_data
+    from src.orchestrator.integration.contract import build_fixtures
+
+    spec = validate_spec_data(json.loads((EXAMPLES / "specs" / "learning-platform.json").read_text())).normalized
+    plan = build_plan(spec)
+    fixtures, _ = build_fixtures(spec, plan)
+    models = [m for m in plan["models"] if m.get("entity")]
+    by_table = {m["table"]: m for m in models}
+    for model in models:
+        for column in (c for c in model["columns"] if c.get("foreignKey")):
+            parent = by_table.get(column["foreignKey"]["references"].partition(".")[0])
+            if parent is None:
+                continue
+            pk = next(c["apiName"] for c in parent["columns"] if c["primaryKey"])
+            keys = {row[pk] for row in fixtures[parent["entity"]]}
+            values = {row[column["apiName"]] for row in fixtures[model["entity"]]} - {None}
+            assert values <= keys, (model["entity"], column["apiName"], values - keys)
+    drafted = {r["id"]: r for seed in spec["seed"] if seed["entity"] == "Enrolment" for r in seed["records"]}
+    learners = {row["id"]: row["learnerId"] for row in fixtures["Enrolment"]}
+    same = [i for i in drafted if drafted[i]["learnerId"] == next(iter(drafted.values()))["learnerId"]]
+    assert len({learners[i] for i in same}) == 1, "one drafted learner stays one user"
+    courses = {row["id"] for row in fixtures["Course"]}
+    kept = [i for i, r in drafted.items() if r["courseId"] in courses]
+    assert kept and all(fixtures_row["courseId"] == drafted[fixtures_row["id"]]["courseId"]
+                        for fixtures_row in fixtures["Enrolment"] if fixtures_row["id"] in kept)  # fmt: skip
+
+
 def test_synthesized_examples_respect_types_and_bounds():
     fixtures = contract("two-entity")["x-bga"]["fixtures"]
     tasks = fixtures["Task"]

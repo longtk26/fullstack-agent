@@ -31,3 +31,13 @@ and `report["integration"]`):
   bridge forwarding `127.0.0.1:<fe_port>` and `127.0.0.1:<be_port>` over the shared Docker network to the preview
   containers. Failures set the `integration` lane to `FAILED` (overall `COMPLETED_WITH_WARNINGS`) without regenerating
   either lane.
+
+**Status (2026-11-06): only `integration:health` remains.** `integration:contract` (`validate_live_responses`) and
+`integration:smoke` (`run_playwright_live_smoke`, the TCP bridge) were removed. The contract probe repeated what
+run_validation already covers (the `openapi` check and one call per endpoint) and, in `gen_01M6RNS949KSV5QKARTS1ENA46`,
+flagged role-guarded counts that rightly answered 401; the frontend has had no Playwright specs since `95b547b`.
+Integration now waits for the backend preview, switches the frontend to the live API and checks the switch (backend
+`/health`, the frontend's live runtime config); a failure is still a warning (`integration` `FAILED`,
+`COMPLETED_WITH_WARNINGS`), never a regeneration. The 401 itself was a contract bug, fixed in `integration/contract.py`:
+an aggregate operation now carries its operation's auth (`bearerAuth`, so the auth plugin adds its 401 and the app
+kit hides a figure from roles that may not see it).

@@ -228,19 +228,31 @@ def build_fixtures(spec: dict[str, Any], plan: dict[str, Any]) -> tuple[dict[str
                     row[name] = _synthesize(column, entity, index, slug)
         records[entity] = rows
     for model in models:  # pass 2: foreign keys point at the parent's records
+        dangling: dict[str, dict[str, Any]] = {}  # field → a seeded key no parent record has → the one it now names
         for index, row in enumerate(records[model["entity"]]):
             for column in model["columns"]:
                 fk = column.get("foreignKey")
-                if not fk or column["apiName"] in row:
+                if not fk:
                     continue
+                name = column["apiName"]
                 table, _, _ = fk["references"].partition(".")
                 parent = by_table.get(table)
                 parent_rows = records.get(parent["entity"]) if parent else None
-                if parent_rows:
-                    pk = next(c["apiName"] for c in parent["columns"] if c["primaryKey"])
-                    row[column["apiName"]] = parent_rows[index % len(parent_rows)][pk]
+                pk = next(c["apiName"] for c in parent["columns"] if c["primaryKey"]) if parent_rows else None
+                if name in row:
+                    # A seed row's own key names a parent record, or (a drafted id such as an owner the demo users
+                    # replaced) is mapped onto one: the same key to the same record, so the seed can be inserted.
+                    value = row[name]
+                    if value is None or not parent_rows or str(value) in {str(r.get(pk)) for r in parent_rows}:
+                        continue
+                    mapped = dangling.setdefault(name, {})
+                    if str(value) not in mapped:
+                        mapped[str(value)] = parent_rows[len(mapped) % len(parent_rows)][pk]
+                    row[name] = mapped[str(value)]
+                elif parent_rows:
+                    row[name] = parent_rows[index % len(parent_rows)][pk]
                 else:
-                    row[column["apiName"]] = None
+                    row[name] = None
     for model in models:  # Story 10.5: a file field holds an object key under its prefix, per owner when there is one
         owner = next((c["apiName"] for c in model["columns"] if c.get("source") == "currentUser"), None)
         for column in (c for c in model["columns"] if c.get("file")):
@@ -405,6 +417,18 @@ def _error_responses(op: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _secure(operation: dict[str, Any], op: dict[str, Any]) -> None:
+    """The planned operation's auth on its contract operation: a signed-in one (`auth: jwt`) is `bearerAuth` (the
+    auth plugin adds its 401); a public read with only a visibility rule (Story 23.9) takes no token."""
+    auth = op.get("auth") or {}
+    if auth.get("auth"):
+        operation["x-bga"]["auth"] = auth["auth"]
+    if auth.get("policy"):
+        operation["x-bga"]["policy"] = auth["policy"]
+    if auth.get("auth"):
+        operation["security"] = [{"bearerAuth": []}]
+
+
 class _Builder:
     def __init__(self, spec: dict[str, Any], plan: dict[str, Any]):
         self.spec = spec
@@ -529,7 +553,7 @@ class _Builder:
         description = f"{aggregate.get('fn', 'count')} of {module['entity']}" + (
             " by " + aggregate["groupBy"] if grouped else ""
         )
-        return {
+        operation = {
             "operationId": op["operationId"],
             "summary": op.get("summary") or spec_op.get("summary") or description,
             "tags": [module["name"]],
@@ -542,6 +566,10 @@ class _Builder:
             },
             "responses": {"200": {"description": description, "content": {"application/json": {"schema": schema}}}},
         }
+        # gen_01M6RNS949KSV5QKARTS1ENA46 (2026-11-06): a figure for some roles only (Story 23.9) is signed in, as the
+        # app has it; without this the frontend showed it to every visitor and the live API answered 401
+        _secure(operation, op)
+        return operation
 
     def operation(self, module: dict[str, Any], op: dict[str, Any]) -> dict[str, Any]:
         entity = module["entity"]
@@ -559,12 +587,7 @@ class _Builder:
             "tags": [module["name"]],
             "x-bga": {"entity": entity, "action": bga_action, "module": module["name"]},
         }
-        if op.get("auth"):
-            if op["auth"].get("auth"):
-                operation["x-bga"]["auth"] = op["auth"]["auth"]
-            if op["auth"].get("policy"):
-                operation["x-bga"]["policy"] = op["auth"]["policy"]
-            operation["security"] = [{"bearerAuth": []}]
+        _secure(operation, op)
         mock_plan = None
         if action is None:
             mock_plan = _mock_plan(op, spec_op, model, entity, self.models)
