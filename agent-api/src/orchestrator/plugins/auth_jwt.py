@@ -12,7 +12,7 @@ from typing import Any
 
 from src.modules.shared.domain.backend_spec.naming import to_snake
 
-from .base import Code, Plugin, RouterParam, Setting
+from .base import AppStartup, Code, Plugin, RouterParam, Setting
 
 # The argon2id hash (pwdlib, the generated app's hasher) of the demo users' password, so seeds need no hashing
 DEMO_PASSWORD = "demo12345"
@@ -338,6 +338,14 @@ class AuthJwtPlugin(Plugin):
         files |= _test_files(auth, model)
         return files
 
+    def app_startup(self, plan: dict[str, Any] | None) -> AppStartup | None:
+        if not (plan or {}).get("auth"):
+            return None
+        # Story 22.7: the 401 every protected route answers, in the app's OpenAPI as in the contract
+        return AppStartup(
+            imports=(("src.libs.security.openapi", ("document_unauthorized",)),), setup=("document_unauthorized(app)",)
+        )
+
     def router_params(self, plan, module, op) -> list[RouterParam]:
         if module.get("plugin") or not _secured(op):
             return []
@@ -458,11 +466,12 @@ def _security_files(auth: dict[str, Any], model: dict[str, Any]) -> dict[str, st
     parse = "uuid.UUID(subject)" if pk["type"] == "uuid" else ("int(subject)" if pk["type"] == "integer" else "subject")
     return {
         "src/libs/security/__init__.py": (
-            "from .current_user import CurrentUserDep, bearer_scheme, get_current_user\n"
+            "from .current_user import CurrentUserDep, OptionalUserDep, bearer_scheme, get_current_user\n"
             "from .passwords import hash_password, verify_password\n"
             "from .roles import require_roles\n"
             "from .tokens import create_access_token, decode_access_token\n\n"
-            '__all__ = [\n    "CurrentUserDep",\n    "bearer_scheme",\n    "create_access_token",\n'
+            '__all__ = [\n    "CurrentUserDep",\n    "OptionalUserDep",\n    "bearer_scheme",\n'
+            '    "create_access_token",\n'
             '    "decode_access_token",\n    "get_current_user",\n    "hash_password",\n    "require_roles",\n'
             '    "verify_password",\n]\n'
         ),
@@ -481,7 +490,7 @@ def _security_files(auth: dict[str, Any], model: dict[str, Any]) -> dict[str, st
             "    return signed_in_with_role\n"
         ),
         "src/libs/security/current_user.py": (
-            "import uuid\nfrom typing import Annotated\n\nfrom fastapi import Depends\n"
+            "import uuid\nfrom typing import Annotated\n\nfrom fastapi import Depends, Request\n"
             "from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer\n\n"
             "from src.libs.database.session import SessionDep\nfrom src.libs.exceptions import UnauthorizedException\n"
             f"from src.modules.shared.domain.entities import {auth['entityClass']}\n"
@@ -504,7 +513,20 @@ def _security_files(auth: dict[str, Any], model: dict[str, Any]) -> dict[str, st
             "    if model is None:\n"
             '        raise UnauthorizedException("Sign in to continue")\n'
             f"    return {auth['entityClass']}.model_validate(model.model_dump())\n\n\n"
-            f"CurrentUserDep = Annotated[{auth['entityClass']}, Depends(get_current_user)]\n"
+            f"CurrentUserDep = Annotated[{auth['entityClass']}, Depends(get_current_user)]\n\n\n"
+            f"def get_optional_user(session: SessionDep, request: Request) -> {auth['entityClass']} | None:\n"
+            '    """The signed-in user on a public route (a record\'s actions depend on who asks), else None: a\n'
+            "    visitor or a token that no longer works. Read from the header, so the route stays public in the\n"
+            '    OpenAPI (Story 22.7)."""\n'
+            '    scheme, _, token = request.headers.get("authorization", "").partition(" ")\n'
+            '    claims = decode_access_token(token) if scheme.lower() == "bearer" and token else None\n'
+            "    if claims is None:\n        return None\n"
+            "    try:\n"
+            '        subject = claims["sub"]\n'
+            f"        model = session.get({auth['model']}, {parse})\n"
+            "    except (KeyError, ValueError):\n        return None\n"
+            f"    return None if model is None else {auth['entityClass']}.model_validate(model.model_dump())\n\n\n"
+            f"OptionalUserDep = Annotated[{auth['entityClass']} | None, Depends(get_optional_user)]\n"
         ),
     }
 
@@ -548,7 +570,8 @@ def _module_files(auth: dict[str, Any], model: dict[str, Any]) -> dict[str, str]
         f"        return {entity}(**values, password_hash=password_hash)\n"
         f'\n\nclass LoginRequestDto(BaseModel):\n{camel}, extra="forbid")\n\n'
         f"    {attr}: str\n    password: str\n"
-        f"\n\nclass TokenResponseDto(BaseModel):\n{camel})\n\n"
+        # the default is always sent: required in the response schema, as the contract has it (Story 22.7)
+        f"\n\nclass TokenResponseDto(BaseModel):\n{camel}, json_schema_serialization_defaults_required=True)\n\n"
         '    access_token: str\n    token_type: str = "bearer"\n'
         f"\n\nclass AccountResponseDto(BaseModel):\n{camel})\n\n"
         + "\n".join(response_fields)

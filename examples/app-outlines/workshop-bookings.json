@@ -1,0 +1,32 @@
+{
+  "name": "Workshop Bookings",
+  "tagline": "Book a seat at a workshop, pay for it, see it confirmed",
+  "icon": "Presentation",
+  "nav": [
+    { "entity": "Workshop", "icon": "CalendarDays" },
+    { "entity": "Booking", "label": "My bookings", "icon": "Ticket" },
+    { "entity": "Tag", "icon": "Tags" }
+  ],
+  "entities": {
+    "Workshop": {
+      "displayField": "title",
+      "listFields": ["title", "startsOn", "capacity", "price"],
+      "listStyle": "cards",
+      "detailFields": ["cover", "startsOn", "capacity", "price", "description"],
+      "fieldLabels": { "startsOn": "Date", "capacity": "Seats" },
+      "help": { "capacity": "Seats on offer; bookings stop when they are taken" }
+    },
+    "Booking": {
+      "displayField": "attendeeName",
+      "listFields": ["attendeeName", "workshopId", "status", "paymentStatus"],
+      "fieldLabels": { "attendeeName": "Attendee", "paymentStatus": "Payment" },
+      "help": { "amount": "The seat's price" }
+    },
+    "Tag": { "displayField": "name", "listFields": ["name"] }
+  },
+  "dashboard": [
+    { "kind": "figure", "label": "Workshops", "entity": "Workshop", "fn": "count" },
+    { "kind": "figure", "label": "Bookings", "entity": "Booking", "fn": "count" },
+    { "kind": "pie", "label": "Bookings by status", "entity": "Booking", "fn": "count", "groupBy": "status" }
+  ]
+}

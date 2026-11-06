@@ -1,0 +1,83 @@
+{
+  "specVersion": "1.0",
+  "project": {
+    "name": "Workshop Bookings",
+    "description": "Workshops with seats, a cover and tags; members book a seat, pay for it, and organizers confirm it (Story 22.7: every plugin's frontend)"
+  },
+  "stack": { "framework": "fastapi", "database": "postgresql", "orm": "sqlmodel", "migration": "alembic" },
+  "auth": { "type": "jwt", "roles": ["member", "organizer"] },
+  "entities": [
+    {
+      "name": "Workshop",
+      "fields": [
+        { "name": "id", "type": "uuid", "primary": true },
+        { "name": "title", "type": "string", "required": true, "maxLength": 120 },
+        { "name": "description", "type": "text", "maxLength": 2000 },
+        { "name": "startsOn", "type": "date", "required": true },
+        { "name": "capacity", "type": "integer", "required": true, "min": 1, "max": 500 },
+        { "name": "price", "type": "decimal", "required": true, "min": 0 },
+        { "name": "cover", "type": "image", "required": false, "nullable": true },
+        { "name": "createdAt", "type": "datetime", "required": true, "default": "now" }
+      ]
+    },
+    {
+      "name": "Tag",
+      "fields": [
+        { "name": "id", "type": "uuid", "primary": true },
+        { "name": "name", "type": "string", "required": true, "unique": true, "maxLength": 40 }
+      ]
+    },
+    {
+      "name": "Booking",
+      "fields": [
+        { "name": "id", "type": "uuid", "primary": true },
+        { "name": "workshopId", "type": "uuid", "required": true, "index": true },
+        { "name": "ownerId", "type": "uuid", "required": true, "index": true },
+        { "name": "attendeeName", "type": "string", "required": true, "maxLength": 120 },
+        { "name": "amount", "type": "decimal", "required": true, "min": 1 },
+        { "name": "status", "type": "enum", "values": ["PENDING", "CONFIRMED", "CANCELLED"], "default": "PENDING" },
+        { "name": "paymentStatus", "type": "enum", "values": ["UNPAID", "PAID", "FAILED"], "default": "UNPAID" },
+        { "name": "createdAt", "type": "datetime", "required": true, "default": "now" }
+      ]
+    }
+  ],
+  "relationships": [
+    { "name": "workshopBookings", "type": "one-to-many", "from": "Workshop", "to": "Booking", "onDelete": "CASCADE" },
+    { "name": "workshopTags", "type": "many-to-many", "from": "Workshop", "to": "Tag" }
+  ],
+  "policies": [
+    { "name": "organizersOnly", "type": "role", "roles": ["organizer"] },
+    { "name": "ownBookings", "type": "ownership", "ownerField": "ownerId", "bypassRoles": ["organizer"] }
+  ],
+  "rules": [
+    { "id": "bookingFlow", "kind": "transition", "entity": "Booking",
+      "params": { "field": "status", "transitions": { "PENDING": ["CONFIRMED", "CANCELLED"], "CONFIRMED": ["CANCELLED"] } } },
+    { "id": "cancelledIsFinal", "kind": "immutableAfter", "entity": "Booking",
+      "params": { "field": "status", "states": ["CANCELLED"] } },
+    { "id": "seatLimit", "kind": "capacity", "entity": "Booking",
+      "params": { "parent": "workshopId", "capacityField": "capacity", "where": { "status": { "ne": "CANCELLED" } } } }
+  ],
+  "payments": { "provider": "fake", "entity": "Booking", "amountField": "amount", "currency": "EUR",
+                "statusField": "paymentStatus", "paidStatus": "PAID", "failedStatus": "FAILED" },
+  "operations": [
+    { "operationId": "workshop.create", "type": "crud", "action": "create", "entity": "Workshop", "method": "POST", "path": "/workshops", "policy": "organizersOnly" },
+    { "operationId": "workshop.get", "type": "crud", "action": "get", "entity": "Workshop", "method": "GET", "path": "/workshops/{id}" },
+    { "operationId": "workshop.list", "type": "crud", "action": "list", "entity": "Workshop", "method": "GET", "path": "/workshops",
+      "pagination": true, "search": ["title"], "sort": ["startsOn", "title"] },
+    { "operationId": "workshop.update", "type": "crud", "action": "update", "entity": "Workshop", "method": "PATCH", "path": "/workshops/{id}", "policy": "organizersOnly" },
+    { "operationId": "workshop.delete", "type": "crud", "action": "delete", "entity": "Workshop", "method": "DELETE", "path": "/workshops/{id}", "policy": "organizersOnly" },
+    { "operationId": "tag.create", "type": "crud", "action": "create", "entity": "Tag", "method": "POST", "path": "/tags", "policy": "organizersOnly" },
+    { "operationId": "tag.get", "type": "crud", "action": "get", "entity": "Tag", "method": "GET", "path": "/tags/{id}" },
+    { "operationId": "tag.list", "type": "crud", "action": "list", "entity": "Tag", "method": "GET", "path": "/tags", "pagination": true, "search": ["name"] },
+    { "operationId": "tag.update", "type": "crud", "action": "update", "entity": "Tag", "method": "PATCH", "path": "/tags/{id}", "policy": "organizersOnly" },
+    { "operationId": "tag.delete", "type": "crud", "action": "delete", "entity": "Tag", "method": "DELETE", "path": "/tags/{id}", "policy": "organizersOnly" },
+    { "operationId": "booking.create", "type": "crud", "action": "create", "entity": "Booking", "method": "POST", "path": "/bookings", "auth": "jwt", "rules": ["seatLimit"] },
+    { "operationId": "booking.get", "type": "crud", "action": "get", "entity": "Booking", "method": "GET", "path": "/bookings/{id}", "policy": "ownBookings" },
+    { "operationId": "booking.list", "type": "crud", "action": "list", "entity": "Booking", "method": "GET", "path": "/bookings", "policy": "ownBookings",
+      "pagination": true, "filters": ["workshopId", "status"], "sort": ["createdAt"] },
+    { "operationId": "booking.update", "type": "crud", "action": "update", "entity": "Booking", "method": "PATCH", "path": "/bookings/{id}", "policy": "ownBookings",
+      "rules": ["bookingFlow", "cancelledIsFinal"] },
+    { "operationId": "booking.delete", "type": "crud", "action": "delete", "entity": "Booking", "method": "DELETE", "path": "/bookings/{id}", "policy": "ownBookings",
+      "rules": ["cancelledIsFinal"] }
+  ]
+}

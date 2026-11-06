@@ -208,6 +208,20 @@ Agent-specific notes:
   `get`, label field, `q` search, page size) rendered by `form/ReferenceField.tsx` (Popover + Command). `ensure_aggregates`
   first adds a paginated `list` for each referenced parent without one (`screens.parent_lists`). `FE_FIELD_SOURCE` is
   an error for app specs (a warning in the legacy flow).
+  Plugin frontends (Story 22.7): each plugin's app part lives in `templates/plugins/<name>/frontend/files/` (auth-jwt:
+  sign-in / sign-up / user menu / session, the `cookie` mode routes `/api/auth/*`, `/api/backend/[...path]` and
+  `src/proxy.ts`; storage: `UploadField`, `FileValue`; payments: `PayAction`, `AppPayment`; relations: `AppLinks`),
+  copied only for apps whose contract has the plugin (`files.frontend_plugins`, `plan["app"]["plugins"]`); the kit reaches
+  them through the generated `src/components/app/plugins.ts`, else `plugin-stubs.tsx`. `app.json` gains `auth` and
+  `access` (operationId → secured, roles): the kit hides navigation, sections and "New" a user cannot use and guards
+  pages; records' actions still follow `allowedActions` (transitions are `mutation` actions with a `body` and `allow`;
+  `pay` is its own kind). Token storage: `AUTH_TOKEN_STORAGE` (`local` | `cookie`, decision P8; previews take
+  `PREVIEW_AUTH_TOKEN_STORAGE`). The mocks emulate the plugins (`src/mocks/plugins.ts` from the generated
+  `plugins.json` / `defaults.json`: sessions, policies, per-user `allowedActions`, rules, uploads, checkout, links), so
+  signed-in scenarios run on MSW too (`scenarios.json` `login`).
+- `BACKEND_TESTS` (`config.backend_tests`, default off): run_validation runs a generated backend's own pytest suite
+  only when on; off, the `tests` check is the smoke calls alone (every contract scenario against the running app),
+  saving most of the check's time. The agent's tests turn it on (`tests/conftest.py`).
 
 ## Orchestrator layout
 

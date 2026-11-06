@@ -26,6 +26,7 @@ ICONS_FILE = "src/components/app/icons.ts"
 FORM_SCHEMAS_FILE = "src/components/app/form-schemas.ts"
 SCENARIOS_FILE = "src/mocks/scenarios.json"
 DATE_LOCALE_FILE = "src/components/app/date-locale.ts"
+PLUGINS_FILE = "src/components/app/plugins.ts"
 # date-fns 4's locales (`date-fns/locale/<code>`); a language alone picks its first region here.
 DATE_FNS_LOCALES = (
     "af ar ar-DZ ar-EG ar-MA ar-SA ar-TN az be be-tarask bg bn bs ca ckb cs cy da de de-AT el en-US en-AU en-CA "
@@ -35,7 +36,26 @@ DATE_FNS_LOCALES = (
 ).split()
 # The error codes the mock API answers as the backend does (Story 22.4); scenarios expecting another code (a rule, a
 # conflict, sign-in) are listed as not emulated, never as passed.
-EMULATED_CODES = frozenset({"NOT_FOUND", "REFERENCE_NOT_FOUND"})
+EMULATED_CODES = frozenset(
+    {
+        "NOT_FOUND",
+        "REFERENCE_NOT_FOUND",
+        # Story 22.7: the plugins' refusals (`src/mocks/plugins.ts`)
+        "UNAUTHORIZED",
+        "FORBIDDEN",
+        "CONFLICT",
+        "INVALID_TRANSITION",
+        "RESOURCE_LOCKED",
+        "CAPACITY_REACHED",
+        "DUPLICATE",
+        "FILE_TYPE_NOT_ALLOWED",
+        "FILE_TOO_LARGE",
+        "ALREADY_PAID",
+        "NOTHING_TO_PAY",
+    }
+)
+# Plugins whose operations a browser never calls (incoming webhooks, the worker): their scenarios are the backend's.
+UNEMULATED_PLUGINS = frozenset({"webhooks", "jobs", "email"})
 DEFAULT_ICON = "LayoutGrid"
 
 
@@ -108,6 +128,8 @@ def app_entities(spec: dict[str, Any], contract: dict[str, Any] | None, pages: d
             }
             fields[reference["field"]] = {"type": "reference"}
             fields[reference["apiName"]] = {"type": "summary"}
+        for file in (info.get(name) or {}).get("fileFields") or []:  # Story 22.7: shown through its signed URL
+            fields[file["field"]] = {"type": file.get("kind") or "file", "urlField": file["urlField"]}
         list_op = next(
             (
                 op_id
@@ -150,6 +172,9 @@ def app_data(plan: dict[str, Any], spec: dict[str, Any], contract: dict[str, Any
         "locale": spec["project"].get("locale") or "en",
         "routes": pages,
         "errors": app_errors(contract),
+        # Story 22.7: the plugins' parts (sign-in and who may use which operation)
+        "auth": app_auth(contract, pages),
+        "access": app_access(contract),
         "entities": app_entities(spec, contract, pages),
         "forms": {form["id"]: _form(form) for form in spec.get("forms") or []},
     }
@@ -168,18 +193,97 @@ def app_errors(contract: dict[str, Any] | None) -> dict[str, list[dict[str, Any]
     return out
 
 
+def app_auth(contract: dict[str, Any] | None, pages: dict[str, str]) -> dict[str, Any] | None:
+    """How the app signs in (Story 22.7, auth-jwt): the auth operations and paths, the login field, the sign-in and
+    sign-up pages and the demo accounts (shown on the sign-in page). None without auth."""
+    auth = ((contract or {}).get("x-bga") or {}).get("auth")
+    if not auth or "login" not in pages:
+        return None
+    operations = contract_operations(contract)
+    login = auth.get("login") or {}
+    return {
+        "login": {"operationId": login.get("operationId", "auth.login"), "path": login.get("path", "/auth/login")},
+        "register": {"operationId": "auth.register", "path": (operations.get("auth.register") or {}).get("path")},
+        "me": {"operationId": "auth.me", "path": (operations.get("auth.me") or {}).get("path", "/auth/me")},
+        "loginField": login.get("field", "email"),
+        "signIn": pages["login"],
+        "signUp": pages.get("register"),
+        "demoUsers": [{"login": user["login"], "role": user["role"]} for user in auth.get("demoUsers") or []],
+        "password": next(iter({user.get("password") for user in auth.get("demoUsers") or []}), None),
+    }
+
+
+def app_access(contract: dict[str, Any] | None) -> dict[str, Any]:
+    """operationId → who may call it (Story 22.7): signed in (`security`), and the roles of a role policy. The kit hides
+    navigation, sections and links the signed-in user cannot use; records' own actions follow `allowedActions`."""
+    out: dict[str, Any] = {}
+    for op_id, found in contract_operations(contract).items() if contract else []:
+        operation = found["operation"]
+        if not operation.get("security"):
+            continue
+        policy = (operation.get("x-bga") or {}).get("policy") or {}
+        out[op_id] = {"secured": True, **({"roles": policy["roles"]} if policy.get("type") == "role" else {})}
+    return out
+
+
+def frontend_plugins(contract: dict[str, Any] | None) -> list[str]:
+    """The backend plugins with a frontend part this app uses (Story 22.7): their files are copied from
+    `templates/plugins/<name>/frontend/files/` and named in the generated `plugins.ts`."""
+    meta = (contract or {}).get("x-bga") or {}
+    names = []
+    if meta.get("auth"):
+        names.append("auth-jwt")
+    if meta.get("storage"):
+        names.append("storage")
+    if meta.get("payments"):
+        names.append("payments")
+    if any(info.get("links") for info in (meta.get("entities") or {}).values()):
+        names.append("relations")
+    return names
+
+
+# The kit's plugin slots: the names each plugin's `frontend/files/src/components/plugins/<name>/index.ts` exports;
+# an app without the plugin gets the kit's stubs (`plugin-stubs.tsx`) under the same names.
+PLUGIN_SLOTS = {
+    "auth-jwt": ("AppAuth", "UserMenu", "useSession"),
+    "storage": ("UploadField", "FileValue"),
+    "payments": ("PayAction", "AppPayment"),
+    "relations": ("AppLinks",),
+}
+
+
+def plugins_ts(plugins: list[str]) -> str:
+    lines = [
+        f"export {{ {', '.join(names)} }} from "
+        + (f'"@/components/plugins/{name}";' if name in plugins else '"./plugin-stubs";')
+        for name, names in PLUGIN_SLOTS.items()
+    ]
+    return (
+        HEADER
+        + "// Story 22.7: the plugins' frontend parts this app has (else the kit's stubs, which render nothing).\n"
+        + "\n".join(lines)
+        + "\n"
+    )
+
+
 def mock_scenarios(contract: dict[str, Any] | None) -> dict[str, Any]:
     """The contract's scenarios the mocks emulate (`src/mocks/scenarios.test.ts` runs them) and the others by
-    reason. Plugin operations and signed-in scenarios wait for Story 22.7."""
+    reason. Signed-in scenarios run as the backend's smoke check runs them (Story 22.7): the demo user a scenario names,
+    else the contract's login, with no token when the scenario says `auth: false`."""
     emulated: list[dict[str, Any]] = []
     skipped: dict[str, int] = {}
+    login = ((contract or {}).get("x-bga") or {}).get("auth", {}) or {}
+    login = login.get("login")
     for op_id, found in sorted(contract_operations(contract).items()) if contract else []:
         meta = found["operation"].get("x-bga") or {}
+        secured = bool(found["operation"].get("security"))
         for scenario in meta.get("scenarios") or []:
             expect = scenario.get("expect") or {}
             code = expect.get("code")
-            if meta.get("plugin") or found["operation"].get("security") or scenario.get("user"):
-                reason = "sign-in (22.7)"
+            if meta.get("plugin") in UNEMULATED_PLUGINS:
+                reason = meta["plugin"]
+            elif (secured or scenario.get("user")) and not login:
+                reason = "no sign-in"
             elif expect.get("status", 500) < 300 or code in EMULATED_CODES:
                 reason = None
             elif code == "VALIDATION_ERROR" and scenario.get("name", "").startswith("missing"):
@@ -197,10 +301,15 @@ def mock_scenarios(contract: dict[str, Any] | None) -> dict[str, Any]:
                     "name": scenario.get("name", ""),
                     **({"params": scenario["params"]} if scenario.get("params") else {}),
                     **({"body": scenario["body"]} if "body" in scenario else {}),
+                    **({"auth": True} if scenario.get("auth", secured) else {}),
+                    **({"user": scenario["user"]} if scenario.get("user") else {}),
                     "expect": {key: expect[key] for key in ("status", "code") if expect.get(key) is not None},
                 }
             )
-    return {"scenarios": emulated, "notEmulated": dict(sorted(skipped.items()))}
+    out: dict[str, Any] = {"scenarios": emulated, "notEmulated": dict(sorted(skipped.items()))}
+    if login:
+        out["login"] = {key: login[key] for key in ("path", "body", "field") if key in login}
+    return out
 
 
 def _form(form: dict[str, Any]) -> dict[str, Any]:
@@ -265,11 +374,12 @@ def app_files(plan: dict[str, Any], spec: dict[str, Any], contract: dict[str, An
     data = app_data(plan, spec, contract)
     files = {
         APP_FILE: json.dumps(data, indent=2, ensure_ascii=False) + "\n",
-        BINDINGS_FILE: bindings_ts(contract),
+        BINDINGS_FILE: bindings_ts(contract, app=True),
         ICONS_FILE: icons_ts(data),
         FORM_SCHEMAS_FILE: form_schemas_ts(plan),
         SCENARIOS_FILE: json.dumps(mock_scenarios(contract), indent=2, ensure_ascii=False) + "\n",
         DATE_LOCALE_FILE: date_locale_ts(data["locale"]),
+        PLUGINS_FILE: plugins_ts(frontend_plugins(contract)),
     }
     for route in plan["routes"]:
         files[route["file"]] = route_page(route)

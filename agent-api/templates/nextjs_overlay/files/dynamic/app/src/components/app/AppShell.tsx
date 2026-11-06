@@ -19,9 +19,10 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { siteConfig } from "@/config/site";
-import { app } from "./app";
+import { app, canUse, pageOperation } from "./app";
 import { AppBreadcrumbs } from "./AppBreadcrumbs";
 import { icons } from "./icons";
+import { UserMenu, useSession } from "./plugins";
 
 type AppShellProps = {
   children: ReactNode;
@@ -35,7 +36,11 @@ function active(pathname: string, href: string): boolean {
  *  with the page's place and the theme switch. */
 export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
+  const session = useSession();
   const AppIcon = icons[app.icon];
+  // Story 22.7: navigation the signed-in user's role cannot use is hidden
+  const pages = Object.fromEntries(Object.entries(app.pages).map(([id, page]) => [page.route, id]));
+  const nav = app.nav.filter((item) => canUse(pageOperation(pages[item.href] ?? ""), session));
   return (
     <SidebarProvider>
       <Sidebar collapsible="icon">
@@ -58,7 +63,7 @@ export function AppShell({ children }: AppShellProps) {
           <SidebarGroup>
             <SidebarGroupContent>
               <SidebarMenu>
-                {app.nav.map((item) => {
+                {nav.map((item) => {
                   const Icon = icons[item.icon];
                   return (
                     <SidebarMenuItem key={item.href}>
@@ -83,7 +88,10 @@ export function AppShell({ children }: AppShellProps) {
         <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b bg-background/95 px-4 backdrop-blur">
           <SidebarTrigger className="-ml-1" />
           <AppBreadcrumbs />
-          <div className="ml-auto flex items-center gap-1">{siteConfig.themeToggle && <ThemeToggle />}</div>
+          <div className="ml-auto flex items-center gap-1">
+            {siteConfig.themeToggle && <ThemeToggle />}
+            <UserMenu />
+          </div>
         </header>
         <div className="flex-1 px-4 py-6 sm:px-6 lg:px-8">{children}</div>
       </SidebarInset>

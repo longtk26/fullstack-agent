@@ -1,11 +1,12 @@
 "use client";
 
-import type { TAppSection } from "./app";
+import { canUse, type TAppSection } from "./app";
 import { AppActions } from "./AppActions";
 import { AppDashboard } from "./AppDashboard";
 import { AppDetail } from "./AppDetail";
 import { AppForm } from "./AppForm";
 import { AppList } from "./AppList";
+import { AppAuth, AppLinks, AppPayment, useSession } from "./plugins";
 
 type AppSectionProps = {
   pageId: string;
@@ -19,6 +20,9 @@ type AppSectionProps = {
 
 /** An app section by its component name; the markers let checks find it on the page. */
 export function AppSection({ pageId, section, title, heading, hideTitle }: AppSectionProps) {
+  const session = useSession();
+  // Story 22.7: a section on an operation this user may not call is left out (a member sees no "all bookings")
+  if (session.enabled && section.data?.operationId && !canUse(section.data.operationId, session)) return null;
   let body = null;
   switch (section.component) {
     case "AppList":
@@ -35,6 +39,15 @@ export function AppSection({ pageId, section, title, heading, hideTitle }: AppSe
       break;
     case "AppActions":
       body = <AppActions section={section} />;
+      break;
+    case "AppAuth":
+      body = <AppAuth section={section} title={title} />;
+      break;
+    case "AppLinks":
+      body = <AppLinks section={section} title={title} />;
+      break;
+    case "AppPayment":
+      body = <AppPayment section={section} title={title} />;
       break;
   }
   return (

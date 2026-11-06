@@ -1,0 +1,415 @@
+{
+  "pages": {
+    "/": [
+      {
+        "id": "figure-1",
+        "component": "AppDashboard",
+        "data": {
+          "operationId": "workshop.count"
+        },
+        "actions": []
+      },
+      {
+        "id": "figure-2",
+        "component": "AppDashboard",
+        "data": {
+          "operationId": "booking.count"
+        },
+        "actions": []
+      },
+      {
+        "id": "figure-3",
+        "component": "AppDashboard",
+        "data": {
+          "operationId": "booking.countByStatus"
+        },
+        "actions": []
+      },
+      {
+        "id": "recent-workshops",
+        "component": "AppList",
+        "data": {
+          "operationId": "workshop.list",
+          "params": {
+            "limit": 5
+          },
+          "fields": [
+            "title",
+            "startsOn",
+            "capacity"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "delete"
+        ]
+      },
+      {
+        "id": "recent-bookings",
+        "component": "AppList",
+        "data": {
+          "operationId": "booking.list",
+          "params": {
+            "limit": 5,
+            "sort": "-createdAt"
+          },
+          "fields": [
+            "attendeeName",
+            "workshopId",
+            "status"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "transition-confirmed",
+          "transition-cancelled",
+          "pay",
+          "delete"
+        ]
+      }
+    ],
+    "/bookings": [
+      {
+        "id": "bookings-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "booking.list",
+          "fields": [
+            "attendeeName",
+            "workshopId",
+            "status",
+            "paymentStatus"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "transition-confirmed",
+          "transition-cancelled",
+          "pay",
+          "delete"
+        ]
+      }
+    ],
+    "/bookings/[id]": [
+      {
+        "id": "bookings-detail",
+        "component": "AppDetail",
+        "data": {
+          "operationId": "booking.get",
+          "params": {
+            "id": "$route.id"
+          },
+          "fields": [
+            "workshopId",
+            "ownerId",
+            "attendeeName",
+            "amount",
+            "status",
+            "paymentStatus",
+            "createdAt"
+          ]
+        },
+        "actions": [
+          "edit",
+          "transition-confirmed",
+          "transition-cancelled",
+          "pay",
+          "delete"
+        ]
+      }
+    ],
+    "/bookings/[id]/edit": [
+      {
+        "id": "bookings-edit-form",
+        "component": "AppForm",
+        "form": "booking_update",
+        "actions": []
+      }
+    ],
+    "/login": [
+      {
+        "id": "login",
+        "component": "AppAuth",
+        "form": "auth_login",
+        "actions": []
+      }
+    ],
+    "/payments/cancel": [
+      {
+        "id": "payments-cancel",
+        "component": "AppPayment",
+        "data": {
+          "operationId": "payments.get",
+          "params": {
+            "paymentId": "$query.payment"
+          }
+        },
+        "actions": []
+      }
+    ],
+    "/payments/success": [
+      {
+        "id": "payments-success",
+        "component": "AppPayment",
+        "data": {
+          "operationId": "payments.get",
+          "params": {
+            "paymentId": "$query.payment"
+          }
+        },
+        "actions": []
+      }
+    ],
+    "/register": [
+      {
+        "id": "register",
+        "component": "AppAuth",
+        "form": "auth_register",
+        "actions": []
+      }
+    ],
+    "/tags": [
+      {
+        "id": "tags-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "tag.list",
+          "fields": [
+            "name"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "delete"
+        ]
+      }
+    ],
+    "/tags/[id]": [
+      {
+        "id": "tags-detail",
+        "component": "AppDetail",
+        "data": {
+          "operationId": "tag.get",
+          "params": {
+            "id": "$route.id"
+          },
+          "fields": [
+            "name"
+          ]
+        },
+        "actions": [
+          "edit",
+          "delete"
+        ]
+      }
+    ],
+    "/tags/[id]/edit": [
+      {
+        "id": "tags-edit-form",
+        "component": "AppForm",
+        "form": "tag_update",
+        "actions": []
+      }
+    ],
+    "/tags/new": [
+      {
+        "id": "tag-create-form",
+        "component": "AppForm",
+        "form": "tag_create",
+        "actions": []
+      }
+    ],
+    "/workshops": [
+      {
+        "id": "workshops-list",
+        "component": "AppList",
+        "data": {
+          "operationId": "workshop.list",
+          "fields": [
+            "title",
+            "startsOn",
+            "capacity",
+            "price"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "delete"
+        ]
+      }
+    ],
+    "/workshops/[id]": [
+      {
+        "id": "workshops-detail",
+        "component": "AppDetail",
+        "data": {
+          "operationId": "workshop.get",
+          "params": {
+            "id": "$route.id"
+          },
+          "fields": [
+            "cover",
+            "startsOn",
+            "capacity",
+            "price",
+            "description",
+            "title",
+            "createdAt"
+          ]
+        },
+        "actions": [
+          "edit",
+          "delete"
+        ]
+      },
+      {
+        "id": "bookings-tab",
+        "component": "AppList",
+        "data": {
+          "operationId": "booking.list",
+          "params": {
+            "workshopId": "$route.id"
+          },
+          "fields": [
+            "attendeeName",
+            "status",
+            "paymentStatus"
+          ]
+        },
+        "actions": [
+          "view",
+          "edit",
+          "transition-confirmed",
+          "transition-cancelled",
+          "pay",
+          "delete"
+        ]
+      },
+      {
+        "id": "tags-links",
+        "component": "AppLinks",
+        "data": {
+          "operationId": "workshop.listTags",
+          "params": {
+            "id": "$route.id"
+          }
+        },
+        "actions": []
+      }
+    ],
+    "/workshops/[id]/bookings/new": [
+      {
+        "id": "booking-create-in-workshop-form",
+        "component": "AppForm",
+        "form": "booking_create_in_workshop",
+        "actions": []
+      }
+    ],
+    "/workshops/[id]/edit": [
+      {
+        "id": "workshops-edit-form",
+        "component": "AppForm",
+        "form": "workshop_update",
+        "actions": []
+      }
+    ],
+    "/workshops/new": [
+      {
+        "id": "workshop-create-form",
+        "component": "AppForm",
+        "form": "workshop_create",
+        "actions": []
+      }
+    ]
+  },
+  "forms": {
+    "workshop_create": {
+      "operationId": "workshop.create",
+      "fields": [
+        "title",
+        "description",
+        "startsOn",
+        "capacity",
+        "price",
+        "cover"
+      ]
+    },
+    "workshop_update": {
+      "operationId": "workshop.update",
+      "fields": [
+        "title",
+        "description",
+        "startsOn",
+        "capacity",
+        "price",
+        "cover"
+      ]
+    },
+    "tag_create": {
+      "operationId": "tag.create",
+      "fields": [
+        "name"
+      ]
+    },
+    "tag_update": {
+      "operationId": "tag.update",
+      "fields": [
+        "name"
+      ]
+    },
+    "booking_create_in_workshop": {
+      "operationId": "booking.create",
+      "fields": [
+        "workshopId=$route.id",
+        "attendeeName",
+        "amount"
+      ]
+    },
+    "booking_update": {
+      "operationId": "booking.update",
+      "fields": [
+        "workshopId",
+        "attendeeName",
+        "amount",
+        "status"
+      ]
+    },
+    "auth_login": {
+      "operationId": "auth.login",
+      "fields": [
+        "email",
+        "password"
+      ]
+    },
+    "auth_register": {
+      "operationId": "auth.register",
+      "fields": [
+        "email",
+        "password"
+      ]
+    }
+  },
+  "navigation": [
+    {
+      "label": "Dashboard",
+      "page": "home"
+    },
+    {
+      "label": "Workshops",
+      "page": "workshops"
+    },
+    {
+      "label": "My bookings",
+      "page": "bookings"
+    },
+    {
+      "label": "Tags",
+      "page": "tags"
+    }
+  ]
+}

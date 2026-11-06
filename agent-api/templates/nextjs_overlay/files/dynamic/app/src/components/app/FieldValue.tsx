@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { app, enumLabel, pageHref, type TAppEntity, type TRecord } from "./app";
+import { FileValue } from "./plugins";
 
 // The app's locale (`project.locale`), as the form's calendar uses: the server and the browser format alike.
 const dateFormat = new Intl.DateTimeFormat(app.locale, { dateStyle: "medium" });
@@ -43,6 +44,9 @@ export function FieldValue({ entity, field, record, link = true }: FieldValuePro
   if (value === undefined || value === null || value === "") return <span className="text-muted-foreground">—</span>;
   const type = entity?.fields?.[field]?.type ?? "string";
   switch (type) {
+    case "image":
+    case "file":
+      return <FileValue entity={entity} field={field} record={record} compact={!link} />;
     case "boolean":
       return <span>{value ? "Yes" : "No"}</span>;
     case "enum":

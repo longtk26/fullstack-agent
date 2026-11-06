@@ -26,6 +26,7 @@ APPS = {  # BackendSpec example → its outline (None: what code fills from the 
     "two-entity": "project-tracker",
     "shop": None,
     "task-management": None,
+    "workshop-bookings": "workshop-bookings",  # Story 22.7: every plugin
 }
 
 
@@ -240,12 +241,16 @@ KIT = KIT / "app"
 
 
 def test_the_kit_renders_every_app_section():
-    """Story 22.4: each app section the planner writes has its kit component, picked by `AppSection`."""
+    """Story 22.4: each app section the planner writes has its kit component, picked by `AppSection`; the plugins'
+    sections (Story 22.7) through their slots, which the plugins' frontend files fill."""
     from src.modules.shared.domain.frontend_spec.app import APP_SECTIONS
+    from src.orchestrator.frontend.app.files import PLUGIN_SLOTS
 
     switch = (KIT / "AppSection.tsx").read_text()
+    slots = {name for names in PLUGIN_SLOTS.values() for name in names}
     for name in APP_SECTIONS:
-        assert f'case "{name}":' in switch and (KIT / f"{name}.tsx").is_file(), name
+        assert f'case "{name}":' in switch, name
+        assert (KIT / f"{name}.tsx").is_file() or name in slots, name
 
 
 def test_an_app_scaffolds_the_kit_and_its_data(tmp_path):

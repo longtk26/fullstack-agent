@@ -6,6 +6,7 @@ unknown child, 409 `DUPLICATE` when already related); `DELETE /<parents>/{id}/<c
 link model (composite primary key, both foreign keys `ON DELETE CASCADE`) is planned and written with the other models.
 """
 
+import re
 from typing import Any
 
 from src.modules.shared.domain.backend_spec.naming import to_pascal, to_snake
@@ -268,6 +269,20 @@ class RelationsPlugin(Plugin):
                     [{"status": 404, "code": "NOT_FOUND", "message": "Not related"}],
                 ),
             }
+            # Story 22.7: the path parameters (and the list's page), as every other operation declares them
+            for path in (relation["path"], relation["itemPath"]):
+                names = re.findall(r"\{(\w+)\}", path)
+                for method, found in contract["paths"][path].items():
+                    found["parameters"] = [
+                        {"name": name, "in": "path", "required": True, "schema": {"type": "string"}} for name in names
+                    ]
+                    if method == "get":
+                        found["parameters"] += [
+                            {"name": "limit", "in": "query", "required": False,
+                             "schema": {"type": "integer", "minimum": 1, "maximum": 100, "default": 20}},
+                            {"name": "offset", "in": "query", "required": False,
+                             "schema": {"type": "integer", "minimum": 0, "default": 0}},
+                        ]  # fmt: skip
             info = meta["entities"].get(relation["parent"])
             if info is not None:
                 info.setdefault("links", []).append(

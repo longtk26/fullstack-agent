@@ -254,6 +254,17 @@ class FormFieldReference(SpecModel):
     page_size: int | None = Field(default=None, ge=1, le=200)
 
 
+class FormFieldUpload(SpecModel):
+    """Epic 22 (app flow only, Story 22.7): a file or image uploaded through the storage plugin's presigned URL."""
+
+    presign: str = Field(pattern=OPERATION_ID)
+    entity: str = Field(max_length=63)
+    field: str = Field(max_length=63)
+    kind: Literal["file", "image"] = "file"
+    accept: list[str] = []
+    max_size: int | None = Field(default=None, ge=1)
+
+
 class FormField(SpecModel):
     name: str = Field(pattern=IDENTIFIER, max_length=63)
     type: FormFieldType = "string"
@@ -271,6 +282,8 @@ class FormField(SpecModel):
     currency: str | None = Field(default=None, pattern=r"^[A-Z]{3}$")
     unit: str | None = Field(default=None, max_length=12)
     reference: FormFieldReference | None = None  # Story 22.6: a picker instead of an id input
+    upload: FormFieldUpload | None = None  # Story 22.7: an upload instead of a key input
+    transition: bool | None = None  # Story 22.7: an enum limited to the record's `transition:<STATE>` actions
 
 
 class OnSuccess(SpecModel):

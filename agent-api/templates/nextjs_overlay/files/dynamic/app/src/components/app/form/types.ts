@@ -1,4 +1,4 @@
-import type { TFormField } from "../app";
+import type { TFormField, TRecord } from "../app";
 
 export { enumLabel } from "../app";
 
@@ -10,4 +10,6 @@ export type TFieldProps = {
   onChange: (value: unknown) => void;
   onBlur?: () => void;
   invalid: boolean;
+  /** The record an edit form loaded (Story 22.7: its `allowedActions` and file URLs). */
+  record?: TRecord;
 };

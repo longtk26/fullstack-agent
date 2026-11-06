@@ -76,6 +76,11 @@ class Config(BaseSettings):
     # the BackendSpec and code builds the screens on the app kit; `legacy`: designed pages as for static sites.
     # Static sites always use their own flow.
     dynamic_frontend: Literal["legacy", "app"] = "legacy"
+    # Story 22.7 (decision P8): AUTH_TOKEN_STORAGE of dynamic frontend previews (local | cookie)
+    preview_auth_token_storage: Literal["local", "cookie"] = "local"
+    # Whether run_validation runs a generated backend's own pytest suite (the `tests` check). Off: the check runs the
+    # smoke calls only (every contract scenario against the running app), which is most of what the tests prove.
+    backend_tests: bool = False
     gemini_api_thinking_budget: int | None = None
     gemini_api_max_output_tokens: int = 65536
     gemini_api_timeout_seconds: int = 600

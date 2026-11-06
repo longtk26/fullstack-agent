@@ -29,6 +29,7 @@ import { allowed, pageHref, resolveParams, type TAppAction, type TRecord, type T
 import { useOperationMutation } from "./bindings";
 import { AppFormBody } from "./AppForm";
 import { errorMessage } from "./errors";
+import { PayAction } from "./plugins";
 
 /** A mutation action: confirms first when it says so, opens its form in a dialog when it has one (Story 22.3). */
 function useAction(action: TAppAction, record: TRecord | undefined, onClose?: () => void) {
@@ -46,7 +47,7 @@ function useAction(action: TAppAction, record: TRecord | undefined, onClose?: ()
 
   function run() {
     mutation.mutate(
-      { params, body: {} },
+      { params, body: action.body ?? {} },
       {
         onSuccess: done,
         onError: (error) => toast.error(errorMessage(action.operationId, error)),
@@ -122,6 +123,11 @@ function useAction(action: TAppAction, record: TRecord | undefined, onClose?: ()
 }
 
 function ActionButton({ action, record }: { action: TAppAction; record?: TRecord }) {
+  if (action.kind === "pay") return <PayAction action={action} record={record} variant={action.variant ?? "default"} />;
+  return <PlainActionButton action={action} record={record} />;
+}
+
+function PlainActionButton({ action, record }: { action: TAppAction; record?: TRecord }) {
   const route = (useParams() ?? {}) as TRouteParams;
   const { start, dialogs, pending } = useAction(action, record);
   const variant = action.variant ?? "outline";
@@ -171,7 +177,8 @@ export function RowActions({ actions, record, label }: { actions: TAppAction[]; 
   const route = (useParams() ?? {}) as TRouteParams;
   const router = useRouter();
   const [chosen, setChosen] = useState<TAppAction | null>(null);
-  const shown = actions.filter((action) => allowed(record, action));
+  // a payment leaves the page for the checkout: on the record's page, not in a row menu
+  const shown = actions.filter((action) => action.kind !== "pay" && allowed(record, action));
   if (shown.length === 0) return null;
   return (
     <>

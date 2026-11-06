@@ -42,6 +42,7 @@ async function settle() {
 
 async function step(name, run) {
   problems = [];
+  refusedByRule = false;
   let error = null;
   try {
     await run();
@@ -51,9 +52,11 @@ async function step(name, run) {
   } catch (caught) {
     error = String(caught.message || caught).split("\n")[0].slice(0, 200);
   }
+  if (refusedByRule) problems = problems.filter((problem) => !problem.includes("→ 409"));
   const failed = Boolean(error) || problems.length > 0;
-  results.push({ step: name, ok: !failed, error, problems: [...problems] });
-  console.log(`${failed ? "FAIL" : "ok  "} ${name}${error ? ` — ${error}` : ""}${problems.length ? ` — ${problems.join("; ")}` : ""}`);
+  results.push({ step: name, ok: !failed, error, problems: [...problems], ...(refusedByRule ? { refusedByRule } : {}) });
+  const note = refusedByRule ? " (refused by a rule, as the API does)" : "";
+  console.log(`${failed ? "FAIL" : "ok  "} ${name}${note}${error ? ` — ${error}` : ""}${problems.length ? ` — ${problems.join("; ")}` : ""}`);
   if (failed && shots) await page.screenshot({ path: `${shots}/fail-${results.length}.png`, fullPage: true }).catch(() => {});
 }
 
@@ -106,12 +109,34 @@ async function submitForm(formId) {
   const writes = page.waitForResponse((r) => r.request().method() !== "GET" && r.request().resourceType() === "fetch", { timeout: 10000 });
   await page.locator('form button[type="submit"]').last().click();
   const response = await writes;
+  if (response.status() === 409 && RULE_CODES.has((await response.json().catch(() => ({})))?.error?.code)) {
+    refusedByRule = true; // a rule's refusal (a full workshop) is the app working: noted, not failed
+    return;
+  }
   if (response.status() >= 300) throw new Error(`${response.request().method()} → ${response.status()}`);
+}
+
+const RULE_CODES = new Set(["CAPACITY_REACHED", "DUPLICATE", "OVERLAP", "INVALID_TRANSITION", "RESOURCE_LOCKED"]);
+let refusedByRule = false;
+
+// 0. Story 22.7: an app with sign-in is walked as the demo account whose role the most operations allow
+if (app.auth) {
+  const count = (role) => Object.values(app.access ?? {}).filter((rule) => !rule.roles || rule.roles.includes(role)).length;
+  const user = [...app.auth.demoUsers].sort((a, b) => count(b.role) - count(a.role))[0];
+  await step(`sign in as ${user.login}`, async () => {
+    await page.goto(base + app.auth.signIn, { waitUntil: "domcontentloaded" });
+    await settle();
+    await page.locator(`[id="auth_login-${app.auth.loginField}"]`).fill(user.login);
+    await page.locator('[id="auth_login-password"]').fill(app.auth.password ?? "");
+    await page.locator('form button[type="submit"]').click();
+    await page.waitForURL((url) => url.pathname !== app.auth.signIn, { timeout: 10000 });
+  });
 }
 
 // 1. Pages without route parameters
 for (const [id, p] of Object.entries(app.pages)) {
   if (p.route.includes("[")) continue;
+  if (id === "login" || id === "register" || id.startsWith("payments-")) continue; // their own walk (plugin-walk.mjs)
   await step(`open ${p.route}`, () => page.goto(base + p.route, { waitUntil: "domcontentloaded" }));
 }
 
@@ -145,6 +170,14 @@ for (const [id, p] of lists) {
     const detail = Object.values(app.pages).find((d) => d.route === pageRoutes[view.page]);
     for (const action of detail?.sections[0]?.content?.actions ?? []) {
       if (action.kind === "link" && action.id === "edit") {
+        await page.goto(record, { waitUntil: "domcontentloaded" });
+        await settle();
+        if ((await page.locator('[data-bga-action="edit"]').count()) === 0) {
+          // the record does not allow it now (a cancelled booking is locked): its allowedActions say so
+          results.push({ step: `${p.route}: edit and save a record`, ok: true, skipped: true });
+          console.log(`skip ${p.route}: edit (not allowed for this record now)`);
+          continue;
+        }
         await step(`${p.route}: edit and save a record`, async () => {
           await page.goto(record, { waitUntil: "domcontentloaded" });
           await settle();
@@ -171,6 +204,14 @@ for (const [id, p] of lists) {
           await submitForm(action.form);
         });
       } else if (action.kind === "mutation" && !action.form && action.id !== "delete") {
+        // an action the record does not allow now (a transition from another state) is not on the page
+        await page.goto(record, { waitUntil: "domcontentloaded" });
+        await settle();
+        if ((await page.locator(`[data-bga-action="${action.id}"]`).count()) === 0) {
+          results.push({ step: `${p.route}: record action ${action.id}`, ok: true, skipped: true });
+          console.log(`skip ${p.route}: record action ${action.id} (not allowed for this record now)`);
+          continue;
+        }
         await step(`${p.route}: record action ${action.id}`, async () => {
           await page.goto(record, { waitUntil: "domcontentloaded" });
           await settle();
@@ -220,8 +261,25 @@ for (const [id, p] of lists) {
     await step(`${p.route}: delete a record from its row menu`, async () => {
       await page.goto(base + p.route, { waitUntil: "domcontentloaded" });
       await settle();
-      await page.locator('button[aria-label^="Actions for"]').last().click();
-      await page.locator('[role="menuitem"][data-bga-action="delete"]').click();
+      // the last row whose menu offers delete (a locked record, a cancelled booking, offers none)
+      const menus = page.locator('button[aria-label^="Actions for"]');
+      let found = false;
+      for (let tried = 0; !found && tried < (await menus.count()); tried += 1) {
+        const index = (await menus.count()) - 1 - tried; // counted again: a row's menu goes when it locks
+        if (index < 0) break;
+        const opened = await menus.nth(index).click({ timeout: 5000 }).then(() => true, () => false);
+        if (!opened) continue;
+        await page.locator('[role="menu"]').waitFor({ timeout: 5000 }); // opened before its items are counted
+        const item = page.locator('[role="menuitem"][data-bga-action="delete"]');
+        if (await item.count()) {
+          await item.click();
+          found = true;
+        } else {
+          await page.keyboard.press("Escape");
+          await page.locator('[role="menu"]').waitFor({ state: "hidden", timeout: 5000 }); // closed before the next opens
+        }
+      }
+      if (!found) throw new Error("no row offers delete");
       const writes = page.waitForResponse((r) => r.request().method() === "DELETE", { timeout: 10000 });
       await page.getByRole("alertdialog").getByRole("button").last().click();
       const response = await writes;

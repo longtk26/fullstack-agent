@@ -180,6 +180,10 @@ DRAFT_FIXTURES = [
         },
     ),
 ]
+# Story 22.7: an app with every plugin's frontend (auth, roles, rules, uploads, payments, links); app flow only.
+DRAFT_FIXTURES.append(
+    ("workshop", {"backend": ["specs/workshop-bookings.json"], "app": ["specs/workshop-bookings.json"]})
+)
 DRAFT_DEFAULTS = {
     "backend": ["specs/two-entity.json"],
     "static": ["frontend-specs/static-landing.json"],
@@ -192,6 +196,7 @@ DRAFT_DEFAULTS = {
 APP_OUTLINE_FIXTURES = {
     "specs/flashcards.json": "app-outlines/flashcards.json",
     "specs/two-entity.json": "app-outlines/project-tracker.json",
+    "specs/workshop-bookings.json": "app-outlines/workshop-bookings.json",
 }
 
 
@@ -253,12 +258,19 @@ def write_draft_fixture(workdir: Path) -> list[str]:
         written, picked = ["backend-spec.json"], "the imported site"
     else:
         text = next((p.read_text() for p in (inputs / "requirement.md", inputs / "requirement.txt") if p.is_file()), "")
+        app = request.get("flow") == "app"  # Epic 22: the BackendSpec and an app outline, no FrontendSpec
+        wanted = ("app", mode) if app else (mode,)  # a fixture made for the app flow only (Story 22.7) has "app"
         files = next(
-            (by_mode[mode] for keyword, by_mode in DRAFT_FIXTURES if keyword in text.lower() and mode in by_mode),
+            (
+                by_mode[key]
+                for keyword, by_mode in DRAFT_FIXTURES
+                if keyword in text.lower()
+                for key in wanted
+                if key in by_mode
+            ),
             DRAFT_DEFAULTS[mode],
         )
         written = []
-        app = request.get("flow") == "app"  # Epic 22: the BackendSpec and an app outline, no FrontendSpec
         for name in files:
             target = "frontend-spec.json" if name.startswith("frontend-specs/") else "backend-spec.json"
             if app and target == "frontend-spec.json":

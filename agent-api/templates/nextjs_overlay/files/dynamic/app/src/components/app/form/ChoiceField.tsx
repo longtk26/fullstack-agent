@@ -17,8 +17,12 @@ export function choiceStyle(values: string[]): "toggle" | "radio" | "select" {
 }
 
 /** `enum` (Story 22.5): the contract's values, labelled. */
-export function ChoiceField({ field, id, value, onChange, invalid }: TFieldProps) {
-  const values = field.values ?? [];
+export function ChoiceField({ field, id, value, onChange, invalid, record }: TFieldProps) {
+  // Story 22.7: a status under a transition rule offers its current state and the states the record may move to
+  const moves = Array.isArray(record?.allowedActions) ? (record.allowedActions as string[]) : null;
+  const values = (field.values ?? []).filter(
+    (option) => !field.transition || !moves || option === record?.[field.name] || moves.includes(`transition:${option}`),
+  );
   const current = typeof value === "string" ? value : undefined;
   const label = field.label ?? field.name;
   switch (choiceStyle(values)) {

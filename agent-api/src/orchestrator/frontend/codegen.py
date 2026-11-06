@@ -325,7 +325,18 @@ def filter_options(contract: dict[str, Any] | None) -> dict[str, dict[str, list[
     return options
 
 
-def bindings_ts(contract: dict[str, Any] | None) -> str:
+# Epic 22 (apps only, so static output stays as it is): one call of an operation outside a hook (Story 22.7: a
+# payment followed until it settles).
+APP_FETCH = (
+    "/** One call of an operation outside a hook (a payment followed until it settles). */\n"
+    "export function fetchOperation(operationId: string, params: TParams): Promise<unknown> {\n"
+    "  const fetcher = fetchers[operationId];\n"
+    "  return fetcher ? fetcher(params) : Promise.reject(new Error(`Unknown operation: ${operationId}`));\n"
+    "}\n\n"
+)
+
+
+def bindings_ts(contract: dict[str, Any] | None, app: bool = False) -> str:
     """Story 17.4: every operation by `operationId` (fetcher + the same query keys as `queries.ts`), behind two
     generic hooks the section library uses; empty in static mode."""
     ops = _ops(contract) if contract else []
@@ -371,6 +382,7 @@ def bindings_ts(contract: dict[str, Any] | None) -> str:
         + "keys: readonly unknown[]; method: string }> = {\n"
         + "".join(mutations)
         + "};\n\n"
+        + (APP_FETCH if app else "")
         + "/** A data section's records: the operation's response (disabled without an operation). */\n"
         + "export function useOperationQuery(operationId: string | undefined, params: TParams) {\n"
         + "  const known = operationId !== undefined && operationId in fetchers;\n"
@@ -410,6 +422,95 @@ def bindings_ts(contract: dict[str, Any] | None) -> str:
 def _route_order(path: str) -> tuple[tuple[int, str], ...]:
     """Sort key: at each segment a literal sorts before a parameter."""
     return tuple((1 if _PATH_PARAM.fullmatch(segment) else 0, segment) for segment in path.strip("/").split("/"))
+
+
+def mock_plugins(contract: dict[str, Any]) -> dict[str, Any]:
+    """What the mocks need to act as the backend's plugins (Story 22.7, `src/mocks/plugins.ts`): the auth operations and
+    demo users, the rules, the upload fields, the checkout and the many-to-many links. Empty without plugins."""
+    meta = contract.get("x-bga") or {}
+    schemas = (contract.get("components") or {}).get("schemas") or {}
+    operations = contract_operations(contract)
+    out: dict[str, Any] = {"rules": meta.get("rules") or []}
+    auth = meta.get("auth")
+    if auth:
+        role = ((schemas.get("Account") or {}).get("properties") or {}).get("role") or {}
+        out["auth"] = {
+            "login": (auth.get("login") or {}).get("operationId", "auth.login"),
+            "register": "auth.register",
+            "me": "auth.me",
+            "loginField": (auth.get("login") or {}).get("field", "email"),
+            "userEntity": next((name for name in meta.get("fixtures") or {} if name == "User"), "User"),
+            "roles": role.get("enum") or sorted({user["role"] for user in auth.get("demoUsers") or []}),
+            "demoUsers": auth.get("demoUsers") or [],
+        }
+    storage = meta.get("storage")
+    if storage:
+        fields: dict[str, Any] = {}
+        for entity, info in (meta.get("entities") or {}).items():
+            for file in info.get("fileFields") or []:
+                fields[f"{entity}.{file['field']}"] = {"accept": [], "maxSize": None, "urlField": file["urlField"]}
+        for schema in schemas.values():
+            for prop in (schema.get("properties") or {}).values():
+                upload = (prop.get("x-bga") or {}).get("upload")
+                key = f"{(upload or {}).get('entity')}.{(upload or {}).get('field')}"
+                if upload and key in fields:
+                    fields[key] |= {"accept": upload.get("accept") or [], "maxSize": upload.get("maxSize")}
+        out["storage"] = {"presign": storage.get("presign"), "fields": fields}
+    payments = meta.get("payments")
+    if payments:
+        checkout = (operations.get(payments.get("checkout")) or {}).get("operation") or {}
+        nothing = next(
+            (e for e in (checkout.get("x-bga") or {}).get("errors") or [] if e.get("code") == "NOTHING_TO_PAY"), {}
+        )
+        out["payments"] = {
+            "checkout": payments.get("checkout"),
+            "status": payments.get("status"),
+            "entity": payments.get("entity"),
+            "statusField": payments.get("statusField"),
+            "paid": payments.get("paid"),
+            "amountField": (nothing.get("fields") or [None])[0],
+        }
+    links: dict[str, Any] = {}
+    fixtures = meta.get("fixtures") or {}
+    for parent, info in (meta.get("entities") or {}).items():
+        for link in info.get("links") or []:
+            add = (operations.get(link.get("add")) or {}).get("operation") or {}
+            body = ((add.get("requestBody") or {}).get("content") or {}).get("application/json", {}).get("schema", {})
+            child_field = next(iter(resolve(contract, body).get("properties") or {}), "id")
+            rows = fixtures.get(link.get("fixtures")) or []
+            parent_field = next(
+                (key for key in (rows[0] if rows else {}) if key != child_field), f"{to_camel(parent)}Id"
+            )
+            spec = {
+                "parent": parent,
+                "child": link["entity"],
+                "fixtures": link.get("fixtures"),
+                "parentField": parent_field,
+                "childField": child_field,
+                "childLabel": ((meta.get("entities") or {}).get(link["entity"]) or {}).get("labelField"),
+            }
+            for kind in ("list", "add", "remove"):
+                if link.get(kind):
+                    links[link[kind]] = {"kind": kind, **spec}
+    if links:
+        out["links"] = links
+    return out
+
+
+def mock_defaults(contract: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Entity → the values its create request defaults (`status: PENDING`), which the mocks give a new record that
+    leaves them out, as the backend's columns do (Story 22.7)."""
+    out: dict[str, dict[str, Any]] = {}
+    for found in contract_operations(contract).values():
+        meta = found["operation"].get("x-bga") or {}
+        if meta.get("action") != "create" or not meta.get("entity"):
+            continue
+        body = ((found["operation"].get("requestBody") or {}).get("content") or {}).get("application/json", {})
+        properties = resolve(contract, body.get("schema") or {}).get("properties") or {}
+        defaults = {name: prop["default"] for name, prop in properties.items() if prop.get("default") is not None}
+        if defaults:
+            out[meta["entity"]] = defaults
+    return out
 
 
 def mock_operations(contract: dict[str, Any]) -> list[dict[str, Any]]:
@@ -455,6 +556,17 @@ def mock_operations(contract: dict[str, Any]) -> list[dict[str, Any]]:
             "maxLimit": limit.get("maximum", 100),
             "hasFixtures": op.entity in fixtures,
         }
+        # Story 22.7: what the mocks check before answering, as the backend's plugins do
+        meta = op.raw.get("x-bga") or {}
+        if op.raw.get("security"):
+            entry["secured"] = True
+        if meta.get("policy"):
+            entry["policy"] = meta["policy"]
+        if meta.get("errors"):
+            entry["errors"] = [
+                {key: error[key] for key in ("status", "code", "message", "fields") if error.get(key) is not None}
+                for error in meta["errors"]
+            ]
         # Story 22.4: the request checks the API makes, so the mocks answer a bad request as the backend does
         body = ((op.raw.get("requestBody") or {}).get("content") or {}).get("application/json", {}).get("schema")
         if body:
@@ -1239,6 +1351,9 @@ def generated_files(plan: dict[str, Any], spec: dict[str, Any], contract: dict[s
                 (contract.get("x-bga") or {}).get("entities") or {}, indent=2, ensure_ascii=False
             )
             + "\n",
+            # Story 22.7: the plugins' part of the mock API, and the values a new record starts with
+            "src/mocks/plugins.json": json.dumps(mock_plugins(contract), indent=2, ensure_ascii=False) + "\n",
+            "src/mocks/defaults.json": json.dumps(mock_defaults(contract), indent=2, ensure_ascii=False) + "\n",
             "tests/unit/api.test.ts": api_unit_test(contract),
         }
     return dict(sorted(files.items()))

@@ -4,12 +4,16 @@ import data from "@/content/app.json";
 export type TAppAction = {
   id: string;
   label: string;
-  kind: "link" | "mutation";
+  /** Story 22.7: `pay` starts the payments plugin's checkout. */
+  kind: "link" | "mutation" | "pay";
   page?: string;
   params?: Record<string, unknown>;
   operationId?: string;
   form?: string;
   confirm?: string | boolean;
+  /** Story 22.7: a fixed request body (a transition: `{status: "CONFIRMED"}`) and the `allowedActions` entry it needs. */
+  body?: Record<string, unknown>;
+  allow?: string;
   variant?: "default" | "outline" | "secondary" | "ghost" | "destructive";
   onSuccess?: { toast?: string; navigate?: string };
 };
@@ -28,7 +32,10 @@ export type TAppContent = {
   actions?: TAppAction[];
   create?: TAppLink;
   tab?: string;
-  variant?: "recent" | "summary";
+  variant?: "recent" | "summary" | "signIn" | "signUp" | "success" | "cancel";
+  /** Story 22.7 (`AppLinks`): link a record (a picker on the linked entity's list) and unlink one. */
+  add?: { operationId: string; field: string; reference: NonNullable<TFormField["reference"]> };
+  remove?: { operationId: string; param: string };
   kind?: "figure" | "bar" | "line" | "area" | "pie";
   groupBy?: string;
   fn?: string;
@@ -66,7 +73,9 @@ export type TFieldType =
   | "reference"
   | "summary"
   | "list"
-  | "object";
+  | "object"
+  | "image"
+  | "file";
 
 export type TAppEntity = {
   label: string;
@@ -77,7 +86,7 @@ export type TAppEntity = {
   detailFields: string[];
   fieldLabels: Record<string, string>;
   help: Record<string, string>;
-  fields: Record<string, { type: TFieldType; values?: string[] }>;
+  fields: Record<string, { type: TFieldType; values?: string[]; urlField?: string }>;
   references: Record<string, { summary: string; entity: string; href?: string | null }>;
   detail?: string | null;
   list?: string | null;
@@ -112,6 +121,10 @@ export type TFormField = {
     limitParam?: string;
     pageSize?: number;
   };
+  /** Story 22.7: a file or image uploaded through the storage plugin's presigned URL; the form sends its key. */
+  upload?: { presign: string; entity: string; field: string; kind?: "file" | "image"; accept?: string[]; maxSize?: number };
+  /** Story 22.7: an enum limited to the states the record may move to (`transition:<STATE>` in `allowedActions`). */
+  transition?: boolean;
 };
 
 export type TAppForm = {
@@ -124,6 +137,21 @@ export type TAppForm = {
 };
 
 export type TAppError = { status: number; code: string; message: string; fields?: string[] };
+
+/** Story 22.7: how the app signs in (auth-jwt). */
+export type TAppAuth = {
+  login: { operationId: string; path: string };
+  register: { operationId: string; path: string | null };
+  me: { operationId: string; path: string };
+  loginField: string;
+  signIn: string;
+  signUp: string | null;
+  demoUsers: { login: string; role: string }[];
+  password: string | null;
+};
+
+/** Story 22.7: who may call an operation: signed in, and the roles of a role policy. */
+export type TAccess = { secured: boolean; roles?: string[] };
 
 export type TApp = {
   name: string;
@@ -138,6 +166,8 @@ export type TApp = {
   entities: Record<string, TAppEntity>;
   forms: Record<string, TAppForm>;
   errors: Record<string, TAppError[]>;
+  auth: TAppAuth | null;
+  access: Record<string, TAccess>;
 };
 
 export type TRecord = Record<string, unknown> & { id?: unknown; allowedActions?: string[] };
@@ -146,9 +176,13 @@ export type TRouteParams = Record<string, string | string[] | undefined>;
 /** The app's screens (`src/content/app.json`, generated from the FrontendSpec). */
 export const app = data as unknown as TApp;
 
-/** `$route.<name>` and `$record.<field>` become the route's parameter and the record's value. */
+/** `$route.<name>`, `$record.<field>` and `$query.<name>` become the route's parameter, the record's value and the
+ *  address's query parameter. */
 export function resolveValue(value: unknown, route: TRouteParams, record?: TRecord): unknown {
   if (typeof value !== "string") return value;
+  if (value.startsWith("$query.")) {
+    return typeof window === "undefined" ? undefined : (new URLSearchParams(window.location.search).get(value.slice(7)) ?? undefined);
+  }
   if (value.startsWith("$route.")) {
     const found = route[value.slice("$route.".length)];
     return Array.isArray(found) ? found[0] : found;
@@ -178,7 +212,8 @@ export function pageHref(page: string, params: Record<string, unknown> = {}, rou
  *  that only show a record are always allowed; records without the list allow everything. */
 export function allowed(record: TRecord | undefined, action: TAppAction): boolean {
   const list = record?.allowedActions;
-  if (!Array.isArray(list)) return true;
+  if (!Array.isArray(list)) return !action.allow; // a transition or a payment needs the record to allow it
+  if (action.allow) return list.includes(action.allow);
   if (action.kind === "link") return action.id !== "edit" || list.includes("update");
   if (action.id === "delete") return list.includes("delete");
   return action.operationId ? list.includes(action.operationId) || list.includes(action.id) : true;
@@ -188,6 +223,28 @@ export function allowed(record: TRecord | undefined, action: TAppAction): boolea
 export function enumLabel(value: string): string {
   const words = value.replace(/_/g, " ").toLowerCase();
   return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/** The signed-in user as the kit sees them (Story 22.7; `enabled: false` without the auth plugin). */
+export type TSession = {
+  enabled: boolean;
+  ready: boolean;
+  user: (TRecord & { role?: string }) | null;
+};
+
+/** Whether this user may call an operation (Story 22.7): anyone without auth or for an open operation; a signed-in
+ *  user for a secured one; one of its roles for a role policy. The backend decides again; this only hides. */
+export function canUse(operationId: string | undefined, session: TSession): boolean {
+  const rule = operationId ? app.access?.[operationId] : undefined;
+  if (!rule || !session.enabled) return true;
+  if (!session.user) return false;
+  return !rule.roles?.length || rule.roles.includes(String(session.user.role));
+}
+
+/** The operation a page stands on: its first section's binding or form. */
+export function pageOperation(pageId: string): string | undefined {
+  const section = app.pages[pageId]?.sections[0];
+  return section?.data?.operationId ?? (section?.form ? app.forms[section.form]?.operationId : undefined);
 }
 
 export function fieldLabel(entity: TAppEntity | undefined, field: string): string {

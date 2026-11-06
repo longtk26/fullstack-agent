@@ -326,7 +326,12 @@ def test_dynamic_generation_runs_contract_backend_and_frontend_lanes(client, hea
     assert manifest["artifacts"]["contract"] == artifacts["contract.json"]["artifactId"]
     assert manifest["artifacts"]["frontend"] == artifacts["frontend.zip"]["artifactId"]
     assert manifest["frontend"]["mode"] == "dynamic" and len(manifest["frontend"]["routes"]) == 5
-    assert manifest["frontend"]["contractSha256"] and manifest["frontend"]["env"] == ["MOCK_TEST_API", "API_BASE_URL"]
+    assert manifest["frontend"]["contractSha256"] and manifest["frontend"]["env"] == [
+        "MOCK_TEST_API",
+        "API_BASE_URL",
+        "API_INTERNAL_URL",  # Story 22.7
+        "AUTH_TOKEN_STORAGE",
+    ]
 
     stored = events(generation_id)
     lane_changes = [(e.lane, e.status) for e in stored if e.type == "lane.changed"]

@@ -1,10 +1,13 @@
 "use client";
 
-import { notFound } from "next/navigation";
+import { notFound, usePathname, useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { app, type TAppSection } from "./app";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { app, canUse, pageOperation, type TAppSection } from "./app";
 import { AppSection } from "./AppSection";
+import { useSession } from "./plugins";
 
 type AppPageProps = {
   pageId: string;
@@ -31,7 +34,27 @@ function blocks(sections: TAppSection[]): TBlock[] {
  *  list or the record as the page heading, figures in a grid, a parent's children in tabs. */
 export function AppPage({ pageId }: AppPageProps) {
   const page = app.pages[pageId];
+  const session = useSession();
+  const router = useRouter();
+  const pathname = usePathname();
+  // Story 22.7: a page on an operation behind sign-in sends a signed-out user to sign in, and back here after
+  const operation = pageOperation(pageId);
+  const signedOut = session.enabled && session.ready && !session.user && Boolean(operation && app.access?.[operation]);
+  useEffect(() => {
+    if (signedOut && app.auth) router.replace(`${app.auth.signIn}?next=${encodeURIComponent(pathname)}`);
+  }, [signedOut, router, pathname]);
   if (!page) notFound();
+  if (session.enabled && (!session.ready || signedOut)) return null;
+  if (session.enabled && operation && !canUse(operation, session)) {
+    return (
+      <Empty className="mx-auto max-w-md">
+        <EmptyHeader>
+          <EmptyTitle>Not for your role</EmptyTitle>
+          <EmptyDescription>Your account cannot open {page.title.toLowerCase()}.</EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    );
+  }
   const firstList = page.sections.find((s) => s.component === "AppList" && !s.content?.tab && s.content?.variant !== "recent");
   const hasHeading = page.sections.some((s) => s.component === "AppDetail" || s.component === "AppForm") || Boolean(firstList);
 

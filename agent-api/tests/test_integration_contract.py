@@ -246,5 +246,6 @@ def test_a_form_shown_where_the_parent_is_unknown_keeps_its_field():
 def test_the_mocks_present_records_like_the_backend():
     handlers = (OVERLAY / "dynamic" / "src" / "mocks" / "handlers.ts").read_text()
     assert 'import entities from "./entities.json";' in handlers
-    assert "present(op.entity, found)" in handlers and "present(op.entity, created)" in handlers
-    assert ".map((item) => present(op.entity, item))" in handlers
+    # Story 22.7: as the backend, for the user who asks (their allowedActions)
+    assert "present(op.entity, found, user)" in handlers and "present(op.entity, created, user)" in handlers
+    assert ".map((item) => present(op.entity, item, user))" in handlers

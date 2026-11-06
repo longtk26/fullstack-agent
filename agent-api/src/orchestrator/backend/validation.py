@@ -32,6 +32,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from src.configs import config
 from src.sandbox import ExecResult, ISandbox
 
 from .. import tracing
@@ -358,6 +359,8 @@ class SandboxValidationRunner(IValidationRunner):
         return result
 
     async def _tests(self, request: ValidationRequest) -> CheckResult:
+        if not config.backend_tests:
+            return await self._smoke_only(request)
         sandbox, project = request.sandbox, request.project
         missing = missing_tests(request.plan, project, request.required_tests)
         await sandbox.reset_database("app_test")
@@ -387,6 +390,16 @@ class SandboxValidationRunner(IValidationRunner):
                     result.status = "failed"
                     result.output = "\n".join(filter(None, [result.output, smoke.output]))  # the app's log too
         return result
+
+    async def _smoke_only(self, request: ValidationRequest) -> CheckResult:
+        """`BACKEND_TESTS=false`: the generated pytest suite is not run (it stays in the project); the smoke calls
+        check the running app against the contract's scenarios."""
+        skipped = "generated tests not run (BACKEND_TESTS=false)"
+        smoke = await self._smoke(request) if request.smoke_contract is not None else None
+        if smoke is None:
+            return CheckResult(check="tests", status="skipped", summary=skipped)
+        smoke.summary = f"{skipped}; {smoke.summary}"
+        return smoke
 
     async def _smoke(self, request: ValidationRequest) -> CheckResult | None:
         """Story 18.11: each custom operation called once against the seeded database, and since Story 10.0b every

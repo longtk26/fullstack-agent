@@ -151,6 +151,18 @@ form view's `form` metrics in `report.json`.
 | Never an id (Story 22.6) | A parent the page knows comes from the route (hidden); any other is a picker (`form/ReferenceField.tsx`): a combobox on the parent's list showing names, searched on the server when the list has search, the chosen one loaded by its `get`; lists and details show parents by name, never the id | `tests/test_app_pickers.py`; the app walk picks a parent on each edit form |
 | No sideways scroll, nothing clipped | Inputs are `w-full`; every field may shrink below its content (`min-w-0`: a long date truncates in its button, the date-time row shrinks the date, not the time); a clear button sits beside its picker | `overflowX` false in all 36 views; `clipped` (controls past the form's edge, which the card would hide) empty in all 16 form views since 22.6 (it found the date-time row widening the 375 px column); 2–5 type sizes per view |
 
+### Plugins (Story 22.7)
+
+The plugins' screens are the kit's (`templates/plugins/<name>/frontend/files/`), on the same scale and tokens.
+
+| Rule | How the kit keeps it | Checked |
+|---|---|---|
+| Sign-in is one card | Sign-in and sign-up: a centred card (`max-w-sm`) with the form kit, a link to the other, the demo accounts under it; the top bar shows Sign in / Sign up, or the account (initials, e-mail from `sm`, role, Sign out) | `scripts/plugin-walk.mjs`; by review |
+| Only what the user may do | Navigation, sections and "New" a user cannot use are hidden (`app.access`); a page behind sign-in goes to sign-in and back after; a page the role cannot use says so; record actions follow `allowedActions` (a transition shows only from a state it may leave) | `tests/test_app_plugins.py`; the plugin walk |
+| Uploads show what happens | A dashed drop zone (click, keyboard or drop), the size limit, a progress bar while sending, the image's preview, Replace and Remove; a refused type or size says why under the field | the plugin walk (an organizer's cover) |
+| A payment is never a dead end | Pay leaves for the provider and comes back to a card that follows the payment (spinner, then paid, failed or canceled, each with its next step) and links back to the record | the plugin walk (mocks and the fake provider live) |
+| Links are chips | A record's many-to-many links as chips linked to their page, each with its remove button; a picker and Add under them | the plugin walk |
+
 ## Deviations
 
 - **45-character minimum:** a full-width paragraph on a 390 px phone holds about 40 characters at 16 px. The

@@ -1,6 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useMutation } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo } from "react";
 import { Controller, useForm } from "react-hook-form";
@@ -26,13 +27,16 @@ type AppFormBodyProps = {
   params?: Record<string, unknown>;
   onDone?: (result: unknown) => void;
   onCancel?: () => void;
+  /** Story 22.7: sends the form itself (sign-in keeps the token or sets the cookie) instead of its operation. */
+  submit?: (body: Record<string, unknown>) => Promise<unknown>;
+  submitLabel?: string;
 };
 
 /** A form on its operation's request (Story 22.3 writes the fields, Story 22.5 the kit): one input per field kind
  *  (`form/`), the generated Zod schema validates, hidden fields take their route values, short fields share a row when
  *  the form is wide enough; an edit form loads its record, sends only what changed and cannot submit unchanged; server
  *  errors show on their field (else a toast). */
-export function AppFormBody({ formId, params, onDone, onCancel }: AppFormBodyProps) {
+export function AppFormBody({ formId, params, onDone, onCancel, submit, submitLabel }: AppFormBodyProps) {
   const form = app.forms[formId];
   const route = (useParams() ?? {}) as TRouteParams;
   const schema = formSchemas[formId];
@@ -50,7 +54,10 @@ export function AppFormBody({ formId, params, onDone, onCancel }: AppFormBodyPro
     defaultValues: defaults,
   });
   const load = useOperationQuery(form?.load?.operationId, resolveParams(form?.load?.params, route));
-  const mutation = useOperationMutation(form?.operationId);
+  const operation = useOperationMutation(submit ? undefined : form?.operationId);
+  const own = useMutation({ mutationFn: (variables: { body: Record<string, unknown> }) => submit!(variables.body) });
+  const mutation = submit ? own : operation;
+  const record = load.data && typeof load.data === "object" ? (load.data as TValues) : undefined;
 
   useEffect(() => {
     if (load.data && typeof load.data === "object") {
@@ -72,6 +79,7 @@ export function AppFormBody({ formId, params, onDone, onCancel }: AppFormBodyPro
   }
   const visible = form.fields.filter((field) => !field.hidden);
   const names = form.fields.map((field) => field.name);
+  const shownNames = visible.map((field) => field.name);
 
   function onSubmit(values: TValues) {
     const patch = Boolean(form.load);
@@ -88,7 +96,8 @@ export function AppFormBody({ formId, params, onDone, onCancel }: AppFormBodyPro
           onDone?.(result);
         },
         onError: (error) => {
-          const byField = fieldErrors(form.operationId, error, names);
+          // an error on a field the user cannot see (a parent from the route: "the workshop is full") is a toast
+          const byField = fieldErrors(form.operationId, error, shownNames);
           for (const [name, message] of Object.entries(byField)) methods.setError(name, { message });
           if (Object.keys(byField).length === 0) toast.error(errorMessage(form.operationId, error));
         },
@@ -114,6 +123,7 @@ export function AppFormBody({ formId, params, onDone, onCancel }: AppFormBodyPro
                 value={control.value}
                 onChange={control.onChange}
                 onBlur={control.onBlur}
+                record={record}
                 error={fieldState.error?.message}
                 wide={isWide(field.type) || visible.length === 1}
               />
@@ -129,7 +139,7 @@ export function AppFormBody({ formId, params, onDone, onCancel }: AppFormBodyPro
         )}
         <Button type="submit" disabled={mutation.isPending || unchanged} aria-busy={mutation.isPending || undefined}>
           {mutation.isPending && <Spinner data-icon="inline-start" />}
-          {form.submitLabel ?? "Save"}
+          {submitLabel ?? form.submitLabel ?? "Save"}
         </Button>
       </div>
     </form>
@@ -137,7 +147,7 @@ export function AppFormBody({ formId, params, onDone, onCancel }: AppFormBodyPro
 }
 
 /** One field: label (required marked), its input, then its error, else its help. A switch sits beside its label. */
-function FormField({ formId, field, value, onChange, onBlur, error, wide }: {
+function FormField({ formId, field, value, onChange, onBlur, error, wide, record }: {
   formId: string;
   field: TFormField;
   value: unknown;
@@ -145,6 +155,7 @@ function FormField({ formId, field, value, onChange, onBlur, error, wide }: {
   onBlur: () => void;
   error?: string;
   wide: boolean;
+  record?: TValues;
 }) {
   const id = `${formId}-${field.name}`;
   const invalid = Boolean(error);
@@ -161,7 +172,7 @@ function FormField({ formId, field, value, onChange, onBlur, error, wide }: {
     </FieldLabel>
   );
   const note = error ? <FieldError>{error}</FieldError> : field.help ? <FieldDescription>{field.help}</FieldDescription> : null;
-  const input = <FieldInput field={field} id={id} value={value} onChange={onChange} onBlur={onBlur} invalid={invalid} />;
+  const input = <FieldInput field={field} id={id} value={value} onChange={onChange} onBlur={onBlur} invalid={invalid} record={record} />;
   if (field.type === "boolean") {
     return (
       <Field orientation="horizontal" data-invalid={invalid || undefined} className={cn("min-w-0 self-end", wide && "@lg:col-span-2")}>

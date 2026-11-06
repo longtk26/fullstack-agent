@@ -372,7 +372,7 @@ def test_endless_render_loop_component_fails_fast_in_checks_and_render_test():
             shutil.rmtree(root, ignore_errors=True)
 
 
-@pytest.mark.parametrize("name", ["flashcards", "two-entity"])
+@pytest.mark.parametrize("name", ["flashcards", "two-entity", "workshop-bookings"])
 def test_an_app_on_the_kit_builds_and_renders_on_mocks(name):
     """Story 22.4: an app of the dynamic app flow (screens by the planner, sections from the app kit) installs,
     type-checks, builds and serves every route on the mock API, with no engine call."""
@@ -407,7 +407,9 @@ def test_a_planted_mock_mismatch_fails_the_scenarios_check():
     project = REPO / ".data" / "test-sandbox" / uuid.uuid4().hex[:10] / "frontend"
     scaffold_frontend(project, plan, spec, contract)
     handlers = project / "src" / "mocks" / "handlers.ts"
-    planted = handlers.read_text().replace("const refusal = refused(op, body, true);", "const refusal = null;")
+    planted = handlers.read_text().replace(
+        "const refusal = refused(op, body, true) ?? ruleRefusal(op, null, body, records);", "const refusal = null;"
+    )
     assert planted != handlers.read_text()
     handlers.write_text(planted)
     try:

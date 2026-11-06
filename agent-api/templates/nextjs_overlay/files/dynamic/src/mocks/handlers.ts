@@ -1,8 +1,24 @@
 import { http, HttpResponse, type HttpHandler } from "msw";
 import { MOCK_API_BASE } from "@/lib/api/client";
+import columnDefaults from "./defaults.json";
 import entities from "./entities.json";
 import fixtures from "./fixtures.json";
 import operations from "./operations.json";
+import {
+  actionsFor,
+  currentUser,
+  denied,
+  fileUrls,
+  gate,
+  knowParents,
+  pluginOperation,
+  resetSessions,
+  ruleRefusal,
+  scope,
+  stamp,
+  uploadHandlers,
+  type TPluginOperation,
+} from "./plugins";
 
 /** Generic mock API built from the contract (operations.json) and its example records (fixtures.json): lists
  *  honour limit, offset, sort, filters and q; writes change an in-memory store until the page reloads. */
@@ -27,6 +43,10 @@ type TMockOperation = {
   /** Story 22.4: the request's required fields and its references (field → parent entity), checked as the API does. */
   required?: string[];
   references?: Record<string, string>;
+  /** Story 22.7: behind sign-in, the policy (role, ownership) and the contract's errors (codes, messages, fields). */
+  secured?: boolean;
+  policy?: TPluginOperation["policy"];
+  errors?: TPluginOperation["errors"];
 };
 
 type TRecord = Record<string, unknown>;
@@ -40,15 +60,46 @@ type TEntityInfo = {
   children?: { field: string; apiName: string; entity: string; labelField: string | null; primaryKeyField: string }[];
   allowedActions?: string[];
   secretFields?: string[];
+  // Story 22.7: who may do which action (role, owner, a state), and the owner's field
+  actionPolicies?: Record<string, { roles?: string[]; ownerField?: string; bypassRoles?: string[]; unless?: Record<string, unknown> }>;
+  ownerField?: string;
 };
 
-const presentation = entities as Record<string, TEntityInfo>;
+const presentation = entities as unknown as Record<string, TEntityInfo>;
 
 const seed = fixtures as Record<string, TRecord[]>;
-let store: Record<string, TRecord[]> = structuredClone(seed);
+/** Story 22.7: in the browser the mock database lasts the tab's session, not one page load (a record created on one
+ *  page is there on the next; a signed-in user stays signed in), keyed to this app's example data. */
+const SAVED = `bga.mock-store.${JSON.stringify(seed).length}`;
+
+function loadStore(): Record<string, TRecord[]> {
+  try {
+    const saved = typeof sessionStorage === "undefined" ? null : sessionStorage.getItem(SAVED);
+    if (saved) return JSON.parse(saved) as Record<string, TRecord[]>;
+  } catch {
+    // no storage (tests, a private window): from the example data
+  }
+  return structuredClone(seed);
+}
+
+let store: Record<string, TRecord[]> = loadStore();
+
+function saveStore() {
+  try {
+    if (typeof sessionStorage !== "undefined") sessionStorage.setItem(SAVED, JSON.stringify(store));
+  } catch {
+    // full or blocked: the data lasts this page load
+  }
+}
 
 export function resetMockStore() {
   store = structuredClone(seed);
+  resetSessions();
+  try {
+    if (typeof sessionStorage !== "undefined") sessionStorage.removeItem(SAVED);
+  } catch {
+    // nothing saved
+  }
 }
 
 function records(entity: string | null): TRecord[] {
@@ -58,7 +109,7 @@ function records(entity: string | null): TRecord[] {
 }
 
 /** A record as the API answers it: each parent as `{id, label}`, and what can be done to it (Story 10.0b). */
-function present(entity: string | null, record: TRecord): TRecord {
+function present(entity: string | null, record: TRecord, user: TRecord | null = null): TRecord {
   const info = entity ? presentation[entity] : undefined;
   if (!info) return record;
   if (!info.allowedActions) {
@@ -66,7 +117,9 @@ function present(entity: string | null, record: TRecord): TRecord {
     for (const field of info.secretFields ?? []) delete out[field]; // a password hash never leaves the backend
     return out;
   }
-  const out: TRecord = { ...record, allowedActions: [...info.allowedActions] };
+  // Story 22.7: what this user may do to this record (policies, rules), as the backend computes it
+  const out: TRecord = { ...record, allowedActions: actionsFor(entity, info, record, user) };
+  fileUrls(entity, record, out, records);
   for (const field of info.secretFields ?? []) delete out[field]; // a password hash never leaves the backend
   for (const ref of info.references ?? []) {
     const id = record[ref.field];
@@ -111,8 +164,8 @@ function compare(a: unknown, b: unknown): number {
   return String(a).localeCompare(String(b), undefined, { numeric: true });
 }
 
-function list(op: TMockOperation, url: URL, params: Record<string, unknown> = {}) {
-  let items = [...records(op.entity)];
+function list(op: TMockOperation, url: URL, params: Record<string, unknown> = {}, user: TRecord | null = null) {
+  let items = scope(op, user, [...records(op.entity)]);
   // A list scoped by its path (`/fields/:fieldId/reviews`) keeps the records of that parent.
   for (const [name, value] of Object.entries(params)) {
     if (typeof value === "string" && items.some((it) => name in it)) items = items.filter((item) => String(item[name]) === value);
@@ -151,7 +204,7 @@ function list(op: TMockOperation, url: URL, params: Record<string, unknown> = {}
   }
   const limit = Math.min(Number(url.searchParams.get("limit") ?? op.defaultLimit) || op.defaultLimit, op.maxLimit);
   const offset = Number(url.searchParams.get("offset") ?? 0) || 0;
-  const paged = items.slice(offset, offset + limit).map((item) => present(op.entity, item));
+  const paged = items.slice(offset, offset + limit).map((item) => present(op.entity, item, user));
   if (op.envelope === false) {
     return HttpResponse.json(paged);
   }
@@ -193,6 +246,12 @@ function aggregate(
   return Array.from(groups, ([key, group]) => ({ key, value: measure(group) }));
 }
 
+/** Story 22.7: the values a new record starts with when the request leaves them out (`status: PENDING`), as the
+ *  backend's columns default them (`defaults.json`, from the contract's create requests). */
+function defaults(entity: string | null): TRecord {
+  return entity ? { ...((columnDefaults as Record<string, TRecord>)[entity] ?? {}) } : {};
+}
+
 function newId(entity: string | null, primaryKey: string): string | number {
   const existing = records(entity);
   const numeric = existing.length > 0 && typeof existing[0][primaryKey] === "number";
@@ -203,9 +262,16 @@ function handler(op: TMockOperation): HttpHandler {
   const route = `*${MOCK_API_BASE}${op.path}`;
   const method = op.method.toLowerCase() as "get" | "post" | "put" | "patch" | "delete";
   return http[method](route, async ({ request, params }) => {
+    try {
     const url = new URL(request.url);
     const id = params.id ?? params[op.primaryKey];
     const find = () => records(op.entity).find((item) => String(item[op.primaryKey]) === String(id));
+    // Story 22.7: the session, the policy, then a plugin's own operation (auth, presign, checkout, links)
+    const user = currentUser(request, records);
+    const blocked = gate(op, user);
+    if (blocked) return blocked;
+    const own = await pluginOperation(op, request, params as Record<string, unknown>, records);
+    if (own) return own;
     if (op.mock === "aggregate" && op.aggregate) return HttpResponse.json(aggregate(op.aggregate, records(op.entity)));
     const sample = op.sample;
     if (op.action === "list" && op.mock === "sample" && Array.isArray(sample)) {
@@ -214,27 +280,31 @@ function handler(op: TMockOperation): HttpHandler {
       const first = (sample[0] ?? {}) as Record<string, unknown>;
       return HttpResponse.json(rows.length ? rows.map((row) => ({ ...first, ...row })) : sample);
     }
-    if (op.action === "list" || op.mock === "records") return list(op, url, op.action === "list" ? params : {});
+    if (op.action === "list" || op.mock === "records") return list(op, url, op.action === "list" ? params : {}, user);
     if (op.action === "get" || op.mock === "record") {
       const found = find();
-      return found ? HttpResponse.json(present(op.entity, found)) : notFound(op.entity);
+      if (!found) return notFound(op.entity);
+      return denied(op, user, found) ?? HttpResponse.json(present(op.entity, found, user));
     }
     if (op.action === "create" || op.mock === "create") {
       const body = ((await request.json().catch(() => ({}))) || {}) as TRecord;
-      const refusal = refused(op, body, true);
+      const refusal = refused(op, body, true) ?? ruleRefusal(op, null, body, records);
       if (refusal) return refusal;
-      const created = { [op.primaryKey]: newId(op.entity, op.primaryKey), createdAt: new Date().toISOString(), ...body };
+      const created = { [op.primaryKey]: newId(op.entity, op.primaryKey), createdAt: new Date().toISOString(), ...defaults(op.entity), ...body };
+      stamp(op.entity, op.entity ? presentation[op.entity] : undefined, user, created);
       records(op.entity).push(created);
-      return HttpResponse.json(present(op.entity, created), { status: op.status });
+      return HttpResponse.json(present(op.entity, created, user), { status: op.status });
     }
     if (op.action === "update") {
       const current = find();
       if (!current) return notFound(op.entity);
+      const forbidden = denied(op, user, current);
+      if (forbidden) return forbidden;
       const changes = ((await request.json().catch(() => ({}))) || {}) as TRecord;
-      const refusal = refused(op, changes, false);
+      const refusal = refused(op, changes, false) ?? ruleRefusal(op, current, changes, records);
       if (refusal) return refusal;
       Object.assign(current, changes);
-      return HttpResponse.json(present(op.entity, current));
+      return HttpResponse.json(present(op.entity, current, user));
     }
     if (op.mock === "merge") {
       const current = find();
@@ -254,12 +324,19 @@ function handler(op: TMockOperation): HttpHandler {
     if (op.action === "delete") {
       const current = find();
       if (!current) return notFound(op.entity);
+      const refusal = denied(op, user, current) ?? ruleRefusal(op, current, {}, records);
+      if (refusal) return refusal;
       store[op.entity as string] = records(op.entity).filter((item) => item !== current);
       return new HttpResponse(null, { status: 204 });
     }
     console.warn(`[MSW] ${op.operationId} has no mock plan`);
     return HttpResponse.json({ error: { code: "NOT_IMPLEMENTED", message: `${op.operationId} has no mock`, details: null } }, { status: 501 });
+    } finally {
+      if (method !== "get") saveStore(); // a write lasts across page loads (Story 22.7)
+    }
   });
 }
 
-export const handlers: HttpHandler[] = (operations as TMockOperation[]).map(handler);
+for (const op of operations as TMockOperation[]) knowParents(op.references ?? {});
+
+export const handlers: HttpHandler[] = [...uploadHandlers(records, saveStore), ...(operations as TMockOperation[]).map(handler)];

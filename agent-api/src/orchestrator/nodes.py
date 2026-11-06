@@ -241,7 +241,9 @@ def frontend_manifest(plan: dict[str, Any], ctx: JobContext, state: dict[str, An
         ],
         "theme": {key: plan["theme"][key] for key in ("colorScheme", "radius", "density", "fonts")},
         "validation": state.get("frontend_validation") or {},
-        "env": ["MOCK_TEST_API", "API_BASE_URL"] if plan["project"]["mode"] == "dynamic" else [],
+        "env": ["MOCK_TEST_API", "API_BASE_URL", "API_INTERNAL_URL", "AUTH_TOKEN_STORAGE"]
+        if plan["project"]["mode"] == "dynamic"
+        else [],
         "assets": [_manifest_asset(asset) for asset in plan.get("assets", [])],
     }
     if contract.is_file():

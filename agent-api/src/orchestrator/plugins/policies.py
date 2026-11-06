@@ -361,10 +361,16 @@ class PoliciesPlugin(Plugin):
     def router_params(self, plan, module, op) -> list[RouterParam]:
         """The current user, narrowed to one with a role (role policies), and given to the use case when it checks
         ownership, sets the owner or lists the record's actions for the caller."""
-        if module.get("plugin") or not _secured(op) or not _policed(module):
+        if module.get("plugin") or not _policed(module):
             return []
         user = plan["auth"]["entityClass"]
         presents = op.get("action") in ("create", "get", "update", "list") and bool(self.action_checks(plan, module))
+        if not _secured(op):
+            # Story 22.7: a public read of records whose actions depend on the caller: the signed-in user, if any
+            if not presents:
+                return []
+            imports = (("src.libs.security", ("OptionalUserDep",)),)
+            return [RouterParam("current_user", "OptionalUserDep", f"{user} | None", imports, ((ENTITIES, (user,)),))]
         needs = bool(_ownership(op) or op.get("ownerSource") or presents)
         usecase, usecase_imports = (user, ((ENTITIES, (user,)),)) if needs else (None, ())
         if _roles(op):

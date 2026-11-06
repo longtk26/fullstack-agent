@@ -3,6 +3,7 @@
 import { ChoiceField } from "./ChoiceField";
 import { DateField, DateTimeField } from "./DateField";
 import { BooleanField, NumberField, TextAreaField, TextField } from "./InputFields";
+import { UploadField } from "../plugins";
 import { ReferenceField } from "./ReferenceField";
 import type { TFieldProps } from "./types";
 
@@ -10,6 +11,7 @@ import type { TFieldProps } from "./types";
  *  id: a reference is picked by name (Story 22.6). */
 export function FieldInput(props: TFieldProps) {
   if (props.field.reference) return <ReferenceField {...props} />;
+  if (props.field.upload) return <UploadField {...props} />;
   switch (props.field.type) {
     case "date":
       return <DateField {...props} />;

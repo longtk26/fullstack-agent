@@ -19,6 +19,7 @@ detail page lists each child in its own `AppList` (`content.tab`), the dashboard
 | aggregate | a figure or chart on the dashboard (code adds the aggregate operations the outline's dashboard names) |
 """
 
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -32,7 +33,7 @@ from .outline import humanize
 
 SPEC_VERSION = "1.0"
 LIST_CONTROLS = frozenset({"limit", "offset", "sort", "q", "search", "page", "pageSize"})
-SKIPPED_SOURCES = frozenset({"currentUser", "server", "upload"})  # the server sets them (uploads: Story 22.7)
+SKIPPED_SOURCES = frozenset({"currentUser", "server"})  # the server sets them
 RECENT = 5  # records in a dashboard's recent list
 PICKER_PAGE = 50  # records a reference picker loads (searched on the server when the list has search)
 RECENT_LISTS = 2  # entities with a recent list on the dashboard
@@ -297,6 +298,18 @@ class _Screens:
         self.spec_ops = {op["operationId"]: op for op in backend.get("operations") or []}
         self.entities = {entity["name"]: entity for entity in backend.get("entities") or []}
         self.info = ((contract.get("x-bga") or {}).get("entities")) or {}
+        # Story 22.7: the plugins' parts of the contract
+        meta = contract.get("x-bga") or {}
+        self.auth = meta.get("auth")
+        self.payments = meta.get("payments") or {}
+        self.transitions = {
+            rule["entity"]: rule["params"] for rule in meta.get("rules") or [] if rule.get("kind") == "transition"
+        }
+        self.locks = {
+            rule["entity"]: set((rule.get("params") or {}).get("states") or [])
+            for rule in meta.get("rules") or []
+            if rule.get("kind") == "immutableAfter"
+        }
         self.pages: list[dict[str, Any]] = []
         self.forms: list[dict[str, Any]] = []
         self.nav: list[dict[str, Any]] = []
@@ -424,6 +437,15 @@ class _Screens:
                 continue
             if readable and name not in readable:
                 continue
+            if self.payments.get("entity") == entity and name == self.payments.get("statusField"):
+                continue  # the payment's status is the server's (Story 22.7)
+            flow = self.transitions.get(entity) or {}
+            creating = readable is None and op_id == self.crud[entity].get("create")
+            if flow.get("field") == name and creating and name not in required:
+                continue  # a new record starts in the flow's first state; it moves by its transitions
+            if meta.get("source") == "upload":
+                fields.append(self.upload_field(entity, name, meta.get("upload") or {}, name in required, shown))
+                continue
             if name in references or meta.get("source") == "reference":
                 parent = (meta.get("ref") or {}).get("entity") or (references.get(name) or {}).get("entity")
                 picker = self.picker(parent, meta.get("ref") or {})
@@ -445,6 +467,8 @@ class _Screens:
                 )
                 continue
             field = self.form_field(entity, name, resolve(self.contract, prop), name in required, shown)
+            if flow.get("field") == name and readable is not None and field["type"] == "enum":
+                field["transition"] = True  # only the states the record may move to (`transition:<STATE>`)
             initial = prefill(field, resolve(self.contract, prop)) if readable is None else None
             if initial is not None:
                 field["value"] = initial  # a new record starts from the contract's default (status "TODO")
@@ -482,6 +506,111 @@ class _Screens:
             if out.get("unit") and " " in out["label"] and out["label"] == humanize(name):
                 out["label"] = out["label"].rpartition(" ")[0]  # `Duration minutes` → `Duration` with "min" beside it
         return out
+
+    def upload_field(
+        self, entity: str, name: str, upload: dict[str, Any], required: bool, shown: dict[str, Any]
+    ) -> dict[str, Any]:
+        """A file or image field (Story 22.7): uploaded through the storage plugin's presigned URL; the form sends the
+        object's key."""
+        self.place(upload.get("presign"))
+        spec = {
+            key: upload[key] for key in ("presign", "entity", "field", "kind", "accept", "maxSize") if upload.get(key)
+        }
+        field = {
+            "name": name,
+            "type": "string",
+            "label": (shown.get("fieldLabels") or {}).get(name) or humanize(name),
+            "required": required,
+            "upload": {"entity": entity, "field": name, **spec},
+        }
+        help_text = (shown.get("help") or {}).get(name)
+        return field | ({"help": help_text} if help_text else {})
+
+    def auth_form(self, form_id: str, op_id: str, submit: str) -> str | None:
+        """A sign-in or sign-up form on the auth plugin's request (Story 22.7): the account's fields, typed."""
+        properties, required = self.request(op_id)
+        fields = []
+        for name, prop in properties.items():
+            schema = resolve(self.contract, prop)
+            types = schema.get("type") if isinstance(schema.get("type"), list) else [schema.get("type")]
+            enum = [value for value in schema.get("enum") or [] if value is not None]
+            field = {
+                "name": name,
+                "type": input_kind(name, schema, types, None, bool(enum)),
+                "label": "E-mail" if name == "email" else humanize(name),
+                "required": name in required,
+            }
+            if enum:
+                field["values"] = enum
+            if schema.get("maxLength"):
+                field["maxLength"] = schema["maxLength"]
+            fields.append(field)
+        return self.add_form({"id": form_id, "operationId": op_id, "fields": fields, "submitLabel": submit})
+
+    def plugin_pages(self) -> None:
+        """Story 22.7: sign-in and sign-up (auth-jwt) and the checkout's return pages (payments)."""
+        if self.auth:
+            login = (self.auth.get("login") or {}).get("operationId") or "auth.login"
+            for page_id, route, title, variant, op_id, submit in (
+                ("login", "/login", "Sign in", "signIn", login, "Sign in"),
+                ("register", "/register", "Create an account", "signUp", "auth.register", "Create account"),
+            ):
+                if op_id not in self.operations:
+                    continue
+                form = self.auth_form(f"auth_{page_id}", op_id, submit)
+                if form is None:
+                    continue
+                section = {"id": page_id, "component": "AppAuth", "form": form, "content": {"variant": variant}}
+                section["content"]["title"] = title
+                self.page(page_id, route, title, [section])
+            self.place("auth.me")
+        if self.payments.get("checkout") in self.operations:
+            status = self.payments.get("status")
+            for page_id, route, title, variant in (
+                ("payments-success", "/payments/success", "Payment", "success"),
+                ("payments-cancel", "/payments/cancel", "Payment", "cancel"),
+            ):
+                section = {
+                    "id": page_id,
+                    "component": "AppPayment",
+                    "data": {"operationId": status, "params": {"paymentId": "$query.payment"}},
+                    "content": {"variant": variant, "title": title, "entity": self.payments.get("entity")},
+                }
+                self.page(page_id, route, title, [section])
+            self.place(status)
+
+    def link_sections(self, entity: str) -> list[dict[str, Any]]:
+        """A record's many-to-many links (Story 22.7, relations): one `AppLinks` tab per linked entity, its chips
+        listed by the link list, added with a picker, removed one by one."""
+        sections = []
+        for link in (self.info.get(entity) or {}).get("links") or []:
+            child, list_op = link.get("entity"), link.get("list")
+            if child not in self.entities or list_op not in self.operations:
+                continue
+            properties, _ = self.request(link.get("add"))
+            field = next(iter(properties), None)
+            ref = ((properties.get(field) or {}).get("x-bga") or {}).get("ref") or {} if field else {}
+            picker = self.picker(child, ref) if field else None
+            content: dict[str, Any] = {"entity": child, "title": self.plural(child), "tab": self.plural(child)}
+            if picker and link.get("add") in self.operations:
+                content["add"] = {"operationId": link["add"], "field": field, "reference": picker}
+                self.place(link["add"])
+            if link.get("remove") in self.operations:
+                content["remove"] = {
+                    "operationId": link["remove"],
+                    "param": re.findall(r"\{(\w+)\}", self.operations[link["remove"]]["path"])[-1],
+                }
+                self.place(link["remove"])
+            sections.append(
+                {
+                    "id": f"{self.slug(child)}-links",
+                    "component": "AppLinks",
+                    "data": {"operationId": list_op, "params": {"id": "$route.id"}},
+                    "content": content,
+                }
+            )
+            self.place(list_op)
+        return sections
 
     def picker(self, parent: str | None, ref: dict[str, Any]) -> dict[str, Any] | None:
         """A reference's picker (Story 22.6): the parent's list (searched with `q` when it has search), its label field
@@ -573,6 +702,35 @@ class _Screens:
                 action["confirm"] = f"{self.op_label(op_id)} this {label.lower()}?"
             self.place(op_id)
             actions.append(action)
+        flow = self.transitions.get(entity) or {}
+        if flow and "update" in crud:  # Story 22.7: a move per state, shown when `transition:<STATE>` is allowed
+            states = [state for targets in (flow.get("transitions") or {}).values() for state in targets]
+            for state in dict.fromkeys(states):
+                move: dict[str, Any] = {
+                    "id": f"transition-{to_kebab(state.lower())}",
+                    "label": f"Mark as {humanize(state).lower()}",
+                    "kind": "mutation",
+                    "operationId": crud["update"],
+                    "params": {"id": record},
+                    "body": {flow["field"]: state},
+                    "allow": f"transition:{state}",
+                    "onSuccess": {"toast": f"{label} {humanize(state).lower()}"},
+                }
+                if state in self.locks.get(entity, set()):
+                    move["confirm"] = f"Mark this {label.lower()} as {humanize(state).lower()}? It cannot change after."
+                actions.append(move)
+        if self.payments.get("entity") == entity and self.payments.get("checkout") in self.operations:
+            actions.append(
+                {
+                    "id": "pay",
+                    "label": "Pay",
+                    "kind": "pay",
+                    "operationId": self.payments["checkout"],
+                    "params": {"recordId": record},
+                    "allow": "pay",
+                }
+            )
+            self.place(self.payments["checkout"])
         if "delete" in crud:
             delete: dict[str, Any] = {
                 "id": "delete",
@@ -802,6 +960,7 @@ class _Screens:
                 )
                 section["content"]["title"] = self.op_label(op_id)
                 sections.append(section)
+        sections += self.link_sections(entity)
         self.page(f"{slug}-id", f"/{slug}/[id]", label, sections)
 
     def collection_sections(self, entity: str) -> list[dict[str, Any]]:
@@ -941,6 +1100,7 @@ class _Screens:
         for entity in self.entities:
             self.entity_pages(entity)
         self.custom_list_pages()
+        self.plugin_pages()
         home = self.outline.get("home") or "dashboard"
         listed = {page["id"] for page in self.pages}
         nav = []
@@ -988,6 +1148,8 @@ def app_frontend_spec(
     pages = screens.build(name)
     navigation = [{"label": item["label"][:60], "page": item["page"]} for item in screens.nav]
     spec = _spec(name, project, theme, app, pages, screens.forms, navigation)
+    if screens.auth and any(page["id"] == "login" for page in pages):  # Story 22.7: the app signs in
+        spec["auth"] = {"signIn": "login", "signUp": "register", "login": "auth.login", "me": "auth.me"}
     for op_id in uncovered_operations(spec, contract):
         found = screens.operations[op_id]
         screens.unresolved.append(

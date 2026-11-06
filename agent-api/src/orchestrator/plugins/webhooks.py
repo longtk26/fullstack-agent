@@ -337,6 +337,8 @@ def _router_files(plan: dict[str, Any]) -> dict[str, str]:
         'ERROR = {"description": "Error envelope: {error: {code, message, details}}"}\n'
         f"EVENTS: tuple[str, ...] = {events if webhooks['outgoing'] else '()'}  # what may be subscribed to\n"
         f"RECEIVERS: dict[str, dict[str, str]] = {receivers!r}  # source → event type → job\n"
+        'EVENT = {"type": "object", "properties": {"id": {"type": "string"}, "type": {"type": "string"}, "data": {}}}\n'
+        'EVENT_BODY = {"requestBody": {"required": True, "content": {"application/json": {"schema": EVENT}}}}\n'
         'SubscriptionId = Annotated[uuid.UUID, Path(alias="subscriptionId")]  # the API\'s camelCase name\n\n\n'
         + alias
         + "class Camel(BaseModel):\n    model_config = ConfigDict(alias_generator=to_camel, "
@@ -412,7 +414,10 @@ def _router_files(plan: dict[str, Any]) -> dict[str, str]:
         text += (
             "\n\n@webhooks_router.post(\n"
             f'    "{source["path"]}",\n    operation_id="webhooks.receive{_name(source["source"])}",\n'
-            "    responses={400: ERROR},\n)\n"
+            "    responses={400: ERROR},\n"
+            # the raw body is read for its signature; its shape is documented, as in the contract (Story 22.7)
+            "    openapi_extra=EVENT_BODY,\n"
+            ")\n"
             f"async def receive_{to_snake(source['source'])}(request: Request, session: SessionDep) -> dict:\n"
             f'    """{source["source"]}\'s signed events: one job per new event id, of its type."""\n'
             "    body = await request.body()\n"

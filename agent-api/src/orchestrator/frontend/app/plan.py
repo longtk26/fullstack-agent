@@ -9,17 +9,28 @@ from src.modules.shared.domain.frontend_spec.app import APP_SECTIONS
 
 from ..planner import _UI_IMPORT, FRONTEND_PLAN_VERSION, _Planner, primitive_closure
 from ..theme import build_theme
+from .files import frontend_plugins
 
 KIT_ROOT = Path(__file__).resolve().parents[4] / "templates" / "nextjs_overlay" / "files" / "dynamic" / "app"
 SHELL_FILE = "src/components/layout/SiteShell.tsx"  # the overlay's app shell, under the name the root layout imports
 ALWAYS_PRIMITIVES = ("button", "skeleton", "sonner", "separator")
 
 
-def kit_primitives(kit: Path = KIT_ROOT) -> list[str]:
-    """The shadcn primitives the app kit imports (it is copied whole), with what they import."""
+PLUGINS_ROOT = Path(__file__).resolve().parents[4] / "templates" / "plugins"
+
+
+def plugin_frontend(name: str) -> Path:
+    """Story 22.7: a plugin's frontend files (`templates/plugins/<name>/frontend/files/`), copied for apps using it."""
+    return PLUGINS_ROOT / name / "frontend" / "files"
+
+
+def kit_primitives(kit: Path = KIT_ROOT, plugins: list[str] | None = None) -> list[str]:
+    """The shadcn primitives the app kit imports (it is copied whole) and its plugins' files, with what they import."""
     wanted = set(ALWAYS_PRIMITIVES)
-    for path in sorted(kit.rglob("*.ts*")):
-        wanted |= set(_UI_IMPORT.findall(path.read_text()))
+    roots = [kit, *(plugin_frontend(name) for name in plugins or [])]
+    for root in roots:
+        for path in sorted(root.rglob("*.ts*")):
+            wanted |= set(_UI_IMPORT.findall(path.read_text()))
     return primitive_closure(wanted)
 
 
@@ -71,10 +82,10 @@ def plan_app(spec: dict[str, Any], contract: dict[str, Any]) -> dict[str, Any]:
         "rendering": "app",
         "rendererGaps": [],
         "trees": False,
-        "app": {"sections": sections, "outline": outline, "nav": app_nav(spec)},
+        "app": {"sections": sections, "outline": outline, "nav": app_nav(spec), "plugins": frontend_plugins(contract)},
         "routes": routes,
         "components": [],
-        "shadcn": kit_primitives(),
+        "shadcn": kit_primitives(plugins=frontend_plugins(contract)),
         "theme": build_theme(spec["theme"]),
         "data": planner.data(routes),
         "forms": forms,

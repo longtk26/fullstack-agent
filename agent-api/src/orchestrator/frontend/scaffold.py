@@ -144,6 +144,16 @@ def scaffold_frontend(
             _copy(sources[source], project / target, replacements)
             overlay_files.append(target)
 
+    if rendering == "app":  # Story 22.7: the frontend files of the plugins the app uses
+        from .app.plan import plugin_frontend
+
+        for name in (plan.get("app") or {}).get("plugins") or []:
+            root = plugin_frontend(name)
+            for source in _files(root) if root.is_dir() else []:
+                target = source.relative_to(root).as_posix()
+                _copy(source, project / target, replacements)
+                overlay_files.append(target)
+
     package_path = project / "package.json"
     package = json.loads(package_path.read_text())
     package["name"] = plan["project"]["slug"]

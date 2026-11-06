@@ -57,7 +57,9 @@ def test_no_app_form_shows_an_id_input(name):
         for field in form["fields"]:
             if sources.get(field["name"]) == "reference":
                 assert field.get("hidden") or field.get("reference"), (form["id"], field["name"])
-            assert sources.get(field["name"]) not in ("server", "currentUser", "upload"), (form["id"], field["name"])
+            assert sources.get(field["name"]) not in ("server", "currentUser"), (form["id"], field["name"])
+            if sources.get(field["name"]) == "upload":  # Story 22.7: an upload, never a key typed in
+                assert field.get("upload"), (form["id"], field["name"])
     spec = validate_frontend_spec_data(screens.spec).normalized
     assert not [issue for issue in check_spec_pair(spec, backend) if issue.code == "FE_FIELD_SOURCE"]
 

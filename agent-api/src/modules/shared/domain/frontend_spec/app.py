@@ -21,6 +21,10 @@ APP_SECTIONS: dict[str, str] = {
     "AppForm": "A create or edit form on the operation's request",
     "AppDashboard": "Figures and charts from aggregates, and recent records",
     "AppActions": "Buttons for operations on a record or a collection",
+    # Story 22.7: the plugins' screens (their components live in `templates/plugins/<name>/frontend/files/`)
+    "AppAuth": "Sign-in or sign-up on the auth operations (auth-jwt)",
+    "AppLinks": "A record's many-to-many links: chips, added with a picker and removed (relations)",
+    "AppPayment": "The return from the checkout: the payment's status, polled until it settles (payments)",
 }
 
 
@@ -102,7 +106,7 @@ def is_app_spec(spec: dict[str, Any]) -> bool:
 _APP_ONLY_PROPERTIES = {
     "FrontendSpecV1": ("app",),
     "Project": ("flow",),
-    "FormField": ("help", "currency", "unit", "reference"),
+    "FormField": ("help", "currency", "unit", "reference", "upload", "transition"),
 }
 _APP_ONLY_DEFS = (
     "AppOutline",
@@ -112,6 +116,7 @@ _APP_ONLY_DEFS = (
     "AppLanding",
     "AppHighlight",
     "FormFieldReference",
+    "FormFieldUpload",
 )
 
 

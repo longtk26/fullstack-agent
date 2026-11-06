@@ -26,6 +26,8 @@ from docker.models.containers import Container
 from src.configs import config, get_logger
 from src.sandbox.docker_sandbox import INSTANCE_LABEL, ensure_egress_network, instance_id
 
+from .docker_preview import APP_PORT as BACKEND_PORT
+from .docker_preview import names as backend_names
 from .port import IPreviewRuntime, PreviewError, PreviewHandle, PreviewRequest, PreviewState
 
 logger = get_logger(__name__)
@@ -104,7 +106,8 @@ class DockerFrontendPreviewRuntime(IPreviewRuntime):
 
     @staticmethod
     def _env_key(request: PreviewRequest) -> str:
-        return f"{request.options.get('mockApi', True)}|{request.options.get('apiBaseUrl', '')}"
+        options = request.options
+        return f"{options.get('mockApi', True)}|{options.get('apiBaseUrl', '')}|{config.preview_auth_token_storage}"
 
     def _ensure_image(self, generation_id: str, source_zip: Path) -> str | None:
         tag = names(generation_id)["image"]
@@ -177,7 +180,12 @@ class DockerFrontendPreviewRuntime(IPreviewRuntime):
             environment = {
                 "MOCK_TEST_API": "true" if request.options.get("mockApi", True) else "false",
                 "API_BASE_URL": request.options.get("apiBaseUrl", ""),
+                "AUTH_TOKEN_STORAGE": config.preview_auth_token_storage,  # Story 22.7
             }
+            if request.options.get("apiBaseUrl"):
+                # Story 22.7: the Next server's own calls (sign-in, the `cookie` mode proxy) reach the backend by its
+                # container name on the shared egress network; `API_BASE_URL` is the browser's address
+                environment["API_INTERNAL_URL"] = f"http://{backend_names(request.generation_id)['app']}:{BACKEND_PORT}"
         labels = {**_labels(request.generation_id, "app", mode), "bga.frontend.env": self._env_key(request)}
         ensure_egress_network(self.client)
         last_error: Exception | None = None

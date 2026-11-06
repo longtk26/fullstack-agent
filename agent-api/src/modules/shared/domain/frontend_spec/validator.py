@@ -248,7 +248,7 @@ class _SemanticChecker:
         self._check_journeys()
         self._check_trees()
         self._check_app()
-        if self.spec.auth is not None:
+        if self.spec.auth is not None and self.spec.project.flow != "app":  # Story 22.7: apps sign in
             self._add(C.FE_UNSUPPORTED_FEATURE, "/auth", "Auth pages arrive with Epic 10; 'auth' is ignored", True)
         return self.issues
 

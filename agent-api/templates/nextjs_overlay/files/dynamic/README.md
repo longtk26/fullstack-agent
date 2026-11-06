@@ -6,7 +6,7 @@ client generated from the API contract (`src/lib/api/`).
 
 ```bash
 pnpm install
-cp .env.ex .env.local      # MOCK_TEST_API=true runs against the built-in mock API
+cp .env.example .env.local # MOCK_TEST_API=true runs against the built-in mock API
 pnpm dev                   # http://localhost:3000
 pnpm typecheck && pnpm lint && pnpm test && pnpm build && pnpm test:e2e
 ```
@@ -14,6 +14,10 @@ pnpm typecheck && pnpm lint && pnpm test && pnpm build && pnpm test:e2e
 - `MOCK_TEST_API=true`: requests go to the mock layer (`src/mocks/`, MSW) with the contract's example data.
 - `MOCK_TEST_API=false` and `API_BASE_URL=<backend URL>`: requests go to the backend (it must allow this origin
   in `CORS_ORIGINS`). The values are read at runtime, so switching needs a restart, not a rebuild.
+- Apps with sign-in: `AUTH_TOKEN_STORAGE=local` (default) keeps the token in the browser and sends it as a bearer
+  header; `AUTH_TOKEN_STORAGE=cookie` keeps it in an httpOnly cookie set by the Next server, which forwards the
+  calls (`/api/backend`) and guards pages on the server. **Use `cookie` in production.** On the mock API both keep
+  the session in the browser.
 
 Docker: `docker build -t {{PROJECT_NAME_SLUG}} . && docker run -p 3000:3000 -e MOCK_TEST_API=true {{PROJECT_NAME_SLUG}}`.
 

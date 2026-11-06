@@ -533,7 +533,9 @@ def _module_files(plan: dict[str, Any]) -> dict[str, str]:
             "    size: int = Field(ge=1)\n"
             "    filename: str = Field(min_length=1, max_length=255)\n\n\n"
             "class PresignResponseDto(BaseModel):\n"
-            "    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)\n\n"
+            "    model_config = ConfigDict(\n"
+            "        alias_generator=to_camel,\n        populate_by_name=True,\n"
+            "        json_schema_serialization_defaults_required=True,\n    )\n\n"
             '    key: str\n    upload_url: str\n    method: str = "PUT"\n    headers: dict[str, str]\n'
             "    expires_in: int\n"
         ),

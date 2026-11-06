@@ -20,6 +20,7 @@ os.environ["EXAMPLES_DIR"] = str(Path(__file__).parents[2] / "examples")
 # Epic 21: designed pages are opt-in per test (`monkeypatch.setattr(config, "frontend_trees", True)`), so the draft
 # tests keep counting one engine call per draft.
 os.environ["FRONTEND_TREES"] = "false"
+os.environ["BACKEND_TESTS"] = "true"  # the validation and repair tests exercise the generated pytest suite
 os.environ.setdefault("TEMPLATE_DIR", str(Path(__file__).parents[2] / ".data" / "fastapi-template"))
 # Pin settings a developer's .env may change (the Makefile exports .env into the test process).
 os.environ["DEFAULT_ENGINE"] = "claude_code"

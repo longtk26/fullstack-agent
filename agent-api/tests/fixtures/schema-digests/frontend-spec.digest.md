@@ -137,6 +137,8 @@ type FormField = {
   currency?: string | null;
   unit?: string | null;
   reference?: FormFieldReference | null;
+  upload?: FormFieldUpload | null;
+  transition?: boolean | null;
 };
 
 // Epic 22 (app flow only): a reference picked by its name from the parent's list (`x-bga.ref`).
@@ -148,6 +150,16 @@ type FormFieldReference = {
   searchParam?: string | null;
   limitParam?: string | null;
   pageSize?: number | null;
+};
+
+// Epic 22 (app flow only, Story 22.7): a file or image uploaded through the storage plugin's presigned URL.
+type FormFieldUpload = {
+  presign: string;
+  entity: string;
+  field: string;
+  kind?: "file" | "image";
+  accept?: string[];
+  maxSize?: number | null;
 };
 
 type FormLoad = {

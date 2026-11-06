@@ -13,6 +13,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import {
+  canUse,
+  pageOperation,
   enumLabel,
   app,
   fieldLabel,
@@ -28,6 +30,7 @@ import {
 } from "./app";
 import { filterOptions, useOperationQuery } from "./bindings";
 import { FieldValue } from "./FieldValue";
+import { useSession } from "./plugins";
 import { RowActions } from "./RecordActions";
 
 const PAGE_SIZE = 20;
@@ -161,8 +164,10 @@ function Pager({ page, total, size, onPage }: { page: number; total: number; siz
 
 function CreateLink({ section }: { section: TAppSection }) {
   const route = (useParams() ?? {}) as TRouteParams;
+  const session = useSession();
   const create = section.content?.create;
-  if (!create) return null;
+  // Story 22.7: no "New" for who may not create (signed out, or a role the policy leaves out)
+  if (!create || !canUse(pageOperation(create.page), session)) return null;
   return (
     <Link
       href={pageHref(create.page, resolveParams(create.params, route), route)}

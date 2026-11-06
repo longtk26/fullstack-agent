@@ -493,7 +493,11 @@ def _router(plan: dict[str, Any], payments: dict[str, Any]) -> str:
         '                           session_id="", amount=Decimal(str(amount)), currency=currency,\n'
         "                           success_url=body.success_url if body else None,\n"
         "                           cancel_url=body.cancel_url if body else None)\n"
-        "    checkout_session = get_provider().create_checkout(payment, str(request.base_url))\n"
+        # Story 22.7: behind a proxy (a frontend's `cookie` mode), the address the browser knows this API by
+        '    forwarded = request.headers.get("x-forwarded-host")\n'
+        '    proto = request.headers.get("x-forwarded-proto", request.url.scheme)\n'
+        '    base_url = f"{proto}://{forwarded}/" if forwarded else str(request.base_url)\n'
+        "    checkout_session = get_provider().create_checkout(payment, base_url)\n"
         "    payment.session_id = checkout_session.session_id\n"
         "    session.add(payment)\n    session.commit()\n    session.refresh(payment)\n"
         "    return _dto(payment, checkout_session.url)\n\n\n"
