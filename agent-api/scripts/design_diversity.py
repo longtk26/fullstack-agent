@@ -6,8 +6,8 @@ are, within a draft, across drafts of one brief and across similar businesses. D
     make design-diversity ARGS="--engine claude-code"   # a real engine: costs money, only with the user's yes
     make design-diversity ARGS="--seed 100"        # repeatable direction seeds (100, 101, … per draft)
 
-Static requirements are drafted in static mode, the manifest's `dynamic` ones in dynamic mode (Story 20.4); with
-`--screenshots` a dynamic direction's every page, data pages included, is built and checked on the mock API.
+Requirements are drafted in static mode. (Story 20.4 drafted the manifest's `dynamic` ones in dynamic mode too; since
+Story 22.8 a dynamic app takes the app flow, with no direction cards to compare, so the manifest lists none.)
 
 Drafts run in-process through the worker's `DraftRunner` against the dev database (rows are deleted afterwards).
 AI photos are always off here (`IMAGE_PROVIDER=none`), so a run never calls the image API. Output:

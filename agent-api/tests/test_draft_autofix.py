@@ -228,7 +228,7 @@ def test_draft_with_bad_cta_autofixes_and_succeeds_with_zero_attempts(client, us
     from tests.test_drafting import _create, _run
 
     req_text = "A flashcard app to study decks online"
-    draft_id = _create(client, user_headers, "dynamic", req_text)
+    draft_id = _create(client, user_headers, "static", req_text)  # Story 22.8: dynamic drafts write no pages
 
     bad_frontend = _spec_with_cta(
         "study-detail",
@@ -247,14 +247,13 @@ def test_draft_with_bad_cta_autofixes_and_succeeds_with_zero_attempts(client, us
             },
         ],
     )
-    valid_backend = (EXAMPLES / "specs" / "two-entity.json").read_text()
+    bad_frontend["project"]["mode"] = "static"
 
     scenario = {
         "draft_frontend_spec": [
             FakeStep(
                 write={
                     "frontend-spec.json": json.dumps(bad_frontend),
-                    "backend-spec.json": valid_backend,
                     "notes.json": json.dumps({"assumptions": [], "unresolved": []}),
                 }
             )
@@ -269,73 +268,3 @@ def test_draft_with_bad_cta_autofixes_and_succeeds_with_zero_attempts(client, us
     cta_page = home_page["sections"][0]["content"]["cta"]["page"]
     assert cta_page == "study"
     assert any("a link cannot fill [id]" in a["message"] for a in draft["assumptions"])
-
-
-def test_autofix_repairs_malformed_journey_steps():
-    spec = {
-        "specVersion": "1.0",
-        "project": {"name": "Garden", "mode": "dynamic"},
-        "layout": {"header": {"navigation": []}, "footer": {"links": []}},
-        "theme": {"style": "minimal"},
-        "pages": [
-            {
-                "id": "garden",
-                "route": "/garden",
-                "title": "Garden",
-                "sections": [
-                    {
-                        "id": "garden-items",
-                        "component": "CardGrid",
-                        "content": {"title": "Items", "cardStyle": "outline"},
-                    }
-                ],
-            },
-            {
-                "id": "inspiration",
-                "route": "/inspiration",
-                "title": "Inspiration",
-                "sections": [
-                    {
-                        "id": "daily-quote",
-                        "component": "DetailView",
-                        "content": {
-                            "title": "Daily Quote",
-                            "actions": [{"id": "draw", "label": "Draw", "kind": "link", "page": "inspiration"}],
-                        },
-                    }
-                ],
-            },
-        ],
-        "journeys": [
-            {
-                "id": "explore-garden",
-                "title": "Explore Garden",
-                "steps": [
-                    {"do": "visit", "page": "garden"},
-                    {"do": "action", "section": "garden-items", "values": {"category": "Places"}},
-                    {"do": "open", "section": "garden-items", "record": "first"},
-                    {"do": "expect", "text": "Bamboo Grove"},
-                ],
-            },
-            {
-                "id": "draw-inspiration",
-                "title": "Draw Inspiration",
-                "steps": [
-                    {"do": "visit", "page": "inspiration"},
-                    {"do": "action", "section": "daily-quote", "action": "draw"},
-                    {"do": "expect", "text": "Today's Inspiration"},
-                ],
-            },
-        ],
-    }
-    # Initially invalid
-    initial_val = validate_frontend_spec_data(spec)
-    assert not initial_val.report.valid
-    assert any("Action step requires 'action'" in e.message for e in initial_val.report.errors)
-    assert any("Expect step requires 'section'" in e.message for e in initial_val.report.errors)
-
-    # Autofix clears journeys and heals the spec
-    fixed, notes = autofix_frontend_spec(spec)
-    val = validate_frontend_spec_data(fixed)
-    assert val.report.valid, [f"{e.path}: {e.message}" for e in val.report.errors]
-    assert fixed["journeys"] == []

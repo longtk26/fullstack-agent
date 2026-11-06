@@ -1,5 +1,5 @@
 """Epic 21: aggregate operations written from templates (BackendSpec `type: "aggregate"`), and the bindings that
-tie a designed page's Metric / Chart / collection components to the API or to a static collection."""
+tie a static designed page's Metric / Chart / collection components to a collection."""
 
 import copy
 import json
@@ -7,7 +7,7 @@ import json
 from generation_helpers import EXAMPLES, normalized
 
 from src.modules.shared.domain.backend_spec import validate_spec_data
-from src.modules.shared.domain.frontend_spec.tree_bindings import aggregate_id, bind_tree, derive_operations
+from src.modules.shared.domain.frontend_spec.tree_bindings import bind_tree
 from src.orchestrator.backend.codegen import codegen_gaps, module_files, module_tests
 from src.orchestrator.backend.planner import build_plan
 from src.orchestrator.frontend.codegen import mock_operations
@@ -147,82 +147,11 @@ TREE = {
 }
 
 
-def test_aggregate_ids_follow_one_naming():
-    assert aggregate_id("tasks", "count", None, None) == "task.count"
-    assert aggregate_id("tasks", "sum", "priority", "status") == "task.sumPriorityByStatus"
-    assert aggregate_id("expenses", "avg", "amount", None) == "expense.avgAmount"
-
-
-def test_static_trees_bind_to_collections_and_dynamic_trees_to_the_contract(tmp_path):
+def test_static_trees_bind_to_collections():
     tree = copy.deepcopy(TREE)
-    notes = bind_tree(tree, "static", ["tasks", "projects"], None, {"task": "/tasks/[id]"})
+    notes = bind_tree(tree, ["tasks", "projects"], {"task": "/tasks/[id]"})
     assert notes == [] and tree["children"][0]["binding"] == {"collection": "tasks"}
     assert tree["children"][3]["children"][0]["children"][1]["binding"] == {
         "collection": "tasks",
         "route": "/tasks/[id]",
-    }
-
-    spec = with_aggregates(tmp_path)
-    contract = build_contract(spec)
-    tree = copy.deepcopy(TREE)
-    notes = bind_tree(tree, "dynamic", ["tasks", "projects"], contract, {"task": "/tasks/[id]"})
-    metric, chart, average, browser, detail = tree["children"]
-    assert metric["binding"] == {
-        "collection": "tasks",
-        "operationId": "task.count",
-        "action": "list",
-        "computed": False,
-    }
-    assert chart["binding"]["operationId"] == "task.sumPriorityByStatus" and chart["binding"]["computed"] is False
-    assert average["binding"] == {
-        "collection": "tasks",
-        "operationId": "task.list",
-        "action": "list",
-        "computed": True,
-    }, "no aggregate declared: the browser computes it from the list"
-    assert browser["binding"] == {"collection": "tasks", "operationId": "task.list", "action": "list"}
-    assert browser["children"][1]["binding"] == {
-        "collection": "tasks",
-        "operationId": "task.delete",
-        "action": "delete",
-    }
-    assert detail["binding"]["operationId"] == "project.get"
-    assert detail["children"][0]["binding"] == {
-        "collection": "projects",
-        "operationId": "project.update",
-        "action": "update",
-    }
-    assert notes == []
-
-
-def test_derived_operations_cover_what_the_trees_use():
-    spec = {
-        "pages": [{"route": "/", "tree": TREE}],
-        "content": [{"collection": "tasks", "records": []}, {"collection": "projects", "records": []}],
-    }
-    ops = {op["operationId"]: op for op in derive_operations(spec)}
-    assert set(ops) == {
-        "task.count",
-        "task.sumPriorityByStatus",
-        "task.avgPriority",
-        "task.list",
-        "task.get",
-        "task.delete",
-        "project.get",
-        "project.update",
-    }
-    assert (
-        ops["task.count"]["aggregate"] == {"fn": "count", "period": "month"} and ops["task.count"]["entity"] == "Task"
-    )
-    assert ops["task.sumPriorityByStatus"]["path"] == "/tasks/aggregate/sumPriorityByStatus"
-    assert ops["task.list"] == {
-        "operationId": "task.list",
-        "type": "crud",
-        "action": "list",
-        "entity": "Task",
-        "method": "GET",
-        "path": "/tasks",
-        "pagination": True,
-        "sort": ["priority"],
-        "search": ["title"],
     }

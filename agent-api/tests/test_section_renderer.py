@@ -9,7 +9,7 @@ from src.modules.shared.domain.frontend_spec import frontend_spec_json_schema, v
 from src.orchestrator.frontend.codegen import generated_files
 from src.orchestrator.frontend.component_cache import component_file
 from src.orchestrator.frontend.planner import plan_frontend
-from src.orchestrator.frontend.renderer import REGISTRY_FILE, RENDERED, registry_ts, renderer_gaps, section_props_ts
+from src.orchestrator.frontend.renderer import REGISTRY_FILE, RENDERED, registry_ts, section_props_ts
 from src.orchestrator.frontend.scaffold import OVERLAY_DIR, OWNED_INFO, scaffold_frontend
 from tests.generation_helpers import EXAMPLES
 
@@ -127,7 +127,6 @@ def test_only_what_the_library_can_render_skips_the_engine():
         "about/history: Timeline is a custom component without a propsSchema",
         "contact/form: forms without an operation (static forms)",
     ]
-    assert renderer_gaps({"project": {"mode": "dynamic"}}, [], []) == []  # dynamic mode renders too (17.4)
 
 
 def test_generated_files_hold_the_pages_as_data():
@@ -177,24 +176,24 @@ def test_a_site_gets_only_the_library_sections_it_uses(tmp_path):
 def test_custom_components_are_registered_with_their_fallback_until_resolved(tmp_path):
     from tests.test_frontend_scaffold import inputs
 
-    spec, contract, plan = inputs("shop-dynamic")
+    spec, contract, plan = inputs("shop-static")  # custom components are a static site's (Story 22.8)
     assert plan["rendering"] == "renderer" and plan["customComponents"] == {
         "CartList": {"fallback": "List"},
-        "ProductDetail": {"fallback": "DetailView"},
+        "ProductDetail": {"fallback": "CardGrid"},
         "ProductGrid": {"fallback": "CardGrid"},
     }
     scaffold_frontend(tmp_path, plan, spec, contract)
     registry = (tmp_path / REGISTRY_FILE).read_text()
     assert "  ProductGrid: CardGrid as unknown as TSectionComponent,\n" in registry
-    for name in ("CardGrid", "DetailView", "List"):  # every fallback is in the site from the start
+    for name in ("CardGrid", "List"):  # every fallback is in the site from the start
         assert (tmp_path / "src/components/sections" / f"{name}.tsx").is_file()
     key = "a" * 64
     plan["customComponents"]["ProductGrid"] |= {"key": key, "file": component_file(key), "status": "generated"}
     registry = registry_ts(plan)
     assert f'import ProductGridCustom from "@/components/custom/{key}";\n' in registry
     assert "  ProductGrid: ProductGridCustom as unknown as TSectionComponent,\n" in registry
-    assert 'import { CardGrid } from "@/components/sections/CardGrid";' in registry  # the home page uses it
-    assert "  ProductDetail: DetailView as unknown as TSectionComponent,\n" in registry
+    assert 'import { CardGrid } from "@/components/sections/CardGrid";' in registry  # ProductDetail falls back to it
+    assert "  ProductDetail: CardGrid as unknown as TSectionComponent,\n" in registry
 
 
 # -- Epic 21 designed pages --------------------------------------------------------------------------------------------

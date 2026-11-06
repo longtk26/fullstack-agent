@@ -33,7 +33,7 @@ export type TGenerationOptions = {
   timeoutSeconds?: number | null;
   draftId?: string | null;
   autoGenerate?: boolean | null;
-  frontend?: { runTests: boolean; generatePreview: boolean; mockApi: boolean; manageArea?: boolean } | null;
+  frontend?: { runTests: boolean; generatePreview: boolean; mockApi: boolean } | null;
 };
 
 export type TGeneration = {
@@ -186,10 +186,6 @@ export type TCheckItem = {
   message?: string;
   hint?: string;
   excerpt?: string;
-  journey?: string;
-  journeyTitle?: string;
-  step?: number;
-  do?: string;
   status?: string;
   durationMs?: number;
   live?: boolean;

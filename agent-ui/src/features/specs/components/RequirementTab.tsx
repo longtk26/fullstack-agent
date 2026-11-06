@@ -27,9 +27,10 @@ const COPY: Record<TGenerationMode, { intro: string; placeholder: string; action
     action: "Draft FrontendSpec",
   },
   dynamic: {
-    intro: "Describe the app: its pages, the data behind them and the forms. The draft is a FrontendSpec and its BackendSpec.",
-    placeholder: "A small shop: product catalogue, product detail with an add-to-cart form, a cart and a contact page.",
-    action: "Draft both specs",
+    intro:
+      "Describe the app: what it keeps, who uses it and the rules. The draft is a BackendSpec and an app outline; the screens are built from them.",
+    placeholder: "A pitch booking app: players book a slot and pay, staff confirm or cancel; a pitch is never booked twice.",
+    action: "Draft the app",
   },
 };
 

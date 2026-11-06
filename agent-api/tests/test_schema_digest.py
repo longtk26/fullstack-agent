@@ -30,11 +30,14 @@ def test_schema_digest_frontend_spec_snapshot():
     assert digest == snapshot.read_text(), "FrontendSpec digest changed: review, then rerun with UPDATE_SNAPSHOTS=1"
 
 
-def test_static_and_legacy_drafts_read_the_site_schema_unchanged():
-    """Story 22.1: the schema static and legacy dynamic drafts read leaves out the app flow's fields, so their prompts
-    stay as before Epic 22 (this snapshot is the FrontendSpec digest from before it)."""
+def test_static_drafts_read_the_site_schema_unchanged():
+    """Story 22.1: the schema static drafts read leaves out the app flow's fields, so their prompts stay as before
+    Epic 22 (this snapshot is the FrontendSpec digest from before it, less `journeys`: Story 22.8 removed them with the
+    legacy dynamic flow). `UPDATE_SNAPSHOTS=1` refreshes it, only with a note in the story that changed it."""
     digest = schema_digest(frontend_spec_json_schema(app=False), "FrontendSpec")
     snapshot = FIXTURES / "frontend-spec.site.digest.md"
+    if os.environ.get("UPDATE_SNAPSHOTS"):
+        snapshot.write_text(digest)
     assert digest == snapshot.read_text(), "the site schema changed: static drafting must not change in Epic 22"
 
 

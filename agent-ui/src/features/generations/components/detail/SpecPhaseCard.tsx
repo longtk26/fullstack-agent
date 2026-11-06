@@ -9,7 +9,6 @@ import {
   FileCode2,
   Image as ImageIcon,
   Loader2,
-  MapPin,
   Sparkles,
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -160,7 +159,6 @@ export function SpecPhaseCard({ detail, events }: SpecPhaseCardProps) {
   // 3. COMPLETED / IN-PROGRESS SPEC PHASE SUMMARY (Read-only)
   const pagesCount = Array.isArray(draft?.frontendSpec?.pages) ? draft.frontendSpec.pages.length : null;
   const entitiesCount = Array.isArray(draft?.backendSpec?.entities) ? draft.backendSpec.entities.length : null;
-  const journeysCount = Array.isArray(draft?.frontendSpec?.journeys) ? draft.frontendSpec.journeys.length : null;
   const photosCount = Array.isArray(draft?.frontendSpec?.assets)
     ? draft.frontendSpec.assets.filter((a: { source?: string }) => a?.source === "photo" || a?.source?.startsWith("upload:")).length
     : null;
@@ -200,12 +198,6 @@ export function SpecPhaseCard({ detail, events }: SpecPhaseCardProps) {
             <Badge variant="secondary" className="gap-1 font-normal">
               <FileCode2 className="size-3" />
               {entitiesCount} entities
-            </Badge>
-          )}
-          {journeysCount !== null && (
-            <Badge variant="secondary" className="gap-1 font-normal">
-              <MapPin className="size-3 text-info" />
-              {journeysCount} journeys
             </Badge>
           )}
           {photosCount !== null && photosCount > 0 && (

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from generation_helpers import engine_path, normalized
+from generation_helpers import app_pair, normalized
 from langgraph.checkpoint.memory import InMemorySaver
 from preview_fakes import FakePreviewRuntime
 from test_component_cache import PassingSandboxes
@@ -36,10 +36,11 @@ from workflow_helpers import (
 )
 
 EXAMPLES = Path(__file__).parents[2] / "examples"
-TRACKER_FRONTEND = json.loads((EXAMPLES / "frontend-specs" / "project-tracker-dynamic.json").read_text())
-# Story 17.4: the tracker frontend is rendered without the engine. Tests of the frontend lane's engine path use the
-# shop pair without its components' props schemas (Story 17.3 would render it too).
-SHOP_FRONTEND = engine_path(json.loads((EXAMPLES / "frontend-specs" / "shop-dynamic.json").read_text()))
+# Story 22.8: dynamic frontends are apps, built without the engine; the tracker app without a dashboard keeps the
+# two-entity BackendSpec (and its golden OpenAPI) as it is. A frontend lane that must be slow or fail does so in its
+# validator (`SlowFrontendValidator`, `FailingFrontendValidator`).
+TRACKER_FRONTEND = app_pair("two-entity", dashboard=False)[0]
+SHOP_FRONTEND = app_pair("shop")[0]
 SHOP_BACKEND = json.loads((EXAMPLES / "specs" / "shop.json").read_text())
 GOLDEN_OPENAPI = json.loads((Path(__file__).parent / "fixtures" / "openapi" / "two-entity.golden.json").read_text())
 CANONICAL_CONTRACT = json.loads(dump_contract(build_contract(normalized(EXAMPLES / "specs" / "two-entity.json"))))
@@ -115,6 +116,19 @@ def _artifacts(client, auth: dict, generation_id: str) -> dict[str, dict]:
     return {item["name"]: item for item in items}
 
 
+class SlowFrontendValidator:
+    """The frontend lane's checks take `delay` seconds (the app lane makes no engine call to slow down)."""
+
+    def __init__(self, delay: float):
+        self.delay, self.started = delay, asyncio.Event()
+
+    async def run(self, request) -> ValidationOutcome:
+        self.started.set()
+        await asyncio.sleep(self.delay)
+        result = CheckResult(check="build", status="passed", summary="built")
+        return ValidationOutcome(results=[result], digest="", implicated_files=[])
+
+
 class FailingFrontendValidator:
     """A frontend that never builds (Story 18.13: style findings no longer fail the frontend lane)."""
 
@@ -158,6 +172,7 @@ def test_parallel_lanes_run_concurrently_and_occupy_two_worker_slots(client, hea
     auth = headers()
     generation_id = _submit_dynamic(client, auth, shop=True, deployPreview=False)
     engine = FakeEngine(tmp_path, demo_scenario(delay_s=0.04))
+    frontend_validator = SlowFrontendValidator(0.5)  # the app lane makes no engine call: its checks take the time
     # Simulate a worker with 2 slots where 1 slot is already held by the job loop (`_consume`).
     slots = asyncio.Semaphore(2)
     observed_free_slots: list[int] = []
@@ -168,7 +183,9 @@ def test_parallel_lanes_run_concurrently_and_occupy_two_worker_slots(client, hea
         nonlocal max_parallel_invocations, max_parallel_lanes
         await slots.acquire()  # job's primary slot
         try:
-            async with runner_ctx(tmp_path, engine=engine, worker_slots=slots) as runner:
+            async with runner_ctx(
+                tmp_path, engine=engine, worker_slots=slots, frontend_validator=frontend_validator
+            ) as runner:
                 task = asyncio.create_task(runner.run(generation_id))
                 while not task.done():
                     ctx = runner.active.get(generation_id)
@@ -184,7 +201,7 @@ def test_parallel_lanes_run_concurrently_and_occupy_two_worker_slots(client, hea
     status = asyncio.run(go())
     assert status == "COMPLETED_WITH_WARNINGS"
     assert max_parallel_lanes == 2
-    assert max_parallel_invocations >= 2
+    assert max_parallel_invocations >= 1
     assert 0 in observed_free_slots  # both worker slots were occupied while both lanes ran
     assert slots._value == 2  # all slots released when done
 
@@ -193,9 +210,8 @@ def test_neither_lane_may_modify_canonical_contract(client, headers, tmp_path):
     auth = headers()
     generation_id = _submit_dynamic(client, auth, deployPreview=False)
     steps = demo_scenario(0)
-    # Tamper with .bga/contract.json in both workspaces during engine execution.
+    # Tamper with .bga/contract.json during engine execution (an app's frontend lane runs no engine).
     steps["generate_backend"][0].write[".bga/contract.json"] = '{"tampered": "by_backend"}'
-    steps["generate_frontend"][0].write[".bga/contract.json"] = '{"tampered": "by_frontend"}'
     engine = FakeEngine(tmp_path, steps)
 
     assert run_job(tmp_path, generation_id, engine=engine) == "COMPLETED_WITH_WARNINGS"
@@ -470,16 +486,16 @@ def test_both_lanes_failing_fails_the_job(client, headers, tmp_path):
 def test_cancel_stops_both_parallel_lanes(client, headers, tmp_path):
     auth = headers()
     generation_id = _submit_dynamic(client, auth, shop=True, deployPreview=False)
-    steps = demo_scenario(0)
-    steps["generate_frontend"][0].sleep_s = 2.0
-    engine = _shop_engine(tmp_path, steps, "generate_database", 2.0)
+    engine = _shop_engine(tmp_path, demo_scenario(0), "generate_database", 2.0)
+    frontend_validator = SlowFrontendValidator(2.0)
 
     async def go():
-        async with runner_ctx(tmp_path, engine=engine) as runner:
+        async with runner_ctx(tmp_path, engine=engine, frontend_validator=frontend_validator) as runner:
             task = asyncio.create_task(runner.run(generation_id))
             while not task.done():
                 ctx = runner.active.get(generation_id)
-                if ctx is not None and len(ctx.active_invocations) == 2:
+                busy = ctx is not None and len(ctx.active_invocations) == 1 and frontend_validator.started.is_set()
+                if busy:  # the backend inside an engine call, the frontend inside its checks
                     await runner.cancel(generation_id)
                     break
                 await asyncio.sleep(0.01)
@@ -489,7 +505,7 @@ def test_cancel_stops_both_parallel_lanes(client, headers, tmp_path):
     assert status == "CANCELLED"
     row = generation(generation_id)
     assert row.lanes == {"backend": "SKIPPED", "frontend": "SKIPPED", "integration": "SKIPPED"}
-    assert len([c for c in cli_invocations(generation_id) if c.status == "cancelled"]) == 2
+    assert len([c for c in cli_invocations(generation_id) if c.status == "cancelled"]) == 1
 
 
 def test_resume_restarts_each_parallel_lane_from_its_own_last_completed_node(client, headers, tmp_path):
@@ -497,17 +513,16 @@ def test_resume_restarts_each_parallel_lane_from_its_own_last_completed_node(cli
     generation_id = _submit_dynamic(client, auth, shop=True, deployPreview=False)
     saver = InMemorySaver()
 
-    # First run: worker shuts down while inside generate_backend & generate_frontend.
-    steps_first = demo_scenario(0)
-    steps_first["generate_frontend"][0].sleep_s = 2.0
-    engine_first = _shop_engine(tmp_path, steps_first, "generate_backend", 2.0)
+    # First run: worker shuts down while inside generate_backend & validate_frontend.
+    engine_first = _shop_engine(tmp_path, demo_scenario(0), "generate_backend", 2.0)
+    slow = SlowFrontendValidator(2.0)
 
     async def first_run():
-        async with runner_ctx(tmp_path, engine=engine_first, checkpointer=saver) as runner:
+        async with runner_ctx(tmp_path, engine=engine_first, checkpointer=saver, frontend_validator=slow) as runner:
             task = asyncio.create_task(runner.run(generation_id))
             while not task.done():
                 ctx = runner.active.get(generation_id)
-                if ctx is not None and len(ctx.active_invocations) == 2:
+                if ctx is not None and len(ctx.active_invocations) == 1 and slow.started.is_set():
                     task.cancel()
                     break
                 await asyncio.sleep(0.01)
@@ -517,7 +532,7 @@ def test_resume_restarts_each_parallel_lane_from_its_own_last_completed_node(cli
     asyncio.run(first_run())
     first_succeeded = [run.node for run in node_runs(generation_id) if run.status == "succeeded"]
     assert "plan_architecture" in first_succeeded and "generate_database" in first_succeeded
-    assert "plan_frontend" in first_succeeded and "scaffold_frontend" in first_succeeded
+    assert "plan_frontend" in first_succeeded and "generate_frontend" in first_succeeded
 
     # Second run: resumes from checkpoint; completed nodes in either lane must NOT run again.
     engine_second = FakeEngine(tmp_path, demo_scenario(0))
@@ -532,12 +547,13 @@ def test_resume_restarts_each_parallel_lane_from_its_own_last_completed_node(cli
         "generate_database",
         "plan_frontend",
         "scaffold_frontend",
+        "generate_frontend",
     )
     for completed_early in early_nodes:
         runs = [r for r in all_runs if r.node == completed_early]
         assert len(runs) == 1 and runs[0].status == "succeeded"
     resumed_event = next(e for e in events(generation_id) if e.type == "job.resumed")
-    assert set(resumed_event.payload["nextSteps"]) == {"generate_backend", "generate_frontend"}
+    assert set(resumed_event.payload["nextSteps"]) == {"generate_backend", "validate_frontend"}
 
 
 def test_recheck_and_use_mocks_endpoints_switch_frontend_preview(client, headers, tmp_path):
@@ -715,10 +731,10 @@ def test_live_contract_response_mismatch_and_playwright_smoke_failure_reported_w
         _cleanup_previews(generation_id)
 
 
-def test_corner_shop_dynamic_generation_runs_both_lanes_with_fake_engine(client, headers, tmp_path):
+def test_corner_shop_app_generation_runs_both_lanes_with_fake_engine(client, headers, tmp_path):
     auth = headers()
     shop_spec = json.loads((EXAMPLES / "specs" / "shop.json").read_text())
-    shop_frontend = json.loads((EXAMPLES / "frontend-specs" / "shop-dynamic.json").read_text())
+    shop_frontend = SHOP_FRONTEND
     resp = client.post(
         "/api/v1/generations",
         json={
@@ -739,59 +755,6 @@ def test_corner_shop_dynamic_generation_runs_both_lanes_with_fake_engine(client,
         [(r.node, r.status, r.summary) for r in node_runs(generation_id)],
     )
     assert row.lanes == {"backend": "COMPLETED", "frontend": "COMPLETED", "integration": "SKIPPED"}
-
-
-def test_story18_7_parallel_assets_and_frontend_with_shared_semaphore(client, headers, tmp_path, monkeypatch):
-    """Story 18.7: generate_assets and generate_frontend run in parallel, share engine_slots,
-    merge plan properly, and validate_frontend runs once after both."""
-    monkeypatch.setattr(config, "engine_concurrency", 2)
-    auth = headers()
-    shop_spec = json.loads((EXAMPLES / "specs" / "shop.json").read_text())
-    raw_shop_frontend = json.loads((EXAMPLES / "frontend-specs" / "shop-dynamic.json").read_text())
-    resp = client.post(
-        "/api/v1/generations",
-        json={
-            "mode": "dynamic",
-            "backendSpec": shop_spec,
-            "frontendSpec": raw_shop_frontend,
-            "options": {"engine": "fake", "runTests": True, "maxRepairAttempts": 2, "deployPreview": False},
-        },
-        headers=auth,
-    )
-    assert resp.status_code == 202, resp.text
-    generation_id = resp.json()["generationId"]
-    sandboxes = PassingSandboxes()
-
-    class TrackingEngine(FakeEngine):
-        active_assets = 0
-        total_calls = 0
-
-        async def run(self, request, on_event=None):
-            TrackingEngine.total_calls += 1
-            if request.purpose == "generate_assets":
-                TrackingEngine.active_assets += 1
-            try:
-                await asyncio.sleep(0.02)
-                return await super().run(request, on_event)
-            finally:
-                if request.purpose == "generate_assets":
-                    TrackingEngine.active_assets -= 1
-
-    status = run_job(tmp_path, generation_id, engine=TrackingEngine(tmp_path, demo_scenario(0)), sandboxes=sandboxes)
-    assert status in ("COMPLETED", "COMPLETED_WITH_WARNINGS")
-    runs = node_runs(generation_id)
-    node_names = [r.node for r in runs]
-    assert "generate_frontend" in node_names
-    assert "validate_frontend" in node_names
-    assert node_names.count("validate_frontend") == 1
-
-    # Check plan file on disk: it must retain BOTH custom components and assets
-    plan = json.loads((tmp_path / generation_id / "frontend" / ".bga" / "frontend-plan.json").read_text())
-    assert "customComponents" in plan and len(plan["customComponents"]) > 0
-    assert "assets" in plan and len(plan["assets"]) > 0
-
-    purposes = [c.purpose for c in cli_invocations(generation_id)]
-    assert purposes.count("generate_custom_component") == 3
 
 
 def test_story18_8_early_backend_preview_and_direct_live_frontend(client, headers, tmp_path):
@@ -939,9 +902,8 @@ def test_story18_8_cancellation_stops_early_preview(client, headers, tmp_path):
     store = JobStore()
 
     # Slow down frontend lane so backend completes first
-    steps = demo_scenario(0)
-    steps["generate_frontend"][0].sleep_s = 2.0
-    engine = FakeEngine(tmp_path, steps)
+    engine = FakeEngine(tmp_path, demo_scenario(0))
+    slow = SlowFrontendValidator(2.0)
 
     async def go():
         redis = redis_client()
@@ -949,7 +911,7 @@ def test_story18_8_cancellation_stops_early_preview(client, headers, tmp_path):
             events_ = EventPublisher(redis, Redactor())
             bus = PreviewCommandBus(redis)
             previews = PreviewService(backend_rt, store, events_, bus, frontend_runtime=frontend_rt)
-            async with runner_ctx(tmp_path, engine=engine, previews=previews) as runner:
+            async with runner_ctx(tmp_path, engine=engine, previews=previews, frontend_validator=slow) as runner:
                 task = asyncio.create_task(runner.run(generation_id))
                 # Wait until backend preview is running
                 while not task.done():

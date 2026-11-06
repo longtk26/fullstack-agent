@@ -1,5 +1,6 @@
-"""The dynamic app flow's switch (Story 22.1): `DYNAMIC_FRONTEND=app` sends dynamic drafts to their own flow, the
-frontend lane plans and scaffolds them on the app kit, and nothing of it reaches static sites or legacy drafts."""
+"""The dynamic app flow (Story 22.1; the only dynamic flow since Story 22.8): dynamic drafts take their own flow, the
+frontend lane plans and scaffolds them on the app kit, nothing of it reaches static sites, and a dynamic FrontendSpec
+that is not an app is refused."""
 
 import asyncio
 import json
@@ -55,7 +56,6 @@ def _draft(client, headers, root: Path, mode: str, text: str) -> dict:
 
 
 def test_app_flow_drafts_reach_the_new_path(client, user_headers, tmp_path, monkeypatch, cleanup_drafts):
-    monkeypatch.setattr(config, "dynamic_frontend", "app")
     monkeypatch.setattr(config, "frontend_trees", True)  # the app flow designs no pages, whatever this says
     draft = _draft(
         client, user_headers, tmp_path, "dynamic", (EXAMPLES / "requirements" / "project-tracker.md").read_text()
@@ -72,13 +72,15 @@ def test_app_flow_drafts_reach_the_new_path(client, user_headers, tmp_path, monk
     assert spec["theme"]["colorScheme"] == "light-dark" and "motion" not in spec["theme"]
 
 
-def test_static_and_legacy_drafts_stay_on_their_flow(client, user_headers, tmp_path, cleanup_drafts):
-    assert config.dynamic_frontend == "legacy", "the default until Story 22.4 is accepted"
-    draft = _draft(
-        client, user_headers, tmp_path, "dynamic", (EXAMPLES / "requirements" / "project-tracker.md").read_text()
-    )
-    assert "flow" not in draft["frontend_spec"]["project"] and "app" not in draft["frontend_spec"]
-    assert draft["usage"]["calls"][0]["prompt"] == "draft_frontend_spec@v10"
+def test_a_dynamic_spec_that_is_not_an_app_is_refused():
+    """Story 22.8: the legacy dynamic flow is gone; its specs fail validation and cannot be planned."""
+    legacy = json.loads((Path(__file__).parent / "fixtures" / "pair-specs" / "project-tracker.json").read_text())
+    legacy["project"].pop("flow")
+    report = validate_frontend_spec_data(legacy).report
+    assert [(issue.code, issue.path) for issue in report.errors] == [("FE_APP_FLOW", "/project/flow")]
+    assert "requirement" in report.errors[0].hint
+    with pytest.raises(ValueError, match="legacy dynamic flow is gone"):
+        plan_frontend({"project": {"name": "Tracker", "mode": "dynamic"}, "pages": []}, {"paths": {}})
 
 
 def test_an_empty_outline_renders_a_shell_with_no_screens(tmp_path):
@@ -103,17 +105,6 @@ def test_an_empty_outline_renders_a_shell_with_no_screens(tmp_path):
     assert not (tmp_path / "src/components/renderer").exists() and not (tmp_path / "src/components/sections").exists()
 
 
-def test_legacy_dynamic_scaffolds_without_the_kit(tmp_path):
-    backend = _backend("two-entity")
-    spec = validate_frontend_spec_data(
-        json.loads((EXAMPLES / "frontend-specs/project-tracker-dynamic.json").read_text())
-    )
-    contract = build_contract(backend, build_plan(backend))
-    plan = plan_frontend(spec.normalized, contract)
-    scaffold_frontend(tmp_path, plan, spec.normalized, contract)
-    assert plan["rendering"] == "renderer" and not (tmp_path / "src/components/app").exists()
-
-
 def _spec(**changes) -> dict:
     spec = {
         "specVersion": "1.0",
@@ -135,7 +126,7 @@ def test_app_sections_and_the_outline_belong_to_the_app_flow():
     assert codes["FE_APP_FLOW"] == "/app" and codes["FE_UNKNOWN_COMPONENT"] == "/pages/0/sections/0/component"
 
 
-def test_static_and_legacy_drafts_read_the_schema_without_the_app_flow():
+def test_static_drafts_read_the_schema_without_the_app_flow():
     full, site = frontend_spec_json_schema(), frontend_spec_json_schema(app=False)
     assert "app" in full["properties"] and "flow" in full["$defs"]["Project"]["properties"]
     assert "app" not in site["properties"] and "flow" not in site["$defs"]["Project"]["properties"]

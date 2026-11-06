@@ -26,21 +26,18 @@ type JsonTabProps = {
   editor: TEditorHandle;
   issues: TEditorIssue[];
   parsed: unknown;
-  /** Called after an example was loaded, with its name (file name without `.json`). */
-  onExampleLoaded?: (name: string) => void;
 };
 
 /** Monaco editor bound to the BackendSpec or FrontendSpec JSON Schema, with its toolbar. */
-export function JsonTab({ kind, text, onTextChange, editor, issues, parsed, onExampleLoaded }: JsonTabProps) {
+export function JsonTab({ kind, text, onTextChange, editor, issues, parsed }: JsonTabProps) {
   const { fileName, exampleKey } = SPEC_KINDS[kind];
   const { data: schema } = useSpecSchema(kind);
   const { data: examples } = useExampleIndex();
   const exampleFiles = examples?.[exampleKey] ?? [];
 
-  const loadExample = async (name: string, path: string) => {
+  const loadExample = async (path: string) => {
     try {
       onTextChange(await fetchExampleText(path));
-      onExampleLoaded?.(name);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not load the example");
     }
@@ -60,7 +57,7 @@ export function JsonTab({ kind, text, onTextChange, editor, issues, parsed, onEx
           </DropdownMenuTrigger>
           <DropdownMenuContent>
             {exampleFiles.map((example) => (
-              <DropdownMenuItem key={example.path} onClick={() => loadExample(example.name, example.path)}>
+              <DropdownMenuItem key={example.path} onClick={() => loadExample(example.path)}>
                 {example.name}
               </DropdownMenuItem>
             ))}

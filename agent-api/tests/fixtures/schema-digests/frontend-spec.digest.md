@@ -10,7 +10,6 @@ type FrontendSpec = {
   forms?: Form[];
   content?: ContentCollection[];
   assets?: Asset[];
-  journeys?: Journey[];
   app?: AppOutline | null;
   auth?: Record<string, unknown> | null;
   x-backendSpec?: string | null;
@@ -178,32 +177,6 @@ type IconStyle = {
   set?: "lucide" | "phosphor" | "none";
   weight?: "thin" | "light" | "regular" | "bold" | "fill" | "duotone";
   treatment?: "plain" | "tile";
-};
-
-type Journey = {
-  id: string;
-  title: string;
-  goal?: string | null;
-  steps: JourneyStep[];
-};
-
-type JourneyExpectChanged = {
-  field: string;
-  record?: string | number | null;
-};
-
-type JourneyStep = {
-  do: "visit" | "open" | "submit" | "action" | "expect";
-  page?: string | null;
-  section?: string | null;
-  record?: string | number | null;
-  action?: string | null;
-  values?: Record<string, unknown> | null;
-  text?: string | null;
-  count?: number | null;
-  changed?: JourneyExpectChanged | null;
-  live?: boolean;
-  operationId?: string | null;
 };
 
 type Layout = {

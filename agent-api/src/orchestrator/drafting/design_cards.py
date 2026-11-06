@@ -687,12 +687,6 @@ def fact_pack(floor: dict[str, Any] | None, seed: int, mode: str) -> str:
         "",
         f"Stock phrases never to use in headings or buttons: {phrase_list()}.",
     ]
-    if mode == "dynamic":
-        lines += [
-            "",
-            "This is an app: its data pages (lists, tables, records, forms) keep their structure; the direction gives",
-            "them their colours, type and surfaces.",
-        ]
     return "\n".join(lines) + "\n"
 
 

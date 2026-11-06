@@ -76,7 +76,7 @@ def test_too_many_generated_assets_is_a_warning():
 
 
 def test_an_empty_state_image_must_be_a_declared_asset():
-    spec = json.loads((EXAMPLES / "frontend-specs" / "project-tracker-dynamic.json").read_text())
+    spec = json.loads((Path(__file__).parent / "fixtures" / "pair-specs" / "project-tracker.json").read_text())
     section_idx, section = next((i, s) for i, s in enumerate(spec["pages"][0]["sections"]) if "states" in s)
     section["states"]["emptyImage"] = "asset:missing"
     report = validate_frontend_spec_data(spec).report

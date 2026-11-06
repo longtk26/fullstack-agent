@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { useWatch } from "react-hook-form";
 import { toast } from "sonner";
@@ -19,7 +19,6 @@ import { JsonEditor } from "@/features/specs/components/JsonEditor";
 import { JsonTab } from "@/features/specs/components/JsonTab";
 import { RequirementTab } from "@/features/specs/components/RequirementTab";
 import { SpecSummaryPanel } from "@/features/specs/components/SpecSummaryPanel";
-import { useExamplePairOffer } from "@/features/specs/hooks/use-example-pair-offer";
 import { useJsonEditor } from "@/features/specs/hooks/use-json-editor";
 import { useSpecPairCheck } from "@/features/specs/hooks/use-spec-pair-check";
 import { useSpecDraft } from "@/features/specs/hooks/use-spec-queries";
@@ -84,57 +83,10 @@ export function NewGenerationView() {
   );
   const summary = useMemo(() => summarizeSpec(backend.parsed), [backend.parsed]);
   const frontendSummary = useMemo(() => summarizeFrontendSpec(frontend.parsed), [frontend.parsed]);
-  const offerPair = useExamplePairOffer(setSpecText);
-  // The design directions of the draft the editors were filled from (Story 12.6), static and dynamic only.
+  // The design directions of the draft the editors were filled from (Story 12.6); an app draft has none.
   const activeDraftId = urlDraftId ?? (mode !== "backend" && appliedDraft?.mode === mode ? appliedDraft.id : null);
   const appliedDraftQuery = useSpecDraft(mode !== "backend" ? activeDraftId : null);
   const design = appliedDraftQuery.data?.design ?? null;
-
-  const hasManagePages = useMemo(
-    () => frontendSummary.pages.some((p) => p.route.startsWith("/manage") || p.id.startsWith("manage-")),
-    [frontendSummary.pages],
-  );
-
-  const handleDropManageArea = useCallback(() => {
-    try {
-      const parsed = JSON.parse(frontendSpecText);
-      if (typeof parsed !== "object" || parsed === null) return;
-      const pages = Array.isArray(parsed.pages)
-        ? parsed.pages.filter(
-            (p: { id?: string; route?: string }) =>
-              !p.route?.startsWith("/manage") && !p.id?.startsWith("manage-"),
-          )
-        : parsed.pages;
-      const forms = Array.isArray(parsed.forms)
-        ? parsed.forms.filter(
-            (f: { id?: string }) =>
-              !f.id?.startsWith("manage-") && !f.id?.startsWith("manage_"),
-          )
-        : parsed.forms;
-      const content = Array.isArray(parsed.content)
-        ? parsed.content.filter((c: { collection?: string }) => c.collection !== "manageEntities")
-        : parsed.content;
-      let layout = parsed.layout;
-      if (layout?.header?.navigation && Array.isArray(layout.header.navigation)) {
-        layout = {
-          ...layout,
-          header: {
-            ...layout.header,
-            navigation: layout.header.navigation.filter(
-              (n: { page?: string; href?: string }) =>
-                n.page !== "manage-index" &&
-                !n.page?.startsWith("manage-") &&
-                !n.href?.startsWith("/manage"),
-            ),
-          },
-        };
-      }
-      const updated = { ...parsed, pages, forms, content, layout };
-      setFrontendSpecText(JSON.stringify(updated, null, 2));
-    } catch {
-      // ignore
-    }
-  }, [frontendSpecText, setFrontendSpecText]);
 
   const canSubmit = {
     backend: backend.isSubmittable,
@@ -279,7 +231,6 @@ export function NewGenerationView() {
                 editor={editors.frontend}
                 issues={frontend.issues}
                 parsed={frontend.parsed}
-                onExampleLoaded={mode === "dynamic" ? offerPair : undefined}
               />
             </TabsContent>
           )}
@@ -360,8 +311,6 @@ export function NewGenerationView() {
                   <FrontendSpecSummaryPanel
                     summary={frontendSummary}
                     showOperations={mode === "dynamic"}
-                    onDropManageArea={hasManagePages ? handleDropManageArea : undefined}
-                    issues={frontend.issues}
                   />
                 </CardContent>
               </Card>

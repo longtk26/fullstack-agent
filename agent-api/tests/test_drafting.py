@@ -245,11 +245,8 @@ def test_dynamic_draft_checks_the_pair(client, user_headers, tmp_path):
     assert set(draft["validation"]) == {"backend", "frontend", "pair"}
     assert draft["validation"]["pair"]["valid"] is True
     assert draft["frontend_spec"]["project"]["mode"] == "dynamic" and draft["backend_spec"]["entities"]
-    # Story 20.4 (epic D12): an app gets three direction cards too; its home page has no hero.
-    design = draft["design"]
-    assert [d["source"] for d in design["directions"]] == ["card"] * 3
-    assert [s["id"] for s in design["pool"]] == ["stats", "recent"]
-    assert draft["frontend_spec"]["theme"]["direction"]["seed"] == design["seed"]
+    # Story 22.8: every dynamic draft is an app; the direction gives only its theme, with no cards
+    assert draft["frontend_spec"]["project"]["flow"] == "app" and draft["design"] is None
 
 
 def test_the_same_seed_gives_the_same_directions(client, user_headers, tmp_path):

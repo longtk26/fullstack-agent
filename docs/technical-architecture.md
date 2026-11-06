@@ -88,7 +88,7 @@ stateDiagram-v2
     
     BackendMode --> BackendSpec: Draft BackendSpec
     StaticMode --> FrontendSpec: Draft FrontendSpec
-    DynamicMode --> SpecPair: Draft Spec Pair
+    DynamicMode --> SpecPair: Draft BackendSpec + app outline, code writes the screens
     SpecPair --> Contract: Parity Check -> OpenAPI 3.1
 ```
 
@@ -111,7 +111,9 @@ stateDiagram-v2
 
 ### 2.3 Dynamic Mode (`mode: dynamic`)
 - **Objective:** Generates a complete fullstack application where the Next.js frontend and FastAPI backend are generated in parallel from a unified API contract.
-- **Specification:** Both `FrontendSpec` and `BackendSpec` are drafted and reconciled.
+- **Specification:** The app flow (Epic 22): one model call drafts the `BackendSpec` and an app outline; code writes
+  the `FrontendSpec` (`project.flow: "app"`) from the outline and the API contract, and the frontend lane builds it on
+  the app kit without an engine call. A dynamic `FrontendSpec` that is not an app is refused (Story 22.8).
 - **Consistency Verification (`check_spec_pair`):**
   - **Route & Endpoint Parity:** Ensures every dynamic page and form in `FrontendSpec` has an associated endpoint in `BackendSpec`.
   - **Schema Alignment:** Verifies that form inputs and table column bindings match the request/response schemas expected by the backend.

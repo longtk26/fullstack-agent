@@ -250,8 +250,6 @@ def autofix_frontend_spec(spec: dict[str, Any]) -> tuple[dict[str, Any], list[di
             if isinstance(section, dict) and "content" in section:
                 fix_content(section["content"], f"/pages/{p_idx}/sections/{s_idx}/content")
 
-    spec["journeys"] = []
-
     # 4. Heal missing assets referenced in frontend content
     existing_asset_ids = {
         a.get("id") for a in spec.get("assets", []) if isinstance(a, dict) and isinstance(a.get("id"), str)

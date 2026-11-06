@@ -573,18 +573,6 @@ async def run_playwright_live_smoke(
     )
 
 
-async def run_playwright_live_journeys(
-    ctx: JobContext,
-    state: GenerationState,
-    frontend_url: str,
-    backend_url: str,
-    frontend_port: int | None,
-    backend_port: int | None,
-) -> CheckResult:
-    """Runs the frontend's Playwright journeys test in the Node sandbox against the live frontend preview."""
-    return CheckResult(check="journeys", status="skipped", summary="frontend e2e tests disabled")
-
-
 def _enforce_canonical_contract(ctx: JobContext) -> tuple[dict[str, Any], str]:
     """Story 14.1 AC 2: both lanes read `.bga/contract.json`; neither may change it."""
     canonical_path = ctx.workspace.spec_dir / "contract.json"
@@ -722,18 +710,6 @@ async def integrate(state: GenerationState, ctx: JobContext) -> NodeResult:
         )
         slot.append(smoke_res)
     results.append(smoke_res)
-
-    with traced_check(f"{CHECK_PREFIX}journeys") as slot:
-        journeys_res = await run_playwright_live_journeys(
-            ctx,
-            state,
-            frontend_url=frontend_url,
-            backend_url=backend_url,
-            frontend_port=fe_preview.host_port if fe_preview else None,
-            backend_port=be_preview.host_port if be_preview else None,
-        )
-        slot.append(journeys_res)
-    results.append(journeys_res)
 
     for check in results:
         check_name = f"{CHECK_PREFIX}{check.check}"

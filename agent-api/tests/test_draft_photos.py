@@ -513,7 +513,7 @@ def test_validator_and_consistency_checks_for_record_assets():
 
     frontend_spec = {
         "specVersion": "1.0",
-        "project": {"name": "Test", "mode": "dynamic"},
+        "project": {"name": "Test", "mode": "dynamic", "flow": "app"},  # Story 22.8: a dynamic spec is an app
         "pages": pages,
         "assets": [{"id": "hero", "kind": "image", "source": "placeholder", "alt": "Hero"}],
     }

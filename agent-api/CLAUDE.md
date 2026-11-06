@@ -42,8 +42,8 @@ Agent-specific notes:
   node_modules per dependency set (`bga-fe-modules-<key>`, `FRONTEND_SHARED_MODULES`); only `.vite*` folders are
   writable inside it.
 - Section renderer (Stories 17.1, 17.2, 17.4): built-in section content is typed (`frontend_spec/section_props.py`);
-  a spec the library can render, static or dynamic (`plan["rendering"] == "renderer"`, else `rendererGaps` says
-  why), is built without the engine; dynamic data sections read through the generated `bindings.ts`: overlay part `templates/nextjs_overlay/files/renderer` (only the sections a site uses) plus
+  a static site the library can render (`plan["rendering"] == "renderer"`, else `rendererGaps` says why) is built
+  without the engine (dynamic apps render on the app kit, Epic 22): overlay part `templates/nextjs_overlay/files/renderer` (only the sections a site uses) plus
   `orchestrator/frontend/renderer.py` (site.json, registry, props types, thin route files). Sections can nest in
   layout nodes (`children`): walk them with `iter_sections` / `walk_sections`, never `page["sections"]` alone.
 - Fonts and variants (Story 17.7): theme fonts in `frontend_spec/fonts.py` are `@fontsource` packages pinned in the
@@ -115,16 +115,10 @@ Agent-specific notes:
 - Requirement drafting (Stories 2.4, 12.4): `POST/GET /api/v1/spec-drafts` (`specs` module) stores a `spec_drafts` row
   and queues it on `bga:drafts:<engine>`; the worker's `_consume_drafts` (own slots, `DRAFT_CONCURRENCY`) runs
   `orchestrator/drafting/drafts.py` in `<WORKSPACE_ROOT>/drafts/<id>/` (inputs in `.bga/`: schemas, an example from
-  `EXAMPLES_DIR`, the section catalogue), validates (+ pair check in dynamic mode), repairs with `repair_spec`, and ends
+  `EXAMPLES_DIR`, the section catalogue), validates, repairs with `repair_spec`, and ends
   SUCCEEDED / NEEDS_REVIEW / FAILED. Usage is kept on the draft (`usage`), not in `model_calls` (those belong to a
   generation); `/usage` reports it as `drafts`. A generation created with `draftId` stores `options.draftId`, and
   packaging writes `requirement.md` / `.txt`. Requirement checks: `modules/shared/domain/requirement.py`.
-- Pair fixes (dynamic drafts): the user never fixes the FrontendSpec ↔ BackendSpec pair. `orchestrator/drafting/pair_fixes.py`
-  `adapt_backend` (in `autofix_draft`, before every check) makes the BackendSpec follow the pages: a custom operation
-  gets the request its form sends or the response its section reads (`type: "array"` for list sections, fields from
-  the section or the operation's description), a list the filter / sort / search a page asks for, a create / update
-  form's field joins its entity; each change is kept only if the BackendSpec stays valid. After the repair rounds,
-  `prune_frontend` cuts what the pair check still rejects (action, binding, parameter, field). Both write notes.
 - Draft engine (Story 18.10): `engines/gemini_api/` drafts specs with one `generateContent` request per step (no
   agent loop); it has `inline_inputs` (drafting renders the inline prompt versions `draft_frontend_spec@v10`,
   `draft_spec@v4`, `repair_spec@v3`, `repair_direction@v2`, inputs in the prompt) and `drafts_only` (refuses code
@@ -135,9 +129,8 @@ Agent-specific notes:
   / `footerTree`; `TreeNode` in `schema_v1.py`), as Frontend-Agent's site JSON writes it. `frontend_spec/trees.py`
   classifies node types (elements, shadcn primitives, Lucide icons, library sections, data components), checks the
   rules (theme-token colours, no fixed, one h1, assets, links, node and depth limits) and repairs what it can
-  (`fix_trees`, run by `autofix_frontend_spec`); `tree_bindings.py` binds data components to a collection (static)
-  or to the contract's operations (dynamic; `Metric` / `Chart` to **aggregate** operations, else computed from the
-  list) and derives the operations a BackendSpec needs (`derive_operations`). `frontend_renderer.tree_site` writes
+  (`fix_trees`, run by `autofix_frontend_spec`); `tree_bindings.py` binds data components to a content collection
+  (trees are a static site's; apps have none). `frontend_renderer.tree_site` writes
   the classified tree into `site.json`; the overlay's `renderer/tree/` (copied only when `plan["trees"]`) renders it
   (`TreeRenderer.tsx`, data components in `tree-data.tsx`, `tree-metrics.tsx`, `tree-forms.tsx`). Drafting designs
   each page with `draft_tree@v1` after the spec is valid (`orchestrator/drafting/trees.py`; `FRONTEND_TREES`), in
@@ -175,19 +168,19 @@ Agent-specific notes:
   (`modules/uploads`) live under `UPLOAD_ROOT`, are copied to `public/assets/` by `scaffold_frontend`.
 - Test doubles (fake engine, golden two-entity project, static validator, fake CLIs, opt-in test flags) are listed in
   `docs/development/test-doubles.md`; add any new fake there and mark it at its definition.
-- Dynamic app flow (Epic 22): **static and dynamic are separate frontend flows**. `DYNAMIC_FRONTEND=app`
-  (`config.dynamic_frontend`, `legacy` until 22.4) sends dynamic drafts from a requirement to `drafting/app.py`;
-  the FrontendSpec it writes has `project.flow: "app"`, an `app` outline (`frontend_spec/app.py`) and pages of app
+- Dynamic app flow (Epic 22): **static and dynamic are separate frontend flows**. Every dynamic draft goes to
+  `drafting/app.py` (Story 22.8 removed the legacy dynamic flow: its designed pages, direction cards, Manage area,
+  journeys and pair fixes; a dynamic FrontendSpec without `project.flow: "app"` is `FE_APP_FLOW`); the FrontendSpec it writes has `project.flow: "app"`, an `app` outline (`frontend_spec/app.py`) and pages of app
   sections (`APP_SECTIONS`, accepted only in that flow), all written by code. `plan_frontend` hands such specs to
   `frontend/app/` (`rendering: "app"`, no engine call), and the scaffold copies the app kit
   (`templates/nextjs_overlay/files/dynamic/app/`) only for them. Dynamic-only code goes in `orchestrator/frontend/app/`
   and `drafting/app.py`, prompts in `prompts/draft_app/`, overlay files in `files/dynamic/app/`. A change to shared code
   (renderer, `common` overlay, section components, drafting) must leave `tests/test_static_golden.py` passing; static
-  and legacy drafts read the schema without the app fields (`frontend_spec_json_schema(app=False)`).
-  The app draft is one `draft_app@v1` call (BackendSpec + `app-outline.json`); code fixes the outline
+  drafts read the schema without the app fields (`frontend_spec_json_schema(app=False)`).
+  The app draft is one `draft_app@v2` call (BackendSpec + `app-outline.json`); code fixes the outline
   (`complete_outline`, notes instead of repairs), adds the dashboard's aggregate operations (`ensure_aggregates`) and
   plans every screen (`app_frontend_spec`): one binding per section, so `check_spec_pair` and `uncovered_operations`
-  see them all; a child is created from its parent's page (parent from the route); the Manage area is never added.
+  see them all; a child is created from its parent's page (parent from the route).
   The kit (Story 22.4: `AppShell`, `AppPage` (figures in a grid, a parent's children in tabs), `AppList`, `AppDetail`,
   `AppForm`, `AppDashboard`, `AppActions`) reads `src/content/app.json` (`frontend/app/files.py`: pages, routes, forms,
   per-entity field types, references and list operations, the contract's errors) and calls the API through the
@@ -207,7 +200,7 @@ Agent-specific notes:
   knows is a hidden `$route.id` field, any other reference is a `FormField.reference` (app-only: the parent's list,
   `get`, label field, `q` search, page size) rendered by `form/ReferenceField.tsx` (Popover + Command). `ensure_aggregates`
   first adds a paginated `list` for each referenced parent without one (`screens.parent_lists`). `FE_FIELD_SOURCE` is
-  an error for app specs (a warning in the legacy flow).
+  an error for app specs.
   Plugin frontends (Story 22.7): each plugin's app part lives in `templates/plugins/<name>/frontend/files/` (auth-jwt:
   sign-in / sign-up / user menu / session, the `cookie` mode routes `/api/auth/*`, `/api/backend/[...path]` and
   `src/proxy.ts`; storage: `UploadField`, `FileValue`; payments: `PayAction`, `AppPayment`; relations: `AppLinks`),
@@ -234,7 +227,7 @@ Agent-specific notes:
 | `frontend/app/` | Epic 22, dynamic apps only: `outline.py` (the drafted outline completed from the BackendSpec), `screens.py` (outline + contract → pages, forms and bindings; dashboard aggregates), `plan.py`, `files.py` (`app.json`, bindings, icons, route files) |
 | `frontend/` | `nodes.py`, `planner.py`, `scaffold.py`, `codegen.py`, `renderer.py`, `theme.py`, `motion.py`, `assets.py`, `asset_registry.py`, `svg_assets.py`, `custom_components.py`, `component_cache.py`, `context_pack.py`, `validation.py` |
 | `integration/` | `nodes.py` (validate_inputs, build_contract), `contract.py`, `integrate.py` (live switch and checks) |
-| `drafting/` | `drafts.py` (spec drafts), `app.py` (the dynamic app flow, Epic 22), `trees.py` (designed pages), `pair_fixes.py`, `design_cards.py`, `design_direction.py`, `design_diversity.py`, `design_tone.py` |
+| `drafting/` | `drafts.py` (spec drafts), `app.py` (the dynamic app flow, Epic 22), `trees.py` (designed pages), `design_cards.py`, `design_direction.py`, `design_diversity.py`, `design_tone.py` |
 
 ## Architecture
 

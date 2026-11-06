@@ -85,20 +85,6 @@ async def validate_inputs(state: GenerationState, ctx: JobContext) -> NodeResult
             write_json(spec_dir / "consistency-report.json", [i.model_dump(mode="json") for i in consistency])
             errors += [_issue_dump(issue, "consistency") for issue in consistency if issue.severity != Severity.WARNING]
             warnings += sum(1 for issue in consistency if issue.severity == Severity.WARNING)
-
-            if not errors:
-                frontend_opts = (state.get("options") or {}).get("frontend") or {}
-                app = (result.normalized.get("project") or {}).get("flow") == "app"  # Epic 22 (D4): never managed
-                if frontend_opts.get("manageArea") is True and not app:
-                    from src.modules.shared.domain.frontend_spec import add_manage_area
-
-                    contract = contract_for(backend.normalized)
-                    managed_spec, _ = add_manage_area(result.normalized, contract)
-                    result.normalized = managed_spec
-                elif "manageArea" in frontend_opts and not frontend_opts["manageArea"]:
-                    from src.modules.shared.domain.frontend_spec import remove_manage_area
-
-                    result.normalized = remove_manage_area(result.normalized)
         update["spec_ref"] = ".bga/spec.json"
 
     if errors:

@@ -199,15 +199,6 @@ class _Planner:
             "mutation": found["method"] != "GET",
         }
 
-    def domain(self, component: str, usages: list[dict[str, Any]]) -> str:
-        for usage in usages:
-            operation_id = (usage.get("data") or {}).get("operationId") or usage.get("formOperationId")
-            if operation_id and operation_id in self.operations:
-                module = (self.operations[operation_id]["operation"].get("x-bga") or {}).get("module")
-                if module:
-                    return to_kebab(module)
-        return "site"
-
     # -- sections -----------------------------------------------------------------------------------------------
 
     def section(self, page: dict[str, Any], section: dict[str, Any]) -> dict[str, Any]:
@@ -286,13 +277,12 @@ class _Planner:
             # The normalizer lists the built-ins it used as `kind: section`; redeclaring one as composite opts out.
             is_builtin = name in BUILTIN_SECTIONS and declared.get("kind", "section") == "section"
             builtin = BUILTIN_SECTIONS[name] if is_builtin else {}
-            fetches = any((u.get("data") or {}).get("kind") == "operation" for u in usages[name])
             has_form = any(u.get("form") for u in usages[name])
             if builtin:
                 # Built-in sections are shared and presentational: pages pass their data or form in.
                 domain, file = "sections", f"{SECTIONS_DIR}/{name}.tsx"
             else:
-                domain = self.domain(name, usages[name])
+                domain = "site"  # a static site's own components (apps have none: Epic 22)
                 file = f"src/features/{domain}/components/{name}.tsx"
             component = {
                 "name": name,
@@ -304,7 +294,7 @@ class _Planner:
                 "usedBy": pages[name],
                 "description": declared.get("description") or builtin.get("description"),
             }
-            if not builtin and (fetches or has_form):
+            if not builtin and has_form:
                 hook_file = f"src/features/{domain}/hooks/use-{to_kebab(name)}.ts"
                 component["hook"] = {"name": f"use{name}", "file": hook_file}
             planned.append(component)
@@ -512,14 +502,17 @@ def asset_component(asset_id: str) -> str:
 
 
 def plan_frontend(spec: dict[str, Any], contract: dict[str, Any] | None = None) -> dict[str, Any]:
-    """`spec` is the normalized FrontendSpec; `contract` is required in dynamic mode."""
-    if spec["project"]["mode"] == "dynamic" and contract is None:
-        raise ValueError("dynamic frontends are planned against the API contract")
-    if spec["project"].get("flow") == "app":  # Epic 22: the app flow plans its own screens
+    """`spec` is the normalized FrontendSpec; `contract` is required in dynamic mode. A dynamic spec is an app
+    (`project.flow: "app"`, Epic 22): the app flow plans its own screens; static sites plan here."""
+    if spec["project"]["mode"] == "dynamic":
+        if contract is None:
+            raise ValueError("dynamic frontends are planned against the API contract")
+        if spec["project"].get("flow") != "app":
+            raise ValueError("a dynamic frontend is an app (project.flow: app); the legacy dynamic flow is gone")
         from .app.plan import plan_app
 
         return plan_app(spec, contract)
-    return _Planner(spec, contract if spec["project"]["mode"] == "dynamic" else None).build()
+    return _Planner(spec, None).build()
 
 
 def dump_frontend_plan(plan: dict[str, Any]) -> str:

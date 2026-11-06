@@ -65,6 +65,8 @@ def validate_frontend_spec_data(data: Any) -> FrontendValidationResult:
         )
         return FrontendValidationResult(ValidationReport.from_issues([issue], None))
 
+    if "journeys" in data:  # Story 22.8: journeys left with the legacy dynamic flow; older specs carry an empty list
+        data = {key: value for key, value in data.items() if key != "journeys"}
     try:
         spec = model.model_validate(data)
     except ValidationError as exc:
@@ -245,7 +247,6 @@ class _SemanticChecker:
         self._check_components()
         self._check_forms()
         self._check_content()
-        self._check_journeys()
         self._check_trees()
         self._check_app()
         if self.spec.auth is not None and self.spec.project.flow != "app":  # Story 22.7: apps sign in
@@ -258,6 +259,14 @@ class _SemanticChecker:
             hint = 'Remove "flow", or set "mode": "dynamic"'
             self._add(
                 C.FE_APP_FLOW, "/project/flow", "The app flow is for dynamic apps; a static site has none", hint=hint
+            )
+        if not self.app and not self.static:  # Story 22.8: the legacy dynamic flow is gone
+            hint = "Draft the app again from its requirement (dynamic mode): code writes its pages"
+            self._add(
+                C.FE_APP_FLOW,
+                "/project/flow",
+                "A dynamic app is built by the app flow; this spec has no 'project.flow: \"app\"'",
+                hint=hint,
             )
         if self.spec.app is not None and not self.app:
             hint = 'Set "project": {"flow": "app"} (dynamic apps), or remove "app"'
@@ -321,7 +330,6 @@ class _SemanticChecker:
         self._unique([f.id for f in spec.forms], "/forms", "Form id", "/id")
         self._unique([a.id for a in spec.assets], "/assets", "Asset id", "/id")
         self._unique([c.collection for c in spec.content], "/content", "Content collection", "/collection")
-        self._unique([j.id for j in spec.journeys], "/journeys", "Journey id", "/id")
         for f_index, form in enumerate(spec.forms):
             self._unique([field.name for field in form.fields], f"/forms/{f_index}/fields", "Form field", "/name")
 
@@ -715,83 +723,3 @@ class _SemanticChecker:
                 for asset, path in _asset_refs(record, f"/content/{c_index}/records/{r_index}"):
                     if asset not in self.assets:
                         self._add(C.FE_UNKNOWN_ASSET, path, f"Unknown asset '{asset}'")
-
-    def _check_journeys(self) -> None:
-        for j_index, journey in enumerate(self.spec.journeys):
-            j_path = f"/journeys/{j_index}"
-            for s_index, step in enumerate(journey.steps):
-                step_path = f"{j_path}/steps/{s_index}"
-                if step.do == "visit":
-                    if not step.page:
-                        self._add(C.SCHEMA_VIOLATION, f"{step_path}/page", "Visit step requires 'page'")
-                    elif step.page not in self.pages:
-                        self._add(
-                            C.FE_UNKNOWN_PAGE,
-                            f"{step_path}/page",
-                            f"Unknown page '{step.page}'",
-                            hint=self._known_pages(),
-                        )
-                elif step.do == "open":
-                    if not step.section:
-                        self._add(C.SCHEMA_VIOLATION, f"{step_path}/section", "Open step requires 'section'")
-                    elif step.section not in self.sections_by_id:
-                        self._add(C.FE_UNKNOWN_SECTION, f"{step_path}/section", f"Unknown section '{step.section}'")
-                elif step.do == "submit":
-                    if not step.section:
-                        self._add(C.SCHEMA_VIOLATION, f"{step_path}/section", "Submit step requires 'section'")
-                    elif step.section not in self.sections_by_id:
-                        self._add(C.FE_UNKNOWN_SECTION, f"{step_path}/section", f"Unknown section '{step.section}'")
-                    else:
-                        sec = self.sections_by_id[step.section]
-                        form_id = sec.form
-                        form = self.forms.get(form_id) if form_id else None
-                        if form is None and sec.component != "Form":
-                            self._add(
-                                C.FE_UNKNOWN_FORM,
-                                f"{step_path}/section",
-                                f"Section '{step.section}' is not a form section",
-                            )
-                        elif form is not None:
-                            field_names = {f.name for f in form.fields}
-                            values = step.values or {}
-                            for field_name in values:
-                                if field_name not in field_names:
-                                    self._add(
-                                        C.FE_UNKNOWN_FIELD,
-                                        f"{step_path}/values/{field_name}",
-                                        f"Field '{field_name}' is not a field of form '{form.id}'",
-                                    )
-                elif step.do == "action":
-                    if not step.section:
-                        self._add(C.SCHEMA_VIOLATION, f"{step_path}/section", "Action step requires 'section'")
-                    elif step.section not in self.sections_by_id:
-                        self._add(C.FE_UNKNOWN_SECTION, f"{step_path}/section", f"Unknown section '{step.section}'")
-                    elif not step.action:
-                        self._add(C.SCHEMA_VIOLATION, f"{step_path}/action", "Action step requires 'action'")
-                    else:
-                        sec = self.sections_by_id[step.section]
-                        content = sec.content or {}
-                        actions = content.get("actions") or []
-                        action_ids = set()
-                        for act in actions:
-                            if isinstance(act, dict) and "id" in act:
-                                action_ids.add(act["id"])
-                            elif hasattr(act, "id"):
-                                action_ids.add(act.id)
-                        if step.action not in action_ids:
-                            self._add(
-                                C.FE_UNKNOWN_ACTION,
-                                f"{step_path}/action",
-                                f"Section '{step.section}' has no action '{step.action}'",
-                            )
-                elif step.do == "expect":
-                    if not step.section:
-                        self._add(C.SCHEMA_VIOLATION, f"{step_path}/section", "Expect step requires 'section'")
-                    elif step.section not in self.sections_by_id:
-                        self._add(C.FE_UNKNOWN_SECTION, f"{step_path}/section", f"Unknown section '{step.section}'")
-                    if step.text is None and step.count is None and step.changed is None:
-                        self._add(
-                            C.FE_INVALID_JOURNEY_STEP,
-                            step_path,
-                            "Expect step needs at least one of 'text', 'count' or 'changed'",
-                        )

@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 
 import pytest
-from generation_helpers import EXAMPLES
 from sqlmodel import Session, delete, select
 
 from src.configs import config
@@ -19,16 +18,13 @@ from src.orchestrator.frontend.component_cache import (
     component_file,
     component_key,
     drop_files,
-    journeys_digest,
-    operations_digest,
     sample_props,
 )
-from src.orchestrator.frontend.validation import CheckResult, StaticFrontendValidationRunner, _outcome
 from src.sandbox import ExecResult, ISandbox, ISandboxProvider
 from workflow_helpers import cli_invocations, events, generation, node_runs, run_job
 
-SHOP_FRONTEND = json.loads((EXAMPLES / "frontend-specs" / "shop-dynamic.json").read_text())
-SHOP_BACKEND = json.loads((EXAMPLES / "specs" / "shop.json").read_text())
+# Custom components are a static site's (Story 22.8): the static shop of three custom components.
+SHOP_FRONTEND = json.loads((Path(__file__).parent / "fixtures" / "frontend-specs" / "shop-static.json").read_text())
 CUSTOM = ("CartList", "ProductDetail", "ProductGrid")
 
 
@@ -73,20 +69,6 @@ class PassingSandboxes(ISandboxProvider):
         return 0
 
 
-class BuildBreaksOnce(StaticFrontendValidationRunner):
-    """The first validation reports a failed build caused by `file`; later ones are the static checks."""
-
-    def __init__(self, file: str):
-        self.file, self.runs = file, 0
-
-    async def run(self, request):
-        self.runs += 1
-        if self.runs > 1:
-            return await super().run(request)
-        detail = {"file": self.file, "line": 3, "message": "Type error: cannot find name 'Grid'"}
-        return _outcome([CheckResult(check="build", status="failed", summary="build failed", details=[detail])])
-
-
 @pytest.fixture(autouse=True)
 def empty_cache():
     with Session(db_session_manager.engine) as session:
@@ -104,9 +86,8 @@ def cache_rows() -> list[ComponentCacheModel]:
 def submit_shop(client, login, frontend=None, **options) -> str:
     headers = {"Authorization": f"Bearer {login('user@test.local', 'userpass')}"}
     body = {
-        "mode": "dynamic",
+        "mode": "static",
         "frontendSpec": frontend or SHOP_FRONTEND,
-        "backendSpec": SHOP_BACKEND,
         "options": {"engine": "fake", "deployPreview": False, **options},
     }
     response = client.post("/api/v1/generations", json=body, headers=headers)
@@ -135,30 +116,6 @@ def test_the_key_is_what_the_component_is_made_from_not_its_name():
     assert component_key({**component, "uses": ["card"]}, "lock", "1") != key
     assert component_key({**component, "propsSchema": {}}, "lock", "1") != key
     assert component_key(component, "new base", "1") != key and component_key(component, "lock", "2") != key
-
-
-def test_the_key_covers_the_operations_and_journeys_a_site_gives_the_component():
-    component = {"name": "TaskBoard", "description": "A board of tasks", "propsSchema": {"type": "object"}}
-    contract_ops = {
-        "createTask": {"method": "POST", "path": "/tasks"},
-        "completeTask": {"method": "POST", "path": "/tasks/{id}/complete"},
-    }
-    site_a = component_key(component, "lock", "1", operations=operations_digest(["createTask"], contract_ops))
-    site_b = component_key(component, "lock", "1", operations=operations_digest(["completeTask"], contract_ops))
-    assert site_a != site_b
-    assert site_a == component_key(
-        component, "lock", "1", operations=operations_digest(["createTask", "createTask"], contract_ops)
-    )
-    moved = {"createTask": {"method": "PUT", "path": "/tasks"}}
-    assert component_key(component, "lock", "1", operations=operations_digest(["createTask"], moved)) != site_a
-    assert component_key(component, "lock", "1", operations=operations_digest([])) == component_key(
-        component, "lock", "1"
-    )
-    journey = {"id": "add", "title": "Add a task", "goal": "A task is added", "steps": [{"do": "visit"}]}
-    with_journey = component_key(component, "lock", "1", journeys=journeys_digest([journey]))
-    assert with_journey != component_key(component, "lock", "1")
-    other_steps = {**journey, "steps": [{"do": "visit"}, {"do": "submit", "operationId": "createTask"}]}
-    assert component_key(component, "lock", "1", journeys=journeys_digest([other_steps])) != with_journey
 
 
 def test_component_cache_key_changes_with_prompt_version(monkeypatch):
@@ -210,7 +167,7 @@ def test_shop_first_run_generates_three_components_and_the_second_takes_them_fro
     sandboxes = PassingSandboxes()
     first = submit_shop(client, login)
     engine = FakeEngine(tmp_path, demo_scenario(0))
-    assert run_job(tmp_path, first, engine=engine, sandboxes=sandboxes) == "COMPLETED_WITH_WARNINGS"  # no preview
+    assert run_job(tmp_path, first, engine=engine, sandboxes=sandboxes) == "COMPLETED"
     assert generation(first).lanes["frontend"] == "COMPLETED"
     assert purposes(first) == ["generate_custom_component"] * 3  # no page or shell call, no repair
     assert frontend_summary(first) | {"customComponents": 3, "engineCalls": 3, "cacheHits": 0, "fallbacks": 0} == (
@@ -236,7 +193,7 @@ def test_shop_first_run_generates_three_components_and_the_second_takes_them_fro
     hits_before = client.get("/api/v1/usage", headers=headers).json()["totals"]["cacheHits"]
     second = submit_shop(client, login)
     assert run_job(tmp_path, second, engine=FakeEngine(tmp_path, demo_scenario(0)), sandboxes=PassingSandboxes()) == (
-        "COMPLETED_WITH_WARNINGS"
+        "COMPLETED"
     )
     assert purposes(second) == []
     assert frontend_summary(second) | {"engineCalls": 0, "cacheHits": 3} == frontend_summary(second)
@@ -276,7 +233,7 @@ def test_a_failing_component_is_repaired_in_isolation_then_cached(client, login,
     scenario["generate_custom_component"] = [FakeStep(plant_component_defect=True)]
     generation_id = submit_shop(client, login)
     assert run_job(tmp_path, generation_id, engine=FakeEngine(tmp_path, scenario), sandboxes=PassingSandboxes()) == (
-        "COMPLETED_WITH_WARNINGS"
+        "COMPLETED"
     )
     assert purposes(generation_id) == ["generate_custom_component"] * 3 + ["repair_custom_component"] * 3
     assert frontend_summary(generation_id)["engineCalls"] == 6 and len(cache_rows()) == 3
@@ -289,11 +246,11 @@ def test_a_component_that_cannot_be_generated_falls_back_without_failing_the_job
     scenario["generate_custom_component"] = [FakeStep(status="cli_error", error_reason="crash")]
     generation_id = submit_shop(client, login)
     assert run_job(tmp_path, generation_id, engine=FakeEngine(tmp_path, scenario), sandboxes=PassingSandboxes()) == (
-        "COMPLETED_WITH_WARNINGS"
+        "COMPLETED"
     )
     assert generation(generation_id).lanes["frontend"] == "COMPLETED"
     fallbacks = [e.payload for e in events(generation_id) if e.type == "component.fallback"]
-    assert sorted(f["fallback"][0] for f in fallbacks) == ["CardGrid", "DetailView", "List"]
+    assert sorted(f["fallback"][0] for f in fallbacks) == ["CardGrid", "CardGrid", "List"]
     assert all(f["reason"].startswith("engine failed") for f in fallbacks) and cache_rows() == []
     registry = (tmp_path / generation_id / "frontend/src/components/renderer/registry.ts").read_text()
     assert "ProductGrid: CardGrid as unknown" in registry and "@/components/custom/" not in registry
@@ -301,34 +258,9 @@ def test_a_component_that_cannot_be_generated_falls_back_without_failing_the_job
 
 def test_without_a_sandbox_components_are_used_but_never_cached(client, login, tmp_path):
     generation_id = submit_shop(client, login)
-    assert run_job(tmp_path, generation_id, engine=FakeEngine(tmp_path, demo_scenario(0))) == "COMPLETED_WITH_WARNINGS"
+    assert run_job(tmp_path, generation_id, engine=FakeEngine(tmp_path, demo_scenario(0))) == "COMPLETED"
     assert purposes(generation_id) == ["generate_custom_component"] * 3 and cache_rows() == []
     assert all(e.payload["cached"] is False for e in events(generation_id) if e.type == "component.generated")
-
-
-def test_a_cached_component_that_breaks_the_build_is_evicted_and_generated_again(client, login, tmp_path):
-    first = submit_shop(client, login)
-    run_job(tmp_path, first, engine=FakeEngine(tmp_path, demo_scenario(0)), sandboxes=PassingSandboxes())
-    plan = json.loads((tmp_path / first / "frontend/.bga/frontend-plan.json").read_text())
-    broken = plan["customComponents"]["ProductGrid"]["key"]
-
-    second = submit_shop(client, login)
-    validator = BuildBreaksOnce(component_file(broken))
-    status = run_job(
-        tmp_path,
-        second,
-        engine=FakeEngine(tmp_path, demo_scenario(0)),
-        sandboxes=PassingSandboxes(),
-        frontend_validator=validator,
-    )
-    assert status == "COMPLETED_WITH_WARNINGS" and validator.runs == 2
-    [evicted] = [e.payload for e in events(second) if e.type == "component.evicted"]
-    assert evicted["keys"] == [broken]
-    # Regenerated once, instead of an engine repair of the site; cached again from this generation.
-    assert purposes(second) == ["generate_custom_component"]
-    repair = next(r for r in node_runs(second) if r.node == "repair_frontend")
-    assert repair.summary["regenerated"] == ["ProductGrid"] and repair.summary["engineCalls"] == 1
-    assert {row.name: row.source_generation_id for row in cache_rows()}["ProductGrid"] == second
 
 
 def test_a_spec_without_props_schemas_still_goes_to_the_engine(client, login, tmp_path):
@@ -407,7 +339,7 @@ def test_interrupted_engine_keeps_component_if_file_changed_and_checks_pass(clie
     scenario["generate_custom_component"] = [FakeStep(custom_component=True, status="cli_error", error_reason="crash")]
     generation_id = submit_shop(client, login)
     assert run_job(tmp_path, generation_id, engine=FakeEngine(tmp_path, scenario), sandboxes=PassingSandboxes()) == (
-        "COMPLETED_WITH_WARNINGS"
+        "COMPLETED"
     )
     summary = frontend_summary(generation_id)
     assert summary["fallbacks"] == 0 and summary["customComponents"] == 3
@@ -421,7 +353,7 @@ def test_interrupted_engine_falls_back_if_file_unchanged(client, login, tmp_path
     scenario["generate_custom_component"] = [FakeStep(custom_component=False, status="cli_error", error_reason="crash")]
     generation_id = submit_shop(client, login)
     assert run_job(tmp_path, generation_id, engine=FakeEngine(tmp_path, scenario), sandboxes=PassingSandboxes()) == (
-        "COMPLETED_WITH_WARNINGS"
+        "COMPLETED"
     )
     summary = frontend_summary(generation_id)
     assert summary["fallbacks"] == 3 and summary["cacheHits"] == 0

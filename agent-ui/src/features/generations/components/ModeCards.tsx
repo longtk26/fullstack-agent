@@ -10,7 +10,7 @@ const MODE_CARDS: { mode: TGenerationMode; title: string; description: string; i
   {
     mode: "dynamic",
     title: "Dynamic web app",
-    description: "Frontend + backend from one API contract",
+    description: "App screens + backend from one API contract",
     icon: AppWindow,
   },
   { mode: "backend", title: "Backend API only", description: "A tested FastAPI backend from a BackendSpec", icon: Server },

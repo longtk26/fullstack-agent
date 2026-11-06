@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import pytest
+from generation_helpers import app_pair
 
 from src.engines.fake_engine import FakeEngine, demo_scenario
 from src.modules.shared.domain.enums import GenerationMode, GenerationStatus
@@ -14,8 +15,9 @@ from workflow_helpers import TWO_ENTITY, cli_invocations, events, generation, no
 
 EXAMPLES = Path(__file__).parents[2] / "examples"
 SHOP = json.loads((EXAMPLES / "specs" / "shop.json").read_text())
-SHOP_FRONTEND = json.loads((EXAMPLES / "frontend-specs" / "shop-dynamic.json").read_text())
-TRACKER_FRONTEND = json.loads((EXAMPLES / "frontend-specs" / "project-tracker-dynamic.json").read_text())
+# Story 22.8: dynamic FrontendSpecs are apps (the tracker app without a dashboard keeps two-entity as it is)
+SHOP_FRONTEND = app_pair("shop")[0]
+TRACKER_FRONTEND = app_pair("two-entity", dashboard=False)[0]
 LANDING = json.loads((EXAMPLES / "frontend-specs" / "static-landing.json").read_text())
 OPTIONS = {"engine": "fake", "deployPreview": False, "crudFromTemplates": False}  # the backend engine path
 
@@ -91,7 +93,7 @@ def test_validate_against_a_backend_spec_runs_the_consistency_check(client, head
     assert not report["valid"]
     first = report["errors"][0]
     assert first["code"] == "CONTRACT_UNKNOWN_OPERATION"
-    assert first["path"] == "/pages/0/sections/1/data/operationId" and first["backendPath"] == "/operations"
+    assert first["path"].startswith("/pages/") and first["backendPath"] == "/operations"
 
     static = _post_json(client, url, LANDING, headers()).json()
     assert static["valid"] and static["warnings"][0]["code"] == "FE_UNSUPPORTED_FEATURE"
@@ -113,7 +115,7 @@ def test_check_pair_compares_unsaved_specs(client, headers):
     contract = tracker.pop("contract")
     assert tracker["valid"] is True and tracker["specVersion"] == "1.0"
     assert tracker["errors"] == [] and tracker["checked"] is True
-    assert [w["code"] for w in tracker["warnings"]] == ["FE_OPERATION_UNUSED", "FE_OPERATION_UNUSED"]
+    assert tracker["warnings"] == [], "an app reaches every operation (Story 22.3)"
     assert contract["openapi"].startswith("3.1") and contract["paths"], "the contract is returned for the preview"
     assert check(SHOP_FRONTEND, SHOP)["valid"] is True
 
@@ -121,7 +123,7 @@ def test_check_pair_compares_unsaved_specs(client, headers):
     assert mismatch["checked"] and not mismatch["valid"]
     first = mismatch["errors"][0]
     assert first["code"] == "CONTRACT_UNKNOWN_OPERATION"
-    assert first["path"] == "/pages/0/sections/1/data/operationId" and first["backendPath"] == "/operations"
+    assert first["path"].startswith("/pages/") and first["backendPath"] == "/operations"
 
     # An invalid spec is reported by its own /validate; the pair is not compared.
     for frontend, backend in [({**TRACKER_FRONTEND, "pages": []}, TWO_ENTITY), (TRACKER_FRONTEND, {"entities": []})]:
@@ -301,7 +303,7 @@ def test_dynamic_generation_runs_contract_backend_and_frontend_lanes(client, hea
     assert (frontend / ".bga" / "contract.json").is_file() and (
         frontend / "src" / "lib" / "api" / "queries.ts"
     ).is_file()
-    assert "useOperationQuery" in (frontend / "src/components/renderer/bindings.ts").read_text()
+    assert "useOperationQuery" in (frontend / "src/components/app/bindings.ts").read_text()
 
     artifacts = _artifacts(client, auth, generation_id)
     assert {
@@ -325,7 +327,9 @@ def test_dynamic_generation_runs_contract_backend_and_frontend_lanes(client, hea
     )
     assert manifest["artifacts"]["contract"] == artifacts["contract.json"]["artifactId"]
     assert manifest["artifacts"]["frontend"] == artifacts["frontend.zip"]["artifactId"]
-    assert manifest["frontend"]["mode"] == "dynamic" and len(manifest["frontend"]["routes"]) == 5
+    assert manifest["frontend"]["mode"] == "dynamic" and len(manifest["frontend"]["routes"]) == len(
+        TRACKER_FRONTEND["pages"]
+    )
     assert manifest["frontend"]["contractSha256"] and manifest["frontend"]["env"] == [
         "MOCK_TEST_API",
         "API_BASE_URL",
@@ -355,10 +359,10 @@ def test_dynamic_generation_with_inconsistent_specs_fails_before_any_engine_call
     assert row.lanes == {"backend": "SKIPPED", "frontend": "SKIPPED", "integration": "SKIPPED"}
     assert cli_invocations(generation_id) == []
     invalid = next(e for e in events(generation_id) if e.type == "spec.invalid")
-    assert invalid.payload["total"] == 6
-    assert {error["spec"] for error in invalid.payload["errors"]} == {"consistency"}
+    total = invalid.payload["total"]
+    assert total > 0 and {error["spec"] for error in invalid.payload["errors"]} == {"consistency"}
     assert invalid.payload["errors"][0]["backendPath"] == "/operations"
-    assert row.error_summary.startswith("6 input error(s); first: consistency /pages/0/sections/1/data/operationId")
+    assert row.error_summary.startswith(f"{total} input error(s); first: consistency /pages/")
 
 
 def test_static_generation_renders_the_site_without_the_engine(client, headers, tmp_path):

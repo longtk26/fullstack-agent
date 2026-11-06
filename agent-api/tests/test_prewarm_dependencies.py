@@ -8,9 +8,9 @@ Verifies that:
 
 import asyncio
 import json
+from pathlib import Path
 
 import pytest
-from generation_helpers import EXAMPLES
 from sqlmodel import Session, delete
 
 from src.engines.fake_engine import FakeEngine, demo_scenario
@@ -25,8 +25,8 @@ from src.sandbox import ExecResult, ISandbox, ISandboxProvider
 from tests.test_frontend_scaffold import inputs
 from workflow_helpers import runner_ctx
 
-SHOP_FRONTEND = json.loads((EXAMPLES / "frontend-specs" / "shop-dynamic.json").read_text())
-SHOP_BACKEND = json.loads((EXAMPLES / "specs" / "shop.json").read_text())
+# Custom components are a static site's (Story 22.8): the static shop of three custom components.
+SHOP_FRONTEND = json.loads((Path(__file__).parent / "fixtures" / "frontend-specs" / "shop-static.json").read_text())
 
 
 @pytest.fixture(autouse=True)
@@ -41,9 +41,8 @@ def empty_cache():
 def _submit(client, login) -> str:
     headers = {"Authorization": f"Bearer {login('user@test.local', 'userpass')}"}
     body = {
-        "mode": "dynamic",
+        "mode": "static",
         "frontendSpec": SHOP_FRONTEND,
-        "backendSpec": SHOP_BACKEND,
         "options": {"engine": "fake", "deployPreview": False},
     }
     response = client.post("/api/v1/generations", json=body, headers=headers)
@@ -143,7 +142,7 @@ def test_dependency_fill_starts_before_engine_call_returns(client, login, tmp_pa
 
     engine = DelayedEngine(tmp_path, demo_scenario(0))
 
-    spec, contract, plan = inputs("shop-dynamic")
+    spec, contract, plan = inputs("shop-static")
 
     async def go():
         async with runner_ctx(tmp_path, engine=engine, sandboxes=sandboxes) as runner:
@@ -186,7 +185,7 @@ def test_engine_failure_cancels_background_fill(client, login, tmp_path):
 
     engine = FailingEngine(tmp_path, demo_scenario(0))
 
-    spec, contract, plan = inputs("shop-dynamic")
+    spec, contract, plan = inputs("shop-static")
 
     async def go():
         async with runner_ctx(tmp_path, engine=engine, sandboxes=sandboxes) as runner:
@@ -207,7 +206,7 @@ def test_fill_failure_does_not_fail_component(client, login, tmp_path):
     sandboxes = PrewarmTrackingSandboxes(fill_error=True)
     engine = FakeEngine(tmp_path, demo_scenario(0))
 
-    spec, contract, plan = inputs("shop-dynamic")
+    spec, contract, plan = inputs("shop-static")
 
     async def go():
         async with runner_ctx(tmp_path, engine=engine, sandboxes=sandboxes) as runner:

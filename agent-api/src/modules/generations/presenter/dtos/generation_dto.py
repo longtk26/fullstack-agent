@@ -21,7 +21,6 @@ class FrontendOptionsDto(CamelModel):
     run_tests: bool = True
     generate_preview: bool = True
     mock_api: bool = True
-    manage_area: bool = True
 
 
 class GenerationOptionsDto(CamelModel):

@@ -1,7 +1,7 @@
 {
-  "(frontend-spec)": "37529239990d6ea3e728e4921c3f603fdb4071f12a57db8c06f4cdcd150c182f",
+  "(frontend-spec)": "9afe2dc2a452ce4f4c081da242b1aee19b212c6834cba218e09a32a01796fd31",
   "(plan)": "c6a30ac12b3d17291e474d512b28bc46c1e02ed67e773b993ebf6f38420c00a5",
-  ".bga/frontend-spec.json": "d49617d1e612f83db01cb3b37523dce05486bb92968c31bfd93ba8e924e93cd9",
+  ".bga/frontend-spec.json": "25ed7f60acb43503e1950984f0e943766cd4f110138ea506c3cef80eeb44d8f6",
   ".bga/owned.json": "952778b53bb1322cd7f14e672747402fa0ae7f6b832d3f7cc01fefa85d1ecec4",
   ".bga/scaffold.json": "846ef8053f13c0f1b21184d5feadce72a3957cc0808611d127cc029457050c73",
   ".dockerignore": "a2f0a9c3318eb1a25f6a938b33efd1289e1dad5f55aecad6118dab6f2de46b78",

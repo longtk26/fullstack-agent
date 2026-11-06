@@ -159,12 +159,12 @@ def test_cached_preview_builds_reuse_dependency_layers(tmp_path):
     # bga-be-deps must survive preview removal
     assert len(d_client.images.list(name="bga-be-deps")) >= 1
 
-    # 2. Frontend golden project built twice under different site names
-    fe_proj1, _ = scaffolded(tmp_path / "fe1", "shop-dynamic", golden=True)
+    # 2. The shop app (Story 22.8: dynamic frontends are apps) built twice under different site names
+    fe_proj1, _ = scaffolded(tmp_path / "fe1", "shop")
     fe_zip1 = tmp_path / "fe1.zip"
     fe_zip1.write_bytes(build_source_zip(fe_proj1))
 
-    fe_proj2, _ = scaffolded(tmp_path / "fe2", "shop-dynamic", golden=True)
+    fe_proj2, _ = scaffolded(tmp_path / "fe2", "shop")
     pkg = json.loads((fe_proj2 / "package.json").read_text())
     pkg["name"] = "different-shop-site"
     (fe_proj2 / "package.json").write_text(json.dumps(pkg, indent=2))

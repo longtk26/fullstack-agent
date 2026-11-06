@@ -1,13 +1,15 @@
 """Requirement drafting (Stories 2.4, 12.4): a requirement (or an imported site) → draft spec(s) for review.
 
 A draft runs on the worker, outside the generation graph: one engine call in a scratch directory writes the spec
-file(s) and `notes.json`; they are validated (BackendSpec 2.2, FrontendSpec 12.1, and in dynamic mode the pair's
-consistency 12.5) and repaired by the engine a bounded number of times. A draft that is still invalid ends as
-NEEDS_REVIEW with its errors; it is never submitted. Each engine call is recorded on the draft (`usage`) and traced.
+file(s) and `notes.json`; they are validated (BackendSpec 2.2, FrontendSpec 12.1) and repaired by the engine a bounded
+number of times. Dynamic drafts take the app flow (`app.py`, Epic 22), which also checks the pair (12.5). A draft that
+is still invalid ends as NEEDS_REVIEW with its errors; it is never submitted. Each engine call is recorded on the
+draft (`usage`) and traced.
 
-Static and dynamic drafts from a requirement get a design direction (Story 12.6): the engine sees three ranked
-briefs (`.bga/design.md`) and names one in its notes; the theme, the home page order and the hero layout are then
-filled from the design data, and the three directions are kept on the draft (`design`) for the review.
+Static drafts from a requirement get a design direction (Story 12.6): the engine sees three ranked briefs
+(`.bga/design.md`) and names one in its notes; the theme, the home page order and the hero layout are then filled from
+the design data, and the three directions are kept on the draft (`design`) for the review. A dynamic app takes only
+the first direction's theme, with no cards.
 
 Drafts show no placeholders (Epic 15): an image the engine left as a placeholder is turned into a drawing
 (`source: "generate"`, prompt from its alt text, style from the direction), up to the generated-image limit.
@@ -47,7 +49,6 @@ from src.modules.shared.domain.frontend_spec import (
     BUILTIN_SECTIONS,
     LAYOUT_SECTIONS,
     SECTION_PROPS,
-    add_manage_area,
     autofix_frontend_spec,
     frontend_spec_json_schema,
     validate_frontend_spec_data,
@@ -60,8 +61,8 @@ from src.orchestrator.drafting import trees as tree_drafting
 
 from .. import tracing
 from ..checks.consistency import check_spec_pair
-from ..integration.contract import build_contract
 from ..store import JobStore
+from .app import BACKEND_EXAMPLE as APP_BACKEND_EXAMPLE
 from .app import app_flow, app_inputs, draft_app, outline_notes
 from .design_cards import (
     MAX_SEED,
@@ -88,7 +89,6 @@ from .design_direction import (
     directions,
     pick,
 )
-from .pair_fixes import adapt_backend, prune_frontend
 
 logger = get_logger(__name__)
 
@@ -103,7 +103,6 @@ DIRECTION_REPAIRS = 2
 EXAMPLES = {
     "backend": "specs/shop.json",
     "static": "frontend-specs/static-landing.json",
-    "dynamic": "frontend-specs/shop-dynamic.json",
 }
 
 
@@ -196,7 +195,8 @@ def write_inputs(
     if mode in (GenerationMode.BACKEND, GenerationMode.DYNAMIC):
         _write_json(inputs / "backend-spec.schema.json", spec_json_schema())
         (inputs / "backend-spec.schema.md").write_text(schema_digest(spec_json_schema(), "BackendSpec"))
-        _copy_example(examples_dir, EXAMPLES["backend"], inputs / "examples" / "backend-spec.json")
+        example = APP_BACKEND_EXAMPLE if app else EXAMPLES["backend"]
+        _copy_example(examples_dir, example, inputs / "examples" / "backend-spec.json")
         context |= {
             "schema_path": f"{INPUTS}/backend-spec.schema.json",
             "schema_digest_path": f"{INPUTS}/backend-spec.schema.md",
@@ -209,8 +209,8 @@ def write_inputs(
         }
     if app:
         context |= app_inputs(examples_dir)
-    if mode in (GenerationMode.STATIC, GenerationMode.DYNAMIC) and not app:
-        # Epic 22: without the app flow's fields, so static and legacy dynamic drafts read the schema they always did.
+    if mode == GenerationMode.STATIC:
+        # Epic 22: without the app flow's fields, so static drafts read the schema they always did.
         site = frontend_spec_json_schema(app=False)
         _write_json(inputs / "frontend-spec.schema.json", site)
         (inputs / "frontend-spec.schema.md").write_text(schema_digest(site, "FrontendSpec"))
@@ -376,7 +376,7 @@ def check_draft(work: Path, mode: GenerationMode) -> DraftCheck:
             result = validate_frontend_spec_data(data)
             report = result.report
             declared = (data.get("project") or {}).get("mode") if isinstance(data, dict) else None
-            if result.normalized is not None and declared != mode:
+            if declared in ("static", "dynamic") and declared != mode:  # first, before what the wrong mode causes
                 mismatch = SpecIssue(
                     code="MODE_MISMATCH",
                     path="/project/mode",
@@ -606,50 +606,8 @@ def autofix_draft(work: Path) -> list[dict[str, Any]]:
     if issue is not None or not isinstance(spec, dict) or not isinstance(spec.get("pages"), list):
         return []
     fixed_spec, notes = autofix_frontend_spec(spec)
-    backend_file = work / BACKEND_FILE
-    if backend_file.is_file():
-        b_spec, b_issue = _load(backend_file)
-        if b_issue is None and isinstance(b_spec, dict):
-            from src.orchestrator.checks.consistency import reconcile_spec_pair
-
-            # The BackendSpec is still a plan: it follows what the pages read and send first.
-            b_spec, a_notes = adapt_backend(fixed_spec, b_spec)
-            if a_notes:
-                _write_json(backend_file, b_spec)
-                notes.extend(a_notes)
-            normalized = validate_spec_data(b_spec).normalized  # the contract builds from the normalized spec
-            if normalized is not None:
-                fixed_spec, r_notes = reconcile_spec_pair(fixed_spec, normalized)
-                notes.extend(r_notes)
     _write_json(work / FRONTEND_FILE, fixed_spec)
     return notes
-
-
-def prune_draft(work: Path) -> list[dict[str, Any]]:
-    """Cuts from FRONTEND_FILE what the pair check still rejects (`pair_fixes.prune_frontend`); returns the notes."""
-    frontend_raw, issue_fe = _load(work / FRONTEND_FILE)
-    backend_raw, issue_be = _load(work / BACKEND_FILE)
-    if issue_fe or issue_be:
-        return []
-    pruned, notes = prune_frontend(frontend_raw, backend_raw)
-    if notes:
-        _write_json(work / FRONTEND_FILE, pruned)
-    return notes
-
-
-def apply_manage_area(work: Path) -> list[dict[str, Any]]:
-    """Adds a deterministic Manage area for uncovered operations (Story 19.7); returns assumption notes."""
-    frontend_raw, issue_fe = _load(work / FRONTEND_FILE)
-    backend_raw, issue_be = _load(work / BACKEND_FILE)
-    if issue_fe or issue_be or not isinstance(frontend_raw, dict) or not isinstance(backend_raw, dict):
-        return []
-    val = validate_spec_data(backend_raw)
-    if not val.report.valid or val.normalized is None:
-        return []
-    contract = build_contract(val.normalized)
-    managed_spec, notes = add_manage_area(frontend_raw, contract)
-    _write_json(work / FRONTEND_FILE, managed_spec)
-    return [{"spec": "frontend", "path": "/manage", "message": note, "suggestion": None} for note in notes]
 
 
 # -- usage ---------------------------------------------------------------------------------------------------------
@@ -933,7 +891,9 @@ class DraftRunner:
             check = outcome.check
             if check.backend_spec is None:
                 trace.close({"status": "failed"}, error="no spec written")
-                raise DraftFailed(outcome.error or "The engine wrote no spec")
+                report = check.reports.get("backend")
+                why = report.errors[0].message if report is not None and report.errors else "The engine wrote no spec"
+                raise DraftFailed(outcome.error or f"{why} (after {outcome.attempts} repair(s))")
             assumptions, unresolved = (outline_notes(notes) for notes in read_notes(work, mode))
             if found:  # the direction's theme only: its first note says where it came from
                 assumptions += design_notes(found[0])[:1]
@@ -983,7 +943,6 @@ class DraftRunner:
             chosen = design["directions"][design["selected"]] if design else None
             autofix_notes = autofix_draft(work) if frontend else []
             image_notes = draw_images(work, chosen) if frontend else []
-            manage_notes = apply_manage_area(work) if mode == GenerationMode.DYNAMIC else []
             await update_progress("validating")
             check = check_draft(work, mode)
             attempts = 0
@@ -1021,25 +980,14 @@ class DraftRunner:
                         break
                 if frontend:
                     autofix_notes += autofix_draft(work)
-                if mode == GenerationMode.DYNAMIC:
-                    manage_notes = apply_manage_area(work)
                 check = check_draft(work, mode)
             if design is not None:
                 finish_design(work, design)
                 check = check_draft(work, mode)
-            if not check.ok and mode == GenerationMode.DYNAMIC:
-                # The last resort: both specs are valid but still disagree after the repair rounds. What the backend
-                # cannot provide is cut from the pages (each cut noted), so the user never fixes the pair by hand.
-                cut_notes = prune_draft(work)
-                if cut_notes:
-                    autofix_notes += cut_notes
-                    check = check_draft(work, mode)
-                    if check.ok:
-                        error = None
             if check.ok and frontend and config.frontend_trees:
                 # Epic 21: design each page as an element tree, one engine call per page (in parallel on an API
                 # engine); the chrome too. The tree rules repair what they can; a page whose tree still fails keeps
-                # its sections, and a dynamic app's BackendSpec gains the operations the trees' data need.
+                # its sections.
                 await update_progress("designing pages")
                 spec_now, _ = _load(work / FRONTEND_FILE)
                 requests = tree_drafting.tree_requests(spec_now) if isinstance(spec_now, dict) else []
@@ -1062,8 +1010,6 @@ class DraftRunner:
                     for request in requests:
                         await design_page(request)
                 tree_notes = tree_drafting.apply_tree_files(work, work / FRONTEND_FILE)
-                if mode == GenerationMode.DYNAMIC:
-                    tree_notes += tree_drafting.complete_backend_for_trees(work / FRONTEND_FILE, work / BACKEND_FILE)
                 check = check_draft(work, mode)
                 if not check.ok:  # the designed pages must not cost the draft: back to the section pages
                     tree_notes.append(
@@ -1178,7 +1124,6 @@ class DraftRunner:
             assumptions += design_notes(design["directions"][design["selected"]], design.pop("notes", []))
         assumptions += image_notes
         assumptions += autofix_notes
-        assumptions += manage_notes
         assumptions += photo_notes
         await self._save(draft, check, assumptions, unresolved, design, calls, error, trace)
 

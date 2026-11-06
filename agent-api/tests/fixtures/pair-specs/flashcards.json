@@ -4,7 +4,8 @@
     "name": "Flashcards",
     "description": "Spaced-repetition vocabulary learning app with decks, cards and SM-2 reviews",
     "mode": "dynamic",
-    "locale": "en"
+    "locale": "en",
+    "flow": "app"
   },
   "theme": {
     "style": "minimal",
@@ -26,14 +27,23 @@
     "header": {
       "logoText": "Flashcards",
       "navigation": [
-        { "label": "Decks", "page": "decks" },
-        { "label": "New Card", "page": "card-new" }
+        {
+          "label": "Decks",
+          "page": "decks"
+        },
+        {
+          "label": "New Card",
+          "page": "card-new"
+        }
       ]
     },
     "footer": {
       "text": "© Flashcards",
       "links": [
-        { "label": "Decks", "page": "decks" }
+        {
+          "label": "Decks",
+          "page": "decks"
+        }
       ]
     }
   },
@@ -50,7 +60,10 @@
           "content": {
             "heading": "Master vocabulary with spaced repetition",
             "body": "Learn faster, remember forever.",
-            "cta": { "label": "Browse Decks", "page": "decks" }
+            "cta": {
+              "label": "Browse Decks",
+              "page": "decks"
+            }
           }
         },
         {
@@ -58,8 +71,13 @@
           "component": "CardGrid",
           "data": {
             "operationId": "deck.list",
-            "params": { "sort": "name" },
-            "fields": ["name", "description"]
+            "params": {
+              "sort": "name"
+            },
+            "fields": [
+              "name",
+              "description"
+            ]
           },
           "content": {
             "actions": [
@@ -68,18 +86,24 @@
                 "label": "Study",
                 "kind": "link",
                 "page": "study",
-                "params": { "id": "$record.id" }
+                "params": {
+                  "id": "$record.id"
+                }
               },
               {
                 "id": "progress",
                 "label": "Stats",
                 "kind": "link",
                 "page": "deck-progress",
-                "params": { "id": "$record.id" }
+                "params": {
+                  "id": "$record.id"
+                }
               }
             ]
           },
-          "states": { "empty": "No decks found" }
+          "states": {
+            "empty": "No decks found"
+          }
         }
       ]
     },
@@ -94,8 +118,13 @@
           "component": "DetailView",
           "data": {
             "operationId": "deck.get",
-            "params": { "id": "$route.id" },
-            "fields": ["name", "description"]
+            "params": {
+              "id": "$route.id"
+            },
+            "fields": [
+              "name",
+              "description"
+            ]
           },
           "content": {
             "actions": [
@@ -104,7 +133,9 @@
                 "label": "Study Due Cards",
                 "kind": "link",
                 "page": "study",
-                "params": { "id": "$route.id" }
+                "params": {
+                  "id": "$route.id"
+                }
               }
             ]
           }
@@ -114,8 +145,15 @@
           "component": "DataTable",
           "data": {
             "operationId": "card.list",
-            "params": { "deckId": "$route.id" },
-            "fields": ["front", "back", "dueDate", "intervalDays"]
+            "params": {
+              "deckId": "$route.id"
+            },
+            "fields": [
+              "front",
+              "back",
+              "dueDate",
+              "intervalDays"
+            ]
           },
           "content": {
             "actions": [
@@ -124,12 +162,16 @@
                 "label": "Delete",
                 "kind": "mutation",
                 "operationId": "card.delete",
-                "params": { "id": "$record.id" },
+                "params": {
+                  "id": "$record.id"
+                },
                 "confirm": "Delete this card?"
               }
             ]
           },
-          "states": { "empty": "No cards in this deck" }
+          "states": {
+            "empty": "No cards in this deck"
+          }
         }
       ]
     },
@@ -144,18 +186,33 @@
           "component": "CardGrid",
           "data": {
             "operationId": "card.listDue",
-            "params": { "deckId": "$route.id" },
-            "fields": ["front", "back"]
+            "params": {
+              "deckId": "$route.id"
+            },
+            "fields": [
+              "front",
+              "back"
+            ]
           },
-          "states": { "empty": "No due cards for today!" }
+          "states": {
+            "empty": "No due cards for today!"
+          }
         },
         {
           "id": "study-card",
           "component": "DetailView",
           "data": {
             "operationId": "card.get",
-            "params": { "id": "$route.id" },
-            "fields": ["front", "back", "example", "dueDate", "intervalDays"]
+            "params": {
+              "id": "$route.id"
+            },
+            "fields": [
+              "front",
+              "back",
+              "example",
+              "dueDate",
+              "intervalDays"
+            ]
           }
         },
         {
@@ -169,32 +226,48 @@
                 "label": "Again",
                 "kind": "mutation",
                 "operationId": "card.review",
-                "params": { "id": "$route.id" },
-                "body": { "rating": "again" }
+                "params": {
+                  "id": "$route.id"
+                },
+                "body": {
+                  "rating": "again"
+                }
               },
               {
                 "id": "hard",
                 "label": "Hard",
                 "kind": "mutation",
                 "operationId": "card.review",
-                "params": { "id": "$route.id" },
-                "body": { "rating": "hard" }
+                "params": {
+                  "id": "$route.id"
+                },
+                "body": {
+                  "rating": "hard"
+                }
               },
               {
                 "id": "good",
                 "label": "Good",
                 "kind": "mutation",
                 "operationId": "card.review",
-                "params": { "id": "$route.id" },
-                "body": { "rating": "good" }
+                "params": {
+                  "id": "$route.id"
+                },
+                "body": {
+                  "rating": "good"
+                }
               },
               {
                 "id": "easy",
                 "label": "Easy",
                 "kind": "mutation",
                 "operationId": "card.review",
-                "params": { "id": "$route.id" },
-                "body": { "rating": "easy" }
+                "params": {
+                  "id": "$route.id"
+                },
+                "body": {
+                  "rating": "easy"
+                }
               }
             ]
           }
@@ -228,15 +301,24 @@
             "items": [
               {
                 "label": "Total Cards",
-                "data": { "operationId": "deck.stats", "value": "total" }
+                "data": {
+                  "operationId": "deck.stats",
+                  "value": "total"
+                }
               },
               {
                 "label": "Due Today",
-                "data": { "operationId": "deck.stats", "value": "dueToday" }
+                "data": {
+                  "operationId": "deck.stats",
+                  "value": "dueToday"
+                }
               },
               {
                 "label": "Learned Cards",
-                "data": { "operationId": "deck.stats", "value": "learned" }
+                "data": {
+                  "operationId": "deck.stats",
+                  "value": "learned"
+                }
               }
             ]
           }
@@ -249,16 +331,59 @@
       "id": "new_card_form",
       "operationId": "card.create",
       "submitLabel": "Create Card",
-      "onSuccess": { "toast": "Card created", "navigate": "decks" },
+      "onSuccess": {
+        "toast": "Card created",
+        "navigate": "decks"
+      },
       "fields": [
-        { "name": "deckId", "type": "string", "required": true, "label": "Deck ID" },
-        { "name": "front", "type": "string", "required": true, "label": "Front" },
-        { "name": "back", "type": "string", "required": true, "label": "Back" },
-        { "name": "example", "type": "text", "required": false, "label": "Example" },
-        { "name": "dueDate", "type": "date", "required": true, "label": "Due Date" },
-        { "name": "intervalDays", "type": "integer", "required": false, "label": "Interval Days" },
-        { "name": "ease", "type": "number", "required": false, "label": "Ease Factor" },
-        { "name": "repetitionCount", "type": "integer", "required": false, "label": "Repetitions" }
+        {
+          "name": "deckId",
+          "type": "string",
+          "required": true,
+          "label": "Deck ID"
+        },
+        {
+          "name": "front",
+          "type": "string",
+          "required": true,
+          "label": "Front"
+        },
+        {
+          "name": "back",
+          "type": "string",
+          "required": true,
+          "label": "Back"
+        },
+        {
+          "name": "example",
+          "type": "text",
+          "required": false,
+          "label": "Example"
+        },
+        {
+          "name": "dueDate",
+          "type": "date",
+          "required": true,
+          "label": "Due Date"
+        },
+        {
+          "name": "intervalDays",
+          "type": "integer",
+          "required": false,
+          "label": "Interval Days"
+        },
+        {
+          "name": "ease",
+          "type": "number",
+          "required": false,
+          "label": "Ease Factor"
+        },
+        {
+          "name": "repetitionCount",
+          "type": "integer",
+          "required": false,
+          "label": "Repetitions"
+        }
       ]
     }
   ],
@@ -268,9 +393,20 @@
       "title": "Browse Decks",
       "goal": "View available vocabulary decks and inspect cards",
       "steps": [
-        { "do": "visit", "page": "decks" },
-        { "do": "open", "section": "decks-grid", "record": "first" },
-        { "do": "expect", "section": "cards-grid", "text": "Cards" }
+        {
+          "do": "visit",
+          "page": "decks"
+        },
+        {
+          "do": "open",
+          "section": "decks-grid",
+          "record": "first"
+        },
+        {
+          "do": "expect",
+          "section": "cards-grid",
+          "text": "Cards"
+        }
       ]
     },
     {
@@ -278,7 +414,10 @@
       "title": "Add Flashcard",
       "goal": "Add a new vocabulary card to a deck",
       "steps": [
-        { "do": "visit", "page": "card-new" },
+        {
+          "do": "visit",
+          "page": "card-new"
+        },
         {
           "do": "submit",
           "section": "card-form-section",
@@ -289,7 +428,11 @@
             "dueDate": "2026-10-31"
           }
         },
-        { "do": "expect", "section": "card-form-section", "text": "Card created" }
+        {
+          "do": "expect",
+          "section": "card-form-section",
+          "text": "Card created"
+        }
       ]
     },
     {
@@ -297,9 +440,25 @@
       "title": "Study Due Cards",
       "goal": "Review due cards and submit ratings using SM-2",
       "steps": [
-        { "do": "visit", "page": "study" },
-        { "do": "action", "section": "study-actions", "action": "good", "record": "first" },
-        { "do": "expect", "section": "study-card", "changed": { "field": "dueDate", "record": "first" }, "live": true }
+        {
+          "do": "visit",
+          "page": "study"
+        },
+        {
+          "do": "action",
+          "section": "study-actions",
+          "action": "good",
+          "record": "first"
+        },
+        {
+          "do": "expect",
+          "section": "study-card",
+          "changed": {
+            "field": "dueDate",
+            "record": "first"
+          },
+          "live": true
+        }
       ]
     },
     {
@@ -307,8 +466,15 @@
       "title": "Track Study Progress",
       "goal": "Inspect learning statistics for a deck",
       "steps": [
-        { "do": "visit", "page": "deck-progress" },
-        { "do": "expect", "section": "stats-section", "text": "Total Cards" }
+        {
+          "do": "visit",
+          "page": "deck-progress"
+        },
+        {
+          "do": "expect",
+          "section": "stats-section",
+          "text": "Total Cards"
+        }
       ]
     }
   ]

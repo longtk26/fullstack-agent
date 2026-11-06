@@ -72,10 +72,6 @@ class Config(BaseSettings):
     # of an API engine run in parallel). Off: the section pages as before.
     frontend_trees: bool = True
     frontend_tree_concurrency: int = 4
-    # Epic 22: the frontend flow of dynamic drafts from a requirement. `app`: the model drafts an app outline next to
-    # the BackendSpec and code builds the screens on the app kit; `legacy`: designed pages as for static sites.
-    # Static sites always use their own flow.
-    dynamic_frontend: Literal["legacy", "app"] = "legacy"
     # Story 22.7 (decision P8): AUTH_TOKEN_STORAGE of dynamic frontend previews (local | cookie)
     preview_auth_token_storage: Literal["local", "cookie"] = "local"
     # Whether run_validation runs a generated backend's own pytest suite (the `tests` check). Off: the check runs the
@@ -169,7 +165,6 @@ class Config(BaseSettings):
     # Dynamic integration (Story 14.2): how long `integrate` waits for the backend lane and its preview before
     # keeping the frontend on its mock API.
     integration_wait_seconds: float = 180
-    journey_test_timeout_seconds: int = 180
 
     # LangSmith tracing (Epic 8). Off unless LANGSMITH_TRACING=true and a key is set; the local trace (node runs,
     # CLI invocations, model calls, checks) is recorded either way. LANGSMITH_AGENT_ID (beta, enabled per

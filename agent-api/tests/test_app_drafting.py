@@ -1,4 +1,4 @@
-"""Drafting a dynamic app (Story 22.2): one `draft_app@v1` call for the BackendSpec and the app outline; code
+"""Drafting a dynamic app (Story 22.2): one `draft_app@v2` call for the BackendSpec and the app outline; code
 completes the outline from the BackendSpec, fixes what it can without a call, and writes the FrontendSpec."""
 
 import asyncio
@@ -10,7 +10,6 @@ from pathlib import Path
 import pytest
 from sqlmodel import Session, delete
 
-from src.configs import config
 from src.engines import EngineRegistry, PromptLibrary
 from src.engines.fake_engine import FakeEngine, FakeStep, demo_scenario
 from src.libs.database import db_session_manager
@@ -84,16 +83,18 @@ def _prompt(inline: bool) -> str:
     }
     if inline:
         context |= {"backend_schema_digest": "<BackendSpec digest>", "backend_example": "{}"}
-    return PromptLibrary().render("draft_app", "v1", **context).text
+    return PromptLibrary().render("draft_app", "v2", **context).text
 
 
 def test_draft_app_prompt_snapshots():
     """The prompt carries the outline digest and both examples, and no layout, colour or font instructions."""
     for inline in (False, True):
         text = _prompt(inline)
-        _snapshot(f"draft_app.v1{'.inline' if inline else ''}.md", text)
+        _snapshot(f"draft_app.v2{'.inline' if inline else ''}.md", text)
         assert "type AppOutline = {" in text and "type AppEntity = {" in text and "app-outline.json" in text
         assert text.count("Flashcards (") == 1 and text.count("Project tracker (") == 1
+        assert text.count("Workshop bookings (") == 1, "an example with sign-in, roles and the plugins (22.8)"
+        assert "never add an entity for the people who sign in" in text and "Do not add authentication" not in text
         assert "FrontendSpec" not in text and "direction" not in text.lower() and "Tailwind" not in text
     assert '"files"' in _prompt(True) and '"files"' not in _prompt(False)
 
@@ -181,7 +182,6 @@ def test_the_models_outline_notes_point_into_the_frontend_spec():
 def test_an_app_draft_is_one_call_and_bad_outlines_cost_no_repair(
     client, user_headers, tmp_path, monkeypatch, cleanup_drafts
 ):
-    monkeypatch.setattr(config, "dynamic_frontend", "app")
     backend = (EXAMPLES / "specs" / "flashcards.json").read_text()
     bad = {"name": "Words", "nav": [{"entity": "Nope"}], "entities": {"Card": {"listStyle": "grid"}}}
     notes = {"assumptions": [{"spec": "frontend", "path": "/nav", "message": "Decks first"}], "unresolved": []}
@@ -194,7 +194,7 @@ def test_an_app_draft_is_one_call_and_bad_outlines_cost_no_repair(
     }
     draft = _draft(client, user_headers, tmp_path, "Vocabulary decks to learn new words", scenario)
     assert draft["status"] == "SUCCEEDED", draft["validation"]
-    assert [call["prompt"] for call in draft["usage"]["calls"]] == ["draft_app@v1"]
+    assert [call["prompt"] for call in draft["usage"]["calls"]] == ["draft_app@v2"]
     messages = {note["path"]: note["message"] for note in draft["assumptions"]}
     assert messages["/app/nav"] == "Decks first", "the model's own notes point into the FrontendSpec"
     assert "names no entity" in messages["/app/nav/0"] and "/app/entities/Card/listStyle" in messages
@@ -202,7 +202,6 @@ def test_an_app_draft_is_one_call_and_bad_outlines_cost_no_repair(
 
 
 def test_an_invalid_backend_spec_gets_one_repair(client, user_headers, tmp_path, monkeypatch, cleanup_drafts):
-    monkeypatch.setattr(config, "dynamic_frontend", "app")
     good = (EXAMPLES / "specs" / "two-entity.json").read_text()
     broken = {**json.loads(good), "specVersion": "9.9"}
     outline = (EXAMPLES / "app-outlines" / "project-tracker.json").read_text()
@@ -212,12 +211,11 @@ def test_an_invalid_backend_spec_gets_one_repair(client, user_headers, tmp_path,
     }
     draft = _draft(client, user_headers, tmp_path, "A team's projects and their tasks", scenario)
     assert draft["status"] == "SUCCEEDED", draft["validation"]
-    assert [call["prompt"] for call in draft["usage"]["calls"]] == ["draft_app@v1", "repair_spec@v3"]
+    assert [call["prompt"] for call in draft["usage"]["calls"]] == ["draft_app@v2", "repair_spec@v3"]
     assert draft["frontend_spec"]["app"]["tagline"] == "Projects and their tasks, in one place"
 
 
 def test_a_draft_without_an_outline_still_makes_an_app(client, user_headers, tmp_path, monkeypatch, cleanup_drafts):
-    monkeypatch.setattr(config, "dynamic_frontend", "app")
     scenario = {"draft_app": [FakeStep(write={"backend-spec.json": (EXAMPLES / "specs" / "shop.json").read_text()})]}
     draft = _draft(client, user_headers, tmp_path, "A small store with products by category", scenario)
     assert draft["status"] == "SUCCEEDED", draft["validation"]
@@ -226,7 +224,6 @@ def test_a_draft_without_an_outline_still_makes_an_app(client, user_headers, tmp
 
 
 def test_the_fake_engine_drafts_the_example_outline(client, user_headers, tmp_path, monkeypatch, cleanup_drafts):
-    monkeypatch.setattr(config, "dynamic_frontend", "app")
     draft = _draft(client, user_headers, tmp_path, "A flashcard app to learn vocabulary")
     assert draft["status"] == "SUCCEEDED", draft["validation"]
     app = draft["frontend_spec"]["app"]
@@ -237,7 +234,6 @@ def test_the_fake_engine_drafts_the_example_outline(client, user_headers, tmp_pa
 def test_a_real_antigravity_draft_becomes_an_app(client, user_headers, tmp_path, monkeypatch, cleanup_drafts):
     """Story 22.2's live check (Antigravity, 2026-11-05): its outline and BackendSpec, replayed. Its one slip, a date
     default of `today`, is fixed by code (the repair round did not fix it live); its own aggregates are reused."""
-    monkeypatch.setattr(config, "dynamic_frontend", "app")
     recorded = Path(__file__).parent / "fixtures" / "drafts" / "plant-care-antigravity"
     files = {name: (recorded / name).read_text() for name in ("backend-spec.json", OUTLINE_FILE, "notes.json")}
     draft = _draft(
@@ -248,7 +244,7 @@ def test_a_real_antigravity_draft_becomes_an_app(client, user_headers, tmp_path,
         {"draft_app": [FakeStep(write=files)]},
     )
     assert draft["status"] == "SUCCEEDED", draft["validation"]
-    assert [call["prompt"] for call in draft["usage"]["calls"]] == ["draft_app@v1"], "no repair round"
+    assert [call["prompt"] for call in draft["usage"]["calls"]] == ["draft_app@v2"], "no repair round"
     assert any("default 'today' is written 'now'" in note["message"] for note in draft["assumptions"])
     assert draft["validation"]["pair"]["errors"] == [] and draft["validation"]["pair"]["warnings"] == []
     spec = draft["frontend_spec"]
@@ -258,3 +254,27 @@ def test_a_real_antigravity_draft_becomes_an_app(client, user_headers, tmp_path,
     navigation = spec["layout"]["header"]["navigation"]
     assert navigation[-1] == {"label": "Plants that need water today", "page": "plants-due"}
     assert draft["unresolved"] and all(note["spec"] in ("backend", "frontend", None) for note in draft["unresolved"])
+
+
+def test_an_app_draft_reads_the_example_of_every_plugin(tmp_path):
+    """Story 22.8 (the soccer run on Antigravity): an app draft is shown how sign-in, roles, ownership, rules, uploads,
+    payments and links are written; v1 told the model to leave sign-in out, so a requirement with players and staff
+    left it stuck between the two."""
+    from src.modules.shared.domain.entities import SpecDraftEntity
+    from src.modules.shared.domain.enums import GenerationMode, SpecSource
+    from src.orchestrator.drafting.drafts import write_inputs
+
+    draft = SpecDraftEntity(
+        owner_id=uuid.uuid4(),
+        source=SpecSource.REQUIREMENT,
+        mode=GenerationMode.DYNAMIC,
+        engine="fake",
+        requirement_text="Players book a pitch and pay; staff confirm bookings.",
+        requirement_format="text",
+    )
+    write_inputs(tmp_path, draft, EXAMPLES, app=True)
+    example = json.loads((tmp_path / ".bga" / "examples" / "backend-spec.json").read_text())
+    assert example["auth"]["roles"] and example["policies"] and example["rules"] and example["payments"]
+    backend = SpecDraftEntity(**{**draft.model_dump(), "mode": GenerationMode.BACKEND})
+    write_inputs(tmp_path / "backend", backend, EXAMPLES)
+    assert "auth" not in json.loads((tmp_path / "backend/.bga/examples/backend-spec.json").read_text())

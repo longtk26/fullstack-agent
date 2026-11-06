@@ -4,13 +4,13 @@ import copy
 import json
 
 import pytest
-from generation_helpers import EXAMPLES, normalized
+from generation_helpers import EXAMPLES, PAIR_SPECS, app_pair, normalized
 
 from src.modules.shared.domain.backend_spec import Severity
 from src.modules.shared.domain.frontend_spec import validate_frontend_spec_data
 from src.orchestrator.checks.consistency import check_spec_pair, closest_field, reconcile_spec_pair
 
-SHOP_FRONTEND = json.loads((EXAMPLES / "frontend-specs" / "shop-dynamic.json").read_text())
+SHOP_FRONTEND = json.loads((PAIR_SPECS / "shop.json").read_text())
 
 
 def issues(frontend: dict, backend: str = "shop") -> list:
@@ -19,10 +19,18 @@ def issues(frontend: dict, backend: str = "shop") -> list:
     return check_spec_pair(result.normalized, normalized(EXAMPLES / "specs" / f"{backend}.json"))
 
 
-@pytest.mark.parametrize(("frontend", "backend"), [("shop-dynamic", "shop"), ("project-tracker-dynamic", "two-entity")])
-def test_example_pairs_are_consistent(frontend, backend):
-    spec = json.loads((EXAMPLES / "frontend-specs" / f"{frontend}.json").read_text())
+@pytest.mark.parametrize(("frontend", "backend"), [("shop", "shop"), ("project-tracker", "two-entity")])
+def test_the_fixture_pairs_are_consistent(frontend, backend):
+    spec = json.loads((PAIR_SPECS / f"{frontend}.json").read_text())
     assert [i for i in issues(spec, backend) if i.severity != Severity.WARNING] == []
+
+
+@pytest.mark.parametrize("backend", ["two-entity", "flashcards", "workshop-bookings", "shop"])
+def test_every_app_the_app_flow_writes_is_consistent_with_its_backend(backend):
+    frontend, backend_spec = app_pair(backend)
+    result = validate_frontend_spec_data(frontend)
+    assert result.report.valid, result.report.errors
+    assert check_spec_pair(result.normalized, backend_spec) == []
 
 
 def _mutate(change) -> dict:
@@ -68,7 +76,7 @@ def test_mismatches_point_at_both_specs(code, path, backend_path, change):
 
 
 def test_form_enum_and_date_fields_must_match_the_contract():
-    frontend = json.loads((EXAMPLES / "frontend-specs" / "project-tracker-dynamic.json").read_text())
+    frontend = json.loads((PAIR_SPECS / "project-tracker.json").read_text())
     task_form = frontend["forms"][1]["fields"]
     task_form[2] = {"name": "status", "type": "string"}  # free text for an enum
     task_form[4] = {"name": "dueDate", "type": "datetime"}  # the contract field is a date
@@ -85,7 +93,7 @@ def test_a_frontend_for_another_backend_fails_on_every_binding():
 
 
 def test_form_load_consistency():
-    frontend = json.loads((EXAMPLES / "frontend-specs" / "project-tracker-dynamic.json").read_text())
+    frontend = json.loads((PAIR_SPECS / "project-tracker.json").read_text())
     # editProject is at forms[2]
     assert [i for i in issues(frontend, "two-entity") if i.severity != Severity.WARNING] == []
 
@@ -109,7 +117,7 @@ def test_form_load_consistency():
 
 
 def test_section_controls_consistency():
-    frontend = json.loads((EXAMPLES / "frontend-specs" / "project-tracker-dynamic.json").read_text())
+    frontend = json.loads((PAIR_SPECS / "project-tracker.json").read_text())
     # project.list has sort: ["name", "createdAt"], no filters, no search
     table_section = frontend["pages"][1]["sections"][0]
     table_section["content"] = {"controls": {"sort": ["name"]}}
@@ -135,7 +143,7 @@ def test_section_controls_consistency():
 
 
 def test_section_actions_consistency():
-    frontend = json.loads((EXAMPLES / "frontend-specs" / "project-tracker-dynamic.json").read_text())
+    frontend = json.loads((PAIR_SPECS / "project-tracker.json").read_text())
     table_section = frontend["pages"][1]["sections"][0]
     table_section["content"] = {
         "actions": [
@@ -181,7 +189,7 @@ def test_section_actions_consistency():
 
 
 def test_stats_data_consistency():
-    frontend = json.loads((EXAMPLES / "frontend-specs" / "project-tracker-dynamic.json").read_text())
+    frontend = json.loads((PAIR_SPECS / "project-tracker.json").read_text())
     assert [i for i in issues(frontend, "two-entity") if i.severity != Severity.WARNING] == []
 
     # Field missing in stats response
@@ -189,32 +197,6 @@ def test_stats_data_consistency():
     f1["pages"][0]["sections"][0]["content"]["items"][0]["data"]["value"] = "nonExistentField"
     found = {(i.code, i.path) for i in issues(f1, "two-entity")}
     assert ("CONTRACT_FIELD_MISSING", "/pages/0/sections/0/content/items/0/data/value") in found
-
-
-def test_uncovered_operations_warning_and_manage_area():
-    from src.modules.shared.domain.frontend_spec import add_manage_area
-    from src.orchestrator.integration.contract import build_contract
-
-    backend_spec = normalized(EXAMPLES / "specs" / "two-entity.json")
-    contract = build_contract(backend_spec)
-    frontend = json.loads((EXAMPLES / "frontend-specs" / "project-tracker-dynamic.json").read_text())
-
-    # Initial check: task.get and task.update are uncovered in project-tracker-dynamic
-    warnings = [i for i in check_spec_pair(frontend, backend_spec) if i.code == "FE_OPERATION_UNUSED"]
-    assert any("task.get" in w.message for w in warnings)
-    assert any("task.update" in w.message for w in warnings)
-
-    # After add_manage_area: all operations are covered
-    managed_spec, notes = add_manage_area(frontend, contract)
-    assert notes == []  # two-entity has no sign-in operations
-    # Story 10.0b: forms that ask for a project's id stay a warning until the app kit's picker (Story 22.6)
-    all_issues = [i for i in check_spec_pair(managed_spec, backend_spec) if i.code != "FE_FIELD_SOURCE"]
-    assert all_issues == []
-
-    # Idempotence: running add_manage_area again produces identical spec
-    managed_again, notes_again = add_manage_area(managed_spec, contract)
-    assert managed_again == managed_spec
-    assert notes_again == []
 
 
 def test_reconcile_spec_pair_heals_unbacked_and_invalid_operations():
@@ -368,7 +350,7 @@ def test_a_custom_operation_without_a_declared_response_is_a_backend_fix(tmp_pat
         {"operationId": "project.summary", "type": "custom", "method": "GET", "path": "/projects/summary"}
     )
     (tmp_path / "backend.json").write_text(json.dumps(backend))
-    frontend = json.loads((EXAMPLES / "frontend-specs" / "project-tracker-dynamic.json").read_text())
+    frontend = json.loads((PAIR_SPECS / "project-tracker.json").read_text())
     frontend["pages"][0]["sections"][0]["content"]["items"][0]["data"] = {
         "operationId": "project.summary",
         "value": "openTasks",
@@ -393,7 +375,7 @@ def test_a_list_section_needs_an_operation_that_returns_a_list(tmp_path):
             "response": {"properties": [{"name": "name", "type": "string"}]},
         }
     )
-    frontend = json.loads((EXAMPLES / "frontend-specs" / "project-tracker-dynamic.json").read_text())
+    frontend = json.loads((PAIR_SPECS / "project-tracker.json").read_text())
     section = next(s for p in frontend["pages"] for s in p["sections"] if s["component"] == "CardGrid")
     section["data"] = {"operationId": "project.overview", "fields": ["name"]}
 
@@ -409,7 +391,7 @@ def test_a_list_section_needs_an_operation_that_returns_a_list(tmp_path):
 
 def test_reconcile_renames_response_fields_to_the_closest_one_or_drops_them():
     """A misnamed response field (`totalValue` for `totalStockValue`) is fixed in code, never left for review."""
-    frontend = json.loads((EXAMPLES / "frontend-specs" / "project-tracker-dynamic.json").read_text())
+    frontend = json.loads((PAIR_SPECS / "project-tracker.json").read_text())
     backend_spec = normalized(EXAMPLES / "specs" / "two-entity.json")
     frontend["pages"][0]["sections"][1]["data"]["fields"] = ["projectName", "description", "nothingLikeThis"]
     frontend["pages"][1]["sections"][0]["data"]["fields"] = ["Name", "created_at"]

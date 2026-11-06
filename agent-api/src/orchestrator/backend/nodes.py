@@ -249,12 +249,10 @@ async def generate_backend(state: GenerationState, ctx: JobContext) -> NodeResul
             owned += list(module_code)
     await _write_generated(ctx, files, owned)
     await ctx.emit("backend.generated", step="generate_backend", part="modules", files=len(files))
-    frontend_spec = read_json(ctx, state["frontend_ref"]) if state.get("frontend_ref") else None
     contract = read_json(ctx, state["contract_ref"]) if state.get("contract_ref") else contract_for(spec, plan)
 
     def render(module: dict[str, Any]):
         # Story 18.13: the prompt carries what the module needs (read from the project as it is now)
-        module_op_ids = {op["operationId"] for op in module.get("operations", [])}
         return ctx.prompts.render(
             "complete_backend",
             PROMPT_VERSIONS["complete_backend"],
@@ -265,7 +263,7 @@ async def generate_backend(state: GenerationState, ctx: JobContext) -> NodeResul
             spec_path=state["spec_ref"],
             plan_path=state["plan_ref"],
             contract_path=state.get("contract_ref"),
-            journeys=_touching_journeys(frontend_spec, module_op_ids),
+            journeys=[],  # Story 22.8: journeys left with the legacy dynamic flow; the prompt's block stays empty
         )
 
     pending = [module for module in plan["modules"] if codegen_gaps(module)]
@@ -280,47 +278,6 @@ async def generate_backend(state: GenerationState, ctx: JobContext) -> NodeResul
 
 def _module_json(module: dict[str, Any]) -> str:
     return json.dumps({k: v for k, v in module.items() if k != "tests"}, indent=2, sort_keys=True)
-
-
-def _touching_journeys(frontend_spec: dict[str, Any] | None, module_op_ids: set[str]) -> list[dict[str, Any]]:
-    if not frontend_spec or not module_op_ids:
-        return []
-    from src.modules.shared.domain.frontend_spec.coverage import _iter_sections
-
-    sections_by_id: dict[str, dict[str, Any]] = {}
-    forms_by_id = {f.get("id"): f for f in frontend_spec.get("forms") or []}
-    for page in frontend_spec.get("pages") or []:
-        for s in _iter_sections(page.get("sections") or []):
-            if s.get("id"):
-                sections_by_id[s["id"]] = s
-
-    touching = []
-    for journey in frontend_spec.get("journeys") or []:
-        touches = False
-        for step in journey.get("steps") or []:
-            if step.get("operationId") in module_op_ids:
-                touches = True
-                break
-            sec_id = step.get("section")
-            if sec_id and sec_id in sections_by_id:
-                sec = sections_by_id[sec_id]
-                if step.get("do") == "action" and step.get("action"):
-                    for act in (sec.get("content") or {}).get("actions") or []:
-                        if act.get("id") == step["action"] and act.get("operationId") in module_op_ids:
-                            touches = True
-                            break
-                elif step.get("do") == "submit":
-                    form_id = sec.get("form")
-                    if form_id and form_id in forms_by_id:
-                        f = forms_by_id[form_id]
-                        if f.get("operationId") in module_op_ids:
-                            touches = True
-                            break
-            if touches:
-                break
-        if touches:
-            touching.append(journey)
-    return touching
 
 
 async def run_validation(state: GenerationState, ctx: JobContext) -> NodeResult:

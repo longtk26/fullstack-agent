@@ -27,9 +27,5 @@
       "law-firm",
       "accountant"
     ]
-  ],
-  "dynamic": [
-    "clinic-booking",
-    "shop-orders"
   ]
 }

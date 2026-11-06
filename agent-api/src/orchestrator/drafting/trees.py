@@ -1,7 +1,6 @@
 """Designing a drafted site's pages as element trees (Epic 21, Story 21.6). No LLM here: this module prepares one
 `draft_tree` request per page (and one for the chrome), reads what the engine wrote, lets the tree rules repair it,
-and, for a dynamic app, adds to the BackendSpec the operations the trees' data components need (aggregates and
-CRUD, from `tree_bindings.derive_operations`). A page whose tree still breaks the rules keeps its sections.
+for a static site. A page whose tree still breaks the rules keeps its sections.
 """
 
 import copy
@@ -9,10 +8,8 @@ import json
 from pathlib import Path
 from typing import Any
 
-from src.modules.shared.domain.backend_spec import validate_spec_data
 from src.modules.shared.domain.frontend_spec import validate_frontend_spec_data
 from src.modules.shared.domain.frontend_spec.normalizer import page_id
-from src.modules.shared.domain.frontend_spec.tree_bindings import derive_operations, entity_for
 from src.modules.shared.domain.frontend_spec.trees import (
     MAX_DEPTH,
     MAX_NODES,
@@ -177,8 +174,7 @@ def apply_tree_files(work: Path, spec_file: Path) -> list[dict[str, Any]]:
     spec, fix_notes = fix_trees(spec)
     notes.extend(fix_notes)
     # A tree that still breaks a rule (an unknown asset, too deep) costs the page its design, not the draft.
-    static = spec["project"]["mode"] == "static"
-    collections = tree_collections(spec) if static else None
+    collections = tree_collections(spec)
     page_ids = set(pages)
     asset_ids = {a.get("id") for a in spec.get("assets") or [] if isinstance(a, dict)}
     for index, page in enumerate(spec.get("pages") or []):
@@ -211,117 +207,3 @@ def apply_tree_files(work: Path, spec_file: Path) -> list[dict[str, Any]]:
         spec = before
     spec_file.write_text(json.dumps(spec, indent=2, ensure_ascii=False) + "\n")
     return notes
-
-
-def complete_backend_for_trees(frontend_file: Path, backend_file: Path) -> list[dict[str, Any]]:
-    """Dynamic apps: the operations (CRUD and aggregates) and entities the trees' data components need, added to
-    the BackendSpec when it lacks them; a derived operation the BackendSpec cannot validate is left out."""
-    if not frontend_file.is_file() or not backend_file.is_file():
-        return []
-    spec = json.loads(frontend_file.read_text())
-    backend = json.loads(backend_file.read_text())
-    if not isinstance(backend, dict) or not isinstance(backend.get("operations"), list):
-        return []
-    notes: list[dict[str, Any]] = []
-    entities = {e.get("name"): e for e in backend.get("entities") or [] if isinstance(e, dict)}
-    for item in spec.get("content") or []:
-        entity = entity_for(item["collection"])
-        if entity in entities:
-            continue
-        fields = _fields_from_records(item.get("records") or [])
-        if not fields:
-            continue
-        backend.setdefault("entities", []).append({"name": entity, "fields": fields})
-        entities[entity] = backend["entities"][-1]
-        backend.setdefault("seed", []).append(
-            {"entity": entity, "records": [r for r in item["records"] if isinstance(r, dict)]}
-        )
-        notes.append(
-            {
-                "spec": "backend",
-                "path": f"/entities/{len(backend['entities']) - 1}",
-                "message": f"Entity '{entity}' added from the '{item['collection']}' collection of the designed pages",
-                "suggestion": None,
-            }
-        )
-    existing = {op.get("operationId") for op in backend["operations"]}
-    added = []
-    for op in derive_operations(spec):
-        if op["operationId"] in existing or op["entity"] not in entities:
-            continue
-        backend["operations"].append(op)
-        added.append(op["operationId"])
-    if not added:
-        return notes
-    report = validate_spec_data(backend).report
-    bad = {
-        int(i.path.split("/")[2])
-        for i in report.errors
-        if i.path.startswith("/operations/") and i.path.split("/")[2].isdigit()
-    }
-    kept = []
-    for index, op in enumerate(backend["operations"]):
-        if index in bad and op["operationId"] in added:
-            notes.append(
-                {
-                    "spec": "backend",
-                    "path": f"/operations/{index}",
-                    "message": f"Derived operation '{op['operationId']}' left out: {_first_error(report, index)}",
-                    "suggestion": None,
-                }
-            )
-            continue
-        kept.append(op)
-    backend["operations"] = kept
-    kept_ids = [op_id for op_id in added if op_id in {op["operationId"] for op in kept}]
-    if kept_ids:
-        notes.append(
-            {
-                "spec": "backend",
-                "path": "/operations",
-                "message": "Operations added for the designed pages: " + ", ".join(kept_ids),
-                "suggestion": None,
-            }
-        )
-    backend_file.write_text(json.dumps(backend, indent=2, ensure_ascii=False) + "\n")
-    return notes
-
-
-def _first_error(report: Any, index: int) -> str:
-    return next((i.message for i in report.errors if i.path.startswith(f"/operations/{index}")), "invalid")
-
-
-def _fields_from_records(records: list[Any]) -> list[dict[str, Any]]:
-    rows = [r for r in records if isinstance(r, dict)]
-    if not rows:
-        return []
-    names: list[str] = []
-    for row in rows:
-        for key in row:
-            if key not in names and key.replace("_", "").isalnum():
-                names.append(key)
-    fields = []
-    for name in names:
-        values = [row.get(name) for row in rows if row.get(name) is not None]
-        kind = "string"
-        if values and all(isinstance(v, bool) for v in values):
-            kind = "boolean"
-        elif values and all(isinstance(v, int) and not isinstance(v, bool) for v in values):
-            kind = "integer"
-        elif values and all(isinstance(v, int | float) and not isinstance(v, bool) for v in values):
-            kind = "float"
-        elif values and all(isinstance(v, str) and len(v) == 10 and v[4] == "-" and v[7] == "-" for v in values):
-            kind = "date"
-        field: dict[str, Any] = {"name": name, "type": kind}
-        if name == "id":
-            field = {
-                "name": "id",
-                "type": "uuid" if all(isinstance(v, str) and len(v) == 36 for v in values) else "string",
-                "primary": True,
-            }
-        elif len(values) == len(rows):
-            field["required"] = True
-        fields.append(field)
-    if not any(f.get("primary") for f in fields):
-        fields.insert(0, {"name": "id", "type": "uuid", "primary": True})
-    return fields

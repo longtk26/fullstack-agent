@@ -14,7 +14,8 @@ from src.modules.shared.domain.frontend_spec import (
 )
 
 EXAMPLES = Path(__file__).parents[2] / "examples" / "frontend-specs"
-SHOP = json.loads((EXAMPLES / "shop-dynamic.json").read_text())
+# a hand-written dynamic spec (tests/fixtures/pair-specs, Story 22.8): every section kind, form and binding
+SHOP = json.loads((Path(__file__).parent / "fixtures" / "pair-specs" / "shop.json").read_text())
 LANDING = json.loads((EXAMPLES / "static-landing.json").read_text())
 
 

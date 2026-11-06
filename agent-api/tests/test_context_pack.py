@@ -85,9 +85,10 @@ def test_context_pack_reads_only_primitives_named_like_shadcn_files(tmp_path):
     assert "SECRET" not in pack and "secret" not in pack and "passwd" not in pack and "Card" not in pack
 
 
-def test_context_pack_snapshot_golden_dynamic_component(tmp_path):
-    """Snapshot test for the context pack of the golden dynamic shop's ProductGrid."""
-    spec, contract, plan = inputs("shop-dynamic")
+def test_context_pack_snapshot_static_shop_component(tmp_path):
+    """Snapshot test for the context pack of the static shop's ProductGrid (custom components are a static site's,
+    Story 22.8)."""
+    spec, contract, plan = inputs("shop-static")
     scaffold_frontend(tmp_path, plan, spec, contract)
 
     comp = next(c for c in spec["components"] if c["name"] == "ProductGrid")
@@ -108,12 +109,11 @@ def test_context_pack_snapshot_golden_dynamic_component(tmp_path):
     assert "## Data API" in pack
     assert "src/components/renderer/site.ts" in pack
     assert "src/components/renderer/use-section-records.ts" in pack
-    assert "src/components/renderer/bindings.ts" in pack
     assert "## UI Primitives" in pack
     assert "src/components/ui/card.tsx" in pack
     assert "## Example Section Pattern" in pack
     assert "src/components/sections/CardGrid.tsx" in pack
-    assert "## Mock API & Fixtures" in pack
+    assert "## Mock API & Fixtures" not in pack, "a static site calls no API"
 
     snapshot = FIXTURES / "ProductGrid.context.md"
     if os.environ.get("UPDATE_SNAPSHOTS") or not snapshot.exists():

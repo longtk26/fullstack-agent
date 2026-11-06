@@ -6,8 +6,7 @@ rules of `templates/nextjs_overlay/DESIGN_CHECKLIST.md`. Dev tool, not part of g
     make design-check-fixture ARGS="--presets minimal editorial --out .data/shots/story20.2"
     make design-check-fixture ARGS="--combos --out .data/shots/story20.3"   # six tone, font and preset combinations
     make design-check-fixture ARGS="--combos --motion"     # + motion on, JavaScript off (Story 20.6)
-    make design-check-fixture ARGS="--combos --spec ../examples/frontend-specs/shop-dynamic.json \
-        --backend ../examples/specs/shop.json"     # a dynamic app on its mock API (Story 20.4)
+    (a dynamic app: `make design-check-app`, Story 22.4; this script checks static sites)
 """
 
 import argparse

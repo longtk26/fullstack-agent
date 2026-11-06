@@ -84,7 +84,7 @@ lane, tracing, results, and an OpenAPI explorer that sends test calls to the run
 | 19 | [Real photos and API-driven dynamic apps](epic19_photos_and_live_apps/epic19_photos_and_live_apps.md) | Phase 7 | 10 |
 | 20 | [Design diversity: distinct directions, icons and motion](epic20_design_diversity/epic20_design_diversity.md) (in progress) | Phase 7 | 11 |
 | 21 | [Designed pages: element trees for static and dynamic sites](epic21_designed_pages/epic21_designed_pages.md) (approved, next after 18.10) | Phase 7 | 7 (outline) |
-| 22 | [Dynamic app frontend: screens from the contract, separate from static sites](epic22_dynamic_app_frontend/epic22_dynamic_app_frontend.md) (planned, after Epic 10) | Phase 5 | 8 |
+| 22 | [Dynamic app frontend: screens from the contract, separate from static sites](epic22_dynamic_app_frontend/epic22_dynamic_app_frontend.md) (done 2026-11-06; the only dynamic flow) | Phase 5 | 8 |
 
 ### Suggested delivery order
 
@@ -164,7 +164,7 @@ workflow to be built before real generation works.
 | 18.12, 18.11 | done 2026-11-04 (merged to `main`): each lane's preview starts when the lane passes, from any worker, integration in the background, lanes no longer cancel each other; no `generate_tests` step, validation blocks only on "starts" and "API works" (smoke call per custom operation), lint / conventions / migration details are warnings; plus Epic 21 fixes (old Lucide names, Metric `fn`, sites without trees). Real-run timings and 18.13 open |
 | 18.13 | done 2026-11-04, merged to `main` 2026-11-05: `complete_backend@v5` carries a context pack per module (no file reads), modules run in parallel in scratch copies with a conflict rerun, frontend conventions and test-only type errors are warnings; the paid timing open |
 | 10 | re-planned 2026-11-04, backend only since 2026-11-05: 12 stories in checkpoints A–E (contract and framework, core plugins, infrastructure, integrations, domain shapes); in progress on `feat/epic10-backend-plugins`: 10.0b, 10.1 (Checkpoint A), 10.2–10.4 (Checkpoint B: JWT auth, roles and ownership, business rules) committed; 10.5 (file storage), 10.6 (jobs and events), 10.7 (email) committed (Checkpoint C); 10.8 (webhooks), 10.9 (payments) committed (Checkpoint D); all 12 stories done 2026-11-05 (Checkpoints A–E); open items in the stories' deviations; branch under review |
-| 22 | planned 2026-11-05: 8 stories in checkpoints A–D (the flow, forms, plugin frontends, switch-over); after Epic 10 |
+| 22 | done 2026-11-06: 8 stories in checkpoints A–D (the flow, forms, plugin frontends, switch-over); the legacy dynamic flow is removed (22.8) |
 | 11, 16 | open (16 to be revised after Epic 20) |
 
 ### Next up (re-planned 2026-10-30)
@@ -239,6 +239,7 @@ Open decisions along the way:
 | PAY (2026-11-04) | Payments start with a **fake provider** behind a port; a developer adds Stripe as an adapter later | 10.9 |
 | FILES (2026-11-04) | Files go to **MinIO** through signed URLs on the S3 API, so S3 is an env change | 10.5 |
 | FE-TESTS (2026-11-05) | Generated frontend unit tests, Playwright and journeys **stay off** in validation (off since `95b547b`, 2026-11-01): they made the frontend lane too slow. Frontend criteria are proven by agent tests on the generated code, build and typecheck, and the preview | Epics 10, 22 |
+| SWITCH-OVER (2026-11-06) | The app flow is the only dynamic flow: `DYNAMIC_FRONTEND` and the legacy dynamic path (designed pages, direction cards, Manage area, journeys, pair fixes, the golden dynamic frontend) are removed; a dynamic FrontendSpec that is not an app is `FE_APP_FLOW`. Measured on the fake engine only (the user: no side-by-side, no paid comparison) | 22.8; requirements v1.10 |
 | MODES (2026-11-05) | **Static and dynamic are separate frontend flows.** Dynamic mode drafts an app outline next to the BackendSpec in one call; code builds every screen from the contract on one shadcn app kit (no page trees, no direction cards; the direction sets theme tokens only; every operation on a screen, no Manage area; no engine call in the frontend lane). Static keeps Epics 20–21 unchanged; a static golden test fails on any change to static output | Epic 22; FR-36 (requirements v1.9) |
 | INTEGRATION (2026-11-05) | **The backend decides; a frontend only reads.** The contract carries each field's source, each operation's errors (`x-bga.errors`, custom rules included) and scenarios (`x-bga.scenarios`); every record response carries `allowedActions`. Each rule has one definition in the plan, from which codegen writes the backend check, the MSW behaviour and the scenarios; the scenarios run against the backend (smoke), MSW and the live switch. The draft names no operations: code writes every binding | 10.0b, 10.3, 10.4, 10.9, 10.10, 22.2–22.4, 22.7 |
 | BACKEND-FIRST (2026-11-05) | Epic 10 is built backend and contract first; its frontend halves are written once, on Epic 22's app kit (22.5–22.7). Until then dynamic examples keep auth and roles off, and checkpoints are verified through template tests, smoke checks and the try-it explorer | Epics 10, 22 |

@@ -34,7 +34,6 @@ from tests.generation_helpers import EXAMPLES
 
 REPO = Path(__file__).parents[2]
 LANDING = json.loads((EXAMPLES / "frontend-specs" / "static-landing.json").read_text())
-TRACKER = json.loads((EXAMPLES / "frontend-specs" / "project-tracker-dynamic.json").read_text())
 SPA = "A day spa in Leeds offering massages, facials and wellness treatments. Clients book a treatment."
 FLOORS = directions(SPA)
 POOL = home_pool(LANDING)
@@ -159,16 +158,6 @@ def test_brand_colours_and_fonts_are_not_counted_as_shared():
     assert not [p for p in problems(kept, DEFAULT, POOL, brand_fixed(brand)) if "share" in p]
 
 
-def test_an_app_home_without_a_hero_compares_font_and_hue_only():
-    pool = home_pool(TRACKER)
-    cards = [
-        card(heroLayout="split", keyVisual="photo", fonts={"heading": f, "body": "Inter"}, home=["stats", "recent"])
-        for f in ("Inter", "Lora", "Syne")
-    ]
-    kept, _ = card_directions(cards, FLOORS, pool, [], 3, None)
-    assert not [p for p in problems(kept, [], pool, set()) if "share" in p], "same layout and visual do not count"
-
-
 # -- home pages from the pool (20.9) ---------------------------------------------------------------------------------
 
 
@@ -274,9 +263,9 @@ def test_without_cards_the_category_directions_stand_in_without_reordering(tmp_p
 
 
 def test_fact_pack_names_the_category_default_and_what_the_renderer_draws():
-    text = fact_pack(FLOORS[0], 42, "dynamic")
+    text = fact_pack(FLOORS[0], 42, "static")
     assert "Variation: 42" in text and FLOORS[0]["productType"] in text and "`collage`" in text
-    assert "Unbounded" in text and "Why choose us" in text and "data pages" in text
+    assert "Unbounded" in text and "Why choose us" in text
 
 
 @pytest.mark.parametrize(
@@ -306,14 +295,12 @@ def _mirror_cases() -> list[dict]:
     edited["pages"][0]["sections"].insert(1, {"id": "mine", "component": "RichText", "content": {"body": "x"}})
     cards = [Card.model_validate(c) for c in fake_cards(SPA, 3, POOL)]
     kept, _ = card_directions(cards, FLOORS, POOL, [], 3, None)
-    tracker_pool = home_pool(TRACKER)
     return [
         {"spec": LANDING, "direction": kept[0], "pool": POOL},
         {"spec": LANDING, "direction": kept[1], "pool": POOL},
         {"spec": edited, "direction": kept[2], "pool": POOL},
         {"spec": nested, "direction": filled(sectionForms={"Features": "ledger"}, rhythm="dividers"), "pool": POOL},
         {"spec": LANDING, "direction": FLOORS[0], "pool": None},
-        {"spec": TRACKER, "direction": filled(home=["recent", "stats"]), "pool": tracker_pool},
     ]
 
 

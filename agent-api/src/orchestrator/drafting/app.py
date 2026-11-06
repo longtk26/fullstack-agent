@@ -1,9 +1,9 @@
 """Drafting a dynamic app (Epic 22, decision D1): the app flow, apart from the static sites' flow.
 
-The model drafts what the app is (the BackendSpec and the app outline, `draft_app@v1`); code writes the rest: the
+The model drafts what the app is (the BackendSpec and the app outline, `draft_app@v2`); code writes the rest: the
 theme from the code-picked design direction (no model call), and the FrontendSpec's pages from the outline and the
-contract. No direction cards, no designed pages, no Manage area. `DYNAMIC_FRONTEND=app` sends dynamic drafts from a
-requirement here; `legacy` keeps them on the static sites' flow (`drafts.py`).
+contract. No direction cards, no designed pages, no Manage area. Every dynamic draft comes here (Story 22.8 removed the
+legacy dynamic flow); static sites keep their own flow in `drafts.py`.
 """
 
 import json
@@ -17,7 +17,7 @@ from src.engines.port import EngineResult, EngineStatus
 from src.engines.prompts import PromptLibrary, RenderedPrompt
 from src.modules.shared.domain.backend_spec import validate_spec_data
 from src.modules.shared.domain.entities import SpecDraftEntity
-from src.modules.shared.domain.enums import GenerationMode, SpecSource
+from src.modules.shared.domain.enums import GenerationMode
 from src.modules.shared.domain.frontend_spec.app import AppOutline
 from src.modules.shared.domain.schema_digest import schema_digest
 
@@ -26,26 +26,28 @@ from ..frontend.app.outline import complete_outline
 from ..frontend.app.screens import app_frontend_spec, ensure_aggregates
 from ..integration.contract import build_contract
 
-PROMPT = ("draft_app", "v1")
+PROMPT = ("draft_app", "v2")  # v2 (Story 22.8): sign-in, roles and the plugins' features
 OUTLINE_FILE = "app-outline.json"  # what the model drafts next to the BackendSpec (code folds it into the FrontendSpec)
-# Outline examples shown in the prompt, relative to EXAMPLES_DIR; they fit `specs/flashcards.json` and
-# `specs/two-entity.json` (the fake engine drafts from them too).
+# Outline examples shown in the prompt, relative to EXAMPLES_DIR; they fit `specs/flashcards.json`,
+# `specs/two-entity.json` and `specs/workshop-bookings.json` (the fake engine drafts from them too).
 OUTLINE_EXAMPLES = {
     "Flashcards (decks of cards reviewed with spaced repetition)": "app-outlines/flashcards.json",
     "Project tracker (projects and their tasks)": "app-outlines/project-tracker.json",
+    "Workshop bookings (sign-in, roles, own bookings, a status flow, seats, a cover image, payment, tags)": (
+        "app-outlines/workshop-bookings.json"
+    ),
 }
+# The BackendSpec example of an app draft (Story 22.8): one that uses every plugin, so the model sees how sign-in,
+# roles, ownership, rules, uploads, payments and links are written (`specs/shop.json` has none of them).
+BACKEND_EXAMPLE = "specs/workshop-bookings.json"
 
 Call = Callable[[str, RenderedPrompt], Awaitable[EngineResult]]
 Progress = Callable[..., Awaitable[None]]
 
 
 def app_flow(draft: SpecDraftEntity) -> bool:
-    """A dynamic draft from a requirement, with the app flow switched on."""
-    return (
-        config.dynamic_frontend == "app"
-        and GenerationMode(draft.mode) == GenerationMode.DYNAMIC
-        and draft.source == SpecSource.REQUIREMENT
-    )
+    """A dynamic draft (always from a requirement: a draft from an imported site is a backend draft)."""
+    return GenerationMode(draft.mode) == GenerationMode.DYNAMIC
 
 
 @dataclass
@@ -56,6 +58,7 @@ class AppDraft:
     notes: list[dict[str, Any]] = field(default_factory=list)
     unresolved: list[dict[str, Any]] = field(default_factory=list)  # operations the screens could not place
     error: str | None = None
+    attempts: int = 0  # repair rounds
 
 
 def app_inputs(examples_dir: Path) -> dict[str, Any]:
@@ -172,7 +175,7 @@ async def draft_app(
     await progress("validating")
     backend = validate_spec_data(_load(work / backend_file)).normalized if check.ok else None
     if backend is None:
-        return AppDraft(check=check, notes=notes, error=error)
+        return AppDraft(check=check, notes=notes, error=error, attempts=attempts)
     drafted = _load(work / OUTLINE_FILE)
     if not isinstance(drafted, dict):
         message = "The draft came without an app outline; every name and list comes from the BackendSpec"
@@ -191,4 +194,4 @@ async def draft_app(
     (work / frontend_file).write_text(json.dumps(screens.spec, indent=2, ensure_ascii=False) + "\n")
     notes += outline_fixes + aggregate_notes + screens.assumptions
     check = check_draft(work, GenerationMode.DYNAMIC)
-    return AppDraft(check=check, notes=notes, unresolved=screens.unresolved, error=error)
+    return AppDraft(check=check, notes=notes, unresolved=screens.unresolved, error=error, attempts=attempts)

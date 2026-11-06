@@ -78,3 +78,15 @@ pair check keep working. App sections are accepted only in dynamic mode.
   an image uploaded, a fake payment, and actions hidden from users without the role, on mocks and live.
 - The user reviews screenshots of three apps (light and dark, 375 px and 1440 px) against the legacy flow and accepts
   the switch.
+
+## Status
+
+**Done (2026-11-06).** All eight stories are done; the app flow is the only dynamic flow (22.8 removed
+`DYNAMIC_FRONTEND` and the legacy dynamic path, decision D6). Against the epic acceptance:
+- One model call per dynamic draft (`draft_app@v1`); the measured times are in 22.2's and 22.8's Status.
+- The static golden passed at every step; 22.8 refreshed it once for the dropped `"journeys": []` only (every
+  rendered file unchanged).
+- Every operation is reachable and no form asks for an id on every example app (22.8's table); dates, labels and
+  field errors: 22.5, 22.6.
+- workshop-bookings: the plugin walk passes on mocks and live, in both token modes (22.7).
+- Screenshots against the legacy flow: waived by the user, who chose to remove the legacy flow (2026-11-06).

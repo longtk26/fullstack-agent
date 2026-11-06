@@ -5,9 +5,9 @@ import shutil
 from pathlib import Path
 
 import pytest
-from generation_helpers import EXAMPLES, engine_path, normalized
+from generation_helpers import EXAMPLES, app_pair
 
-from src.engines.fake_engine import GOLDEN_FRONTENDS
+from src.modules.shared.domain.backend_spec import validate_spec_data
 from src.modules.shared.domain.frontend_spec import validate_frontend_spec_text
 from src.orchestrator.checks.frontend_conventions import check_frontend_conventions
 from src.orchestrator.frontend.codegen import generated_files, type_name
@@ -16,7 +16,6 @@ from src.orchestrator.frontend.scaffold import (
     BASE_DIR,
     OVERLAY_DIR,
     FrontendTemplateDrift,
-    changed_owned,
     check_base,
     load_manifest,
     scaffold_frontend,
@@ -28,27 +27,31 @@ from src.orchestrator.frontend.validation import (
 )
 from src.orchestrator.integration.contract import build_contract
 
-TRACKER = "project-tracker-dynamic"
+# Dynamic FrontendSpecs are apps (Story 22.8): the app flow's spec for an example BackendSpec (`app_pair`).
+TRACKER = "two-entity"
 LANDING = "static-landing"
-SHOP = "shop-dynamic"
-BACKEND_SPECS = {TRACKER: "two-entity.json", SHOP: "shop.json"}
+SHOP = "shop"
+APPS = {TRACKER, SHOP, "flashcards", "workshop-bookings"}
 
 
-def inputs(name: str, engine: bool = False) -> tuple[dict, dict | None, dict]:
-    """`engine`: the spec without props schemas, so the golden (engine-written) frontend applies (17.3)."""
-    raw = json.loads((EXAMPLES / "frontend-specs" / f"{name}.json").read_text())
-    spec = validate_frontend_spec_text(json.dumps(engine_path(raw) if engine else raw)).normalized
-    backend = BACKEND_SPECS.get(name)
-    contract = build_contract(normalized(EXAMPLES / "specs" / backend)) if backend else None
+def inputs(name: str) -> tuple[dict, dict | None, dict]:
+    """A static example (`examples/frontend-specs/<name>.json`) or the app of an example BackendSpec."""
+    if name in APPS:
+        raw, backend = app_pair(name)
+        contract = build_contract(validate_spec_data(backend).normalized)
+    else:  # a static example, or the static shop of custom components (`tests/fixtures/frontend-specs/`)
+        source = EXAMPLES / "frontend-specs" / f"{name}.json"
+        if not source.is_file():
+            source = Path(__file__).parent / "fixtures" / "frontend-specs" / f"{name}.json"
+        raw, contract = json.loads(source.read_text()), None
+    spec = validate_frontend_spec_text(json.dumps(raw)).normalized
     return spec, contract, plan_frontend(spec, contract)
 
 
-def scaffolded(tmp_path: Path, name: str, golden: bool = True) -> tuple[Path, dict]:
-    spec, contract, plan = inputs(name, engine=golden)
+def scaffolded(tmp_path: Path, name: str) -> tuple[Path, dict]:
+    spec, contract, plan = inputs(name)
     project = tmp_path / name
     scaffold_frontend(project, plan, spec, contract)
-    if golden:
-        shutil.copytree(GOLDEN_FRONTENDS[spec["project"]["name"]], project, dirs_exist_ok=True)
     return project, plan
 
 
@@ -68,7 +71,7 @@ def test_drift_in_the_base_is_refused(tmp_path):
 
 
 def test_static_scaffold_has_content_and_no_api(tmp_path):
-    project, plan = scaffolded(tmp_path, LANDING, golden=False)
+    project, plan = scaffolded(tmp_path, LANDING)
     assert (project / "src/content/services.json").is_file()
     assert not (project / "src/lib/api").exists() and not (project / "src/mocks").exists()
     assert 'output: "export"' in (project / "next.config.ts").read_text()
@@ -82,7 +85,7 @@ def test_static_scaffold_has_content_and_no_api(tmp_path):
 
 
 def test_dynamic_scaffold_has_the_typed_client_and_the_mock_layer(tmp_path):
-    project, _ = scaffolded(tmp_path, TRACKER, golden=False)
+    project, _ = scaffolded(tmp_path, TRACKER)
     types = (project / "src/lib/api/types.ts").read_text()
     assert "export type TProject = {" in types and "export type TListTasksParams = {" in types
     assert '  status?: "TODO" | "IN_PROGRESS" | "DONE";' in types
@@ -97,8 +100,8 @@ def test_dynamic_scaffold_has_the_typed_client_and_the_mock_layer(tmp_path):
     assert task_list["filters"] == ["projectId", "status"] and task_list["sort"] == ["dueDate", "priority"]
     assert len(json.loads((project / "src/mocks/fixtures.json").read_text())["Task"]) == 3
     forms = (project / "src/lib/forms.ts").read_text()
-    assert 'status: z.enum(["TODO", "IN_PROGRESS", "DONE"]).optional(),' in forms
-    assert "priority: z.number().int().min(1).max(5).optional()," in forms
+    assert 'status: z.preprocess(blank, z.enum(["TODO", "IN_PROGRESS", "DONE"]).optional()),' in forms
+    assert "priority: z.preprocess(blank, z.number().int().min(1).max(5).optional())," in forms
     assert (project / ".bga/contract.json").is_file() and 'output: "standalone"' in (
         project / "next.config.ts"
     ).read_text()
@@ -110,24 +113,11 @@ def test_generated_files_are_deterministic():
     assert type_name("ProductResponse") == "TProduct" and type_name("ListProductsResponse") == "TListProductsResponse"
 
 
-@pytest.mark.skip(reason="Frontend e2e tests removed per user instruction")
-def test_smoke_tests_expect_the_first_record_each_page_shows():
-    spec, contract, plan = inputs(TRACKER)
-    smoke = generated_files(plan, spec, contract)["tests/e2e/smoke.spec.ts"]
-    # `/` lists projects newest first (limit 6, sort -createdAt): the third fixture comes first.
-    assert '"path": "/",\n    "title": "Overview",\n    "text": "Project name 3"' in smoke
-    assert '"text": "Task title 1"' in smoke
-
-
-def test_the_golden_shop_frontend_meets_the_conventions(tmp_path):
-    project, plan = scaffolded(tmp_path, SHOP)
-    assert check_frontend_conventions(project, plan) == []
-
-
 @pytest.mark.parametrize("name", [LANDING, TRACKER, SHOP])
-def test_a_rendered_site_meets_the_conventions_without_engine_files(tmp_path, name):
-    project, plan = scaffolded(tmp_path, name, golden=False)
-    assert plan["rendering"] == "renderer" and check_frontend_conventions(project, plan) == []
+def test_a_generated_frontend_meets_the_conventions_without_engine_files(tmp_path, name):
+    project, plan = scaffolded(tmp_path, name)
+    assert plan["rendering"] == ("renderer" if name == LANDING else "app")
+    assert check_frontend_conventions(project, plan) == []
 
 
 VIOLATIONS = [
@@ -146,6 +136,7 @@ VIOLATIONS = [
 def test_conventions_report_each_rule(tmp_path, rule, code):
     project, plan = scaffolded(tmp_path, SHOP)
     path = project / "src/features/products/components/Bad.tsx"
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(code)
     found = [(v["rule"], v["file"]) for v in check_frontend_conventions(project, plan)]
     assert (rule, "src/features/products/components/Bad.tsx") in found
@@ -154,16 +145,19 @@ def test_conventions_report_each_rule(tmp_path, rule, code):
 def test_conventions_report_owned_changes_missing_files_and_long_components(tmp_path):
     project, plan = scaffolded(tmp_path, SHOP)
     (project / "src/lib/api/queries.ts").write_text("// edited\n")
-    (project / "src/components/sections/CardGrid.tsx").unlink()
-    (project / "src/app/cart/page.tsx").write_text("export default function Page() {\n  return null;\n}\n")
+    (project / "src/components/app/AppList.tsx").unlink()
+    (project / "src/app/products/page.tsx").write_text("export default function Page() {\n  return null;\n}\n")
     logic = "\n".join(f"  const value{i} = {i};" for i in range(35))
-    (project / "src/features/products/components/Long.tsx").write_text(
-        f"export function Long() {{\n{logic}\n  return (\n    <div />\n  );\n}}\n"
-    )
+    long = project / "src/features/products/components/Long.tsx"
+    long.parent.mkdir(parents=True, exist_ok=True)
+    long.write_text(f"export function Long() {{\n{logic}\n  return (\n    <div />\n  );\n}}\n")
     found = {(v["rule"], v["file"]) for v in check_frontend_conventions(project, plan)}
-    assert ("owned-files", "src/lib/api/queries.ts") in found and changed_owned(project) == ["src/lib/api/queries.ts"]
-    assert ("plan", "src/components/sections/CardGrid.tsx") in found
-    assert ("pages", "src/app/cart/page.tsx") in found
+    # an app's kit and route files are all the generator's: a change or a deletion is an owned-file change
+    assert {
+        ("owned-files", "src/lib/api/queries.ts"),
+        ("owned-files", "src/components/app/AppList.tsx"),
+        ("owned-files", "src/app/products/page.tsx"),
+    } <= found
     assert ("custom-hooks", "src/features/products/components/Long.tsx") in found
 
 
@@ -193,12 +187,8 @@ def test_routes_check_reads_the_build_output(tmp_path):
     _, _, tracker = inputs(TRACKER)
     project = tmp_path / "dynamic"
     (project / ".next").mkdir(parents=True)
-    manifest = {
-        "/page": "/",
-        "/projects/page": "/projects",
-        "/projects/[id]/page": "/projects/[id]",
-        "/projects/[id]/edit/page": "/projects/[id]/edit",
-    }
+    built = [route["route"] for route in tracker["routes"] if route["route"] != "/tasks"]
+    manifest = {(route.rstrip("/") + "/page"): route for route in built}
     (project / ".next/app-path-routes-manifest.json").write_text(json.dumps(manifest))
     result = routes_check(project, tracker)
     assert result.status == "failed" and result.details == [

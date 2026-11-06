@@ -208,21 +208,22 @@ def test_smoke_calls_run_the_scenarios_before_the_custom_operations():
 
 
 def _frontend(name: str) -> dict:
-    return json.loads((EXAMPLES / "frontend-specs" / f"{name}.json").read_text())
+    """A hand-written dynamic spec of the pair check's fixtures (Story 22.8: `tests/fixtures/pair-specs/`)."""
+    return json.loads((Path(__file__).parent / "fixtures" / "pair-specs" / f"{name}.json").read_text())
 
 
 def test_a_form_that_asks_for_an_id_is_flagged():
     backend = _spec("flashcards")
-    issues = check_spec_pair(_frontend("flashcards-dynamic"), backend)
+    issues = check_spec_pair(_frontend("flashcards"), backend)
     [issue] = [issue for issue in issues if issue.code == FrontendIssueCode.FE_FIELD_SOURCE]
-    assert issue.severity == "warning"  # no picker before the app kit (22.6): the draft is not rejected
+    assert issue.severity == "error"  # an app picks its references (Story 22.6): an id typed by hand is refused
     assert issue.message == "Form field 'deckId' asks the user to type a Deck id"
     assert "$route.id" in issue.hint
 
 
 def test_a_form_on_the_parents_page_takes_the_parent_from_the_route():
     backend = _spec("flashcards")
-    frontend = _frontend("flashcards-dynamic")
+    frontend = _frontend("flashcards")
     detail = next(page for page in frontend["pages"] if page["id"] == "deck-detail")
     detail["sections"].append({"id": "add-card", "component": "Form", "form": "new_card_form"})
     frontend["pages"] = [page for page in frontend["pages"] if page["id"] != "card-new"]  # only on the deck's page
@@ -238,7 +239,7 @@ def test_a_form_on_the_parents_page_takes_the_parent_from_the_route():
 
 def test_a_form_shown_where_the_parent_is_unknown_keeps_its_field():
     backend = _spec("flashcards")
-    healed, _ = reconcile_spec_pair(_frontend("flashcards-dynamic"), backend)  # on `/cards/new`: no deck in the route
+    healed, _ = reconcile_spec_pair(_frontend("flashcards"), backend)  # on `/cards/new`: no deck in the route
     field = next(f for f in healed["forms"][0]["fields"] if f["name"] == "deckId")
     assert not field.get("hidden") and field.get("value") is None
 

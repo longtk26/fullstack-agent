@@ -1,4 +1,4 @@
-"""Section renderer (Stories 17.2 static, 17.4 dynamic). No LLM.
+"""Section renderer (Story 17.2) for static sites. No LLM. (Dynamic apps render on the app kit, Epic 22.)
 
 When every section of a FrontendSpec is in the section library (`templates/nextjs_overlay/files/renderer`), the
 frontend is data plus thin route files and `generate_frontend` makes no engine call:
@@ -12,10 +12,9 @@ frontend is data plus thin route files and `generate_frontend` makes no engine c
     src/components/renderer/icons.ts     the site's icon style and the icons it uses (Story 20.5)
     src/app/<route>/page.tsx             metadata + <PageRenderer pageId=… />
 
-Data sections read through the generated API client in dynamic mode (mocks first, then the live backend) and from
-content collections in static mode. Custom components with a `propsSchema` are generated one by one (Story 17.3,
+Data sections read content collections. Custom components with a `propsSchema` are generated one by one (Story 17.3,
 `custom_components.py`) and registered here in place of their library fallback. Anything else (custom components
-without a props schema, static forms, route parameters in static mode) still goes to the engine; the plan says why
+without a props schema, static forms, route parameters) still goes to the engine; the plan says why
 in `rendererGaps`.
 """
 
@@ -31,7 +30,6 @@ from src.modules.shared.domain.frontend_spec.icons import GLYPHS, glyph, lucide_
 from src.modules.shared.domain.frontend_spec.registry import section_props_schemas
 from src.modules.shared.domain.frontend_spec.section_props import SECTION_PROPS, Surface
 
-from ..integration.contract import contract_operations, resolve
 from .component_cache import closest_section
 
 LIBRARY_ROOT = Path(__file__).resolve().parents[3] / "templates" / "nextjs_overlay" / "files" / "renderer"
@@ -60,33 +58,29 @@ DEFAULT_ICONS = {"set": "lucide", "weight": "regular", "treatment": "plain"}
 
 
 def renderer_gaps(spec: dict[str, Any], routes: list[dict[str, Any]], forms: list[dict[str, Any]]) -> list[str]:
-    """Why the section renderer cannot build this frontend (empty: it can)."""
-    dynamic = spec["project"]["mode"] == "dynamic"
+    """Why the section renderer cannot build this static site (empty: it can). Dynamic apps render on the app kit."""
     gaps = []
     declared = {component["name"]: component.get("kind", "section") for component in spec.get("components", [])}
     custom = custom_declarations(spec)
     by_form = {form["id"]: form for form in forms}
     for route in routes:
-        if route["params"] and not dynamic:
+        if route["params"]:
             gaps.append(f"{route['pageId']}: route parameters ({route['route']})")
         for section in iter_sections(route["sections"]):
             where = f"{route['pageId']}/{section['id']}"
             name = section["component"]
             kind = (section.get("data") or {}).get("kind")
-            action = (section.get("data") or {}).get("action")
             if name in custom:
                 if not custom[name].get("propsSchema"):
                     gaps.append(f"{where}: {name} is a custom component without a propsSchema")
             elif name not in RENDERED or name not in BUILTIN_SECTIONS or declared.get(name, "section") != "section":
                 gaps.append(f"{where}: {name} is not in the section library")
-            elif name in RECORD_SECTIONS and not (kind == "content" or (kind == "operation" and action == "list")):
+            elif name in RECORD_SECTIONS and kind != "content":
                 gaps.append(f"{where}: {name} needs a content collection or a list operation")
-            elif name == "DetailView" and not (kind == "operation" and action == "get"):
+            elif name == "DetailView":
                 gaps.append(f"{where}: DetailView needs a get operation")
             elif name == "Form":
                 gaps.extend(_form_gaps(where, by_form.get(section.get("form") or "")))
-            elif kind == "operation" and name not in RECORD_SECTIONS | {"DetailView"}:
-                gaps.append(f"{where}: {name} bound to an operation")
     return gaps
 
 
@@ -128,72 +122,20 @@ def _label(field: str) -> str:
     return words[:1].upper() + words[1:].lower()
 
 
-def _record_schema(contract: dict[str, Any], operation_id: str) -> dict[str, Any]:
-    """What one record of an operation's response looks like: a list's item schema, or the response body."""
-    operation = contract_operations(contract)[operation_id]["operation"]
-    success = next(
-        (r for status, r in sorted((operation.get("responses") or {}).items()) if status.startswith("2")), {}
-    )
-    schema = resolve(contract, (success.get("content") or {}).get("application/json", {}).get("schema", {}))
-    if schema.get("type") == "array":
-        return resolve(contract, schema.get("items", {}))
-    items = (schema.get("properties") or {}).get("items")
-    if isinstance(items, dict) and items.get("type") == "array":
-        return resolve(contract, items.get("items", {}))
-    return schema
-
-
-def _format(prop: dict[str, Any]) -> str | None:
-    if prop.get("format") == "date":
-        return "date"
-    if prop.get("format") == "date-time":
-        return "datetime"
-    if "enum" in prop:
-        return "badge"
-    return None
-
-
-def _columns(data: dict[str, Any], records: list[dict[str, Any]], contract: dict[str, Any] | None):
-    """The fields a data section shows, labelled and formatted (dates, enums as badges, images)."""
-    props: dict[str, Any] = {}
-    if data.get("kind") == "operation" and contract is not None:
-        props = _record_schema(contract, data["operationId"]).get("properties") or {}
-        fields = data.get("fields") or [name for name in props if name != "id"]
-    else:
-        fields = data.get("fields") or list(records[0] if records else {})
+def _columns(data: dict[str, Any], records: list[dict[str, Any]]):
+    """The fields a content section shows, labelled and formatted (images)."""
+    fields = data.get("fields") or list(records[0] if records else {})
     columns = []
     for field in fields:
         column = {"key": field, "label": _label(field)}
         sample = records[0].get(field) if records else None
-        format_ = _format(resolve(contract or {}, props.get(field) or {}))
+        format_ = None
         if isinstance(sample, str) and (sample.startswith("asset:") or sample.startswith("https://")):
             format_ = "image"
         if format_:
             column["format"] = format_
         columns.append(column)
     return columns
-
-
-def _detail_links(plan: dict[str, Any], contract: dict[str, Any] | None) -> dict[str, dict[str, Any]]:
-    """entity → the page that shows one record of it: `{route, params: {routeParam: recordField}}`."""
-    if contract is None:
-        return {}
-    operations = contract_operations(contract)
-    links: dict[str, dict[str, Any]] = {}
-    for route in plan["routes"]:
-        for section in iter_sections(route["sections"]):
-            data = section.get("data") or {}
-            if section["component"] != "DetailView" or data.get("action") != "get":
-                continue
-            entity = (operations[data["operationId"]]["operation"].get("x-bga") or {}).get("entity")
-            params = {
-                value.removeprefix("$route."): name
-                for name, value in (data.get("params") or {}).items()
-                if isinstance(value, str) and value.startswith("$route.")
-            }
-            if entity and params and set(params) == set(route["params"]):
-                links.setdefault(entity, {"route": route["route"], "params": params})
-    return links
 
 
 def icon_style(spec: dict[str, Any]) -> dict[str, str]:
@@ -226,8 +168,6 @@ class _Site:
         self.collections = {
             item["collection"]: resolve_icons(item["records"], self.icon_set) for item in spec.get("content", [])
         }
-        self.links = _detail_links(plan, contract)
-        self.operations = contract_operations(contract) if contract else {}
         self.spec = spec
         self.pages = {route["pageId"]: route["route"] for route in plan["routes"]}
 
@@ -241,18 +181,7 @@ class _Site:
         data = section.get("data") or {}
         if data.get("kind") == "content":
             records = self.collections.get(data["collection"], [])
-            out["data"] = {"collection": data["collection"], "columns": _columns(data, records, None)}
-        elif data.get("kind") == "operation":
-            binding: dict[str, Any] = {
-                "operationId": data["operationId"],
-                "action": data.get("action"),
-                "params": data.get("params") or {},
-                "columns": _columns(data, [], self.contract),
-            }
-            entity = (self.operations[data["operationId"]]["operation"].get("x-bga") or {}).get("entity")
-            if data.get("action") == "list" and entity in self.links:
-                binding["link"] = self.links[entity]
-            out["data"] = binding
+            out["data"] = {"collection": data["collection"], "columns": _columns(data, records)}
         if section.get("states"):
             out["states"] = section["states"]
         if section.get("form"):
@@ -287,7 +216,7 @@ def section_props(
     plan: dict[str, Any], spec: dict[str, Any], contract: dict[str, Any] | None, section: dict[str, Any]
 ) -> dict[str, Any]:
     """The props `SectionRenderer.tsx` gives a section's component (without children): its content, its collection's
-    records or its operation binding, columns and states. Used for a custom component's render test (17.3)."""
+    records, columns and states. Used for a custom component's render test (17.3)."""
     site = _Site(plan, spec, contract)
     rendered = site.section({**section, "children": None})
     props = dict(rendered.get("content") or {})
@@ -296,8 +225,6 @@ def section_props(
         props["items"] = site.collections.get(data["collection"], [])
     if data.get("columns"):
         props["columns"] = data["columns"]
-    if data.get("operationId"):
-        props["binding"] = data
     if rendered.get("states"):
         props["states"] = rendered["states"]
     return props
@@ -405,8 +332,7 @@ def tree_site(
 
     tree = copy.deepcopy(tree)
     collections = [item["collection"] for item in spec.get("content") or []]
-    mode = spec["project"]["mode"]
-    bind_tree(tree, mode, collections, contract if mode == "dynamic" else None, pages)
+    bind_tree(tree, collections, pages)
     counter = [0]
 
     def convert(node: Any, root: bool = False) -> Any:

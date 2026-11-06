@@ -29,14 +29,11 @@ from src.sandbox import ISandbox
 
 from ..checks.frontend_conventions import file_violations
 from ..context import EngineFailure, JobContext, RecordingSandbox
-from ..integration.contract import contract_operations
 from .component_cache import (
     PROMPT_VERSION,
     cached_file,
     component_file,
     component_key,
-    journeys_digest,
-    operations_digest,
     overlay_metadata,
     sample_props,
     store_file,
@@ -94,16 +91,9 @@ class CustomComponents:
         and returns one entry per cache key."""
         custom = self.plan["customComponents"]
         by_key: dict[str, list[str]] = {}
-        contract_ops = contract_operations(self.contract) if self.contract else {}
         for name in sorted(custom if names is None else names):
-            journeys, operations = self._journeys_and_operations(name)
-            key = component_key(
-                self.declared[name],
-                self.lock_sha256,
-                self.overlay_version,
-                operations=operations_digest(operations, contract_ops),
-                journeys=journeys_digest(journeys),
-            )
+            # a static site's component calls no operation (the key keeps the digests of empty lists)
+            key = component_key(self.declared[name], self.lock_sha256, self.overlay_version)
             by_key.setdefault(key, []).append(name)
         tasks = [asyncio.create_task(self._one(key, names, max_repairs)) for key, names in by_key.items()]
         try:
@@ -133,34 +123,6 @@ class CustomComponents:
             for section in iter_sections(route["sections"])
             if section["component"] == name
         )
-
-    def _journeys_and_operations(self, name: str) -> tuple[list[dict[str, Any]], list[str]]:
-        component_section_ids = set()
-        operations = set()
-        for route in self.plan.get("routes", []):
-            for sec in iter_sections(route.get("sections", [])):
-                if sec.get("component") == name:
-                    if sec.get("id"):
-                        component_section_ids.add(sec["id"])
-                    for act in (sec.get("content") or {}).get("actions", []):
-                        if act.get("operationId"):
-                            operations.add(act["operationId"])
-                    if sec.get("data") and sec["data"].get("operationId"):
-                        operations.add(sec["data"]["operationId"])
-
-        journeys = []
-        for journey in self.spec.get("journeys", []):
-            touches = False
-            for step in journey.get("steps", []):
-                sec_id = step.get("section")
-                if sec_id in component_section_ids:
-                    touches = True
-                    if step.get("operationId"):
-                        operations.add(step["operationId"])
-            if touches:
-                journeys.append(journey)
-
-        return journeys, sorted(operations)
 
     async def _one(self, key: str, names: list[str], max_repairs: int) -> Resolved:
         entry = self.ctx.store.component_cache(key)
@@ -197,7 +159,6 @@ class CustomComponents:
         engine_error: str | None = None
         installed = False
         try:
-            journeys, operations = self._journeys_and_operations(name)
             prompt = self.ctx.prompts.render(
                 "generate_custom_component",
                 PROMPT_VERSION,
@@ -208,8 +169,8 @@ class CustomComponents:
                 props_schema_json=json.dumps(component.get("propsSchema") or {}, indent=2, sort_keys=True),
                 spec_path=SPEC_FILE,
                 test_path=RENDER_TEST,
-                journeys=journeys,
-                operations=operations,
+                journeys=[],  # the prompt's journeys and operations blocks served the legacy dynamic flow (22.8)
+                operations=[],
             )
             sha_before = _file_sha256(component_path)
             try:
@@ -337,7 +298,7 @@ class CustomComponents:
         )
         test = scratch / RENDER_TEST
         test.parent.mkdir(parents=True, exist_ok=True)
-        test.write_text(render_test(relative, props, self._route_params(props.get("binding")), self._dynamic))
+        test.write_text(render_test(relative, props))
         context_doc = scratch / CONTEXT_PACK_FILE
         context_doc.parent.mkdir(parents=True, exist_ok=True)
         context_doc.write_text(component_context(scratch, component, props))
@@ -347,26 +308,6 @@ class CustomComponents:
             "include": ["next-env.d.ts", "src/**/*.d.ts", relative, RENDER_TEST],
         }
         (scratch / TSCONFIG).write_text(json.dumps(tsconfig, indent=2) + "\n")
-
-    @property
-    def _dynamic(self) -> bool:
-        return self.plan["project"]["mode"] == "dynamic"
-
-    def _route_params(self, binding: dict[str, Any] | None) -> dict[str, str]:
-        """`$route.<name>` → the id of the operation's first fixture record, so a get finds its record."""
-        params = {}
-        for value in ((binding or {}).get("params") or {}).values():
-            if isinstance(value, str) and value.startswith("$route."):
-                params[value.removeprefix("$route.")] = self._fixture_id(binding["operationId"])
-        return params
-
-    def _fixture_id(self, operation_id: str) -> str:
-        if not self.contract:
-            return "1"
-        operation = contract_operations(self.contract).get(operation_id) or {}
-        entity = (operation.get("operation", {}).get("x-bga") or {}).get("entity")
-        records = ((self.contract.get("x-bga") or {}).get("fixtures") or {}).get(entity) or [{}]
-        return str(records[0].get("id", "1"))
 
     async def _checks(
         self,
@@ -434,36 +375,24 @@ class CustomComponents:
         return failures, True
 
 
-def render_test(relative: str, props: dict[str, Any], route_params: dict[str, str], dynamic: bool) -> str:
-    """Renders the component with sample props (dynamic: on the mock API) and fails on any React error."""
+def render_test(relative: str, props: dict[str, Any]) -> str:
+    """Renders the component with sample props and fails on any React error."""
     module = relative.removeprefix("src/").removesuffix(".tsx")
-    mocks = (
-        'import { setApiBase } from "@/lib/api/client";\nimport { server } from "@/mocks/server";\n' if dynamic else ""
-    )
-    server = (
-        'beforeAll(() => {\n  setApiBase("http://localhost/mock-api");\n'
-        '  server.listen({ onUnhandledRequest: "warn" });\n});\nafterAll(() => server.close());\n\n'
-        if dynamic
-        else ""
-    )
-    hooks = "afterAll, beforeAll, " if dynamic else ""
     return (
         "// Generated by the Fullstack Generation Agent: the isolated render test of one custom component.\n"
         'import { act, render } from "@testing-library/react";\n'
         'import { QueryClient, QueryClientProvider } from "@tanstack/react-query";\n'
         'import { Profiler, type ComponentType } from "react";\n'
-        f'import {{ {hooks}expect, it, vi }} from "vitest";\n'
-        + mocks
+        'import { expect, it, vi } from "vitest";\n'
         + f'import Component from "@/{module}";\n\n'
         + 'vi.mock("next/navigation", () => ({\n'
-        + f"  useParams: () => ({json.dumps(route_params)}),\n"
+        + "  useParams: () => ({}),\n"
         + '  usePathname: () => "/",\n'
         + "  useSearchParams: () => new URLSearchParams(),\n"
         + "  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn(), refresh: vi.fn() }),\n"
         + "}));\n\n"
         + f"const props: Record<string, unknown> = {json.dumps(props, indent=2, ensure_ascii=False)};\n"
         + "const Rendered = Component as unknown as ComponentType<Record<string, unknown>>;\n\n"
-        + server
         + 'it("renders with sample props", async () => {\n'
         + "  let commits = 0;\n"
         + '  const errors = vi.spyOn(console, "error").mockImplementation((...args) => {\n'

@@ -33,8 +33,7 @@ type TToggle = {
     | "deployPreview"
     | "frontend.runTests"
     | "frontend.generatePreview"
-    | "frontend.mockApi"
-    | "frontend.manageArea";
+    | "frontend.mockApi";
   label: string;
   description: string;
 };
@@ -56,19 +55,13 @@ const MOCK_API_TOGGLE: TToggle = {
   description: "The site calls mocks generated from the API contract",
 };
 
-const MANAGE_AREA_TOGGLE: TToggle = {
-  name: "frontend.manageArea",
-  label: "Generated Manage area",
-  description: "Cover remaining operations with generated administrative pages",
-};
-
 /** Toggle groups per mode; the heading is shown only when both lanes have options. */
 function toggleGroups(mode: TGenerationMode): { heading: string | null; toggles: TToggle[] }[] {
   if (mode === "backend") return [{ heading: null, toggles: BACKEND_TOGGLES }];
   if (mode === "static") return [{ heading: null, toggles: FRONTEND_TOGGLES }];
   return [
     { heading: "Backend", toggles: BACKEND_TOGGLES },
-    { heading: "Frontend", toggles: [...FRONTEND_TOGGLES, MOCK_API_TOGGLE, MANAGE_AREA_TOGGLE] },
+    { heading: "Frontend", toggles: [...FRONTEND_TOGGLES, MOCK_API_TOGGLE] },
   ];
 }
 

@@ -38,12 +38,8 @@ class FakeStep(BaseModel):
     # with a base is three-way merged into the workspace's file (as an engine edits it) instead of replacing it, so
     # what the workspace has beyond the base (the app flow's aggregate routes) is kept.
     merge_base: Path | None = None
-    # Frontend lane: copy the golden frontend matching `.bga/frontend-spec.json` (project name), optionally with
-    # one planted conventions defect (a hard-coded colour in the shell) so the repair loop runs.
-    golden_frontend: bool = False
-    plant_frontend_defect: bool = False
-    # Custom components (Story 17.3): write the component `.bga/component.json` asks for, from `GOLDEN_COMPONENTS`
-    # (a plain generic component for any other name), optionally with the planted colour defect.
+    # Custom components (Story 17.3): write the generic component `.bga/component.json` asks for, optionally with the
+    # planted colour defect.
     custom_component: bool = False
     plant_component_defect: bool = False
     # Spec drafts (Stories 2.4, 12.4): write the example spec(s) matching the requirement in `.bga/` (DRAFT_FIXTURES).
@@ -74,18 +70,10 @@ GOLDEN_FLASHCARDS = GOLDEN.parent / "flashcards"
 GOLDEN_FLASHCARDS_BASE = GOLDEN.parent / "flashcards_base"
 _TASK_ROUTER = "src/modules/tasks/presenter/router.py"
 _CONTACT_ROUTER = "src/modules/contact_messages/presenter/router.py"
-# TESTING / DEMO ONLY (docs/development/test-doubles.md). Golden frontends: hand-written, convention-correct
-# implementations of these FrontendSpec examples only; any other FrontendSpec fails the fake frontend lane.
-GOLDEN_FRONTENDS = {
-    "Corner Shop": GOLDEN.parent / "frontend" / "corner_shop",  # examples/frontend-specs/shop-dynamic.json
-}
-FRONTEND_SHELL = "src/components/layout/SiteShell.tsx"
 PLANTED_COLOR = "text-[#b91c1c] "
-# TESTING / DEMO ONLY: hand-written custom components of examples/frontend-specs/shop-dynamic.json, by name.
-GOLDEN_COMPONENTS = GOLDEN.parent / "frontend" / "custom_components"
 GENERIC_COMPONENT = """"use client";
 
-import type { ReactNode } from "react";
+import type {{ ReactNode }} from "react";
 
 type {name}Props = {{
   title?: string;
@@ -140,8 +128,7 @@ def write_assets(workdir: Path, unsafe: bool) -> list[str]:
 def write_custom_component(workdir: Path, defect: bool) -> str:
     """The component the orchestrator asked for in `.bga/component.json` (custom_components.py)."""
     request = json.loads((workdir / ".bga" / "component.json").read_text())
-    golden = GOLDEN_COMPONENTS / f"{request['name']}.tsx"
-    code = golden.read_text() if golden.is_file() else GENERIC_COMPONENT.format(name=request["name"])
+    code = GENERIC_COMPONENT.format(name=request["name"])
     if defect:
         code = code.replace('className="', f'className="{PLANTED_COLOR}', 1)
     target = ensure_inside(workdir / request["file"], workdir)
@@ -155,39 +142,39 @@ def write_custom_component(workdir: Path, defect: bool) -> str:
 DRAFT_FIXTURES = [
     (
         "corner shop",
-        {"backend": ["specs/shop.json"], "dynamic": ["frontend-specs/shop-dynamic.json", "specs/shop.json"]},
+        {"backend": ["specs/shop.json"], "dynamic": ["specs/shop.json"]},
     ),
     ("northwind", {"static": ["frontend-specs/static-landing.json"]}),
     (
         "flashcard",
         {
             "backend": ["specs/flashcards.json"],
-            "dynamic": ["frontend-specs/flashcards-dynamic.json", "specs/flashcards.json"],
+            "dynamic": ["specs/flashcards.json"],
         },
     ),
     (
         "vocabulary",
         {
             "backend": ["specs/flashcards.json"],
-            "dynamic": ["frontend-specs/flashcards-dynamic.json", "specs/flashcards.json"],
+            "dynamic": ["specs/flashcards.json"],
         },
     ),
     (
         "anki",
         {
             "backend": ["specs/flashcards.json"],
-            "dynamic": ["frontend-specs/flashcards-dynamic.json", "specs/flashcards.json"],
+            "dynamic": ["specs/flashcards.json"],
         },
     ),
 ]
-# Story 22.7: an app with every plugin's frontend (auth, roles, rules, uploads, payments, links); app flow only.
+# Story 22.7: an app with every plugin's frontend (auth, roles, rules, uploads, payments, links).
 DRAFT_FIXTURES.append(
-    ("workshop", {"backend": ["specs/workshop-bookings.json"], "app": ["specs/workshop-bookings.json"]})
+    ("workshop", {"backend": ["specs/workshop-bookings.json"], "dynamic": ["specs/workshop-bookings.json"]})
 )
 DRAFT_DEFAULTS = {
     "backend": ["specs/two-entity.json"],
     "static": ["frontend-specs/static-landing.json"],
-    "dynamic": ["frontend-specs/project-tracker-dynamic.json", "specs/two-entity.json"],
+    "dynamic": ["specs/two-entity.json"],
 }
 
 
@@ -259,22 +246,13 @@ def write_draft_fixture(workdir: Path) -> list[str]:
     else:
         text = next((p.read_text() for p in (inputs / "requirement.md", inputs / "requirement.txt") if p.is_file()), "")
         app = request.get("flow") == "app"  # Epic 22: the BackendSpec and an app outline, no FrontendSpec
-        wanted = ("app", mode) if app else (mode,)  # a fixture made for the app flow only (Story 22.7) has "app"
         files = next(
-            (
-                by_mode[key]
-                for keyword, by_mode in DRAFT_FIXTURES
-                if keyword in text.lower()
-                for key in wanted
-                if key in by_mode
-            ),
+            (by_mode[mode] for keyword, by_mode in DRAFT_FIXTURES if keyword in text.lower() if mode in by_mode),
             DRAFT_DEFAULTS[mode],
         )
         written = []
         for name in files:
             target = "frontend-spec.json" if name.startswith("frontend-specs/") else "backend-spec.json"
-            if app and target == "frontend-spec.json":
-                continue
             shutil.copyfile(Path(config.examples_dir) / name, workdir / target)
             written.append(target)
             if app:
@@ -286,7 +264,7 @@ def write_draft_fixture(workdir: Path) -> list[str]:
                     outline_doc = {"name": project.get("name") or "App"}
                     (workdir / "app-outline.json").write_text(json.dumps(outline_doc, indent=2) + "\n")
                 written.append("app-outline.json")
-        picked = ", ".join(files if not app else [f for f in files if not f.startswith("frontend-specs/")])
+        picked = ", ".join(files)
     spec = "backend" if mode == "backend" else "frontend"
     notes: dict[str, Any] = {
         "assumptions": [{"spec": spec, "path": "", "message": f"Fake engine: drafted from {picked}"}],
@@ -311,10 +289,6 @@ def _project_name(spec_path: Path) -> str | None:
     import json
 
     return (json.loads(spec_path.read_text()).get("project") or {}).get("name")
-
-
-def golden_frontend_for(workdir: Path) -> Path | None:
-    return GOLDEN_FRONTENDS.get(_project_name(workdir / ".bga" / "frontend-spec.json"))
 
 
 def shop_demo_scenario(delay_s: float = 0.3) -> dict[str, list[FakeStep]]:
@@ -389,14 +363,9 @@ def demo_scenario(delay_s: float = 0.3) -> dict[str, list[FakeStep]]:
         # A rendered site's custom components (Story 17.3), one call each.
         "generate_custom_component": [FakeStep(sleep_s=delay_s, custom_component=True)],
         "repair_custom_component": [FakeStep(sleep_s=delay_s, custom_component=True)],
-        # First call (the shell) writes the whole golden frontend with one defect; the page calls change nothing.
-        "generate_frontend": [
-            FakeStep(sleep_s=delay_s, golden_frontend=True, plant_frontend_defect=True),
-            FakeStep(sleep_s=delay_s, message="The page is already in place."),
-        ],
-        "repair_frontend": [
-            FakeStep(sleep_s=delay_s, golden_frontend=True, message="Replaced the hard-coded colour with a token."),
-        ],
+        # The engine path of a static site's pages (Story 22.8 removed the golden dynamic frontend): no change.
+        "generate_frontend": [FakeStep(sleep_s=delay_s, message="The page is already in place.")],
+        "repair_frontend": [FakeStep(sleep_s=delay_s, message="Nothing to repair.")],
         # Site images (Story 15.2): the golden drawings, one call for all of a job's generated assets.
         "generate_assets": [FakeStep(sleep_s=delay_s, golden_assets=True, message="Drew the illustrations.")],
         # Spec drafts (Stories 2.4, 12.4): the example spec(s) the requirement matches; nothing to repair.
@@ -519,16 +488,13 @@ class FakeEngine(ICodeEngine):
                 except TimeoutError:
                     pass
             if status != EngineStatus.CANCELLED:
-                source = golden_frontend_for(workdir) if step.golden_frontend else step.copy_from
+                source = step.copy_from
                 if source is not None and step.merge_base is not None:
                     merge_golden(source, step.merge_base, workdir)
                 elif source is not None:
                     shutil.copytree(source, workdir, dirs_exist_ok=True, ignore=shutil.ignore_patterns("__pycache__"))
                     await emit(EngineEventKind.TOOL_USE, f"Copy {source.name}", tool="Copy")
                     tools.append(ToolCall(name="Copy", target=source.name, started_at=datetime.now(UTC)))
-                if source is not None and step.plant_frontend_defect:
-                    shell = workdir / FRONTEND_SHELL
-                    shell.write_text(shell.read_text().replace('className="', f'className="{PLANTED_COLOR}', 1))
                 if step.draft_fixture:
                     for relative in write_draft_fixture(workdir):
                         await emit(EngineEventKind.TOOL_USE, f"Write {relative}", tool="Write", target=relative)

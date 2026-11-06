@@ -78,22 +78,6 @@ def test_every_library_section_and_layout_node_builds_and_renders():
         shutil.rmtree(project.parent, ignore_errors=True)
 
 
-def test_a_rendered_dynamic_app_passes_every_check_on_mocks():
-    """Story 17.4: project-tracker-dynamic without the engine — data sections through the generated client on the
-    mock API, the forms test submits both forms, the smoke test finds the fixtures' text on every page."""
-    from tests.test_frontend_scaffold import inputs
-
-    spec, contract, plan = inputs("project-tracker-dynamic")
-    assert plan["rendering"] == "renderer", plan["rendererGaps"]
-    project = REPO / ".data" / "test-sandbox" / uuid.uuid4().hex[:10] / "frontend"
-    scaffold_frontend(project, plan, spec, contract)
-    try:
-        outcome = _validate(project, plan)
-        assert _passing(outcome.summary), outcome.digest
-    finally:
-        shutil.rmtree(project.parent, ignore_errors=True)
-
-
 def test_a_type_error_fails_typecheck_and_skips_build(landing):
     project, plan = landing
     broken = project / "src/features/site/components/Broken.tsx"
@@ -153,7 +137,6 @@ def test_eslint_autofix_then_every_check_passes_on_the_shared_node_modules():
 
 def test_dynamic_generation_switches_to_live_and_passes_live_smoke(client, user_headers):
     """Stories 14.1–14.3: parallel backend + frontend sandboxes, live preview switch and live Playwright smoke."""
-    import json
 
     from src.engines.fake_engine import FakeEngine, demo_scenario
     from src.libs.queue import PreviewCommandBus
@@ -168,7 +151,9 @@ def test_dynamic_generation_switches_to_live_and_passes_live_smoke(client, user_
 
     root = REPO / ".data" / "test-sandbox" / uuid.uuid4().hex[:10]
     root.mkdir(parents=True)
-    tracker = json.loads((EXAMPLES / "frontend-specs" / "project-tracker-dynamic.json").read_text())
+    from tests.generation_helpers import app_pair
+
+    tracker = app_pair("two-entity", dashboard=False)[0]  # the tracker app; two-entity as it is
     resp = client.post(
         "/api/v1/generations",
         json={"mode": "dynamic", "frontendSpec": tracker, "backendSpec": TWO_ENTITY, "options": {"engine": "fake"}},
@@ -212,9 +197,9 @@ def test_dynamic_generation_switches_to_live_and_passes_live_smoke(client, user_
 
 
 def test_custom_components_pass_isolated_checks_then_come_from_the_cache(client, user_headers):
-    """Story 17.3: shop-dynamic's three custom components are generated in parallel, pass their isolated checks
-    (tsc, ESLint, the render test on the mock API) in their own sandboxes, and the site passes every check with
-    them; the second run takes all three from the cache."""
+    """Story 17.3: the static shop's three custom components (a static site's feature since Story 22.8) are generated
+    in parallel and pass their isolated checks (tsc, ESLint, the render test) in their own sandboxes; the second run
+    takes all three from the cache."""
     import json
 
     from sqlmodel import Session, delete
@@ -232,10 +217,11 @@ def test_custom_components_pass_isolated_checks_then_come_from_the_cache(client,
     root = REPO / ".data" / "test-sandbox" / uuid.uuid4().hex[:10]
     root.mkdir(parents=True)
     body = {
-        "mode": "dynamic",
-        "frontendSpec": json.loads((EXAMPLES / "frontend-specs" / "shop-dynamic.json").read_text()),
-        "backendSpec": json.loads((EXAMPLES / "specs" / "shop.json").read_text()),
-        "options": {"engine": "fake", "deployPreview": False},
+        "mode": "static",
+        "frontendSpec": json.loads(
+            (REPO / "agent-api" / "tests" / "fixtures" / "frontend-specs" / "shop-static.json").read_text()
+        ),
+        "options": {"engine": "fake"},
     }
 
     def run() -> str:
@@ -249,7 +235,7 @@ def test_custom_components_pass_isolated_checks_then_come_from_the_cache(client,
             sandboxes=DockerSandboxProvider(),
             frontend_validator=SandboxFrontendValidationRunner(),
         )
-        assert status == "COMPLETED_WITH_WARNINGS", generation(generation_id).error_summary  # no preview
+        assert status == "COMPLETED", generation(generation_id).error_summary
         assert generation(generation_id).lanes["frontend"] == "COMPLETED"
         return generation_id
 
@@ -319,7 +305,7 @@ def test_endless_render_loop_component_fails_fast_in_checks_and_render_test():
     )
     from tests.test_frontend_scaffold import inputs
 
-    spec, contract, plan = inputs("project-tracker-dynamic")
+    spec, contract, plan = inputs("shop-static")
     root = REPO / ".data" / "test-sandbox" / uuid.uuid4().hex[:10]
     project = root / "frontend"
     scaffold_frontend(project, plan, spec, contract)
@@ -332,7 +318,7 @@ def test_endless_render_loop_component_fails_fast_in_checks_and_render_test():
 
     test_file = project / RENDER_TEST
     test_file.parent.mkdir(parents=True, exist_ok=True)
-    test_file.write_text(render_test(relative, {}, {}, dynamic=True))
+    test_file.write_text(render_test(relative, {}))
     tsconfig = {
         "extends": "./tsconfig.json",
         "compilerOptions": {"incremental": False},

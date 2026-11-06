@@ -137,7 +137,6 @@ def test_api_create_from_requirement_static_mode_with_frontend_options(client, u
                     "runTests": True,
                     "generatePreview": True,
                     "mockApi": True,
-                    "manageArea": True,
                 },
             },
         },
@@ -545,7 +544,8 @@ def test_continue_loses_to_a_cancel_committed_meanwhile(client, user_headers, mo
 
 def test_continue_keeps_reconcile_notes_on_the_draft(client, user_headers):
     backend = json.loads((EXAMPLES / "specs" / "shop.json").read_text())
-    frontend = json.loads((EXAMPLES / "frontend-specs" / "shop-dynamic.json").read_text())
+    # a hand-written app spec (tests/fixtures/pair-specs, Story 22.8) whose action the reconcile step heals
+    frontend = json.loads((Path(__file__).parent / "fixtures" / "pair-specs" / "shop.json").read_text())
     frontend["pages"][0]["sections"][0]["content"]["actions"] = [
         {"id": "gone", "label": "Gone", "kind": "link", "page": "no-such-page"}
     ]
