@@ -10,7 +10,7 @@ from src.modules.engines.infrastructure.adapters import EngineHealthStoreDep, En
 
 class EngineCatalog(BaseModel):
     default: str
-    draft_default: str  # Story 18.10: the engine that drafts specs unless the user picks another
+    draft_default: str | None  # Story 18.10: the engine that drafts unless the user picks another (22.8: API only)
     engines: list[EngineHealth]
     reported_by_worker: bool
     reported_at: datetime | None = None
@@ -26,6 +26,7 @@ class ListEnginesUsecase:
         if report is not None:
             for health in report.engines:
                 health.drafts_only = self.registry.get(health.name).drafts_only
+                health.drafts = self.registry.get(health.name).drafts
             return EngineCatalog(
                 default=self.registry.default,
                 draft_default=self.registry.draft_default,
@@ -41,6 +42,8 @@ class ListEnginesUsecase:
             else health
             for health in await self.registry.health()
         ]
+        for health in local:
+            health.drafts = self.registry.get(health.name).drafts
         return EngineCatalog(
             default=self.registry.default,
             draft_default=self.registry.draft_default,

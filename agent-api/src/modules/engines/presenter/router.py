@@ -14,7 +14,7 @@ async def list_engines(_: CurrentUserDep, usecase: ListEnginesUsecaseDep) -> Lis
         default=catalog.default,
         draft_default=catalog.draft_default,
         engines=[
-            EngineDto(name=e.name, available=e.available, reason=e.reason, drafts_only=e.drafts_only)
+            EngineDto(name=e.name, available=e.available, reason=e.reason, drafts_only=e.drafts_only, drafts=e.drafts)
             for e in catalog.engines
         ],
         reported_by_worker=catalog.reported_by_worker,

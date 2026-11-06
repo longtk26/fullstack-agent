@@ -290,7 +290,7 @@ class RulesPlugin(Plugin):
             }:
                 described[rule_id]["operations"].append(op_id)
             for rule in concurrency.rules_of(op):  # Story 10.10
-                entry = {
+                refusal = {  # not `entry`: that is the contract operation the scenarios below need (Story 22.8)
                     "status": 409,
                     "code": rule["code"],
                     "message": rule["message"],
@@ -298,8 +298,8 @@ class RulesPlugin(Plugin):
                     "fields": rule["fields"],
                 }
                 errors[:] = [e for e in errors if not (e["code"] == rule["code"] and "rule" not in e)]
-                if entry not in errors:
-                    errors.append(entry)
+                if refusal not in errors:
+                    errors.append(refusal)
                 described.setdefault(rule["id"], {"operations": [], "implementation": "template", "status": 409,
                                                   "code": rule["code"], "fields": rule["fields"]})  # fmt: skip
                 described[rule["id"]]["operations"].append(op_id)

@@ -125,6 +125,13 @@ Agent-specific notes:
   purposes; the engine list marks it). Answers are one JSON envelope of `files` and RFC 6902 `patches`
   (`libs/jsonpatch.py`). `DRAFT_ENGINE` / `registry.draft_default` pick it for drafts; generation keeps the CLI
   engines. A repair round whose errors repeat the previous round's ends the loop. `docs/engines/gemini-api.md`.
+  Story 22.8: **drafting is API-only**: an engine drafts only when it says so (`ICodeEngine.drafts`: the Gemini API
+  engine and the fake); `EngineRegistry.check_draft_engine` refuses a CLI engine for `/spec-drafts` and a one-click
+  `draftEngine` (422), and `draft_default` is never a CLI engine. An app draft asks for **structured output**
+  (`EngineRequest.response_schema` → `responseJsonSchema`): `drafting/answer_schema.py` builds the answer's schema
+  (the three files, rules typed per kind, only the keywords Gemini documents); a 400 for the schema retries without
+  it. `drafting/app.fix_backend_defaults` fixes mechanical mistakes before any check (`now` defaults, a field list
+  written as one string, a missing primary key); `repair_spec` is the last resort.
 - Designed pages (Epic 21): a page may be an element **tree** (`FrontendSpec` `pages[].tree` + `css`, `layout.chrome`
   / `footerTree`; `TreeNode` in `schema_v1.py`), as Frontend-Agent's site JSON writes it. `frontend_spec/trees.py`
   classifies node types (elements, shadcn primitives, Lucide icons, library sections, data components), checks the

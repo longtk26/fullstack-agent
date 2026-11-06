@@ -14,7 +14,7 @@ from typing import Any
 
 from src.configs import config
 from src.engines.port import EngineResult, EngineStatus
-from src.engines.prompts import PromptLibrary, RenderedPrompt
+from src.engines.prompts import PromptLibrary
 from src.modules.shared.domain.backend_spec import validate_spec_data
 from src.modules.shared.domain.entities import SpecDraftEntity
 from src.modules.shared.domain.enums import GenerationMode
@@ -25,6 +25,7 @@ from ..backend.planner import build_plan
 from ..frontend.app.outline import complete_outline
 from ..frontend.app.screens import app_frontend_spec, ensure_aggregates
 from ..integration.contract import build_contract
+from .answer_schema import app_answer_schema
 
 PROMPT = ("draft_app", "v2")  # v2 (Story 22.8): sign-in, roles and the plugins' features
 OUTLINE_FILE = "app-outline.json"  # what the model drafts next to the BackendSpec (code folds it into the FrontendSpec)
@@ -41,7 +42,7 @@ OUTLINE_EXAMPLES = {
 # roles, ownership, rules, uploads, payments and links are written (`specs/shop.json` has none of them).
 BACKEND_EXAMPLE = "specs/workshop-bookings.json"
 
-Call = Callable[[str, RenderedPrompt], Awaitable[EngineResult]]
+Call = Callable[..., Awaitable[EngineResult]]  # (step, prompt, response_schema=None)
 Progress = Callable[..., Awaitable[None]]
 
 
@@ -88,22 +89,57 @@ def outline_notes(notes: list[dict[str, Any]]) -> list[dict[str, Any]]:
 NOW_WORDS = frozenset({"today", "current_date", "current_timestamp", "now()", "current_time", "datetime.now"})
 
 
+# Rule params and operation fields that name fields: a list, which models sometimes write as one string (seen live,
+# Story 22.8: `"scope": "pitchId"`, which the validator then read letter by letter).
+RULE_LISTS = {"noOverlap": ("scope",), "uniqueTogether": ("fields",), "immutableAfter": ("states",)}
+OPERATION_LISTS = ("filters", "sort", "search", "rules")
+
+
 def fix_backend_defaults(work: Path, backend_file: str) -> list[dict[str, Any]]:
-    """Code fixes to the drafted BackendSpec that need no model call: a date or datetime default of the current time
-    written another way becomes `now`. Returns the notes."""
+    """Code fixes to the drafted BackendSpec that need no model call (Stories 22.2, 22.8), each with a note:
+    - a date or datetime default of the current time written another way becomes `now`;
+    - a field list written as one string (a rule's `scope` / `fields` / `states`, an operation's `filters` / `sort` /
+      `search` / `rules`) becomes a list of that one name;
+    - an entity without a primary key gets `id` (uuid), as every example has."""
     data = _load(work / backend_file)
     if not isinstance(data, dict):
         return []
-    notes = []
+    notes: list[dict[str, Any]] = []
+
+    def note(path: str, message: str) -> None:
+        notes.append({"spec": "backend", "path": path, "message": message, "suggestion": None})
+
     for e_index, entity in enumerate(data.get("entities") or []):
-        for f_index, item in enumerate((entity or {}).get("fields") or []):
+        if not isinstance(entity, dict):
+            continue
+        fields = entity.get("fields") if isinstance(entity.get("fields"), list) else []
+        for f_index, item in enumerate(fields):
             default = item.get("default") if isinstance(item, dict) else None
             if item.get("type") in ("date", "datetime") and isinstance(default, str):
                 if default.strip().lower() in NOW_WORDS:
                     item["default"] = "now"
-                    path = f"/entities/{e_index}/fields/{f_index}/default"
                     message = f"{entity.get('name')}.{item.get('name')}: default '{default}' is written 'now'"
-                    notes.append({"spec": "backend", "path": path, "message": message, "suggestion": None})
+                    note(f"/entities/{e_index}/fields/{f_index}/default", message)
+        if isinstance(entity.get("fields"), list) and not any(
+            isinstance(item, dict) and item.get("primary") for item in fields
+        ):
+            named_id = next((item for item in fields if isinstance(item, dict) and item.get("name") == "id"), None)
+            if named_id is not None:
+                named_id["primary"] = True
+            else:
+                fields.insert(0, {"name": "id", "type": "uuid", "primary": True})
+            note(f"/entities/{e_index}/fields", f"{entity.get('name')} had no primary key: 'id' is its key")
+    for r_index, rule in enumerate(data.get("rules") or []):
+        params = rule.get("params") if isinstance(rule, dict) else None
+        for key in RULE_LISTS.get(rule.get("kind") if isinstance(rule, dict) else "", ()):
+            if isinstance(params, dict) and isinstance(params.get(key), str):
+                params[key] = [params[key]]
+                note(f"/rules/{r_index}/params/{key}", f"Rule '{rule.get('id')}': '{key}' is a list of names")
+    for o_index, operation in enumerate(data.get("operations") or []):
+        for key in OPERATION_LISTS:
+            if isinstance(operation, dict) and isinstance(operation.get(key), str):
+                operation[key] = [operation[key]]
+                note(f"/operations/{o_index}/{key}", f"{operation.get('operationId')}: '{key}' is a list of names")
     if notes:
         (work / backend_file).write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
     return notes
@@ -149,7 +185,9 @@ async def draft_app(
     """One engine call for the BackendSpec and the outline (plus repairs only when the BackendSpec is invalid), then
     the FrontendSpec by code: the outline completed from the BackendSpec and the contract, the screens planned."""
     await progress("drafting")
-    result = await call("draft", prompts.render(*PROMPT, **context))
+    # Story 22.8: an API engine answers in the shape of the three files (structured output); a CLI engine writes them
+    schema = app_answer_schema(backend_file, OUTLINE_FILE, context["notes_path"]) if context.get("inline") else None
+    result = await call("draft", prompts.render(*PROMPT, **context), response_schema=schema)
     if result.status != EngineStatus.OK:
         from .drafts import DraftFailed
 

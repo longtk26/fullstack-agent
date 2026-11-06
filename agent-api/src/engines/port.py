@@ -112,6 +112,9 @@ class EngineRequest(BaseModel):
     max_turns: int | None = None
     timeout_s: float | None = None
     model: str | None = None
+    # Story 22.8: the JSON Schema the answer must follow; an API engine constrains its output to it (structured
+    # output), a CLI engine ignores it.
+    response_schema: dict[str, Any] | None = None
 
 
 class EngineResult(BaseModel):
@@ -146,6 +149,7 @@ class EngineHealth(BaseModel):
     reason: str | None = None
     version: str | None = None
     drafts_only: bool = False  # Story 18.10: an API engine drafts specs but writes no code
+    drafts: bool = False  # Story 22.8: the engine may draft specs (API engines and the fake only)
 
 
 OnEngineEvent = Callable[[EngineEvent], Awaitable[None]]
@@ -157,6 +161,9 @@ class ICodeEngine(ABC):
     # (`inline_inputs`) and cannot write a project (`drafts_only`).
     drafts_only: bool = False
     inline_inputs: bool = False
+    # Story 22.8: drafting is API-only: one request per step instead of a CLI agent loop that reads each input file
+    # turn by turn (16-22 model turns, 0.4-0.8M input tokens per draft call on Antigravity). CLI engines write code.
+    drafts: bool = False
 
     @abstractmethod
     async def health(self) -> EngineHealth:

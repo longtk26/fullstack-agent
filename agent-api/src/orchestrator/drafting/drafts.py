@@ -843,7 +843,9 @@ class DraftRunner:
                     payload={"progress": prog, "attempts": attempts_count or 0},
                 )
 
-        async def call(step: str, prompt: RenderedPrompt) -> EngineResult:
+        async def call(
+            step: str, prompt: RenderedPrompt, response_schema: dict[str, Any] | None = None
+        ) -> EngineResult:
             if await self._is_cancelled(draft):
                 raise DraftCancelled("Draft cancelled")
             await engine.prepare_workspace(work, EngineContext(conventions=self.prompts.draft_conventions()))
@@ -854,7 +856,12 @@ class DraftRunner:
                 metadata={"engine": engine.name, "purpose": prompt.ref.id},
             )
             request = EngineRequest(
-                purpose=prompt.ref.id, workdir=work, state_dir=state, prompt=prompt.text, prompt_ref=prompt.ref
+                purpose=prompt.ref.id,
+                workdir=work,
+                state_dir=state,
+                prompt=prompt.text,
+                prompt_ref=prompt.ref,
+                response_schema=response_schema,
             )
             try:
                 result = await engine.run(request)

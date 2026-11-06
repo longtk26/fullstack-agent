@@ -138,8 +138,7 @@ class CreateGenerationUsecase:
             raise UnprocessableEntityException(f"Engine '{engine}' cannot generate code", code=ErrorCode.ENGINE_UNKNOWN)
         # The fake engine drafts for itself (its drafts are bundled examples); others use the draft default.
         draft_engine = options.get("draftEngine") or ("fake" if engine == "fake" else self.registry.draft_default)
-        if draft_engine not in self.registry.names():
-            raise UnprocessableEntityException(f"Engine '{draft_engine}' is not enabled", code=ErrorCode.ENGINE_UNKNOWN)
+        draft_engine = self.registry.check_draft_engine(draft_engine)  # Story 22.8: API engines (or the fake) only
         options = {**options, "engine": engine, "draftEngine": draft_engine}
         if inputs.mode in NEEDS_FRONTEND:
             options["frontend"] = options.get("frontend") or {

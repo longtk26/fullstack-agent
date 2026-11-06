@@ -11,6 +11,9 @@
 - App forms type every field (dates, choices, numbers with units and currency), pick references from a searchable
   list instead of asking for ids, and the plugins have screens: sign-in and roles, status changes, uploads, payments
   and many-to-many links (FR-36).
+- Drafting runs on the API engine only (one request per step, about 6K input tokens for an app); the CLI engines
+  write code. An API draft answers in the shape of its files (structured output), and code fixes mechanical mistakes,
+  so a spec repair is the exception (FR-24).
 - Backlog: Stories 22.5–22.8.
 
 **Changes in 1.9 (2026-11-05):**

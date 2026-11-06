@@ -23,11 +23,41 @@ class EngineRegistry:
     def __init__(self, engines: list[ICodeEngine], default: str, draft_default: str | None = None):
         self.engines = {engine.name: engine for engine in engines}
         self.default = default
-        # Story 18.10: the engine that drafts specs when a request names none (an API engine when it is configured).
-        self.draft_default = draft_default if draft_default in self.engines else default
+        # Story 18.10: the engine that drafts specs when a request names none; Story 22.8: always one that drafts
+        # (an API engine, or the fake), never a CLI engine. None: no engine can draft (set GEMINI_API_KEY).
+        drafters = self.draft_engine_names()
+        if draft_default in drafters:
+            self.draft_default: str | None = draft_default
+        elif default in drafters:
+            self.draft_default = default
+        else:
+            self.draft_default = next((name for name in drafters if name != "fake"), drafters[0] if drafters else None)
 
     def names(self) -> list[str]:
         return list(self.engines)
+
+    def draft_engine_names(self) -> list[str]:
+        """Engines that may draft specs (Story 22.8: the API engines and the fake; CLI engines only write code)."""
+        return [name for name, engine in self.engines.items() if engine.drafts]
+
+    def check_draft_engine(self, name: str | None) -> str:
+        """The engine a draft runs on, or a 422 that says why it cannot (Story 22.8)."""
+        from src.libs.exceptions import ErrorCode, UnprocessableEntityException
+
+        if name is None:
+            raise UnprocessableEntityException(
+                "No engine can draft specs: drafting runs on the Gemini API engine (set GEMINI_API_KEY)",
+                code=ErrorCode.ENGINE_UNKNOWN,
+            )
+        if name not in self.engines:
+            raise UnprocessableEntityException(f"Engine '{name}' is not enabled", code=ErrorCode.ENGINE_UNKNOWN)
+        if name not in self.draft_engine_names():
+            allowed = ", ".join(self.draft_engine_names()) or "none: set GEMINI_API_KEY"
+            raise UnprocessableEntityException(
+                f"Engine '{name}' writes code only; drafts run on an API engine ({allowed})",
+                code=ErrorCode.ENGINE_UNKNOWN,
+            )
+        return name
 
     def code_engine_names(self) -> list[str]:
         """Engines that can write a project (an API engine only drafts, Story 18.10)."""

@@ -64,6 +64,7 @@ class GeminiApiEngine(ICodeEngine):
     name = "gemini_api"
     drafts_only = True
     inline_inputs = True
+    drafts = True
 
     def __init__(
         self,
@@ -177,7 +178,8 @@ class GeminiApiEngine(ICodeEngine):
         model = request.model or self.model
         timeout = request.timeout_s or self.default_timeout_s
         prompt = request.prompt
-        await emit(EngineEventKind.SYSTEM, f"request to {model}", model=model)
+        schema = request.response_schema  # Story 22.8: structured output; dropped if the API refuses it
+        await emit(EngineEventKind.SYSTEM, f"request to {model}", model=model, structured=schema is not None)
         attempt, json_retries = 0, 0
         while True:
             attempt += 1
@@ -185,7 +187,7 @@ class GeminiApiEngine(ICodeEngine):
                 return finish(EngineStatus.CANCELLED, EngineErrorReason.CANCELLED, "cancelled")
             call_started = datetime.now(UTC)
             try:
-                response = await self._post(request.invocation_id, model, prompt, timeout)
+                response = await self._post(request.invocation_id, model, prompt, timeout, schema)
             except asyncio.CancelledError:
                 if cancel.is_set():
                     return finish(EngineStatus.CANCELLED, EngineErrorReason.CANCELLED, "cancelled")
@@ -209,6 +211,12 @@ class GeminiApiEngine(ICodeEngine):
                 return finish(EngineStatus.CLI_ERROR, EngineErrorReason.RATE_LIMIT, "rate limited")
             if response.status_code in (401, 403):
                 return finish(EngineStatus.CLI_ERROR, EngineErrorReason.AUTH, f"HTTP {response.status_code}")
+            if response.status_code == 400 and schema is not None:
+                # the schema is past what structured output compiles (states, branches, depth): answer without it;
+                # the checks still run on the answer
+                await emit(EngineEventKind.ERROR, "the answer schema was refused (HTTP 400); asking without it")
+                schema = None
+                continue
             if response.status_code != 200:
                 return finish(EngineStatus.CLI_ERROR, EngineErrorReason.CRASH, f"HTTP {response.status_code}")
 
@@ -254,17 +262,21 @@ class GeminiApiEngine(ICodeEngine):
     def _headers(self) -> dict[str, str]:
         return {"x-goog-api-key": self.api_key or "", "Content-Type": "application/json"}
 
-    def _body(self, prompt: str) -> dict[str, Any]:
+    def _body(self, prompt: str, schema: dict[str, Any] | None = None) -> dict[str, Any]:
         generation: dict[str, Any] = {"responseMimeType": "application/json", "maxOutputTokens": self.max_output_tokens}
+        if schema is not None:
+            generation["responseJsonSchema"] = schema
         if self.thinking_budget is not None:
             generation["thinkingConfig"] = {"thinkingBudget": self.thinking_budget}
         return {"contents": [{"role": "user", "parts": [{"text": prompt}]}], "generationConfig": generation}
 
-    async def _post(self, invocation_id: str, model: str, prompt: str, timeout: float) -> httpx.Response:
+    async def _post(
+        self, invocation_id: str, model: str, prompt: str, timeout: float, schema: dict[str, Any] | None = None
+    ) -> httpx.Response:
         async def send() -> httpx.Response:
             async with httpx.AsyncClient(timeout=timeout, transport=self.transport) as client:
                 url = f"{self.base_url}/models/{model}:generateContent"
-                return await client.post(url, headers=self._headers(), json=self._body(prompt))
+                return await client.post(url, headers=self._headers(), json=self._body(prompt, schema))
 
         task = asyncio.create_task(send())
         self._requests[invocation_id] = task

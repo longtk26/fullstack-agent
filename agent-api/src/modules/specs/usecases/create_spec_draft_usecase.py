@@ -35,9 +35,7 @@ class CreateSpecDraftUsecase:
         self.registry = registry
 
     async def execute(self, user: UserEntity, request: DraftRequest) -> SpecDraftEntity:
-        engine = request.engine or self.registry.draft_default
-        if engine not in self.registry.names():
-            raise UnprocessableEntityException(f"Engine '{engine}' is not enabled", code=ErrorCode.ENGINE_UNKNOWN)
+        engine = self.registry.check_draft_engine(request.engine or self.registry.draft_default)
         draft = self._persist(user, request, engine)
         # Queued after the commit, so the worker always finds the row it is handed.
         await self.queue.enqueue_draft(str(draft.id), engine)

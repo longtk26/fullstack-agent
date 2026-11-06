@@ -524,7 +524,11 @@ class _SemanticChecker:
                 field = fields.get(params.get(key) or "")
                 if field is None or field.type not in ("date", "datetime"):
                     self._add(C.RULE_PARAMS_INVALID, f"{path}/params/{key}", f"'{key}' is a date or datetime field")
-            for index, name in enumerate(params.get("scope") or []):
+            scope = params.get("scope") or []
+            if not isinstance(scope, list):  # one error, not one per letter of a string (Story 22.8)
+                self._add(C.RULE_PARAMS_INVALID, f"{path}/params/scope", "'scope' is a list of field names")
+                return
+            for index, name in enumerate(scope):
                 if name not in fields:
                     self._add(C.UNKNOWN_FIELD_REF, f"{path}/params/scope/{index}", f"No field '{name}'")
         else:

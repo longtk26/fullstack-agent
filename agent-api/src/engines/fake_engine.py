@@ -398,6 +398,8 @@ class FakeEngine(ICodeEngine):
     so concurrent jobs never consume each other's script. Purpose "*" is the fallback.
     """
 
+    drafts = True  # its drafts are the bundled examples (Story 22.8: drafting is otherwise API-only)
+
     name = "fake"
 
     def __init__(

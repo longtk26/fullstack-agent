@@ -74,8 +74,49 @@ the repair round (`DRAFT_FILE_MISSING`) did the same. Fixed:
   outline examples. Snapshots `tests/fixtures/prompts/draft_app.v2{,.inline}.md`.
 - A draft whose engine wrote no BackendSpec fails with the check's reason ("The draft has no backend-spec.json (after
   1 repair(s))") instead of "The engine wrote no spec".
-The run's test of the full flow is therefore still open: it needs a second Antigravity run, which only the user can
-allow.
+With the user's yes, a second run on `draft_app@v2` (`gen_01M6QP98WECNXD12B4A9EMDZ03`, draft `5152215b-…`, 588 s)
+**drafted a valid app** (292 s, 22 agent turns, 845K input tokens) after one repair (293 s, a CLI error at its end;
+its errors: 16 × `UNKNOWN_FIELD_REF` "No field 'p'", 'i', 't', … from one mistake, a no-overlap `scope` written as
+the string `"pitchId"`), then failed in code: the rules plugin crashed building the contract (`KeyError: 'path'`;
+`entry`, the contract operation, was overwritten in the concurrency loop when one operation has both a status rule
+and a concurrency rule). The draft cost $0.53 for 1.3M input / 69K output tokens: every agent turn re-sends what it
+read. Fixed with the user (2026-11-06):
+- The `entry` bug (`refusal`), with a test of a status flow next to a no-overlap rule
+  (`tests/test_concurrency_rules.py`).
+- **Drafting is API-only**: only an engine that drafts (`ICodeEngine.drafts`: the Gemini API engine, the fake) may
+  draft; a CLI draft engine is a 422 (`EngineRegistry.check_draft_engine`); the UI's draft engine picker lists only
+  those. A draft's repairs run on the same API engine; code and its repairs stay on the CLI engines.
+- **Structured output** for app drafts on the API engine (`drafting/answer_schema.py`, `EngineRequest.response_schema`
+  → `responseJsonSchema`): the three files with their keys, types, enums and required fields, rule params typed per
+  kind (a `scope` is a list); the examples and both recorded Antigravity drafts validate against it; a 400 for the
+  schema retries once without it.
+- **Code fixes** before any check (`fix_backend_defaults`): a field list written as one string becomes a list, an
+  entity without a primary key gets `id`; the validator reports a string `scope` once (`RULE_PARAMS_INVALID`), not
+  per letter. Tests: `tests/test_structured_drafts.py`, `tests/test_draft_engines.py`.
+
+The third run, drafted on the Gemini API and coded by Antigravity (`gen_01M6QREW4Q9CQ7KYP1EV8X38GY`, draft
+`32a2ce28-…`), **COMPLETED in 212 s**, every lane COMPLETED including the live integration:
+
+| Soccer draft | Engine | Calls | Model turns | Input tokens | Output tokens | Draft time | Repairs | Cost |
+|---|---|---|---|---|---|---|---|---|
+| run 1 (`draft_app@v1`) | Antigravity | 2 | 28 | 643K | 23K | 181 s, no spec | 1 | $0.23 |
+| run 2 (`draft_app@v2`) | Antigravity | 2 | 43 | 1.31M | 69K | 585 s | 1 | $0.53 |
+| run 3 (v2, structured) | Gemini API | 1 | 1 | 6,875 | 13,870 | **82 s** | **0** | **$0.06** |
+
+Run 3's draft: roles `player` / `staff`, policies `staffOnly` and `ownBookings` (ownership), a `transition` flow, a
+`immutableAfter` lock, a `noOverlap` rule per pitch, payments, a photo, a dashboard of bookings per pitch this week and
+revenue by surface (two aggregates added by code). The model still wrote `scope` as a string; the code fix made it a
+list (a note on the draft), so no repair ran. The backend was fully templated (no Antigravity call). Live checks: the
+app walk 15/15 as staff; the plugin walk's sign-up, sign-in guard and wrong-password steps (its other steps are the
+workshop example's); and against the API: a player's booking 201 (PENDING, UNPAID, `pay`), an overlapping one 409
+`OVERLAP`, a player sees only their own bookings (2 of 5), a player's confirm 403, staff confirm 200, checkout 201,
+an edit after cancelling 409 `RESOURCE_LOCKED`, no token 401.
+
+Open: the booking form asks for `startsAt`, `endsAt`, `surface` and `amount`, fields the model added so the
+no-overlap rule and the revenue chart have their data; they should be derived (from date, start time and hours; the
+pitch's surface; hours × hourly price). The BackendSpec has no computed fields yet (backlog). Whether Gemini enforced
+the answer schema or refused it (and the engine retried without it) is not recorded outside the deleted draft
+directory; the engine's event says which.
 
 What was removed:
 - `DYNAMIC_FRONTEND` / `config.dynamic_frontend` (config, compose, `.env.example`); `drafting/app.app_flow` is every

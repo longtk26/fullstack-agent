@@ -126,7 +126,7 @@ export function GenerationOptionsForm({ form, engines, mode }: GenerationOptions
         name="draftEngine"
         label="Draft engine"
         description="Drafts the specs from a requirement; one API request per step."
-        engines={engines}
+        engines={engines.filter((engine) => engine.drafts)}
         form={form}
       />
       <Controller

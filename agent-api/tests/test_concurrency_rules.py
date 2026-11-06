@@ -137,3 +137,25 @@ def test_concurrency_rules_are_validated():
     paths = {issue.path for issue in validate_spec_data(raw).report.errors}
     assert {"/rules/0/params/parent", "/rules/1/params/start", "/rules/2/params/fields",
             "/rules/2/params/where/status"} <= paths  # fmt: skip
+
+
+def test_a_status_rule_next_to_a_concurrency_rule_on_one_operation(tmp_path):
+    """Story 22.8 (the soccer draft on Antigravity): a booking's status flow and its no-overlap rule both guard
+    `booking.update`; the contract used to crash (`KeyError: 'path'`) adding the transition's scenarios."""
+    booking_spec(tmp_path)
+    raw = json.loads((tmp_path / "booking-spec.json").read_text())
+    raw["entities"][2]["fields"][-1]["values"] = ["PENDING", "ACTIVE", "CANCELLED"]
+    raw["entities"][2]["fields"][-1]["default"] = "PENDING"
+    raw["rules"].append(
+        {"id": "bookingFlow", "kind": "transition", "entity": "Booking",
+         "params": {"field": "status", "transitions": {"PENDING": ["ACTIVE", "CANCELLED"], "ACTIVE": ["CANCELLED"]}}}
+    )  # fmt: skip
+    next(op for op in raw["operations"] if op["operationId"] == "booking.update")["rules"] = ["bookingFlow"]
+    (tmp_path / "booking-spec.json").write_text(json.dumps(raw))
+    spec = normalized(tmp_path / "booking-spec.json")
+    update = contract_operations(build_contract(spec))["booking.update"]["operation"]["x-bga"]
+    codes = {error["code"] for error in update["errors"]}
+    assert {"INVALID_TRANSITION", "OVERLAP"} <= codes, codes
+    assert any("transition" in scenario["name"] for scenario in update["scenarios"]), [
+        s["name"] for s in update["scenarios"]
+    ]
