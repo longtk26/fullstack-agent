@@ -140,3 +140,29 @@ def test_a_scope_written_as_one_string_is_one_error():
     )  # fmt: skip
     errors = [issue for issue in validate_spec_data(spec).report.errors if issue.path.startswith("/rules/3")]
     assert [(issue.code, issue.path) for issue in errors] == [("RULE_PARAMS_INVALID", "/rules/3/params/scope")]
+
+
+def test_a_custom_operation_of_an_entity_answers_with_its_records(tmp_path):
+    """HomeFix (2026-11-07): `GET /repair-requests/assigned-jobs` and `GET /repair-requests/jobs/{id}` were drafted
+    with an entity and no response; the contract had no type, the backend answered `{"ok": true}` and the
+    contractor's page showed "Ok: Yes" instead of their jobs."""
+    spec = json.loads((EXAMPLES / "specs" / "workshop-bookings.json").read_text())
+    base = {"type": "custom", "entity": "Booking"}
+    spec["operations"] += [
+        {**base, "operationId": "booking.mine", "method": "GET", "path": "/bookings/mine"},
+        {**base, "operationId": "booking.job", "method": "GET", "path": "/bookings/jobs/{id}"},
+        {**base, "operationId": "booking.confirm", "method": "POST", "path": "/bookings/{id}/confirm"},
+        {**base, "operationId": "booking.purge", "method": "DELETE", "path": "/bookings/{id}/purge"},
+        {**base, "operationId": "booking.typed", "method": "GET", "path": "/bookings/typed",
+         "response": {"properties": [{"name": "total", "type": "integer"}]}},
+    ]  # fmt: skip
+    _write(tmp_path, spec)
+    notes = fix_backend_defaults(tmp_path, "backend-spec.json")
+    ops = {op["operationId"]: op for op in json.loads((tmp_path / "backend-spec.json").read_text())["operations"]}
+    assert ops["booking.mine"]["response"] == {"entity": "Booking", "type": "array"}
+    assert ops["booking.job"]["response"] == {"entity": "Booking"}
+    assert ops["booking.confirm"]["response"] == {"entity": "Booking"}
+    assert "response" not in ops["booking.purge"]
+    assert ops["booking.typed"]["response"] == {"properties": [{"name": "total", "type": "integer"}]}
+    assert any("booking.mine: it answers a list of Booking" in note["message"] for note in notes)
+    assert validate_spec_data(json.loads((tmp_path / "backend-spec.json").read_text())).normalized is not None

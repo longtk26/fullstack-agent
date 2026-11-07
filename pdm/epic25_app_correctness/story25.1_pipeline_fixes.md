@@ -72,3 +72,10 @@ reporting), but the storage plugin's upload check read `dto.photo` (`AttributeEr
 column instead of the body's own fields. The planner now keeps an operation's `request.fields` on the planned
 operation (`requestFields`) and the plugin checks only those. Test:
 `test_storage.py::test_an_update_that_leaves_the_file_out_checks_no_upload`.
+
+**Found in 26.7 (2026-11-08): custom operations without a response type.** HomeFix's contractor operations
+(`GET /repair-requests/assigned-jobs`, `GET /repair-requests/jobs/{id}`, and the record actions) named their entity but
+no response; the contract had no type, the backend answered `{"ok": true}` and the contractor's page showed "Ok: Yes"
+instead of their jobs. `drafting/app.fix_backend_defaults` now gives such an operation its entity's response (a record
+for `GET …/{id}` and record actions, a list for another `GET`), with a note. Test:
+`test_structured_drafts.py::test_a_custom_operation_of_an_entity_answers_with_its_records`.

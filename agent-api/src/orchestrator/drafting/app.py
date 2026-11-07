@@ -135,7 +135,11 @@ def fix_backend_defaults(work: Path, backend_file: str) -> list[dict[str, Any]]:
     - a date or datetime default of the current time written another way becomes `now`;
     - a field list written as one string (a rule's `scope` / `fields` / `states`, an operation's `filters` / `sort` /
       `search` / `rules`) becomes a list of that one name;
-    - an entity without a primary key gets `id` (uuid), as every example has."""
+    - an entity without a primary key gets `id` (uuid), as every example has;
+    - a custom operation of an entity that names no response gets the entity's: `GET …/{id}` the record, another
+      `GET` a list of records, an action on a record (`POST /…/{id}/…`) the record it changed. Without it the
+      contract has no type for the answer, the backend answers `{"ok": true}` and the screens show "Ok: Yes"
+      (a real HomeFix draft: the contractor's job list)."""
     data = _load(work / backend_file)
     if not isinstance(data, dict):
         return []
@@ -175,6 +179,23 @@ def fix_backend_defaults(work: Path, backend_file: str) -> list[dict[str, Any]]:
             if isinstance(operation, dict) and isinstance(operation.get(key), str):
                 operation[key] = [operation[key]]
                 note(f"/operations/{o_index}/{key}", f"{operation.get('operationId')}: '{key}' is a list of names")
+    entities = {e.get("name") for e in data.get("entities") or [] if isinstance(e, dict)}
+    for o_index, operation in enumerate(data.get("operations") or []):
+        if not isinstance(operation, dict) or operation.get("type") != "custom" or operation.get("response"):
+            continue
+        entity, method = operation.get("entity"), str(operation.get("method") or "").upper()
+        path = str(operation.get("path") or "")
+        if entity not in entities:
+            continue
+        if method == "GET":
+            response = {"entity": entity} if path.rstrip("/").endswith("}") else {"entity": entity, "type": "array"}
+        elif method in ("POST", "PATCH", "PUT") and "{" in path:
+            response = {"entity": entity}
+        else:
+            continue
+        operation["response"] = response
+        kind = "a list of " + entity if response.get("type") == "array" else "the " + entity
+        note(f"/operations/{o_index}/response", f"{operation.get('operationId')}: it answers {kind}")
     if notes:
         (work / backend_file).write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
     return notes
