@@ -26,16 +26,16 @@ from ..backend.planner import build_plan
 from ..frontend.app.design import archetype_candidates, archetype_for, design_notes
 from ..frontend.app.outline import complete_outline
 from ..frontend.app.recipes import complete_looks, recommended_looks, style_words
+from ..frontend.app.requested import follow_requested
 from ..frontend.app.screens import app_frontend_spec, ensure_aggregates, without_references
 from ..frontend.app.typesetting import locale_of
 from ..integration.contract import build_contract
 from .access import secure_access
 from .answer_schema import app_answer_schema
 
-PROMPT = (
-    "draft_app",
-    "v4",
-)  # v4 (Epic 25): the access rules; v3 (Story 23.6): the design brief and areas; v2 (22.8): sign-in, roles, plugins
+# v5: the requirement's own look (`design.requested`); v4 (Epic 25): the access rules; v3 (Story 23.6): the design
+# brief and areas; v2 (22.8): sign-in, roles, plugins
+PROMPT = ("draft_app", "v5")
 OUTLINE_FILE = "app-outline.json"  # what the model drafts next to the BackendSpec (code folds it into the FrontendSpec)
 # Outline examples shown in the prompt, relative to EXAMPLES_DIR; they fit `specs/flashcards.json`,
 # `specs/two-entity.json` and `specs/workshop-bookings.json` (the fake engine drafts from them too).
@@ -330,9 +330,11 @@ async def draft_app(
         backend, edit_notes = _with_screen_operations(work / backend_file, backend, added, removed)
         notes += edit_notes
     contract = build_contract(backend, build_plan(backend))
-    screens = app_frontend_spec(backend, outline, app_theme(chosen), contract)
+    theme = app_theme(chosen)
+    requested_notes = follow_requested(outline, theme)  # the requirement's own look over the design data's choice
+    screens = app_frontend_spec(backend, outline, theme, contract)
     (work / frontend_file).write_text(json.dumps(screens.spec, indent=2, ensure_ascii=False) + "\n")
-    notes += outline_fixes + aggregate_notes + screens.assumptions
+    notes += outline_fixes + aggregate_notes + requested_notes + screens.assumptions
     check = check_draft(work, GenerationMode.DYNAMIC)
     return AppDraft(check=check, notes=notes, unresolved=screens.unresolved, error=error, attempts=attempts)
 

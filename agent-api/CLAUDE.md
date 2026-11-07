@@ -150,6 +150,10 @@ Agent-specific notes:
   are theirs; a status with a flow changes only through its actions (no "Mark as" buttons then); a person's record that
   only staff create names its person (a staff-only `user.list` directory, the policies plugin's `owner_from_request`);
   the fixtures point person fields at demo users of their role, two per person role (`person_roles`).
+- The requirement's look (Story 23.13): `draft_app@v5` writes what the requirement says about the look as values
+  (`app.design.requested`: accent, background, text, scheme, heading kind, corners, photos); `complete_design` checks
+  them and `frontend/app/requested.follow_requested` applies them over the design data's theme and views (contrast
+  kept by `fix_contrast`, one note). The requirement comes before the design data.
 - Business layer (Epic 26): `orchestrator/business/` (model, prompts' schemas, `flow.py`: discover → expect before
   `draft_app`, bind after; `binding.py`: the code check and `tour_workflows`) and `drafting/business.py` (on when
   `BUSINESS_WORKFLOWS` or the draft's `businessWorkflows`; stored in `spec_drafts.business`; the brief replaces the

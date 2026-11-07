@@ -111,6 +111,17 @@ def _prompt_v3(inline: bool, requirement: str, version: str = "v3") -> str:
     return PromptLibrary().render("draft_app", version, **context).text
 
 
+def test_draft_app_v5_prompt_asks_for_the_requirements_own_look():
+    """2026-11-07: v4 plus one bullet: what the requirement says about the look, as values code applies."""
+    requirement = "A pet adoption app. Look and feel: photo-first, a bright orange accent on white."
+    for inline in (False, True):
+        text = _prompt_v3(inline, requirement, version="v5")
+        _snapshot(f"draft_app.v5{'.inline' if inline else ''}.md", text)
+        assert "the requirement comes before\n  the design data" in text
+        v4 = _prompt_v3(inline, requirement, version="v4")
+        assert 0 < len(text) - len(v4) < 1000
+
+
 def test_draft_app_v4_prompt_adds_the_access_rules():
     """Epic 25: v3 plus one paragraph on private records, owner actions, status through actions, staff creating for
     a person; the rest of the prompt is v3's."""
@@ -247,7 +258,7 @@ def test_an_app_draft_is_one_call_and_bad_outlines_cost_no_repair(
     }
     draft = _draft(client, user_headers, tmp_path, "Vocabulary decks to learn new words", scenario)
     assert draft["status"] == "SUCCEEDED", draft["validation"]
-    assert [call["prompt"] for call in draft["usage"]["calls"]] == ["draft_app@v4"]
+    assert [call["prompt"] for call in draft["usage"]["calls"]] == ["draft_app@v5"]
     messages = {note["path"]: note["message"] for note in draft["assumptions"]}
     assert messages["/app/nav"] == "Decks first", "the model's own notes point into the FrontendSpec"
     assert "names no entity" in messages["/app/nav/0"] and "/app/entities/Card/listStyle" in messages
@@ -264,7 +275,7 @@ def test_an_invalid_backend_spec_gets_one_repair(client, user_headers, tmp_path,
     }
     draft = _draft(client, user_headers, tmp_path, "A team's projects and their tasks", scenario)
     assert draft["status"] == "SUCCEEDED", draft["validation"]
-    assert [call["prompt"] for call in draft["usage"]["calls"]] == ["draft_app@v4", "repair_spec@v3"]
+    assert [call["prompt"] for call in draft["usage"]["calls"]] == ["draft_app@v5", "repair_spec@v3"]
     assert draft["frontend_spec"]["app"]["tagline"] == "Projects and their tasks, in one place"
 
 
@@ -297,7 +308,7 @@ def test_a_real_antigravity_draft_becomes_an_app(client, user_headers, tmp_path,
         {"draft_app": [FakeStep(write=files)]},
     )
     assert draft["status"] == "SUCCEEDED", draft["validation"]
-    assert [call["prompt"] for call in draft["usage"]["calls"]] == ["draft_app@v4"], "no repair round"
+    assert [call["prompt"] for call in draft["usage"]["calls"]] == ["draft_app@v5"], "no repair round"
     assert any("default 'today' is written 'now'" in note["message"] for note in draft["assumptions"])
     assert draft["validation"]["pair"]["errors"] == [] and draft["validation"]["pair"]["warnings"] == []
     spec = draft["frontend_spec"]

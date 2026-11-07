@@ -134,10 +134,26 @@ class AppLook(SpecModel):
     reason: str | None = Field(default=None, max_length=200)
 
 
+HexColor = Annotated[str, Field(pattern=r"^#[0-9a-fA-F]{6}$")]
+
+
+class AppRequestedStyle(SpecModel):
+    """What the requirement itself says about the look, as values (2026-11-07): the requirement comes before the
+    design data's choice for its kind of product. Only what it states; code applies it and keeps the contrast."""
+
+    accent: HexColor | None = None  # the colour it names for buttons, links and highlights ("a bright orange accent")
+    background: HexColor | None = None  # "on white", "a cream background"
+    text: HexColor | None = None  # "deep brown text"
+    scheme: Literal["light", "dark"] | None = None  # "a dark theme"
+    heading_font: Literal["serif", "sans", "geometric", "rounded", "display", "mono"] | None = None
+    corners: Literal["sharp", "rounded", "pill"] | None = None
+    photos: Literal["prominent"] | None = None  # "photo-first", "big pictures", "large posters"
+    words: str | None = Field(default=None, max_length=200)  # the requirement's own words these come from
+
+
 class AppDesign(SpecModel):
     """The design brief (Epic 23): the model chooses from these values, code checks them against the contract and
     replaces what does not fit (`replaced`, one line each)."""
-
     archetype: Archetype | None = None
     shell: Shell | None = None
     mobile_nav: MobileNav | None = None
@@ -147,6 +163,7 @@ class AppDesign(SpecModel):
     main_entity: Annotated[str, Field(pattern=ENTITY_NAME, max_length=63)] | None = None
     entities: dict[str, AppEntityDesign] = {}
     looks: list[AppLook] = Field(default=[], max_length=3)
+    requested: AppRequestedStyle | None = None  # what the requirement says about the look (2026-11-07)
     recipe: Recipe | None = None  # the look the user picked in the review (Story 23.7); none: the first look
     reason: str | None = Field(default=None, max_length=300)
     replaced: list[str] = []
@@ -204,7 +221,7 @@ _APP_ONLY_DEFS = (
     "FormFieldReference",
     "FormFieldUpload",
 )
-DESIGN_DEFS = ("AppDesign", "AppEntityDesign", "AppFieldRoles", "AppLook", "AppArea")  # Epic 23
+DESIGN_DEFS = ("AppDesign", "AppEntityDesign", "AppFieldRoles", "AppLook", "AppArea", "AppRequestedStyle")  # Epic 23
 _APP_ONLY_DEFS += DESIGN_DEFS
 # Epic 23: the outline's parts the `draft_app@v2` prompt does not explain; its outline digest and answer schema leave
 # them out, so v2 reads as before (`draft_app@v3` asks for them).

@@ -113,6 +113,7 @@ type AppDesign = {
   mainEntity?: string | null;
   entities?: Record<string, AppEntityDesign>;
   looks?: AppLook[];
+  requested?: AppRequestedStyle | null;
   recipe?: "minimal" | "swiss" | "material" | "enterprise" | "soft" | "clay" | "glass" | "aurora" | "brutalist" | "neon" | "playful" | "editorial" | null;
   reason?: string | null;
   replaced?: string[];
@@ -177,6 +178,18 @@ type AppNavItem = {
   entity: string;
   label?: string | null;
   icon?: string | null;
+};
+
+// What the requirement itself says about the look, as values (2026-11-07): the requirement comes before the design data's choice for its kind of product.
+type AppRequestedStyle = {
+  accent?: string | null;
+  background?: string | null;
+  text?: string | null;
+  scheme?: "light" | "dark" | null;
+  headingFont?: "serif" | "sans" | "geometric" | "rounded" | "display" | "mono" | null;
+  corners?: "sharp" | "rounded" | "pill" | null;
+  photos?: string | null;
+  words?: string | null;
 };
 ```
 

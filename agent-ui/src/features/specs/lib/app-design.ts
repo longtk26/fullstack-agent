@@ -21,6 +21,8 @@ export const SHELLS = ["sidebar", "rail", "topbar", "topbar-tabs"] as const;
 export const VIEWS = ["table", "cards", "media-grid", "feed", "board", "calendar"] as const;
 
 export type TLook = { recipe: string; reason?: string };
+/** What the requirement says about the look (`app.design.requested`); code applied it over the design data's pick. */
+export type TRequestedLook = { words: string | null; colors: { name: string; value: string }[]; others: string[] };
 export type TAppDesign = {
   archetype: string | null;
   shell: string | null;
@@ -31,7 +33,24 @@ export type TAppDesign = {
   views: { entity: string; view: string }[];
   areas: { id: string; label: string; roles: string[] }[];
   replaced: string[];
+  requested: TRequestedLook | null;
 };
+
+const REQUESTED_COLORS = ["accent", "background", "text"] as const;
+const REQUESTED_OTHERS = ["scheme", "headingFont", "corners", "photos"] as const;
+
+function requestedLook(value: unknown): TRequestedLook | null {
+  const raw = obj(value);
+  const colors = REQUESTED_COLORS.flatMap((name) => {
+    const color = str(raw[name]);
+    return color && /^#[0-9a-fA-F]{6}$/.test(color) ? [{ name, value: color }] : [];
+  });
+  const others = REQUESTED_OTHERS.flatMap((name) => {
+    const item = str(raw[name]);
+    return item ? [`${name === "headingFont" ? "headings" : name}: ${item}`] : [];
+  });
+  return colors.length || others.length ? { words: str(raw.words), colors, others } : null;
+}
 
 function parse(text: string): Record<string, unknown> | null {
   try {
@@ -75,6 +94,7 @@ export function readAppDesign(text: string): TAppDesign | null {
       roles: (Array.isArray(obj(area).roles) ? (obj(area).roles as unknown[]) : []).filter((r): r is string => typeof r === "string"),
     })),
     replaced: (Array.isArray(design.replaced) ? design.replaced : []).filter((line): line is string => typeof line === "string"),
+    requested: requestedLook(design.requested),
   };
 }
 

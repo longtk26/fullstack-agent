@@ -340,6 +340,40 @@ class _Completion:
         return out
 
 
+REQUESTED: dict[str, tuple[str, ...] | None] = {  # None: a #rrggbb colour
+    "accent": None,
+    "background": None,
+    "text": None,
+    "scheme": ("light", "dark"),
+    "headingFont": ("serif", "sans", "geometric", "rounded", "display", "mono"),
+    "corners": ("sharp", "rounded", "pill"),
+    "photos": ("prominent",),
+}
+
+
+def _requested(raw: Any, completion: _Completion) -> dict[str, Any] | None:
+    """What the requirement says about the look (`AppRequestedStyle`): the values that fit, a note for each other."""
+    if not isinstance(raw, dict):
+        return None
+    out: dict[str, Any] = {}
+    for key, allowed in REQUESTED.items():
+        value = raw.get(key)
+        if value is None:
+            continue
+        if allowed is None:
+            fits = isinstance(value, str) and re.fullmatch(r"#[0-9a-fA-F]{6}", value) is not None
+            value = value.lower() if fits else value
+        else:
+            fits = _enum(value, allowed) is not None
+        if fits:
+            out[key] = value
+        else:
+            completion.note(f"requested {key} '{value}' is not one of the values; left out")
+    if out and isinstance(raw.get("words"), str):
+        out["words"] = raw["words"][:200]
+    return out or None
+
+
 def _looks(raw: Any, completion: _Completion) -> list[dict[str, Any]]:
     out = []
     for item in _list_of(raw):
@@ -368,6 +402,9 @@ def complete_design(
         raw = {**raw, "archetype": archetype_hint}
     design = app.layout(raw)
     design["looks"] = _looks(raw.get("looks"), app)
+    requested = _requested(raw.get("requested"), app)
+    if requested:
+        design["requested"] = requested
     if isinstance(raw.get("reason"), str):
         design["reason"] = raw["reason"][:300]
     areas: list[dict[str, Any]] = []
@@ -438,7 +475,7 @@ def kit_design(outline: dict[str, Any]) -> dict[str, Any]:
     """What the kit reads (`app.json` `design`): the outline's design, or today's kit for an app drafted before Epic 23
     (a sidebar, the dashboard home, the outline's list styles)."""
     design = outline.get("design") or {}
-    out = {**KIT_DEFAULTS, **{k: v for k, v in design.items() if k not in ("replaced", "reason")}}
+    out = {**KIT_DEFAULTS, **{k: v for k, v in design.items() if k not in ("replaced", "reason", "requested")}}
     out["recipe"] = first_recipe(design) if design else None  # Story 23.7: the look on screen
     if not out.get("mainEntity"):
         out["mainEntity"] = next(iter(outline.get("entities") or {}), None)

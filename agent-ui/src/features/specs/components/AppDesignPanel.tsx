@@ -40,6 +40,25 @@ export function AppDesignPanel({ specText, onApply }: AppDesignPanelProps) {
   };
   return (
     <Stack gap="md" className="text-sm">
+      {design.requested && (
+        <div className="flex flex-col gap-1.5 rounded-lg border p-3">
+          <span className="font-medium">From the requirement</span>
+          {design.requested.words && <span className="text-xs text-muted-foreground">“{design.requested.words}”</span>}
+          <span className="flex flex-wrap items-center gap-2 text-xs">
+            {design.requested.colors.map((color) => (
+              <span key={color.name} className="flex items-center gap-1">
+                <span className="size-3.5 rounded-sm border" style={{ backgroundColor: color.value }} aria-hidden />
+                {color.name} {color.value}
+              </span>
+            ))}
+            {design.requested.others.map((item) => (
+              <Badge key={item} variant="outline">
+                {item}
+              </Badge>
+            ))}
+          </span>
+        </div>
+      )}
       <div className="flex flex-col gap-2">
         <span className="flex items-center gap-1.5 text-muted-foreground">
           <Palette className="size-4" aria-hidden /> Looks

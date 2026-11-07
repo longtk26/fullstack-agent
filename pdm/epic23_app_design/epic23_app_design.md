@@ -96,6 +96,7 @@ A gate (23.0, done) and five checkpoints. Stop for the user's review after each 
 | | 23.10 | [Areas: a different app per role group](story23.10_areas.md) | 23.6, 23.9 |
 | **E: beyond the kit** | 23.11 | [Engine-written view slots (opt-in experiment)](story23.11_view_slots.md) | 23.10 |
 | | 23.12 | [Final check and acceptance](story23.12_final_check.md) | 23.1–23.10 (23.11 if run) |
+| **F: after the real tests** | 23.13 | [The requirement's own look comes first](story23.13_requested_look.md) | 23.6, 23.7 |
 
 23.9 is backend only and can start at any time, in parallel with Checkpoints A–C.
 
