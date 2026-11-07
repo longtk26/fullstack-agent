@@ -28,6 +28,11 @@ was run on 2026-10-26 with the account login (see *Real run* below).
 - `prepare_workspace`: skills → `.agents/skills/`, conventions → managed section in `AGENTS.md` (points at the template's `CLAUDE.md` when present).
 - Before every run `.agents/hooks.json` and `.agents/rules/` are removed from the workspace, so generated content cannot plant hooks or rules.
 - Scoped read/write (Story 18.4): `permissions.allow` contains only `read_file(<workdir>)` and `write_file(<workdir>)` for the request's resolved workdir, preventing `agy` from reading files outside its working directory.
+- Skills (2026-11-08): `permissions.allow` also has `read_file(<skill source>)` for each skill installed in the
+  workdir. A workspace inside the agent's repo lets agy find the same skill up the tree; reading that copy was denied.
+- A denied permission ends the turn (2026-11-08): headless agy auto-denies what it cannot ask for, prints
+  `no output produced — a tool required the "…" permission …` on stderr and still reports `status: SUCCESS` with an
+  empty response. The adapter turns such a run into `CLI_ERROR` (a module was "completed" with nothing written).
 - Model per purpose (Story 18.5): `ANTIGRAVITY_PURPOSE_MODELS` overrides the model for specific calls (default: `generate_assets` runs on `gemini-3.8-flash-low`), while other purposes use `ANTIGRAVITY_MODEL`.
 - Usage: `input_tokens + cache_read_tokens` → input, `output_tokens + thinking_tokens` → output, cost estimated against model pricing.
 

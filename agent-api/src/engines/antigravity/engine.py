@@ -6,8 +6,8 @@ from typing import Literal
 from src.libs.redaction import Redactor
 
 from ..cli_engine import CliEngine, Invocation
-from ..port import EngineContext, EngineHealth, EngineRequest
-from ..process import SubprocessRunner, base_env
+from ..port import EngineContext, EngineErrorReason, EngineHealth, EngineRequest, EngineResult, EngineStatus
+from ..process import ProcessOutcome, ProcessSpec, SubprocessRunner, base_env
 from ..workspace import install_skills, remove_path, write_managed_section
 from .stream import AntigravityStreamParser
 
@@ -17,6 +17,9 @@ DENY_PERMISSIONS = ["command(*)", "read_url(*)", "execute_url(*)", "mcp(*)", "wr
 UNTRUSTED_WORKSPACE_CONFIG = [".agents/hooks.json", ".agents/rules"]
 # Marker files of a container runtime: the agy account login lives in the host's OS keyring.
 CONTAINER_MARKERS = (Path("/.dockerenv"), Path("/run/.containerenv"))
+# What agy prints on stderr when a turn ends because headless mode auto-denied a permission: its result event still
+# says SUCCESS (with an empty response), so the run must not count as done (a module completed with nothing written).
+NO_OUTPUT = "no output produced"
 
 
 def _in_container() -> bool:
@@ -51,6 +54,9 @@ class AntigravityEngine(CliEngine):
         self.google_application_credentials = google_application_credentials
         self.model = model
         self.purpose_models = purpose_models or {}
+        # workdir → the skills' source folders: agy may find a skill up the tree (a workspace inside the agent's
+        # repo) as well as the workspace's copy; both are the same files, readable
+        self._skill_sources: dict[str, list[str]] = {}
 
     async def health(self) -> EngineHealth:
         if shutil.which(self.binary) is None:
@@ -70,6 +76,7 @@ class AntigravityEngine(CliEngine):
 
     async def prepare_workspace(self, workdir: Path, context: EngineContext) -> None:
         install_skills(context.skill_dirs, workdir / ".agents" / "skills")
+        self._skill_sources[str(workdir.resolve())] = [str(Path(d).resolve()) for d in context.skill_dirs]
         body = context.conventions
         if (workdir / "CLAUDE.md").exists():
             body += "\n\nThe project guide in `CLAUDE.md` (repository root) applies to you as well; read it first."
@@ -79,8 +86,9 @@ class AntigravityEngine(CliEngine):
         for relative in UNTRUSTED_WORKSPACE_CONFIG:
             remove_path(request.workdir / relative)
         workdir = str(request.workdir.resolve())
+        skills = [f"read_file({source})" for source in self._skill_sources.get(workdir, [])]
         permissions = {
-            "allow": [f"read_file({workdir})", f"write_file({workdir})"],
+            "allow": [f"read_file({workdir})", f"write_file({workdir})", *skills],
             "deny": list(DENY_PERMISSIONS),
         }
         settings: dict = {"permissions": permissions, "enableTerminalSandbox": True}
@@ -122,3 +130,28 @@ class AntigravityEngine(CliEngine):
 
     def redact_argv(self, argv: list[str]) -> list[str]:
         return list(argv)
+
+    def _normalize(self, request: EngineRequest, parsed, outcome: ProcessOutcome, spec: ProcessSpec) -> EngineResult:
+        result = super()._normalize(request, parsed, outcome, spec)
+        if result.status != EngineStatus.OK:
+            return result
+        notice = _no_output_notice(spec.stderr_path)
+        if notice is None:
+            return result
+        return result.model_copy(
+            update={
+                "status": EngineStatus.CLI_ERROR,
+                "error_reason": EngineErrorReason.CRASH,
+                "error_message": self.redactor.redact(notice),
+            }
+        )
+
+
+def _no_output_notice(stderr_path: Path) -> str | None:
+    """agy's "no output produced — a tool required the … permission …" line, when the turn ended that way."""
+    try:
+        text = stderr_path.read_text(errors="replace")[-8000:]
+    except OSError:
+        return None
+    line = next((line for line in reversed(text.splitlines()) if NO_OUTPUT in line.lower()), None)
+    return line.strip()[:500] if line else None

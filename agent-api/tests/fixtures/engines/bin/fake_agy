@@ -19,6 +19,13 @@ if mode == "auth":
     print("Error: authentication required. Run 'agy' to log in, then retry.", file=sys.stderr)
     sys.exit(1)
 
+if mode == "denied":  # agy 1.5: a tool needed a permission headless mode cannot ask for; the result still says SUCCESS
+    out({"event": "result", "result": {"conversation_id": "c-1", "status": "SUCCESS", "response": "",
+         "duration_seconds": 3, "num_turns": 1, "usage": usage}})
+    print('jetski: no output produced — a tool required the "read_file" permission that headless mode cannot prompt '
+          'for, so it was auto-denied. Add an allow-rule under permissions.allow in settings.json.', file=sys.stderr)
+    sys.exit(0)
+
 out({"event": "init", "conversation_id": "c-1", "init": {"cwd": os.getcwd(), "tools": ["write_file"],
      "permission_mode": "request-review"}})
 if mode == "many_turns":

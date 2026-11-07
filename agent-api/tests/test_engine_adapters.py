@@ -454,3 +454,28 @@ def test_engine_result_carries_model_calls_with_workspace_relative_tools(root):
     assert (call.input_tokens, call.output_tokens, call.cache_read_tokens) == (100, 15, 40)
     assert [(tool.name, tool.target) for tool in call.tools] == [("write_file", "hello.py")]
     assert call.cost_source == "estimated" and result.usage.model == "gemini-3.8-flash-medium"
+
+
+def test_antigravity_run_ended_by_a_denied_permission_is_an_error(root):
+    """agy's result says SUCCESS with an empty response when headless mode auto-denied a tool; a backend module was
+    "completed" with nothing written (its operation missing from the API, 2026-11-08). It is a CLI error now."""
+    result, _ = _run(_agy(root), _request(root, prompt="MODE=denied"))
+    assert (result.status, result.error_reason) == (EngineStatus.CLI_ERROR, EngineErrorReason.CRASH)
+    assert "no output produced" in result.error_message and "read_file" in result.error_message
+
+
+def test_antigravity_may_read_the_skills_it_is_given(root, tmp_path):
+    """A workspace inside the agent's own repo: agy finds the skill up the tree as well as in the workspace's copy.
+    Both are the same files: reading the source is allowed, writing it is not."""
+    skill = tmp_path / "skills" / "fastapi-skills"
+    skill.mkdir(parents=True)
+    (skill / "SKILL.md").write_text("# skill\n")
+    request = _request(root)
+    request.workdir.mkdir(parents=True, exist_ok=True)
+    engine = _agy(root)
+    asyncio.run(engine.prepare_workspace(request.workdir, EngineContext(conventions="rules", skill_dirs=[skill])))
+    home = root / "home_skills"
+    engine.build_invocation(request, home, 5, 60)
+    settings = json.loads((home / ".gemini" / "antigravity-cli" / "settings.json").read_text())
+    assert f"read_file({skill.resolve()})" in settings["permissions"]["allow"]
+    assert not any(rule.startswith("write_file") and "skills" in rule for rule in settings["permissions"]["allow"])
