@@ -1,8 +1,20 @@
 # AI Fullstack Generation Agent — Requirements Specification
 
-**Version:** 1.11  
+**Version:** 1.12  
 **Status:** Approved for MVP — backlog in [`pdm/`](pdm/README.md)  
 **Priority:** High
+
+**Changes in 1.12 (2026-11-07, proposed):**
+- **Draft provider** (FR-38, Epic 24): every LLM-only step (drafting, repairs, workflow discovery, expectations,
+  binding, screen judging, summary) runs on one provider: the Antigravity or Claude Code CLI in a one-turn JSON mode
+  with structured output (no per-token cost on their account / subscription logins) or the Gemini API. Drafting stays one-turn; the agent-loop draft stays refused.
+- **App correctness** (FR-39, Epic 25): records tied to a person are private to that person by default (staff see
+  what their role needs), actions are guarded by the role they belong to, a record staff create for someone belongs to
+  that person, and demo data belongs to the demo users. Found by the business-value lab on three requirements.
+- **Business workflows** (FR-40, Epic 26): the main workflows are discovered from the requirement, their expectations
+  frozen before generation, each step bound to the app; generated apps show a guided tour per role (react-joyride);
+  a read-only Business tab evaluates the running app against the expectations. The evaluation never changes a
+  generation's status.
 
 **Changes in 1.11 (2026-11-06):**
 - **App design** (FR-37, Epic 23): a dynamic app's layout follows its data and its kind of product. The draft writes a
@@ -909,6 +921,49 @@ A dynamic app is presented the way its data and its users need, while every bind
 - An app drafted in Japanese has Japanese labels, kit text, dates and a bundled Japanese face after the Latin one.
 - Engine-written view slots (the shell, record cards) are an opt-in experiment (`APP_VIEW_SLOTS=engine`); a slot that
   loads data or renders a form is refused and the kit's view is used.
+
+### FR-38: Draft Provider
+
+_Implemented 2026-11-07 (Epic 24); the user's default is `antigravity` (`LLM_PROVIDER`)._
+
+Every step that only needs an answer from a model (no files, no tools) runs on one provider, chosen by a setting and
+per draft or generation:
+
+- **Antigravity CLI, JSON mode:** one `agy` turn (`--print`, `--output-format json`, `--mode plan`) with the inline
+  prompt, no tool permissions, an empty scratch directory, and the answer schema as structured output
+  (`--json-schema`); the result is the same JSON envelope the API returns.
+- **Claude Code CLI, JSON mode:** one `claude -p` turn (`--output-format json`, `--tools ""`, no MCP servers) with the
+  inline prompt and the answer schema as structured output (`--json-schema`); on a subscription login (no per-token
+  cost) without `--bare`, which accepts only an API key.
+- **Gemini API:** one `generateContent` request with the answer schema as structured output (`responseJsonSchema`).
+- Both are also checked against the answer schema in code; a schema error is one repair round. Usage is recorded per call
+  (provider, model, tokens, cost source). Drafting is one-turn only; an agent-loop draft engine is refused.
+
+### FR-39: Correct by Default: Roles, Ownership, Visibility, Demo Data
+
+- A record tied to a person (any reference to the signed-in user's entity, directly or through a parent) is visible and changeable only by that
+  person, by an assigned worker once assigned, and by the staff roles that manage it; other users of the same role get
+  404. Records with no person reference stay as the draft says (a catalogue stays public).
+- An action that belongs to one role is guarded by that role; owner actions (approve, decline, confirm) allow no staff
+  bypass; a status with a flow changes only through its actions, never through the generic update.
+- A record one role creates on behalf of a user of another role belongs to that user (a picker of users with that
+  role); a user cannot create a record that belongs to someone else.
+- The seed gives each demo user of a person role records of their own, and a second demo user per role.
+- A draft the generation would refuse is refused by the draft check; the mocks agree with the contract on unique fields.
+
+### FR-40: Business Workflows, Guided Tour and Evaluation
+
+- **Discovery:** the main workflows are found from the requirement (values, actors, workflows marked core or later,
+  branches for refusals and exceptions, the value each step delivers, a golden path) and given to the draft as a brief.
+- **Expectations:** before generation, every core workflow step gets frozen expectations in business words: who may do
+  it, who must be refused, the status after it, who may and may not see the record, its effects, the steps refused
+  too early, the outcome per actor.
+- **Binding:** each step is bound to the contract's operation, page and action, checked by code.
+- **Guided tour:** the generated app shows each role its steps of the core workflows (react-joyride), once on first
+  sign-in and on demand from the user menu.
+- **Evaluation:** after the app is ready, the expectations are checked automatically against the running app as each
+  role's demo user, with evidence per line and screenshots per step; the score is computed (met of all, met of
+  decided). The result is a read-only Business tab; it never fails a generation, adds warnings or triggers repairs.
 
 ---
 
