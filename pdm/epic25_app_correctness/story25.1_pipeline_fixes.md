@@ -43,7 +43,7 @@ so a run never stops on the generator's own mistakes.
 
 ## Status
 
-Open: the mock change was not run through `frontend:scenarios` in the sandbox (slow tests skipped); 26.7's generations run it.
+Partly checked 2026-11-07 (26.7): `frontend:scenarios` passed with the mock change on both HomeFix generations (85 and 86 scenarios), but neither has an entity with more than one unique field, so the criterion itself is still unexercised (left open).
 
 **Done 2026-11-07.** `ensure_aggregates` fills the dashboard while there is room and drops an aggregate that has no
 screen from the BackendSpec (and from the drafted file, `drafting/app.py`), with a note; the mock checks each
@@ -57,3 +57,18 @@ ended NEEDS_REVIEW with exactly this error; the lab submitted it anyway). Two mo
 CRUD lists; the contract crashed) and a custom paginated list without a planned list DTO
 (`test_access_rules.py::test_pagination_true_on_a_custom_list_means_the_default_limits`). The sandbox scenarios for
 the mock were not run (the user's limit on slow tests); the real generations of 26.7 run them.
+
+**Found in 26.7 (2026-11-07): two keys to the same model.** Both HomeFix generations failed the backend smoke check:
+login and register answered 500 because a repair request has two keys to users (the tenant who reported it, the
+contractor assigned to it) and the planner named both relationships `user`, both back-populating `repair_requests`,
+so SQLAlchemy could not map the user model (`AmbiguousForeignKeysError`). Epic 25's person fields (an owner and an
+assigned worker) make this common. `backend/planner.py` now names each relationship of such a pair after its key
+(`reporter` / `tickets_as_reporter`) and `codegen.model_file` adds `foreign_keys`; a pair linked once is generated
+as before. Test: `tests/test_two_keys_to_one_model.py` (the generated models configure in SQLAlchemy).
+
+**Also found in 26.7 (2026-11-07): an update without the file field.** With the relationships fixed, HomeFix's
+`PATCH /repair-requests/{id}` still answered 500: the update body leaves the photo out (only the tenant sets it when
+reporting), but the storage plugin's upload check read `dto.photo` (`AttributeError`). The plugin took every writable
+column instead of the body's own fields. The planner now keeps an operation's `request.fields` on the planned
+operation (`requestFields`) and the plugin checks only those. Test:
+`test_storage.py::test_an_update_that_leaves_the_file_out_checks_no_upload`.

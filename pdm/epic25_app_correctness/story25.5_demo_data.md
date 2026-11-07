@@ -29,7 +29,7 @@ role's workflow can be shown right away.
 
 - [x] Each demo user of a person role owns at least one record of each person-tied entity in the seed.
 - [x] The second demo user of a role exists, and its records are hidden from the first (with 25.2).
-- [ ] The backend smoke check's seed rule still passes.
+- [x] The backend smoke check's seed rule still passes.
 
 ## Verify
 
@@ -37,7 +37,7 @@ role's workflow can be shown right away.
 
 ## Status
 
-Open: the backend smoke check (sandbox) was not run on the new seed; 26.7's generations run it.
+Checked 2026-11-07 (26.7): both HomeFix generations (`gen_01M6TG77VPNCX1KGB5TZNDE9RH` with the business layer, `gen_01M6TF17DNTGEXCDY87RDX2QWX` without) passed the backend smoke check with the new seed (demo users per person role, person fields on their role's users).
 
 **Done 2026-11-07.** The policies plugin seeds a second demo user for every role whose users own or are assigned
 records (`<role>-2`); the contract's fixtures point every person field at demo users of its role

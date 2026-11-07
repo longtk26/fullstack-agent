@@ -121,6 +121,12 @@ def _relationships(spec: dict[str, Any]) -> tuple[dict[str, list], list[dict], l
     fks: dict[str, list[dict[str, Any]]] = {}
     attributes: list[dict[str, Any]] = []
     links: list[dict[str, Any]] = []
+    # two entities linked by more than one foreign key (a record's tenant and its contractor, both users): each
+    # relationship is named after its key and says which key it follows, else SQLAlchemy cannot map either side
+    pairs: dict[tuple[str, str], int] = {}
+    for rel in spec.get("relationships", []):
+        if rel["type"] in ("one-to-many", "one-to-one"):
+            pairs[(rel["from"], rel["to"])] = pairs.get((rel["from"], rel["to"]), 0) + 1
     for rel in spec.get("relationships", []):
         parent, child = by_name[rel["from"]], by_name[rel["to"]]
         parent_pk = next(f for f in parent["fields"] if f.get("primary"))
@@ -128,6 +134,12 @@ def _relationships(spec: dict[str, Any]) -> tuple[dict[str, list], list[dict], l
         child_collection = pluralize(to_snake(rel["to"]))
         if rel["type"] in ("one-to-many", "one-to-one"):
             fk_field = rel["foreignKey"]
+            keyed: dict[str, Any] = {}
+            if pairs[(rel["from"], rel["to"])] > 1:
+                stem = to_snake(fk_field).removesuffix("_id") or parent_attr
+                parent_attr = py_name(stem)
+                child_collection = f"{child_collection}_as_{stem}"
+                keyed = {"foreignKeys": f"{rel['to']}Model.{to_snake(fk_field)}"}
             fks.setdefault(rel["to"], []).append(
                 {
                     "field": fk_field,
@@ -150,12 +162,14 @@ def _relationships(spec: dict[str, Any]) -> tuple[dict[str, list], list[dict], l
                         "annotation": f'list["{rel["to"]}Model"]' if many else f'"{rel["to"]}Model"',
                         "backPopulates": parent_attr,
                         **({} if many else {"uselist": False}),
+                        **keyed,
                     },
                     "child": {
                         "model": f"{rel['to']}Model",
                         "attr": parent_attr,
                         "annotation": f'"{rel["from"]}Model"',
                         "backPopulates": child_collection if many else py_name(to_snake(rel["to"])),
+                        **keyed,
                     },
                 }
             )
@@ -453,6 +467,8 @@ def _operation(op: dict[str, Any], model: dict[str, Any] | None) -> dict[str, An
     if action in ("create", "update"):
         planned["requestDto"] = f"{to_pascal(handler)}RequestDto"
         planned["dtoFile"] = f"{handler}_dto.py"
+        if (op.get("request") or {}).get("fields") is not None:  # the fields the body takes (its DTO's), for plugins
+            planned["requestFields"] = list(op["request"]["fields"])
         planned["errors"].append({"status": 422, "exception": None, "code": "VALIDATION_ERROR"})
         if model and any(c["unique"] and not c["primaryKey"] for c in model["columns"]):
             planned["errors"].append({"status": 409, "exception": "ConflictException", "code": "CONFLICT"})

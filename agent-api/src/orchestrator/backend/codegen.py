@@ -298,8 +298,16 @@ def model_file(model: dict[str, Any], plan: dict[str, Any]) -> str:
             link = by_link[relation["link"]]
             imports.add(f".{link['file'].rsplit('/', 1)[1].removesuffix('.py')}", relation["link"])
             extra = f", link_model={relation['link']}"
-        elif relation.get("uselist") is False:  # a one-to-one parent: one record, or none
-            extra = ', sa_relationship_kwargs={"uselist": False}'
+        else:
+            kwargs = []
+            if relation.get("uselist") is False:  # a one-to-one parent: one record, or none
+                kwargs.append('"uselist": False')
+            if relation.get("foreignKeys"):  # one of several keys to the same model: the one it follows
+                kwargs.append(f'"foreign_keys": "[{relation["foreignKeys"]}]"')
+            if kwargs:
+                extra = (extra if relation["annotation"].startswith("list[") else "") + (
+                    f", sa_relationship_kwargs={{{', '.join(kwargs)}}}"
+                )
 
         relations.append(
             f"    {relation['attr']}: {relation['annotation']} = "

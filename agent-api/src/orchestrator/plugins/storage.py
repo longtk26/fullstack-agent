@@ -463,7 +463,9 @@ class StoragePlugin(Plugin):
 def _request(plan: dict[str, Any], module: dict[str, Any], op: dict[str, Any]) -> list[dict[str, Any]]:
     from ..integration.contract import _request_columns
 
-    return _request_columns(_model(plan, module), {})
+    # the body's own fields (an update may leave a file field out: then there is nothing to check)
+    fields = op.get("requestFields")
+    return _request_columns(_model(plan, module), {} if fields is None else {"request": {"fields": fields}})
 
 
 def _test(op: dict[str, Any], case: str, expect: int, description: str) -> dict[str, Any]:

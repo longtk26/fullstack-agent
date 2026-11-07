@@ -71,6 +71,23 @@ def test_use_cases_check_the_upload_and_responses_sign_a_url(tmp_path):
     assert 'uploaded("Task.attachment", size=1048577)' in tests and "FILE_NOT_FOUND" in tests
 
 
+def test_an_update_that_leaves_the_file_out_checks_no_upload(tmp_path):
+    """A PATCH body without the file field (only the creator sets it): the update's DTO has no such field, so its use
+    case checks no upload and its route takes no storage (a generated `dto.photo` there was a 500 on every update)."""
+    spec = storage_spec(tmp_path)
+    update = next(op for op in spec["operations"] if op["operationId"] == "task.update")
+    update["request"] = {"fields": ["title"]}
+    plan = build_plan(spec)
+    files = _files(spec, plan, "tasks")
+    usecase = files["src/modules/tasks/usecases/update_task_usecase.py"]
+    assert "attachment" not in files["src/modules/tasks/presenter/dtos/update_task_dto.py"]
+    assert "dto.attachment" not in usecase and "check_upload" not in usecase
+    assert (
+        'check_upload(storage, FILE_RULES["Task.attachment"], dto.attachment)'
+        in files["src/modules/tasks/usecases/create_task_usecase.py"]
+    ), "the create still checks it"
+
+
 def test_the_project_has_the_storage_library_presign_module_settings_and_startup(tmp_path):
     from src.orchestrator.plugins.app import plugin_files
 

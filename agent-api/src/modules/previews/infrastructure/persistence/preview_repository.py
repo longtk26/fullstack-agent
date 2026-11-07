@@ -2,6 +2,7 @@ import uuid
 from typing import Annotated, Any
 
 from fastapi import Depends
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, select
 
 from src.libs.database.session import SessionDep
@@ -24,7 +25,16 @@ class PreviewRepository(IPreviewRepository):
         return self.__to_entity(model) if model else None
 
     def upsert(self, generation_id: str, kind: str = "backend", **fields: Any) -> PreviewEntity:
-        model = self._model(generation_id, kind) or PreviewModel(generation_id=generation_id, kind=kind)
+        model = self._model(generation_id, kind)
+        if model is None:
+            # two commands at once (a backend start also writes the frontend's row) may both find no row: the second
+            # insert loses on the unique key and updates the winner's row instead of failing the command
+            try:
+                with self.session.begin_nested():
+                    self.session.add(PreviewModel(generation_id=generation_id, kind=kind, **fields))
+            except IntegrityError:
+                pass
+            model = self._model(generation_id, kind)
         for key, value in fields.items():
             setattr(model, key, value)
         self.session.add(model)
