@@ -75,6 +75,12 @@ class Config(BaseSettings):
     # the subscription login), or gemini_api (per token). Empty: drafting follows DRAFT_ENGINE as before.
     llm_provider: Literal["antigravity", "claude_code", "gemini_api"] | None = None
     llm_timeout_seconds: int = 900
+    # Epic 26 (D7): the business layer of dynamic drafts: workflow discovery, frozen expectations, binding, the
+    # guided tour and the evaluation. A draft request's `businessWorkflows` overrides it (to compare with it off).
+    business_workflows: bool = True
+    # Story 26.5: how long an evaluation waits for the generation's previews, and whether it takes screenshots
+    evaluation_preview_wait_seconds: int = 900
+    evaluation_screenshots: bool = True
     # agy / claude `--effort` for the one-turn JSON steps (empty: the model's default); claude's spending cap per
     # call on an API key (`--max-budget-usd`; the subscription login has none)
     antigravity_json_effort: str | None = None

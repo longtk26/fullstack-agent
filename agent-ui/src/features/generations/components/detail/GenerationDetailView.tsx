@@ -1,13 +1,15 @@
 "use client";
 
-import { Activity, AppWindow, FileCode2, PlugZap, Waypoints } from "lucide-react";
+import { Activity, AppWindow, Briefcase, FileCode2, PlugZap, Waypoints } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Stack } from "@/components/layout/Stack";
+import { useEvaluation } from "../../hooks/use-evaluation";
 import { useGenerationDetail } from "../../hooks/use-generation-detail";
 import { ApiTab } from "../api-explorer/ApiTab";
 import { AppTab } from "../app-preview/AppTab";
+import { BusinessTab } from "../business/BusinessTab";
 import { ResultsTab } from "../results/ResultsTab";
 import { TraceTab } from "../trace/TraceTab";
 import { EventLog } from "./EventLog";
@@ -26,6 +28,9 @@ type GenerationDetailViewProps = {
 export function GenerationDetailView({ id }: GenerationDetailViewProps) {
   const view = useGenerationDetail(id);
   const detail = view.detail.data;
+  // Story 26.6: only a dynamic app whose draft has bound business workflows has a Business tab (the API's 404 says not)
+  const drafted = detail?.mode === "dynamic" && Boolean(detail.options?.draftId);
+  const { evaluation } = useEvaluation(id, drafted);
 
   if (view.detail.isError) {
     return (
@@ -39,6 +44,7 @@ export function GenerationDetailView({ id }: GenerationDetailViewProps) {
 
   const hasAppTab = detail.mode === "static" || detail.mode === "dynamic";
   const hasApiTab = detail.mode !== "static";
+  const hasBusinessTab = drafted && Boolean(evaluation.data);
 
   return (
     <Stack gap="lg">
@@ -75,6 +81,11 @@ export function GenerationDetailView({ id }: GenerationDetailViewProps) {
               <AppWindow /> App
             </TabsTrigger>
           )}
+          {hasBusinessTab && (
+            <TabsTrigger value="business">
+              <Briefcase /> Business
+            </TabsTrigger>
+          )}
         </TabsList>
         <TabsContent value="steps" className="pt-2">
           <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
@@ -107,6 +118,11 @@ export function GenerationDetailView({ id }: GenerationDetailViewProps) {
         {hasAppTab && (
           <TabsContent value="app" className="pt-2">
             <AppTab detail={detail} onOpenTab={view.setTab} />
+          </TabsContent>
+        )}
+        {hasBusinessTab && (
+          <TabsContent value="business" className="pt-2">
+            <BusinessTab id={id} />
           </TabsContent>
         )}
       </Tabs>

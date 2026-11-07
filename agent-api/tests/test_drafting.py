@@ -496,3 +496,15 @@ def test_usage_counts_drafts(client, user_headers, tmp_path):
     assert 1 <= calls <= 3 and after["modelCalls"] == before["modelCalls"] + 2 * calls
     assert after["tokens"]["input"] == before["tokens"]["input"] + 1000 * calls
     assert after["byMode"]["static"] >= 1
+
+
+def test_a_crash_says_where_it_happened():
+    """A failed draft's error names the agent's code that raised (the worker's log may be gone by then)."""
+    from src.orchestrator.business.model import core
+    from src.orchestrator.drafting.drafts import crash_site
+
+    try:
+        core(None)  # type: ignore[arg-type]
+    except AttributeError as exc:
+        site = crash_site(exc)
+    assert site.startswith(" (at business/model.py:") and site.endswith(" in core)"), site

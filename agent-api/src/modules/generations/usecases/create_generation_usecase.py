@@ -230,6 +230,9 @@ class CreateGenerationUsecase:
                 engine=draft_engine,
                 status=SpecDraftStatus.PENDING,
                 generation_id=gen_id,
+                inputs={  # Epic 26 D7 / Epic 24: the business layer and its provider, from the generation's options
+                    key: options[key] for key in ("businessWorkflows", "llmProvider") if options.get(key) is not None
+                },
             )
         )
         return generation

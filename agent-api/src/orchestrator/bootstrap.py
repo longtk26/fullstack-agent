@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from src.configs import config
+from src.configs import config, get_logger
 from src.engines import PromptLibrary, build_engine_context, build_frontend_engine_context, get_engine_registry
 from src.libs.queue import JobQueue, PreviewCommandBus
 from src.libs.redaction import default_redactor
@@ -20,6 +20,8 @@ from .runner import JobRunner
 from .store import JobStore
 from .worker_service import WorkerService, default_worker_id
 from .workspace import WorkspaceManager
+
+logger = get_logger(__name__)
 
 
 @asynccontextmanager
@@ -43,6 +45,19 @@ async def build_worker_service(worker_id: str | None = None):
         if config.preview_enabled
         else None
     )
+    # Story 26.5: after a finished generation, its previews and then its business evaluation (information only)
+    from .evaluation.service import EvaluationService
+
+    evaluations = EvaluationService(store, prompts, redis, events)
+
+    async def on_completed(generation_id: str) -> None:
+        if previews is not None:
+            await previews.request_start(generation_id)
+        try:  # only generations drafted with bound business workflows get one
+            await evaluations.request_auto(generation_id)
+        except Exception:
+            logger.exception("evaluation request failed", extra={"generation_id": generation_id})
+
     async with postgres_checkpointer() as checkpointer:
         runner = JobRunner(
             registry=registry,
@@ -56,7 +71,7 @@ async def build_worker_service(worker_id: str | None = None):
             worker_id=worker_id,
             sandboxes=sandboxes,
             template_dir=Path(config.template_dir),
-            on_completed=previews.request_start if previews else None,
+            on_completed=on_completed,
             frontend_engine_context=build_frontend_engine_context(prompts),
             frontend_validator=SandboxFrontendValidationRunner() if sandboxes else StaticFrontendValidationRunner(),
             # Story 18.12: a job reaches the previews from any worker; elsewhere its calls go over the bus.
@@ -76,6 +91,7 @@ async def build_worker_service(worker_id: str | None = None):
             workspaces,
             worker_id,
             previews=previews if config.preview_worker else None,
+            evaluations=evaluations,
             drafts=DraftRunner(
                 registry,
                 prompts,

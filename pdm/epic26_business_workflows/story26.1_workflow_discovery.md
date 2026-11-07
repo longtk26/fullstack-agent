@@ -32,11 +32,24 @@ step (`delivers`), checked in code with one retry; `core` / `later` priority; a 
 
 ## Acceptance criteria
 
-- [ ] A dynamic draft has `business.json` with at least one core workflow; every value has a step that delivers it, or
+- [x] A dynamic draft has `business.json` with at least one core workflow; every value has a step that delivers it, or
       the draft notes which one has none.
-- [ ] Refusals and exceptions appear as branches, not as workflows (the lab saw a refusal counted as a workflow).
-- [ ] With `businessWorkflows` off, drafting is exactly today's (snapshots).
+- [x] Refusals and exceptions appear as branches, not as workflows (the lab saw a refusal counted as a workflow).
+- [x] With `businessWorkflows` off, drafting is exactly today's (snapshots).
 
 ## Verify
 
 `make lint`, `make test`, `make up`, one draft of a lab requirement on the provider the user chooses.
+
+## Status
+
+**Done 2026-11-07.** `orchestrator/business/` (`model.py`: the schemas and helpers from the lab; `flow.py`:
+`BusinessFlow.discover` with one second ask when a value has no step) and `drafting/business.py` (before `draft_app`,
+through the draft's provider; the brief replaces the requirement in the draft prompt, the user's text stays the
+draft's). Prompt `discover_workflows@v1`. Stored in `spec_drafts.business` (migration `d4f8a2c6e9b1`), shown read-only
+in the draft review (`WorkflowsPanel`). `BUSINESS_WORKFLOWS` (default on) and the draft's `businessWorkflows` switch it.
+Tests: `tests/test_business_layer.py` (paths and the brief, the second ask, a draft with the option on and off).
+
+Real run (HomeFix, `agy` on the account login): 2 core workflows, a "reopen" branch (not a workflow of its own), every
+value delivered by a step; 73 s, $0. Deviation: the business data is not packaged as `business.json` in the
+generation's artifacts; the evaluation reads it from the draft (`options.draftId`).

@@ -182,6 +182,8 @@ def app_data(plan: dict[str, Any], spec: dict[str, Any], contract: dict[str, Any
         # Epic 23: how the app is presented (shell, frame, home, views, field roles, looks) and its areas
         "design": kit_design(outline),
         "areas": outline.get("areas") or [],
+        # Story 26.4: the guided tour of the core business workflows (none: no tour)
+        "workflows": outline.get("workflows"),
         "locale": spec["project"].get("locale") or "en",
         "routes": pages,
         "errors": app_errors(contract),

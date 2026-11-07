@@ -20,6 +20,7 @@ import hashlib
 import io
 import json
 import shutil
+import traceback
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
@@ -64,6 +65,7 @@ from ..checks.consistency import check_spec_pair
 from ..store import JobStore
 from .app import BACKEND_EXAMPLE as APP_BACKEND_EXAMPLE
 from .app import app_flow, app_inputs, draft_app, outline_notes
+from .business import DraftBusiness, business_on, draft_provider
 from .design_cards import (
     MAX_SEED,
     best_fit,
@@ -104,6 +106,17 @@ EXAMPLES = {
     "backend": "specs/shop.json",
     "static": "frontend-specs/static-landing.json",
 }
+
+
+def crash_site(exc: BaseException) -> str:
+    """Where an unexpected error was raised in the agent's own code (` (at drafting/app.py:120 in fix)`), so a failed
+    draft says where to look even when the worker's log is gone."""
+    frames = [f for f in traceback.extract_tb(exc.__traceback__) if "/src/" in f.filename.replace("\\", "/")]
+    if not frames:
+        return ""
+    frame = frames[-1]
+    where = frame.filename.replace("\\", "/").split("/src/", 1)[1].removeprefix("orchestrator/")
+    return f" (at {where}:{frame.lineno} in {frame.name})"
 
 
 class DraftFailed(Exception):
@@ -668,8 +681,11 @@ class DraftRunner:
         queue: Any | None = None,
         events: Any | None = None,
         redis: Any | None = None,
+        llm_provider: Any | None = None,
     ):
         self.registry = registry
+        # Epic 26: the provider of the business steps; None: the draft's own (`drafting/business.draft_provider`)
+        self.llm_provider = llm_provider
         self.prompts = prompts
         self.store = store
         self.root = workspace_root / "drafts"
@@ -764,7 +780,7 @@ class DraftRunner:
         except asyncio.CancelledError:
             raise  # shutdown: the reaper fails the draft once its heartbeat stops
         except Exception as exc:
-            message = str(exc) if isinstance(exc, DraftFailed) else f"{type(exc).__name__}: {exc}"
+            message = str(exc) if isinstance(exc, DraftFailed) else f"{type(exc).__name__}: {exc}{crash_site(exc)}"
             if not isinstance(exc, DraftFailed):
                 logger.exception("draft failed", extra={"draft_id": str(draft.id)})
             self.store.update_draft(
@@ -881,17 +897,28 @@ class DraftRunner:
             return result
 
         if app:
+            # Epic 26: the business workflows before the draft (the brief) and bound to it after
+            provider = (self.llm_provider or draft_provider(draft, engine.name)) if business_on(draft) else None
+            business = DraftBusiness(provider, self.prompts, state) if provider is not None else None
+            app_context = context
+            if business is not None:
+                await update_progress("discovering workflows")
+                described = await business.before(draft.requirement_text or "")
+                calls.extend(business.calls)
+                self.store.update_draft(draft.id, usage=usage_summary(calls))
+                if described:
+                    app_context = {**context, "requirement_text": described}
             try:
                 outcome = await draft_app(
                     work,
-                    context,
-                    self.prompts,
-                    call,
-                    update_progress,
-                    check_draft,
-                    found[0] if found else None,
-                    BACKEND_FILE,
-                    FRONTEND_FILE,
+                    context=app_context,
+                    prompts=self.prompts,
+                    call=call,
+                    progress=update_progress,
+                    check_draft=check_draft,
+                    chosen=found[0] if found else None,
+                    backend_file=BACKEND_FILE,
+                    frontend_file=FRONTEND_FILE,
                 )
             except BaseException as exc:
                 trace.close({"status": "failed"}, error=f"{type(exc).__name__}: {exc}"[:500])
@@ -906,6 +933,13 @@ class DraftRunner:
             if found:  # the direction's theme only: its first note says where it came from
                 assumptions += design_notes(found[0])[:1]
             notes = assumptions + outcome.notes
+            if business is not None:
+                before = len(business.calls)
+                await update_progress("binding workflows")
+                await business.after(check.backend_spec, check.frontend_spec)
+                calls.extend(business.calls[before:])
+                notes += business.notes()
+                self.store.update_draft(draft.id, business=business.data)
             await self._save(draft, check, notes, unresolved + outcome.unresolved, None, calls, outcome.error, trace)
             return
 

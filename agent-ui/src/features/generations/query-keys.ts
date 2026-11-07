@@ -18,6 +18,7 @@ export const generationKeys = {
     [...generationKeys.all, "preview-logs", id, kind] as const,
   previewRequests: (id: string) => [...generationKeys.all, "preview-requests", id] as const,
   trace: (id: string) => [...generationKeys.all, "trace", id] as const,
+  evaluation: (id: string) => [...generationKeys.all, "evaluation", id] as const,
   spanOutput: (id: string, spanId: string, stream: string, tail: number) =>
     [...generationKeys.all, "span-output", id, spanId, stream, tail] as const,
 };

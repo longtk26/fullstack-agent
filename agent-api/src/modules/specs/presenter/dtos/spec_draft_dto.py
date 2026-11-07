@@ -26,6 +26,9 @@ class CreateSpecDraftRequestDto(CamelModel):
     site_json: dict[str, Any] | None = None
     engine: str | None = None
     design_seed: int | None = Field(default=None, ge=1, lt=1_000_000)
+    # Epic 26 (D7): the business layer of a dynamic draft (empty: BUSINESS_WORKFLOWS); Epic 24: its LLM provider
+    business_workflows: bool | None = None
+    llm_provider: Literal["antigravity", "claude_code", "gemini_api"] | None = None
 
 
 class CreateSpecDraftResponseDto(CamelModel):
@@ -71,6 +74,7 @@ class GetSpecDraftResponseDto(CamelModel):
     assumptions: list[DraftNoteDto]
     unresolved: list[DraftNoteDto]
     design: dict[str, Any] | None
+    business: dict[str, Any] | None = None  # Epic 26: workflows, expectations (with their sentences), binding, tour
     validation: DraftValidationDto
     usage: dict[str, Any]
     error: str | None
@@ -101,6 +105,7 @@ class GetSpecDraftResponseDto(CamelModel):
             assumptions=[DraftNoteDto.model_validate(note) for note in draft.assumptions],
             unresolved=[DraftNoteDto.model_validate(note) for note in draft.unresolved],
             design=draft.design,
+            business=draft.business,
             validation=DraftValidationDto(**reports),
             usage=draft.usage,
             error=draft.error,

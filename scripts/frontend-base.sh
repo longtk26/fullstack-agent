@@ -27,7 +27,7 @@ pnpm install
 pnpm dlx "shadcn@$SHADCN_VERSION" init -b base -p nova -y --no-monorepo --force
 # shellcheck disable=SC2086
 pnpm dlx "shadcn@$SHADCN_VERSION" add -y --overwrite $PRIMITIVES
-pnpm add -E @tanstack/react-query zustand react-hook-form zod @hookform/resolvers next-themes \
+pnpm add -E @tanstack/react-query zustand react-hook-form zod @hookform/resolvers next-themes "react-joyride@3.2.0" \
   "@phosphor-icons/react@$PHOSPHOR_VERSION"
 # shellcheck disable=SC2086
 pnpm add -E $FONTS

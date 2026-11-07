@@ -28,6 +28,7 @@ import { AppBreadcrumbs } from "./AppBreadcrumbs";
 import { icons } from "./icons";
 import { useLayout } from "./layout";
 import { slots } from "./slots";
+import { TourMount } from "./tour/TourMount";
 import { UserMenu, useSession } from "./plugins";
 import { inSentence, t } from "./messages";
 
@@ -292,6 +293,15 @@ function SidebarShell({ children, design, nav }: { children: ReactNode; design: 
 /** The app's shell (Epic 23): the layout's shell (sidebar, rail, top bar, top bar with tabs) over the same
  *  navigation, filtered by role and by the current area. */
 export function AppShell({ children }: AppShellProps) {
+  return (
+    <>
+      <ShellLayout>{children}</ShellLayout>
+      <TourMount />
+    </>
+  );
+}
+
+function ShellLayout({ children }: AppShellProps) {
   const design = useLayout();
   const nav = useNav();
   const pathname = usePathname() ?? "/";

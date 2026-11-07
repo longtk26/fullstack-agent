@@ -178,6 +178,9 @@ class AppOutline(SpecModel):
     # Story 23.8: the language of the app's labels and the kit's own strings (`en`, `ja`); none: English
     locale: Annotated[str, Field(pattern=r"^[a-z]{2}(-[A-Z]{2})?$")] | None = None
     areas: list[AppArea] = []  # Story 23.10: a layout per group of roles; none: one area
+    # Story 26.4: the guided tour of the core business workflows (written by code from the draft's binding, never by
+    # the model): `{"version", "tours": [{"id", "name", "roles", "steps": [...]}]}`; none: no tour
+    workflows: dict[str, Any] | None = None
 
 
 def is_app_spec(spec: dict[str, Any]) -> bool:
@@ -208,9 +211,13 @@ _APP_ONLY_DEFS += DESIGN_DEFS
 DESIGN_PARTS = ("design", "areas")
 
 
+CODE_PARTS = ("workflows",)  # Story 26.4: outline parts only code writes; no drafting prompt or schema shows them
+
+
 def outline_schema(design: bool = True) -> dict[str, Any]:
     """The AppOutline JSON schema (camelCase), without the design parts unless asked."""
     schema = AppOutline.model_json_schema(by_alias=True)
+    schema = {**schema, "properties": {k: v for k, v in schema["properties"].items() if k not in CODE_PARTS}}
     if design:
         return schema
     out = {**schema, "properties": {k: v for k, v in schema["properties"].items() if k not in DESIGN_PARTS}}

@@ -39,6 +39,8 @@ class GenerationOptionsDto(CamelModel):
     ) = None
     # Epic 24: the provider of this generation's LLM-only steps (Epic 26's business workflows); empty: LLM_PROVIDER
     llm_provider: Literal["antigravity", "claude_code", "gemini_api"] | None = None
+    # Epic 26 (D7): the business layer (workflows, tour, evaluation) of a dynamic generation; empty: BUSINESS_WORKFLOWS
+    business_workflows: bool | None = None
     timeout_seconds: int | None = Field(default=None, ge=60, le=7200)
     # Story 17.6: CRUD modules, models and tests from templates; false makes the engine write the whole backend.
     crud_from_templates: bool = True

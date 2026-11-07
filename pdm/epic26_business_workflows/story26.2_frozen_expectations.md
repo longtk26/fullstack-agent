@@ -31,3 +31,12 @@ the record), and the outcome each actor should see. Business words only.
 ## Verify
 
 `make lint`, `make test`.
+
+## Status
+
+Open (2026-11-07): nothing yet checks that every step of every core path has expectations, and a generation reading them unchanged is by design only; both are checked in 26.7.
+
+**Done 2026-11-07.** `BusinessFlow.expect` (prompt `expect_workflows@v1`) right after discovery; code drops a
+`refusedBefore` on a path's first step (the record does not exist yet) with a note; `expectation_texts` writes one
+sentence per expectation (the review and the Business tab show them). Stored with the draft, never rewritten (a
+re-draft makes new ones). Real run: 308 s and 92k output tokens on `agy` for HomeFix, the longest business step.

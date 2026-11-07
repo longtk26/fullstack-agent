@@ -221,7 +221,26 @@ export type TApp = {
   access: Record<string, TAccess>;
   design: TDesign;
   areas: TArea[];
+  /** Story 26.4: the guided tour of the core business workflows (none: no tour). */
+  workflows?: TWorkflows | null;
 };
+
+/** Story 26.4: one step of a workflow tour: who does it, where, and the action that performs it. */
+export type TTourStep = {
+  id: string;
+  role: string | null;
+  actor: string;
+  title: string;
+  operationId?: string | null;
+  page?: string;
+  route?: string;
+  target?: { section: string; action: string | null };
+  automatic?: boolean;
+  skip?: string;
+};
+
+export type TTour = { id: string; name: string; outcome?: string; roles: string[]; steps: TTourStep[] };
+export type TWorkflows = { version: string; tours: TTour[] };
 
 export type TRecord = Record<string, unknown> & { id?: unknown; allowedActions?: string[] };
 export type TRouteParams = Record<string, string | string[] | undefined>;

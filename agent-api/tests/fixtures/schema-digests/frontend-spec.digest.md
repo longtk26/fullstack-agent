@@ -127,6 +127,7 @@ type AppOutline = {
   design?: AppDesign | null;
   locale?: string | null;
   areas?: AppArea[];
+  workflows?: Record<string, unknown> | null;
 };
 
 // An image the site shows (Stories 15.1, 19.1).

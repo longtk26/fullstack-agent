@@ -26,6 +26,7 @@ class SpecDraftEntity(BaseModel):
     assumptions: list[Any] = []
     unresolved: list[Any] = []
     design: dict[str, Any] | None = None
+    business: dict[str, Any] | None = None  # Epic 26: business, expected, binding, tour
     validation: dict[str, Any] = {}
     usage: dict[str, Any] = {}
     error: str | None = None

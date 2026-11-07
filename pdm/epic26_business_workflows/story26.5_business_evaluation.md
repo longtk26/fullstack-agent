@@ -39,11 +39,45 @@ corrected retry.
 ## Acceptance criteria
 
 - [ ] A dynamic generation with workflows gets an evaluation automatically after its previews are up.
-- [ ] The generation's status and validation are identical with and without the evaluation (test).
-- [ ] Each line carries its evidence (call, actor, status, detail); the score is computed, not written by a model.
+- [x] The generation's status and validation are identical with and without the evaluation (test).
+- [x] Each line carries its evidence (call, actor, status, detail); the score is computed, not written by a model.
 - [ ] The lab's three runs, re-run through the evaluator, give the same results as the lab's checker (± lines the
       binding differs on, listed).
 
 ## Verify
 
 `make lint`, `make test`, `BGA_SANDBOX_TESTS=1 make test`, `make up` with a lab requirement end to end.
+
+## Status
+
+Open (2026-11-07): the automatic start after the previews has not run on a real generation yet (the HomeFix generation ran on a worker started before this code); 26.7.
+
+**Done 2026-11-07.** `orchestrator/evaluation/`: `checker.py` (the lab's checker, its rules unchanged), `api.py`,
+`walker.py` with `templates/evaluation/walk.mjs` (Playwright in `bga-runner-node`), `service.py` (`EvaluationService`). After a completed
+generation, `bootstrap.on_completed` asks for previews and then `request_auto`, which queues an evaluation on
+`bga:evaluations:<provider>` when the draft has a binding; a worker that serves the provider's draft engine runs it
+(agy: the host worker). The run waits for the previews, checks every expectation as each role's demo user, takes a
+screenshot per step, asks the provider for a second look at a failed step, judges up to 12 screens and writes the
+summary; the score is computed by code. Stored in `evaluation_runs` (status, score, report, usage), screenshots under
+`ARTIFACT_ROOT/<gen>/evaluation/<run>/shots`. The generation is never touched (a failing evaluation is the
+evaluation's own; test). API: `GET /api/v1/generations/{id}/evaluation`, `POST …/evaluation/run`, `GET …/shots/{name}`.
+
+Tests: `tests/test_business_evaluation.py` (a fake backend with the lab's failure cases: wrong role, another user
+reading, the chain effect, an automatic step, an unbound step; the evaluation's failure isolated). Deviation: the
+provider calls are recorded on the evaluation run (`usage`), not as the generation's `model_calls`.
+
+**Found in 26.7 (2026-11-07):** the first real evaluation (HomeFix on agy) failed at its first provider call with
+`WorkspaceViolation`: the provider's scratch dir was under `ARTIFACT_ROOT`, and the CLI providers run only inside
+`WORKSPACE_ROOT` (Epic 24); the fake provider never checks, so the tests passed. It is now
+`WORKSPACE_ROOT/evaluations/<run>` (`evaluation_state_dir`, test
+`test_the_providers_scratch_dir_is_inside_the_workspace_root`); the report and screenshots stay under `ARTIFACT_ROOT`.
+The generation's status stayed COMPLETED through the failed evaluation (D4 held).
+
+**HomeFix, first real evaluation (2026-11-07):** 72 of 81 lines met (92 % of the decided ones); every "can do it",
+"refused", "hidden", "too early" and "status after" line passed. The 6 failures were the checker's: the binding names
+one read per record (`repairRequest.get`, the tenant's), and the assigned contractor reads through their own
+operation (`GET /repair-requests/jobs/{id}`), so every contractor "can see it" line got 404. The checker now tries the
+entity's other single-record reads with the same fields when the bound one answers 403/404 (evidence names the one
+used; a role that must not see the record is still refused by all of them). Test:
+`test_a_role_that_reads_through_its_own_operation_sees_the_record`. The 3 unchecked lines are the binding problem the
+app really has (the monitoring figures are dashboard aggregates, not a report record).

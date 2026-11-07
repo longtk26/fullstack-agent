@@ -69,6 +69,16 @@ const en = {
   nothingCharged: "Nothing was charged. You can try again from the record.",
   stillWaiting: "Still waiting for the provider",
   checkAgain: "Check the record again in a minute.",
+  guide: "Guide",
+  guideTitle: "Guided tour: {name}",
+  tourNext: "Next",
+  tourBack: "Back",
+  tourDone: "Done",
+  tourSkip: "Skip",
+  tourOtherRole: "Next, {actor}: {action}",
+  tourOpenRecord: "Open a record to continue: {action}",
+  tourDoneWhen: "Done when: {outcome}",
+  tourAutomatic: "The app does this by itself: {action}",
 } as const;
 
 type TKey = keyof typeof en;
@@ -140,6 +150,16 @@ const ja: Record<TKey, string> = {
   nothingCharged: "請求はされていません。レコードからもう一度お試しください。",
   stillWaiting: "決済サービスの応答を待っています",
   checkAgain: "少し待ってからレコードをもう一度確認してください。",
+  guide: "ガイド",
+  guideTitle: "ガイド: {name}",
+  tourNext: "次へ",
+  tourBack: "戻る",
+  tourDone: "完了",
+  tourSkip: "スキップ",
+  tourOtherRole: "次は{actor}: {action}",
+  tourOpenRecord: "続けるにはレコードを開いてください: {action}",
+  tourDoneWhen: "完了の条件: {outcome}",
+  tourAutomatic: "アプリが自動で行います: {action}",
 };
 
 const MESSAGES: Record<string, Record<TKey, string>> = { en, ja };

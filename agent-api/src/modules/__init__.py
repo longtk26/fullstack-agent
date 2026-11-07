@@ -3,6 +3,7 @@ from src.modules.shared.infrastructure.models import (  # noqa: F401
     BackendSpecModel,
     CliInvocationModel,
     ComponentCacheModel,
+    EvaluationRunModel,
     FrontendSpecModel,
     GenerationEventModel,
     GenerationModel,

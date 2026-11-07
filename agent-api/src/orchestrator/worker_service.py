@@ -4,6 +4,7 @@ import time
 import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from redis.asyncio import Redis
 from redis.exceptions import RedisError
@@ -20,6 +21,9 @@ from .previews import PreviewService
 from .runner import JobRunner
 from .store import JobStore
 from .workspace import WorkspaceManager
+
+if TYPE_CHECKING:
+    from .evaluation.service import EvaluationService
 
 logger = get_logger(__name__)
 ENGINE_HEALTH_INTERVAL_S = 30
@@ -50,6 +54,7 @@ class WorkerService:
         previews: PreviewService | None = None,
         engines: list[str] | None = None,
         drafts: DraftRunner | None = None,
+        evaluations: "EvaluationService | None" = None,
     ):
         self.runner = runner
         self.queue = queue
@@ -68,6 +73,8 @@ class WorkerService:
         self.tasks: dict[str, asyncio.Task] = {}
         self.preview_tasks: set[asyncio.Task] = set()
         self.drafts = drafts
+        # Story 26.5: the business evaluations of the LLM providers this worker can call (their draft engines)
+        self.evaluations = evaluations
         self.draft_slots = asyncio.Semaphore(config.draft_concurrency)
         self.draft_tasks: dict[str, asyncio.Task] = {}
         self._shutting_down = False
@@ -89,6 +96,8 @@ class WorkerService:
             background.append(asyncio.create_task(self._preview_commands(stop)))
         if self.drafts is not None:
             background.append(asyncio.create_task(self._consume_drafts(stop)))
+        if self.evaluations is not None and self._evaluation_queues():
+            background.append(asyncio.create_task(self._consume_evaluations(stop)))
         try:
             await self._consume(stop)
         finally:
@@ -126,6 +135,32 @@ class WorkerService:
                 slots.release()
 
             task.add_done_callback(done)
+
+    def _evaluation_queues(self) -> list[str]:
+        from src.engines.llm import DRAFT_ENGINE_OF
+        from src.modules.evaluations.usecases.evaluation_usecase import evaluation_queue
+
+        return [evaluation_queue(provider) for provider, engine in DRAFT_ENGINE_OF.items() if engine in self.engines]
+
+    async def _consume_evaluations(self, stop: asyncio.Event) -> None:
+        """Story 26.5: one business evaluation at a time (information only: a failure stays the evaluation's)."""
+        import json as _json
+
+        queues = self._evaluation_queues()
+        while not stop.is_set():
+            try:
+                popped = await self.redis.blpop(queues, timeout=1)
+            except TRANSIENT_ERRORS as exc:
+                logger.warning("evaluation queue unavailable", extra={"error": str(exc)})
+                await _sleep_or_stop(stop, 2)
+                continue
+            if not popped:
+                continue
+            try:
+                message = _json.loads(popped[1])
+                await self.evaluations.run(uuid.UUID(message["evaluationId"]))
+            except Exception:
+                logger.exception("evaluation run failed", extra={"message": str(popped[1])[:200]})
 
     async def _consume_drafts(self, stop: asyncio.Event) -> None:
         """Drafting jobs (Stories 2.4, 12.4): their own queue and slots, so drafts never wait behind generations."""

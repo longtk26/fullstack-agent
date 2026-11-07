@@ -164,7 +164,61 @@ export type TListFilters = {
   cursor?: string;
 };
 
-export type TDetailTab = "steps" | "trace" | "results" | "api" | "app";
+export type TDetailTab = "steps" | "trace" | "results" | "api" | "app" | "business";
+
+/** Story 26.6: one checked expectation of the business evaluation, with its evidence. */
+export type TEvaluationLine = {
+  workflow: string;
+  path: string;
+  step: string;
+  kind: "does" | "refused" | "premature" | "status" | "visible" | "hidden" | "effect";
+  actor: string;
+  expect: string;
+  result: "pass" | "fail" | "blocked" | "unbound" | "n/a";
+  evidence: { call?: string | null; as?: string | null; status?: number | null; detail?: string; error?: string; response?: string };
+  scored: boolean;
+};
+
+export type TEvaluationScore = {
+  met: number;
+  total: number;
+  percent: number;
+  decided: number;
+  decidedPercent: number;
+  counts: Record<"pass" | "fail" | "blocked" | "unbound", number>;
+  byKind: Record<string, { pass: number; total: number }>;
+};
+
+export type TEvaluationReport = {
+  score: TEvaluationScore;
+  lines: TEvaluationLine[];
+  paths: { workflow: string; path: string; completed: boolean; stopped: string | null; notes: string[] }[];
+  binding: { problems: { what: string; reason: string }[]; steps: number };
+  judged: { workflow: string; path: string; step?: string; outcome?: string; file: string; canDo?: string; shows?: string; issue?: string; note?: string; control?: string; clarity?: number }[];
+  summary: { summary: string; values: { id: string; delivered: string; evidence: string }[]; gaps: string[]; improvements: string[] } | null;
+  business: { app?: { name: string; purpose: string }; values?: { id: string; value: string }[]; workflows?: { id: string; name: string; priority?: string }[] };
+  screenshots: boolean;
+};
+
+/** Story 26.6: the latest business evaluation of a generation (information only, never its status). */
+export type TEvaluation = {
+  evaluationId: string;
+  status: "PENDING" | "RUNNING" | "DONE" | "FAILED";
+  trigger: "auto" | "manual";
+  provider: string | null;
+  /** Story 26.7: the generation whose expectations this app was checked against (null: its own). */
+  expectationsFrom: string | null;
+  progress: string | null;
+  score: TEvaluationScore | null;
+  report: TEvaluationReport | null;
+  usage: { costUsd?: number; inputTokens?: number; outputTokens?: number; calls?: unknown[] } | null;
+  error: string | null;
+  createdAt: string | null;
+  finishedAt: string | null;
+};
+
+/** Story 26.6: what `GET …/evaluation` answers for a generation with bound workflows: its latest run, or none yet. */
+export type TEvaluationState = TEvaluation | { status: "NONE"; generationId: string };
 
 // -- results (Story 9.5) ------------------------------------------------------------------------------------------
 

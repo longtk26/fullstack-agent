@@ -35,3 +35,17 @@ what works, what doesn't and why, with the screens.
 ## Verify
 
 `make lint`, `pnpm exec tsc --noEmit`, `make test`, `make up` with an evaluated generation.
+
+## Status
+
+Open (2026-11-07): the tab compiles and lints but has not been seen with a real evaluation; 26.7.
+
+2026-11-07: the tab is shown only when the generation has something to evaluate. `GET …/evaluation` answers 404 when its draft has no bound workflows and no run exists, and `status: "NONE"` when they are bound but nothing ran yet; "Run" is 422 without bound workflows (test `test_the_evaluation_api_is_only_there_for_bound_workflows`).
+
+**Done 2026-11-07.** The "Business" tab (`components/business/BusinessTab.tsx`, `useEvaluation`): the note that it is
+information only, "Run again", the progress while it runs (polled every 3 s), the figures (met of decided, not met,
+not decided, paths completed), the summary with values, gaps and what the generator could do better, the binding
+problems to review, the checklist per path with each line's evidence, and the judged screens with their screenshots.
+Shown for dynamic generations drafted from a requirement. The draft review shows the workflows and the expectation
+sentences (`WorkflowsPanel`). `tsc` and lint pass. Deviation: no component tests (no component test setup in
+`agent-ui`).

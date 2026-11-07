@@ -33,6 +33,9 @@ class SpecDraftModel(SQLModel, table=True):
     unresolved: list[Any] = Field(default_factory=list, sa_type=Json)
     # Story 12.6: the design directions offered for the draft (`selected` index + `directions`); None for backend.
     design: dict[str, Any] | None = Field(default=None, sa_type=Json)
+    # Stories 26.1-26.4: the business (workflows), the frozen expectations, the binding and the tour; None: no
+    # business layer (static and backend drafts, `businessWorkflows` off)
+    business: dict[str, Any] | None = Field(default=None, sa_type=Json)
     validation: dict[str, Any] = Field(default_factory=dict, sa_type=Json)
     usage: dict[str, Any] = Field(default_factory=dict, sa_type=Json)
     error: str | None = Field(default=None, sa_type=Text)

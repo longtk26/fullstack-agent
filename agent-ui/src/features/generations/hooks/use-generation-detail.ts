@@ -7,7 +7,7 @@ import type { TDetailTab } from "../types";
 import { useGeneration, useWorkflowGraph } from "./use-generation";
 import { useGenerationStream } from "./use-generation-stream";
 
-const DETAIL_TABS: TDetailTab[] = ["steps", "trace", "results", "api", "app"];
+const DETAIL_TABS: TDetailTab[] = ["steps", "trace", "results", "api", "app", "business"];
 
 export function useGenerationDetail(id: string) {
   const detail = useGeneration(id);

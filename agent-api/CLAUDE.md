@@ -150,6 +150,17 @@ Agent-specific notes:
   are theirs; a status with a flow changes only through its actions (no "Mark as" buttons then); a person's record that
   only staff create names its person (a staff-only `user.list` directory, the policies plugin's `owner_from_request`);
   the fixtures point person fields at demo users of their role, two per person role (`person_roles`).
+- Business layer (Epic 26): `orchestrator/business/` (model, prompts' schemas, `flow.py`: discover → expect before
+  `draft_app`, bind after; `binding.py`: the code check and `tour_workflows`) and `drafting/business.py` (on when
+  `BUSINESS_WORKFLOWS` or the draft's `businessWorkflows`; stored in `spec_drafts.business`; the brief replaces the
+  requirement in the draft prompt). The tour goes into the FrontendSpec's `app.workflows` → `app.json` → the kit's
+  `components/app/tour/` (react-joyride 3.2.0, loaded only when there are workflows). The evaluation
+  (`orchestrator/evaluation/`: the lab's checker, API caller and Playwright walker) runs after a completed generation
+  (`bootstrap.on_completed` → `EvaluationService.request_auto` → `bga:evaluations:<provider>`, taken by a worker that
+  serves the provider's draft engine), stores `evaluation_runs` and never touches the generation (D4). API:
+  `GET/POST /api/v1/generations/{id}/evaluation[/run]` (GET 404: nothing to evaluate, no Business tab; `NONE`: no run
+  yet), screenshots under `ARTIFACT_ROOT/<gen>/evaluation/<run>/shots`. `POST …/run {"expectationsFrom": <gen>}` checks an
+  app against another generation's frozen expectations, bound to this app first (Story 26.7: the option-off comparison).
 - Designed pages (Epic 21): a page may be an element **tree** (`FrontendSpec` `pages[].tree` + `css`, `layout.chrome`
   / `footerTree`; `TreeNode` in `schema_v1.py`), as Frontend-Agent's site JSON writes it. `frontend_spec/trees.py`
   classifies node types (elements, shadcn primitives, Lucide icons, library sections, data components), checks the

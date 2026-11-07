@@ -42,3 +42,30 @@ main workflows, step by step on the real screens, and to replay it whenever I wa
 
 `make lint`, `pnpm exec tsc --noEmit` (kit), `make test`, `BGA_SANDBOX_TESTS=1 make test`, `make up` and a lab app on
 mocks and live, `make design-check-app` (no visual change).
+
+## Status
+
+Open (2026-11-07): the tour was built and rendered signed out only; the first sign-in per role and the replay are not checked yet (26.7).
+
+Found 2026-11-07 (the user: "the tour does not point at any component"): on the HomeFix app no step was anchored.
+(1) Every step that performs something was on a record page (`/…/[id]`), and the tour only opened pages without
+parameters, so it showed "Open a record" in the middle of the screen. `AppTour` now opens record pages itself
+(`openRoute`: the record the user is on, else the first record linked from the list page at the route's prefix) and
+waits for the target (`beforeTimeout` 15 s); the hint shows only when no record could be opened. (2) The monitoring
+steps (dashboard figures) had no target because that draft was bound before `tour_workflows` pointed "look at" steps
+at the section showing the data; recomputed with today's code, every HomeFix step has a target.
+
+Snapshot note (2026-11-07): react-joyride is in every generated app's `package.json` and lock (the shared Next.js base), though `TourMount` loads it only when `app.json` has workflows, so it is in no other bundle. The static golden snapshots (`tests/fixtures/static-golden/*.json`) were refreshed with `UPDATE_SNAPSHOTS=1`: only `package.json`, `pnpm-lock.yaml` and `.bga/owned.json` (their hashes) changed, no page or rendered file. The FrontendSpec digest snapshot gained `app.workflows` (the full schema the spec editor reads); the drafting prompts' outline schema leaves it out (`CODE_PARTS`) and the site schema is unchanged.
+
+**Done 2026-11-07.** `react-joyride@3.2.0` pinned in the base (`package.json`, the lock, `scripts/frontend-base.sh`;
+`make runner-node`). The kit's `components/app/tour/AppTour.tsx` reads `app.json` `workflows`: one tour per core
+workflow for the signed-in role, steps in order across pages (a `before` hook opens a page without parameters and waits
+for its target; a record page asks the user to open a record), another role's step as a centred note, the outcome
+last. It starts once per user, role and tour version (`localStorage`), and a "Guide" button replays it or the next
+workflow. `TourMount` loads it with `next/dynamic` only when there are workflows. Targets: the existing
+`data-bga-section` / `data-bga-action` markers plus `data-bga-action="submit"` on form buttons. The evaluation's
+browser switches the automatic start off (`bga-tour-off`) so screenshots show the screens.
+
+Checked: an app with a tour (the workshop example, the fake binding) installs, typechecks, lints and builds in the
+Node runner and renders (`.data/shots/tour-check`). Deviations: the replay is a floating "Guide" button, not an entry in
+the auth plugin's user menu; no vitest for `AppTour` (the app walk's checks are 26.7's run).

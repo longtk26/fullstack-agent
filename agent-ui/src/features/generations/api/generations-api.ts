@@ -8,6 +8,8 @@ import type {
   TGenerationMode,
   TGenerationPage,
   TListFilters,
+  TEvaluation,
+  TEvaluationState,
   TPreview,
   TPreviewAction,
   TPreviewRequest,
@@ -118,4 +120,17 @@ export function fetchSpanOutput(id: string, spanId: string, stream: TSpanStream,
   return apiClient.get<TSpanOutput>(`/generations/${id}/trace/spans/${encodeURIComponent(spanId)}/output`, {
     query: { stream, tail },
   });
+}
+
+/** Story 26.6: the latest business evaluation (`NONE`: none yet; 404: no bound workflows) and "Run again". */
+export function fetchEvaluation(id: string) {
+  return apiClient.get<TEvaluationState>(`/generations/${id}/evaluation`);
+}
+
+export function runEvaluation(id: string) {
+  return apiClient.post<TEvaluation>(`/generations/${id}/evaluation/run`);
+}
+
+export function evaluationShotUrl(id: string, file: string) {
+  return proxyUrl(`/generations/${id}/evaluation/shots/${encodeURIComponent(file)}`);
 }

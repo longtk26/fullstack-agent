@@ -138,7 +138,12 @@ export function AppFormBody({ formId, params, onDone, onCancel, submit, submitLa
             Cancel
           </Button>
         )}
-        <Button type="submit" disabled={mutation.isPending || unchanged} aria-busy={mutation.isPending || undefined}>
+        <Button
+          type="submit"
+          disabled={mutation.isPending || unchanged}
+          aria-busy={mutation.isPending || undefined}
+          data-bga-action="submit"
+        >
           {mutation.isPending && <Spinner data-icon="inline-start" />}
           {submitLabel ?? form.submitLabel ?? t("save")}
         </Button>

@@ -181,10 +181,35 @@ export type TSpecDraft = {
   assumptions: TDraftNote[];
   unresolved: TDraftNote[];
   design: TDraftDesign | null;
+  /** Epic 26: the business workflows found before the draft, their frozen expectations, the binding and the tour. */
+  business?: TDraftBusiness | null;
   validation: { backend: TValidationReport | null; frontend: TValidationReport | null; pair: TValidationReport | null };
   usage: TDraftUsage;
   error: string | null;
   createdAt: string | null;
   startedAt: string | null;
   finishedAt: string | null;
+};
+
+/** Epic 26 (Stories 26.1-26.3): what the draft knows about the business, read-only in the review. */
+export type TDraftBusiness = {
+  provider?: string;
+  error?: string;
+  business?: {
+    app?: { name: string; purpose: string };
+    values?: { id: string; value: string; measure?: string }[];
+    actors?: { id: string; name: string }[];
+    workflows?: {
+      id: string;
+      name: string;
+      priority?: "core" | "later";
+      trigger?: string;
+      outcome?: string;
+      steps: { id: string; actor: string; action: string; statusAfter?: string; rule?: string }[];
+      branches?: { id: string; after: string; condition: string; steps: { id: string; actor: string; action: string }[] }[];
+    }[];
+    scope?: { goldenPath?: string; excluded?: string[] };
+  };
+  texts?: { workflow: string; path: string; step: string; texts: string[] }[];
+  binding?: { problems?: { what: string; reason: string }[] };
 };

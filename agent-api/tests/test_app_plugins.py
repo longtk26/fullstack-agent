@@ -204,8 +204,11 @@ def test_only_the_token_helper_touches_local_storage():
         for path in root.rglob("*.ts*"):
             if "localStorage." in path.read_text():
                 users.append(path.relative_to(root).as_posix())
-    assert users == ["src/lib/auth/token.ts"]
+    # Story 26.4: the guided tour remembers "seen" per user (`bga-tour…` keys, never a token)
+    assert sorted(users) == ["app/src/components/app/tour/AppTour.tsx", "src/lib/auth/token.ts"]
     assert "src/lib/auth/token.ts".startswith(OWNED_PREFIXES)
+    tour = (DYNAMIC / "app/src/components/app/tour/AppTour.tsx").read_text()
+    assert "token" not in tour.lower()
 
 
 def test_the_preview_passes_the_token_mode():

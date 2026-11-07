@@ -12,6 +12,7 @@ import { summarizeSpec } from "../lib/spec-summary";
 import type { TSpecDraft, TValidationReport } from "../types";
 import { AppOutlinePanel } from "./AppOutlinePanel";
 import { NotesPanel } from "./NotesPanel";
+import { WorkflowsPanel } from "./WorkflowsPanel";
 
 // The pair is settled in code while drafting (pair_fixes), so only the two specs are shown.
 const REPORT_LABELS = { backend: "BackendSpec", frontend: "FrontendSpec" } as const;
@@ -126,6 +127,7 @@ export function DraftResult({ draft, needsAcknowledgement, acknowledged, onAckno
         </Alert>
       )}
 
+      {draft.business && <WorkflowsPanel business={draft.business} />}
       <NotesPanel kind="unresolved" notes={draft.unresolved} />
       <NotesPanel kind="assumptions" notes={draft.assumptions} />
 

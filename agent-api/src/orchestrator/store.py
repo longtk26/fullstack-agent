@@ -241,6 +241,23 @@ class JobStore:
     def artifact_by_name(self, generation_id: str, name: str) -> ArtifactEntity | None:
         return self._with(lambda s: ArtifactRepository(s).find_by_name(generation_id, name))
 
+    # -- business evaluations (Story 26.5) ------------------------------------------------------------------------
+
+    def create_evaluation(self, generation_id: str, trigger: str, provider: str | None):
+        from src.modules.evaluations.infrastructure.persistence import EvaluationRepository
+
+        return self._with(lambda s: EvaluationRepository(s).create(generation_id, trigger, provider))
+
+    def update_evaluation(self, run_id: uuid.UUID, **fields: Any):
+        from src.modules.evaluations.infrastructure.persistence import EvaluationRepository
+
+        return self._with(lambda s: EvaluationRepository(s).update(run_id, **fields))
+
+    def evaluation(self, run_id: uuid.UUID):
+        from src.modules.evaluations.infrastructure.persistence import EvaluationRepository
+
+        return self._with(lambda s: EvaluationRepository(s).find(run_id))
+
     # -- previews (Stories 7.3, 7.4) ----------------------------------------------------------------------------
 
     def preview(self, generation_id: str, kind: str = "backend") -> PreviewEntity | None:

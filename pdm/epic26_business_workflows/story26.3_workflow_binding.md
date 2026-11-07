@@ -37,3 +37,20 @@ list unbound items as findings.
 ## Verify
 
 `make lint`, `make test`, a lab draft on the fake provider.
+
+## Status
+
+Open (2026-11-07): the action targets were checked by a unit test only, not on generated screens (the kit hides actions by role and `allowedActions`); 26.7.
+
+2026-11-07: `check_binding(..., business)` now reports every core step (main path and branches) the binding left out or bound without a page, unless the model already listed it in `unbound` (test `test_every_core_step_is_bound_or_has_a_problem`).
+
+**Done 2026-11-07.** `BusinessFlow.bind` (prompt `bind_workflows@v1`) after `draft_app`, against the drafted contract and
+planned screens (`compact_operations`, `compact_pages`, the demo users per role from the extended spec);
+`check_binding` checks operations, pages, roles, status values and the JSON of every call; problems are kept with
+their reasons. `action_targets` finds the action, form submit or data section that performs each step;
+`tour_workflows` writes `app.workflows` (per core workflow: steps with role, page, route and target).
+
+Real run (HomeFix): 14 steps bound, one problem the app really has (no maintenance report record, only dashboard
+figures). Steps that only look at something first had no target; they now point at the section that shows the data
+(test added). Deviation: no snapshots of the three lab drafts' bindings (each binding is a model answer; the code
+check is tested on its own).

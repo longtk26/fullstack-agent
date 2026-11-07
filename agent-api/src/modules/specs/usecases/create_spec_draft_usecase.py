@@ -24,6 +24,8 @@ class DraftRequest(BaseModel):
     site_json: dict[str, Any] | None = None
     engine: str | None = None
     design_seed: int | None = None
+    business_workflows: bool | None = None  # Epic 26 D7
+    llm_provider: str | None = None  # Epic 24
 
 
 class CreateSpecDraftUsecase:
@@ -55,8 +57,17 @@ class CreateSpecDraftUsecase:
                 "requirement_format": requirement.format,
                 "requirement_file_name": requirement.file_name,
             }
+            inputs: dict[str, Any] = {}
             if request.design_seed is not None:
-                fields["inputs"] = {"designSeed": request.design_seed}  # Story 20.4: repeatable directions
+                inputs["designSeed"] = request.design_seed  # Story 20.4: repeatable directions
+            for key, value in (  # Epic 26 D7 / Epic 24: the business layer and its provider for this draft
+                ("businessWorkflows", request.business_workflows),
+                ("llmProvider", request.llm_provider),
+            ):
+                if value is not None:
+                    inputs[key] = value
+            if inputs:
+                fields["inputs"] = inputs
         elif request.source == SpecSource.FRONTEND:
             if request.mode != GenerationMode.BACKEND:
                 raise UnprocessableEntityException(
