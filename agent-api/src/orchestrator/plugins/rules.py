@@ -364,10 +364,14 @@ class RulesPlugin(Plugin):
 
         open_records = [record for record in records if not locked(record)]
         by_id = {str(record.get(pk)): record for record in records}
+        # refusals answered before the lock (401, 403, 404, 422) reach a locked record as well as an open one
+        before_lock = {"UNAUTHORIZED", "FORBIDDEN", "NOT_FOUND", "VALIDATION_ERROR", "RESOURCE_LOCKED"}
         if locks and open_records:  # what the earlier scenarios reach must not be locked (they expect other answers)
             for scenario in scenarios:
                 record = by_id.get(str(scenario["params"].get(own)))
-                if record is not None and locked(record) and scenario["expect"].get("code") != "RESOURCE_LOCKED":
+                # 2026-11-07: moving "another user's record" onto the first open record made its user that record's
+                # owner (a 200 where the contract expected 404)
+                if record is not None and locked(record) and scenario["expect"].get("code") not in before_lock:
                     moved = reach(scenario["name"], open_records[0], scenario["expect"])
                     scenario["params"] = {**scenario["params"], own: moved["params"][own]}
                     scenario.pop("user", None)
@@ -376,7 +380,6 @@ class RulesPlugin(Plugin):
         if locks and not open_records:
             # every seeded record is locked (e.g. its only status is a final one): what would need an open record
             # cannot happen; the refusals answered before the lock stay (401, 403, 404, 422)
-            before_lock = {"UNAUTHORIZED", "FORBIDDEN", "NOT_FOUND", "VALIDATION_ERROR", "RESOURCE_LOCKED"}
             scenarios[:] = [
                 scenario
                 for scenario in scenarios

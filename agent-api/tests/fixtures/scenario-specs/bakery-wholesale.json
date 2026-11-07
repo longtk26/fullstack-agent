@@ -1,0 +1,1363 @@
+{
+ "auth": {
+  "roles": [
+   "cafe_staff",
+   "head_baker",
+   "bakery_owner"
+  ],
+  "type": "jwt"
+ },
+ "entities": [
+  {
+   "description": "Bakery wholesale product catalogue items",
+   "displayField": "name",
+   "fields": [
+    {
+     "name": "id",
+     "primary": true,
+     "type": "uuid"
+    },
+    {
+     "maxLength": 100,
+     "name": "name",
+     "required": true,
+     "type": "string"
+    },
+    {
+     "name": "category",
+     "required": true,
+     "type": "enum",
+     "values": [
+      "bread",
+      "viennoiserie",
+      "cake"
+     ]
+    },
+    {
+     "min": 0,
+     "name": "unitPrice",
+     "required": true,
+     "type": "decimal"
+    },
+    {
+     "default": 1,
+     "min": 1,
+     "name": "minQuantity",
+     "required": true,
+     "type": "integer"
+    },
+    {
+     "name": "availableDays",
+     "required": true,
+     "type": "string"
+    },
+    {
+     "name": "photo",
+     "nullable": true,
+     "required": false,
+     "type": "image"
+    },
+    {
+     "name": "description",
+     "nullable": true,
+     "required": false,
+     "type": "text"
+    },
+    {
+     "default": "now",
+     "name": "createdAt",
+     "required": true,
+     "type": "datetime"
+    }
+   ],
+   "name": "Product"
+  },
+  {
+   "description": "Café or restaurant client profile",
+   "displayField": "name",
+   "fields": [
+    {
+     "name": "id",
+     "primary": true,
+     "type": "uuid"
+    },
+    {
+     "maxLength": 120,
+     "name": "name",
+     "required": true,
+     "type": "string"
+    },
+    {
+     "name": "deliveryAddress",
+     "required": true,
+     "type": "text"
+    },
+    {
+     "maxLength": 100,
+     "name": "contactPerson",
+     "required": true,
+     "type": "string"
+    },
+    {
+     "maxLength": 30,
+     "name": "phone",
+     "required": true,
+     "type": "string"
+    },
+    {
+     "index": true,
+     "name": "ownerId",
+     "required": true,
+     "type": "uuid"
+    },
+    {
+     "default": "now",
+     "name": "createdAt",
+     "required": true,
+     "type": "datetime"
+    }
+   ],
+   "name": "Cafe"
+  },
+  {
+   "description": "Wholesale order for delivery on a specific date",
+   "displayField": "id",
+   "fields": [
+    {
+     "name": "id",
+     "primary": true,
+     "type": "uuid"
+    },
+    {
+     "index": true,
+     "name": "cafeId",
+     "required": true,
+     "type": "uuid"
+    },
+    {
+     "index": true,
+     "name": "ownerId",
+     "required": true,
+     "type": "uuid"
+    },
+    {
+     "index": true,
+     "name": "deliveryDate",
+     "required": true,
+     "type": "date"
+    },
+    {
+     "default": "submitted",
+     "name": "status",
+     "required": true,
+     "type": "enum",
+     "values": [
+      "submitted",
+      "confirmed",
+      "delivered"
+     ]
+    },
+    {
+     "default": 0,
+     "min": 0,
+     "name": "totalAmount",
+     "required": true,
+     "type": "decimal"
+    },
+    {
+     "index": true,
+     "name": "invoiceId",
+     "nullable": true,
+     "required": false,
+     "type": "uuid"
+    },
+    {
+     "default": "now",
+     "name": "createdAt",
+     "required": true,
+     "type": "datetime"
+    }
+   ],
+   "name": "Order"
+  },
+  {
+   "description": "Individual line item in a wholesale order",
+   "displayField": "productId",
+   "fields": [
+    {
+     "name": "id",
+     "primary": true,
+     "type": "uuid"
+    },
+    {
+     "index": true,
+     "name": "orderId",
+     "required": true,
+     "type": "uuid"
+    },
+    {
+     "index": true,
+     "name": "productId",
+     "required": true,
+     "type": "uuid"
+    },
+    {
+     "min": 1,
+     "name": "quantity",
+     "required": true,
+     "type": "integer"
+    },
+    {
+     "min": 0,
+     "name": "unitPrice",
+     "required": true,
+     "type": "decimal"
+    },
+    {
+     "min": 0,
+     "name": "subtotal",
+     "required": true,
+     "type": "decimal"
+    },
+    {
+     "default": "confirmed",
+     "name": "status",
+     "required": true,
+     "type": "enum",
+     "values": [
+      "confirmed",
+      "refused"
+     ]
+    },
+    {
+     "name": "refusalReason",
+     "nullable": true,
+     "required": false,
+     "type": "text"
+    },
+    {
+     "default": "now",
+     "name": "createdAt",
+     "required": true,
+     "type": "datetime"
+    }
+   ],
+   "name": "OrderLine"
+  },
+  {
+   "description": "Daily production list aggregating quantities to bake tomorrow",
+   "displayField": "productionDate",
+   "fields": [
+    {
+     "name": "id",
+     "primary": true,
+     "type": "uuid"
+    },
+    {
+     "index": true,
+     "name": "productionDate",
+     "required": true,
+     "type": "date",
+     "unique": true
+    },
+    {
+     "default": "in_progress",
+     "name": "status",
+     "required": true,
+     "type": "enum",
+     "values": [
+      "in_progress",
+      "completed"
+     ]
+    },
+    {
+     "name": "notes",
+     "nullable": true,
+     "required": false,
+     "type": "text"
+    },
+    {
+     "default": "now",
+     "name": "createdAt",
+     "required": true,
+     "type": "datetime"
+    }
+   ],
+   "name": "ProductionList"
+  },
+  {
+   "description": "Aggregated baking target for a product on a production list",
+   "displayField": "productId",
+   "fields": [
+    {
+     "name": "id",
+     "primary": true,
+     "type": "uuid"
+    },
+    {
+     "index": true,
+     "name": "productionListId",
+     "required": true,
+     "type": "uuid"
+    },
+    {
+     "index": true,
+     "name": "productId",
+     "required": true,
+     "type": "uuid"
+    },
+    {
+     "min": 1,
+     "name": "totalQuantity",
+     "required": true,
+     "type": "integer"
+    },
+    {
+     "default": "now",
+     "name": "createdAt",
+     "required": true,
+     "type": "datetime"
+    }
+   ],
+   "name": "ProductionItem"
+  },
+  {
+   "description": "Monthly invoice aggregating delivered orders for a café",
+   "displayField": "billingMonth",
+   "fields": [
+    {
+     "name": "id",
+     "primary": true,
+     "type": "uuid"
+    },
+    {
+     "index": true,
+     "name": "cafeId",
+     "required": true,
+     "type": "uuid"
+    },
+    {
+     "index": true,
+     "name": "ownerId",
+     "required": true,
+     "type": "uuid"
+    },
+    {
+     "maxLength": 7,
+     "name": "billingMonth",
+     "required": true,
+     "type": "string"
+    },
+    {
+     "min": 0,
+     "name": "totalAmount",
+     "required": true,
+     "type": "decimal"
+    },
+    {
+     "default": "issued",
+     "name": "status",
+     "required": true,
+     "type": "enum",
+     "values": [
+      "issued",
+      "paid"
+     ]
+    },
+    {
+     "name": "paidAt",
+     "nullable": true,
+     "required": false,
+     "type": "datetime"
+    },
+    {
+     "default": "now",
+     "name": "createdAt",
+     "required": true,
+     "type": "datetime"
+    }
+   ],
+   "name": "Invoice"
+  }
+ ],
+ "operations": [
+  {
+   "action": "create",
+   "entity": "Product",
+   "method": "POST",
+   "operationId": "product.create",
+   "path": "/products",
+   "policy": "bakeryOwnerOnly",
+   "type": "crud"
+  },
+  {
+   "action": "get",
+   "auth": "jwt",
+   "entity": "Product",
+   "method": "GET",
+   "operationId": "product.get",
+   "path": "/products/{id}",
+   "type": "crud"
+  },
+  {
+   "action": "list",
+   "auth": "jwt",
+   "entity": "Product",
+   "filters": [
+    "category"
+   ],
+   "method": "GET",
+   "operationId": "product.list",
+   "pagination": true,
+   "path": "/products",
+   "search": [
+    "name"
+   ],
+   "sort": [
+    "category",
+    "name",
+    "unitPrice"
+   ],
+   "type": "crud"
+  },
+  {
+   "action": "update",
+   "entity": "Product",
+   "method": "PATCH",
+   "operationId": "product.update",
+   "path": "/products/{id}",
+   "policy": "bakeryOwnerOnly",
+   "type": "crud"
+  },
+  {
+   "action": "delete",
+   "entity": "Product",
+   "method": "DELETE",
+   "operationId": "product.delete",
+   "path": "/products/{id}",
+   "policy": "bakeryOwnerOnly",
+   "type": "crud"
+  },
+  {
+   "action": "create",
+   "auth": "jwt",
+   "entity": "Cafe",
+   "method": "POST",
+   "operationId": "cafe.create",
+   "path": "/cafes",
+   "type": "crud"
+  },
+  {
+   "action": "get",
+   "entity": "Cafe",
+   "method": "GET",
+   "operationId": "cafe.get",
+   "path": "/cafes/{id}",
+   "policy": "ownCafes",
+   "type": "crud"
+  },
+  {
+   "action": "list",
+   "entity": "Cafe",
+   "method": "GET",
+   "operationId": "cafe.list",
+   "pagination": true,
+   "path": "/cafes",
+   "policy": "ownCafes",
+   "search": [
+    "name",
+    "contactPerson"
+   ],
+   "sort": [
+    "name"
+   ],
+   "type": "crud"
+  },
+  {
+   "action": "update",
+   "entity": "Cafe",
+   "method": "PATCH",
+   "operationId": "cafe.update",
+   "path": "/cafes/{id}",
+   "policy": "ownCafes",
+   "type": "crud"
+  },
+  {
+   "action": "create",
+   "auth": "jwt",
+   "description": "Café Staff submits daily wholesale order with delivery date and product quantities before 2 pm the day before delivery. Must meet minimum product quantities.",
+   "entity": "Order",
+   "method": "POST",
+   "operationId": "order.create",
+   "path": "/orders",
+   "type": "crud"
+  },
+  {
+   "action": "get",
+   "entity": "Order",
+   "method": "GET",
+   "operationId": "order.get",
+   "path": "/orders/{id}",
+   "policy": "ownOrders",
+   "type": "crud"
+  },
+  {
+   "action": "list",
+   "entity": "Order",
+   "filters": [
+    "cafeId",
+    "status",
+    "deliveryDate",
+    "invoiceId"
+   ],
+   "method": "GET",
+   "operationId": "order.list",
+   "pagination": true,
+   "path": "/orders",
+   "policy": "ownOrders",
+   "sort": [
+    "deliveryDate",
+    "createdAt"
+   ],
+   "type": "crud"
+  },
+  {
+   "action": "update",
+   "description": "Café Staff modifies order quantities prior to 2 pm cut-off. Order cannot be changed after cut-off.",
+   "entity": "Order",
+   "method": "PATCH",
+   "operationId": "order.update",
+   "path": "/orders/{id}",
+   "policy": "ownOrders",
+   "rules": [
+    "orderDeliveredImmutable"
+   ],
+   "type": "crud",
+   "request": {
+    "entity": "Order",
+    "fields": [
+     "cafeId",
+     "ownerId",
+     "deliveryDate",
+     "totalAmount",
+     "invoiceId"
+    ]
+   }
+  },
+  {
+   "description": "Bakery Owner confirms order for scheduled delivery. Transitions order status to confirmed.",
+   "entity": "Order",
+   "method": "POST",
+   "operationId": "order.confirm",
+   "path": "/orders/{id}/confirm",
+   "policy": "bakeryOwnerOnly",
+   "rules": [
+    "orderStatusFlow"
+   ],
+   "type": "custom",
+   "response": {
+    "entity": "Order"
+   }
+  },
+  {
+   "description": "Bakery Owner marks order delivered following morning drop-off. Only confirmed orders can be marked delivered. Transitions status to delivered.",
+   "entity": "Order",
+   "method": "POST",
+   "operationId": "order.deliver",
+   "path": "/orders/{id}/deliver",
+   "policy": "bakeryOwnerOnly",
+   "rules": [
+    "orderStatusFlow"
+   ],
+   "type": "custom",
+   "response": {
+    "entity": "Order"
+   }
+  },
+  {
+   "action": "create",
+   "entity": "OrderLine",
+   "method": "POST",
+   "operationId": "orderLine.create",
+   "path": "/order-lines",
+   "type": "crud",
+   "auth": "jwt"
+  },
+  {
+   "action": "list",
+   "entity": "OrderLine",
+   "filters": [
+    "orderId",
+    "productId",
+    "status"
+   ],
+   "method": "GET",
+   "operationId": "orderLine.list",
+   "pagination": true,
+   "path": "/order-lines",
+   "type": "crud",
+   "auth": "jwt"
+  },
+  {
+   "description": "Bakery Owner refuses unavailable order line with mandatory reason and confirms remaining lines. Sets line status to refused.",
+   "entity": "OrderLine",
+   "method": "POST",
+   "operationId": "orderLine.refuse",
+   "path": "/order-lines/{id}/refuse",
+   "policy": "bakeryOwnerOnly",
+   "type": "custom",
+   "response": {
+    "entity": "OrderLine"
+   }
+  },
+  {
+   "action": "get",
+   "entity": "ProductionList",
+   "method": "GET",
+   "operationId": "productionList.get",
+   "path": "/production-lists/{id}",
+   "policy": "bakeryTeam",
+   "type": "crud"
+  },
+  {
+   "action": "list",
+   "entity": "ProductionList",
+   "filters": [
+    "status",
+    "productionDate"
+   ],
+   "method": "GET",
+   "operationId": "productionList.list",
+   "pagination": true,
+   "path": "/production-lists",
+   "policy": "bakeryTeam",
+   "sort": [
+    "productionDate"
+   ],
+   "type": "crud"
+  },
+  {
+   "description": "Head Baker opens/views production list aggregating product quantities for tomorrow across all confirmed orders. Sets status to in_progress.",
+   "entity": "ProductionList",
+   "method": "POST",
+   "operationId": "productionList.generate",
+   "path": "/production-lists/generate",
+   "policy": "bakeryTeam",
+   "type": "custom"
+  },
+  {
+   "action": "list",
+   "entity": "ProductionItem",
+   "filters": [
+    "productionListId",
+    "productId"
+   ],
+   "method": "GET",
+   "operationId": "productionItem.list",
+   "pagination": true,
+   "path": "/production-items",
+   "policy": "bakeryTeam",
+   "type": "crud"
+  },
+  {
+   "action": "get",
+   "entity": "Invoice",
+   "method": "GET",
+   "operationId": "invoice.get",
+   "path": "/invoices/{id}",
+   "policy": "ownInvoices",
+   "type": "crud"
+  },
+  {
+   "action": "list",
+   "entity": "Invoice",
+   "filters": [
+    "cafeId",
+    "status",
+    "billingMonth"
+   ],
+   "method": "GET",
+   "operationId": "invoice.list",
+   "pagination": true,
+   "path": "/invoices",
+   "policy": "ownInvoices",
+   "sort": [
+    "createdAt"
+   ],
+   "type": "crud"
+  },
+  {
+   "description": "Bakery Owner generates monthly invoice of delivered orders for a café for the billing month. Sets invoice status to issued.",
+   "entity": "Invoice",
+   "method": "POST",
+   "operationId": "invoice.generate",
+   "path": "/invoices/generate",
+   "policy": "bakeryOwnerOnly",
+   "type": "custom"
+  },
+  {
+   "description": "Bakery Owner marks an issued invoice as paid when funds arrive. Invoice must be in issued status.",
+   "entity": "Invoice",
+   "method": "POST",
+   "operationId": "invoice.markPaid",
+   "path": "/invoices/{id}/pay",
+   "policy": "bakeryOwnerOnly",
+   "rules": [
+    "invoiceStatusFlow",
+    "invoicePaidImmutable"
+   ],
+   "type": "custom",
+   "response": {
+    "entity": "Invoice"
+   }
+  },
+  {
+   "operationId": "order.countWhereStatusSubmitted",
+   "type": "aggregate",
+   "entity": "Order",
+   "method": "GET",
+   "path": "/orders/aggregate/count-where-status-submitted",
+   "summary": "Submitted Orders Awaiting Confirmation",
+   "aggregate": {
+    "fn": "count",
+    "filters": {
+     "status": "submitted"
+    }
+   }
+  },
+  {
+   "operationId": "order.countWhereStatusConfirmed",
+   "type": "aggregate",
+   "entity": "Order",
+   "method": "GET",
+   "path": "/orders/aggregate/count-where-status-confirmed",
+   "summary": "Confirmed Orders for Tomorrow",
+   "aggregate": {
+    "fn": "count",
+    "filters": {
+     "status": "confirmed"
+    }
+   }
+  },
+  {
+   "operationId": "invoice.countWhereStatusIssued",
+   "type": "aggregate",
+   "entity": "Invoice",
+   "method": "GET",
+   "path": "/invoices/aggregate/count-where-status-issued",
+   "summary": "Unpaid Invoices",
+   "aggregate": {
+    "fn": "count",
+    "filters": {
+     "status": "issued"
+    }
+   }
+  },
+  {
+   "operationId": "invoice.sumTotalAmountWhereStatusIssued",
+   "type": "aggregate",
+   "entity": "Invoice",
+   "method": "GET",
+   "path": "/invoices/aggregate/sum-total-amount-where-status-issued",
+   "summary": "Total Unpaid Receivables",
+   "aggregate": {
+    "fn": "sum",
+    "field": "totalAmount",
+    "filters": {
+     "status": "issued"
+    }
+   }
+  },
+  {
+   "operationId": "orderLine.sumQuantityByProductIdThisMonth",
+   "type": "aggregate",
+   "entity": "OrderLine",
+   "method": "GET",
+   "path": "/order-lines/aggregate/sum-quantity-by-product-id-this-month",
+   "summary": "Best-Selling Products This Month",
+   "aggregate": {
+    "fn": "sum",
+    "field": "quantity",
+    "groupBy": "productId",
+    "period": "month",
+    "dateField": "createdAt"
+   }
+  },
+  {
+   "operationId": "order.countThisMonthOnDeliveryDateWhereStatusDelivered",
+   "type": "aggregate",
+   "entity": "Order",
+   "method": "GET",
+   "path": "/orders/aggregate/count-this-month-on-delivery-date-where-status-delivered",
+   "summary": "Orders Delivered This Month",
+   "aggregate": {
+    "fn": "count",
+    "period": "month",
+    "dateField": "deliveryDate",
+    "filters": {
+     "status": "delivered"
+    }
+   }
+  }
+ ],
+ "policies": [
+  {
+   "name": "bakeryOwnerOnly",
+   "roles": [
+    "bakery_owner"
+   ],
+   "type": "role"
+  },
+  {
+   "name": "headBakerOnly",
+   "roles": [
+    "head_baker"
+   ],
+   "type": "role"
+  },
+  {
+   "name": "bakeryTeam",
+   "roles": [
+    "head_baker",
+    "bakery_owner"
+   ],
+   "type": "role"
+  },
+  {
+   "bypassRoles": [
+    "bakery_owner"
+   ],
+   "name": "ownCafes",
+   "ownerField": "ownerId",
+   "type": "ownership"
+  },
+  {
+   "bypassRoles": [
+    "bakery_owner",
+    "head_baker"
+   ],
+   "name": "ownOrders",
+   "ownerField": "ownerId",
+   "type": "ownership"
+  },
+  {
+   "bypassRoles": [
+    "bakery_owner"
+   ],
+   "name": "ownInvoices",
+   "ownerField": "ownerId",
+   "type": "ownership"
+  }
+ ],
+ "project": {
+  "description": "Maison Levain wholesale bakery ordering, nightly production planning, and monthly billing platform",
+  "name": "Maison Levain"
+ },
+ "relationships": [
+  {
+   "foreignKey": "productId",
+   "from": "Product",
+   "name": "productOrderLines",
+   "onDelete": "RESTRICT",
+   "to": "OrderLine",
+   "type": "one-to-many"
+  },
+  {
+   "foreignKey": "cafeId",
+   "from": "Cafe",
+   "name": "cafeOrders",
+   "onDelete": "RESTRICT",
+   "to": "Order",
+   "type": "one-to-many"
+  },
+  {
+   "foreignKey": "orderId",
+   "from": "Order",
+   "name": "orderLines",
+   "onDelete": "CASCADE",
+   "to": "OrderLine",
+   "type": "one-to-many"
+  },
+  {
+   "foreignKey": "cafeId",
+   "from": "Cafe",
+   "name": "cafeInvoices",
+   "onDelete": "RESTRICT",
+   "to": "Invoice",
+   "type": "one-to-many"
+  },
+  {
+   "foreignKey": "invoiceId",
+   "from": "Invoice",
+   "name": "invoiceOrders",
+   "onDelete": "SET NULL",
+   "to": "Order",
+   "type": "one-to-many"
+  },
+  {
+   "foreignKey": "productionListId",
+   "from": "ProductionList",
+   "name": "productionListItems",
+   "onDelete": "CASCADE",
+   "to": "ProductionItem",
+   "type": "one-to-many"
+  },
+  {
+   "foreignKey": "productId",
+   "from": "Product",
+   "name": "productProductionItems",
+   "onDelete": "RESTRICT",
+   "to": "ProductionItem",
+   "type": "one-to-many"
+  }
+ ],
+ "rules": [
+  {
+   "entity": "Order",
+   "id": "orderStatusFlow",
+   "kind": "transition",
+   "params": {
+    "field": "status",
+    "transitions": {
+     "confirmed": [
+      "delivered"
+     ],
+     "submitted": [
+      "confirmed"
+     ]
+    }
+   }
+  },
+  {
+   "entity": "Order",
+   "id": "orderDeliveredImmutable",
+   "kind": "immutableAfter",
+   "params": {
+    "field": "status",
+    "states": [
+     "delivered"
+    ]
+   }
+  },
+  {
+   "entity": "Invoice",
+   "id": "invoiceStatusFlow",
+   "kind": "transition",
+   "params": {
+    "field": "status",
+    "transitions": {
+     "issued": [
+      "paid"
+     ]
+    }
+   }
+  },
+  {
+   "entity": "Invoice",
+   "id": "invoicePaidImmutable",
+   "kind": "immutableAfter",
+   "params": {
+    "field": "status",
+    "states": [
+     "paid"
+    ]
+   }
+  },
+  {
+   "entity": "ProductionList",
+   "id": "productionListStatusFlow",
+   "kind": "transition",
+   "params": {
+    "field": "status",
+    "transitions": {
+     "in_progress": [
+      "completed"
+     ]
+    }
+   }
+  }
+ ],
+ "seed": [
+  {
+   "entity": "Product",
+   "records": [
+    {
+     "availableDays": "Mon,Tue,Wed,Thu,Fri,Sat,Sun",
+     "category": "bread",
+     "description": "Traditional sourdough loaf made with organic stoneground flour.",
+     "id": "11111111-1111-1111-1111-111111111101",
+     "minQuantity": 5,
+     "name": "Pain de Campagne",
+     "photo": "/images/products/pain-de-campagne.jpg",
+     "unitPrice": 4.5
+    },
+    {
+     "availableDays": "Mon,Tue,Wed,Thu,Fri,Sat,Sun",
+     "category": "bread",
+     "description": "Slow-fermented French baguette with crispy crust and open crumb.",
+     "id": "11111111-1111-1111-1111-111111111102",
+     "minQuantity": 10,
+     "name": "Baguette Tradition",
+     "photo": "/images/products/baguette-tradition.jpg",
+     "unitPrice": 1.8
+    },
+    {
+     "availableDays": "Tue,Wed,Thu,Fri,Sat,Sun",
+     "category": "bread",
+     "description": "Dense and hearty rye sourdough loaf with roasted malt notes.",
+     "id": "11111111-1111-1111-1111-111111111103",
+     "minQuantity": 4,
+     "name": "Pain de Seigle",
+     "photo": "/images/products/pain-de-seigle.jpg",
+     "unitPrice": 4.9
+    },
+    {
+     "availableDays": "Mon,Tue,Wed,Thu,Fri,Sat,Sun",
+     "category": "viennoiserie",
+     "description": "Flaky laminated pastry with Normandy AOP cultured butter.",
+     "id": "11111111-1111-1111-1111-111111111104",
+     "minQuantity": 12,
+     "name": "Croissant pur Beurre",
+     "photo": "/images/products/croissant.jpg",
+     "unitPrice": 1.6
+    },
+    {
+     "availableDays": "Mon,Tue,Wed,Thu,Fri,Sat,Sun",
+     "category": "viennoiserie",
+     "description": "Golden laminated pastry filled with Valrhona dark chocolate batons.",
+     "id": "11111111-1111-1111-1111-111111111105",
+     "minQuantity": 12,
+     "name": "Pain au Chocolat",
+     "photo": "/images/products/pain-au-chocolat.jpg",
+     "unitPrice": 1.85
+    },
+    {
+     "availableDays": "Wed,Thu,Fri,Sat,Sun",
+     "category": "viennoiserie",
+     "description": "Enriched braided sweet bread with pearl sugar.",
+     "id": "11111111-1111-1111-1111-111111111106",
+     "minQuantity": 3,
+     "name": "Brioche Tressée",
+     "photo": "/images/products/brioche-tressee.jpg",
+     "unitPrice": 4.2
+    },
+    {
+     "availableDays": "Fri,Sat,Sun",
+     "category": "viennoiserie",
+     "description": "Breton caramelized laminated pastry with salted butter.",
+     "id": "11111111-1111-1111-1111-111111111107",
+     "minQuantity": 6,
+     "name": "Kouign-Amann",
+     "photo": "/images/products/kouign-amann.jpg",
+     "unitPrice": 2.5
+    },
+    {
+     "availableDays": "Tue,Wed,Thu,Fri,Sat,Sun",
+     "category": "cake",
+     "description": "Classic almond frangipane tart topped with poached pears.",
+     "id": "11111111-1111-1111-1111-111111111108",
+     "minQuantity": 1,
+     "name": "Tarte Bourdaloue",
+     "photo": "/images/products/tarte-bourdaloue.jpg",
+     "unitPrice": 18
+    },
+    {
+     "availableDays": "Wed,Thu,Fri,Sat,Sun",
+     "category": "cake",
+     "description": "Traditional Basque cake filled with rich black cherry jam.",
+     "id": "11111111-1111-1111-1111-111111111109",
+     "minQuantity": 1,
+     "name": "Gâteau Basque",
+     "photo": "/images/products/gateau-basque.jpg",
+     "unitPrice": 16.5
+    },
+    {
+     "availableDays": "Tue,Wed,Thu,Fri,Sat,Sun",
+     "category": "cake",
+     "description": "Choux pastry filled with dark chocolate cream and glossy glaze.",
+     "id": "11111111-1111-1111-1111-111111111110",
+     "minQuantity": 8,
+     "name": "Éclair au Chocolat",
+     "photo": "/images/products/eclair-chocolat.jpg",
+     "unitPrice": 3.2
+    }
+   ]
+  },
+  {
+   "entity": "Cafe",
+   "records": [
+    {
+     "contactPerson": "Antoine Mercier",
+     "deliveryAddress": "172 Boulevard Saint-Germain, 75006 Paris",
+     "id": "22222222-2222-2222-2222-222222222201",
+     "name": "Café de Flore",
+     "ownerId": "aaaaaaaa-0000-0000-0000-000000000001",
+     "phone": "+33 1 45 48 55 26"
+    },
+    {
+     "contactPerson": "Camille Laurent",
+     "deliveryAddress": "14 Rue des Panoramas, 75002 Paris",
+     "id": "22222222-2222-2222-2222-222222222202",
+     "name": "Le Pavillon Gourmand",
+     "ownerId": "aaaaaaaa-0000-0000-0000-000000000002",
+     "phone": "+33 1 42 33 10 90"
+    },
+    {
+     "contactPerson": "Julien Moreau",
+     "deliveryAddress": "8 Place de la Bastille, 75011 Paris",
+     "id": "22222222-2222-2222-2222-222222222203",
+     "name": "L'Atelier Moka",
+     "ownerId": "aaaaaaaa-0000-0000-0000-000000000003",
+     "phone": "+33 1 43 45 80 12"
+    },
+    {
+     "contactPerson": "Sophie Bernard",
+     "deliveryAddress": "28 Rue Saint-Roch, 75001 Paris",
+     "id": "22222222-2222-2222-2222-222222222204",
+     "name": "Bistro Saint-Roch",
+     "ownerId": "aaaaaaaa-0000-0000-0000-000000000004",
+     "phone": "+33 1 42 60 72 31"
+    },
+    {
+     "contactPerson": "Pierre Dubois",
+     "deliveryAddress": "5 Rue Tholozé, 75018 Paris",
+     "id": "22222222-2222-2222-2222-222222222205",
+     "name": "Espresso Bar Montmartre",
+     "ownerId": "aaaaaaaa-0000-0000-0000-000000000005",
+     "phone": "+33 1 46 06 18 44"
+    }
+   ]
+  },
+  {
+   "entity": "Order",
+   "records": [
+    {
+     "cafeId": "22222222-2222-2222-2222-222222222201",
+     "createdAt": "2026-11-01T10:30:00Z",
+     "deliveryDate": "2026-11-02",
+     "id": "33333333-3333-3333-3333-333333333301",
+     "invoiceId": "55555555-5555-5555-5555-555555555501",
+     "ownerId": "aaaaaaaa-0000-0000-0000-000000000001",
+     "status": "delivered",
+     "totalAmount": 62.5
+    },
+    {
+     "cafeId": "22222222-2222-2222-2222-222222222202",
+     "createdAt": "2026-11-02T11:15:00Z",
+     "deliveryDate": "2026-11-03",
+     "id": "33333333-3333-3333-3333-333333333302",
+     "invoiceId": "55555555-5555-5555-5555-555555555502",
+     "ownerId": "aaaaaaaa-0000-0000-0000-000000000002",
+     "status": "delivered",
+     "totalAmount": 84.2
+    },
+    {
+     "cafeId": "22222222-2222-2222-2222-222222222203",
+     "createdAt": "2026-11-03T09:45:00Z",
+     "deliveryDate": "2026-11-04",
+     "id": "33333333-3333-3333-3333-333333333303",
+     "invoiceId": null,
+     "ownerId": "aaaaaaaa-0000-0000-0000-000000000003",
+     "status": "delivered",
+     "totalAmount": 49.8
+    },
+    {
+     "cafeId": "22222222-2222-2222-2222-222222222204",
+     "createdAt": "2026-11-04T12:00:00Z",
+     "deliveryDate": "2026-11-05",
+     "id": "33333333-3333-3333-3333-333333333304",
+     "invoiceId": null,
+     "ownerId": "aaaaaaaa-0000-0000-0000-000000000004",
+     "status": "delivered",
+     "totalAmount": 71.4
+    },
+    {
+     "cafeId": "22222222-2222-2222-2222-222222222205",
+     "createdAt": "2026-11-05T13:10:00Z",
+     "deliveryDate": "2026-11-06",
+     "id": "33333333-3333-3333-3333-333333333305",
+     "invoiceId": null,
+     "ownerId": "aaaaaaaa-0000-0000-0000-000000000005",
+     "status": "confirmed",
+     "totalAmount": 55.7
+    },
+    {
+     "cafeId": "22222222-2222-2222-2222-222222222201",
+     "createdAt": "2026-11-06T10:00:00Z",
+     "deliveryDate": "2026-11-07",
+     "id": "33333333-3333-3333-3333-333333333306",
+     "invoiceId": null,
+     "ownerId": "aaaaaaaa-0000-0000-0000-000000000001",
+     "status": "confirmed",
+     "totalAmount": 67.1
+    },
+    {
+     "cafeId": "22222222-2222-2222-2222-222222222202",
+     "createdAt": "2026-11-07T11:30:00Z",
+     "deliveryDate": "2026-11-08",
+     "id": "33333333-3333-3333-3333-333333333307",
+     "invoiceId": null,
+     "ownerId": "aaaaaaaa-0000-0000-0000-000000000002",
+     "status": "submitted",
+     "totalAmount": 58.6
+    }
+   ]
+  },
+  {
+   "entity": "OrderLine",
+   "records": [
+    {
+     "createdAt": "2026-11-01T10:30:00Z",
+     "id": "44444444-4444-4444-4444-444444444401",
+     "orderId": "33333333-3333-3333-3333-333333333301",
+     "productId": "11111111-1111-1111-1111-111111111101",
+     "quantity": 5,
+     "refusalReason": null,
+     "status": "confirmed",
+     "subtotal": 22.5,
+     "unitPrice": 4.5
+    },
+    {
+     "createdAt": "2026-11-01T10:30:00Z",
+     "id": "44444444-4444-4444-4444-444444444402",
+     "orderId": "33333333-3333-3333-3333-333333333301",
+     "productId": "11111111-1111-1111-1111-111111111104",
+     "quantity": 25,
+     "refusalReason": null,
+     "status": "confirmed",
+     "subtotal": 40,
+     "unitPrice": 1.6
+    },
+    {
+     "createdAt": "2026-11-02T11:15:00Z",
+     "id": "44444444-4444-4444-4444-444444444403",
+     "orderId": "33333333-3333-3333-3333-333333333302",
+     "productId": "11111111-1111-1111-1111-111111111102",
+     "quantity": 15,
+     "refusalReason": null,
+     "status": "confirmed",
+     "subtotal": 27,
+     "unitPrice": 1.8
+    },
+    {
+     "createdAt": "2026-11-02T11:15:00Z",
+     "id": "44444444-4444-4444-4444-444444444404",
+     "orderId": "33333333-3333-3333-3333-333333333302",
+     "productId": "11111111-1111-1111-1111-111111111105",
+     "quantity": 20,
+     "refusalReason": null,
+     "status": "confirmed",
+     "subtotal": 37,
+     "unitPrice": 1.85
+    },
+    {
+     "createdAt": "2026-11-02T11:15:00Z",
+     "id": "44444444-4444-4444-4444-444444444405",
+     "orderId": "33333333-3333-3333-3333-333333333302",
+     "productId": "11111111-1111-1111-1111-111111111108",
+     "quantity": 1,
+     "refusalReason": null,
+     "status": "confirmed",
+     "subtotal": 18,
+     "unitPrice": 18
+    },
+    {
+     "createdAt": "2026-11-05T13:10:00Z",
+     "id": "44444444-4444-4444-4444-444444444406",
+     "orderId": "33333333-3333-3333-3333-333333333305",
+     "productId": "11111111-1111-1111-1111-111111111107",
+     "quantity": 6,
+     "refusalReason": "Special salted butter batch unavailable for Friday morning production.",
+     "status": "refused",
+     "subtotal": 0,
+     "unitPrice": 2.5
+    },
+    {
+     "createdAt": "2026-11-07T11:30:00Z",
+     "id": "44444444-4444-4444-4444-444444444407",
+     "orderId": "33333333-3333-3333-3333-333333333307",
+     "productId": "11111111-1111-1111-1111-111111111102",
+     "quantity": 12,
+     "refusalReason": null,
+     "status": "confirmed",
+     "subtotal": 21.6,
+     "unitPrice": 1.8
+    },
+    {
+     "createdAt": "2026-11-07T11:30:00Z",
+     "id": "44444444-4444-4444-4444-444444444408",
+     "orderId": "33333333-3333-3333-3333-333333333307",
+     "productId": "11111111-1111-1111-1111-111111111105",
+     "quantity": 20,
+     "refusalReason": null,
+     "status": "confirmed",
+     "subtotal": 37,
+     "unitPrice": 1.85
+    }
+   ]
+  },
+  {
+   "entity": "ProductionList",
+   "records": [
+    {
+     "createdAt": "2026-11-07T14:30:00Z",
+     "id": "66666666-6666-6666-6666-666666666601",
+     "notes": "Nightly bake for Saturday Nov 8 delivery. All confirmed orders consolidated.",
+     "productionDate": "2026-11-08",
+     "status": "in_progress"
+    }
+   ]
+  },
+  {
+   "entity": "ProductionItem",
+   "records": [
+    {
+     "createdAt": "2026-11-07T14:30:00Z",
+     "id": "77777777-7777-7777-7777-777777777701",
+     "productId": "11111111-1111-1111-1111-111111111102",
+     "productionListId": "66666666-6666-6666-6666-666666666601",
+     "totalQuantity": 27
+    },
+    {
+     "createdAt": "2026-11-07T14:30:00Z",
+     "id": "77777777-7777-7777-7777-777777777702",
+     "productId": "11111111-1111-1111-1111-111111111105",
+     "productionListId": "66666666-6666-6666-6666-666666666601",
+     "totalQuantity": 40
+    }
+   ]
+  },
+  {
+   "entity": "Invoice",
+   "records": [
+    {
+     "billingMonth": "2026-10",
+     "cafeId": "22222222-2222-2222-2222-222222222201",
+     "createdAt": "2026-11-01T08:00:00Z",
+     "id": "55555555-5555-5555-5555-555555555501",
+     "ownerId": "aaaaaaaa-0000-0000-0000-000000000001",
+     "paidAt": "2026-11-05T14:20:00Z",
+     "status": "paid",
+     "totalAmount": 1240
+    },
+    {
+     "billingMonth": "2026-10",
+     "cafeId": "22222222-2222-2222-2222-222222222202",
+     "createdAt": "2026-11-01T08:00:00Z",
+     "id": "55555555-5555-5555-5555-555555555502",
+     "ownerId": "aaaaaaaa-0000-0000-0000-000000000002",
+     "paidAt": null,
+     "status": "issued",
+     "totalAmount": 980.5
+    }
+   ]
+  }
+ ],
+ "specVersion": "1.0",
+ "stack": {
+  "database": "postgresql",
+  "framework": "fastapi",
+  "migration": "alembic",
+  "orm": "sqlmodel"
+ }
+}

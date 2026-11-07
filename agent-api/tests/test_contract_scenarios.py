@@ -74,3 +74,27 @@ def test_nothing_expects_to_get_past_a_lock_every_record_has():
     assert "success" not in update and "duplicate registrationId" not in update
     assert update["locked record"]["expect"] == {"status": 409, "code": "RESOURCE_LOCKED"}
     assert {"no token", "unknown id", "wrong role"} <= set(update)
+
+
+BAKERY = SPEC.parent / "bakery-wholesale.json"
+
+
+def test_another_users_record_stays_another_users_when_records_are_locked():
+    """2026-11-07, a bakery draft (agy): orders are final once delivered and the other café's orders are all
+    delivered. The rules plugin moved "another user's record" off the locked order onto the first open one and gave it
+    that order's owner: the mock answered 200 where the contract expected 404. A refusal answered before the lock
+    reaches a locked record as well, so it stays where it is."""
+    spec = validate_spec_data(json.loads(BAKERY.read_text())).normalized
+    assert spec is not None
+    contract = build_contract(spec, build_plan(spec))
+    fixtures = contract["x-bga"]["fixtures"]
+    users = {row["email"]: str(row["id"]) for row in fixtures["User"]}
+    orders = {str(row["id"]): row for row in fixtures["Order"]}
+    checked = 0
+    for op_id in ("order.get", "order.update"):
+        scenario = _scenarios(contract, op_id)["another user's record"]
+        record = orders[scenario["params"]["id"]]
+        assert scenario.get("user") in users, (op_id, scenario)
+        assert str(record["ownerId"]) != users[scenario["user"]], (op_id, scenario, record)
+        checked += 1
+    assert checked == 2
