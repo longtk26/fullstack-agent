@@ -373,6 +373,15 @@ class RulesPlugin(Plugin):
                     scenario.pop("user", None)
                     if "user" in moved and scenario.get("auth") is not False:
                         scenario["user"] = moved["user"]
+        if locks and not open_records:
+            # every seeded record is locked (e.g. its only status is a final one): what would need an open record
+            # cannot happen; the refusals answered before the lock stay (401, 403, 404, 422)
+            before_lock = {"UNAUTHORIZED", "FORBIDDEN", "NOT_FOUND", "VALIDATION_ERROR", "RESOURCE_LOCKED"}
+            scenarios[:] = [
+                scenario
+                for scenario in scenarios
+                if by_id.get(str(scenario["params"].get(own))) is None or scenario["expect"].get("code") in before_lock
+            ]
         body = {} if op["action"] == "update" else None
         for lock in locks:
             target = next((record for record in records if record.get(lock["field"]) in lock["states"]), None)

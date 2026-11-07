@@ -405,7 +405,11 @@ def contract_scenarios(
                     options = [p[pk] for p in meta["fixtures"].get(parent["entity"]) or []]
                     free = next((o for o in options if (*mine[:at], o, *mine[at + 1 :]) not in pairs), None)
                     if free is not None:
-                        success["body"][varied] = free
+                        before = success["body"][varied]
+                        for scenario in scenarios:  # the creates built from the success's body move with it (else
+                            body = scenario.get("body")  # their seeded pair is a second conflict, answered first)
+                            if isinstance(body, dict) and body.get(varied) == before:
+                                body[varied] = free
                 elif isinstance(success["body"].get(varied), str):
                     success["body"][varied] = f"{success['body'][varied]} (new)"
             text_field = next(

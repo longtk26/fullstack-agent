@@ -79,3 +79,14 @@ no response; the contract had no type, the backend answered `{"ok": true}` and t
 instead of their jobs. `drafting/app.fix_backend_defaults` now gives such an operation its entity's response (a record
 for `GET …/{id}` and record actions, a list for another `GET`), with a note. Test:
 `test_structured_drafts.py::test_a_custom_operation_of_an_entity_answers_with_its_records`.
+
+**Found in 26.7 (2026-11-08): the contract's scenarios contradicted each other.** A real draft (volunteer shifts)
+failed `frontend:scenarios` 5 times; the mocks were right, the scenarios were not (the backend's smoke check passes
+any 4xx, so it never noticed): `_fresh` made "Scenario <id>" for a unique id (a unique reference then pointed nowhere);
+the one-to-one plugin moved only the success onto a free parent and its "second …" scenario had no user (the
+coordinator-only create answered 403); the uniqueTogether plugin moved only the success onto a free pair (a unique
+field's duplicate then hit two conflicts); and with every seeded record locked (`immutableAfter` on the only status)
+an update success was still expected. Fixed in `integration/contract.py` (`_fresh`: a deterministic uuid),
+`plugins/relations.py`, `plugins/concurrency.py` and `plugins/rules.py` (scenarios that need an open record are
+dropped when none is). On the failing app's own mocks: 5 failed before, 84 of 84 pass after. Test:
+`tests/test_contract_scenarios.py` (the draft kept as `fixtures/scenario-specs/volunteer-shifts.json`).

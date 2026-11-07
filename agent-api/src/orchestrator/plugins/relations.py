@@ -346,13 +346,18 @@ def _one_to_one(contract: dict[str, Any], plan: dict[str, Any]) -> None:
             success = next((x for x in scenarios if x["name"] == "success" and isinstance(x.get("body"), dict)), None)
             if success is None or free is None:
                 continue
-            success["body"][child["field"]] = free
+            before = success["body"].get(child["field"])
+            for scenario in scenarios:  # every create built from the success's body goes to the free parent too
+                body = scenario.get("body")
+                if isinstance(body, dict) and child["field"] in body and body[child["field"]] == before:
+                    body[child["field"]] = free
             scenarios.append(
                 {
                     "name": f"second {_lower(child['entity'])}",
                     "params": success["params"],
                     "body": {**success["body"], child["field"]: rows[0][child["field"]]},
                     "expect": {"status": 409, "code": "CONFLICT"},
+                    **({"user": success["user"]} if success.get("user") else {}),  # as the success: the role may create
                 }
             )
 

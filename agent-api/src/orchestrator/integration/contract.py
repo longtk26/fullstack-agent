@@ -117,6 +117,8 @@ def _fresh(column: dict[str, Any], value: Any) -> Any:
     """A value for a unique column that no fixture has (Story 10.0b's create scenario)."""
     if column["type"] in ("integer", "float", "decimal"):
         return 900001 if column["type"] == "integer" else 900001.5
+    if column["type"] == "uuid":  # an id no fixture has, still an id (never "Scenario <id>"), the same every build
+        return str(uuid.uuid5(uuid.NAMESPACE_URL, f"bga-scenario:{value}"))
     if isinstance(value, str) and "@" in value:
         return "scenario@example.com"
     if isinstance(value, str):
