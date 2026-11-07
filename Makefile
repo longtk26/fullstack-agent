@@ -62,8 +62,11 @@ host-worker: host-worker-stop
 	@echo "host worker (antigravity, antigravity_json) started: pid $$(cat $(HOST_WORKER_PID)), log .data/host-worker.log"
 
 host-worker-stop:
-	@if [ -f $(HOST_WORKER_PID) ]; then \
-	  kill $$(cat $(HOST_WORKER_PID)) 2>/dev/null && echo "host worker stopped" || true; rm -f $(HOST_WORKER_PID); fi
+	@if [ -f $(HOST_WORKER_PID) ]; then pid=$$(cat $(HOST_WORKER_PID)); \
+	  kill $$pid 2>/dev/null && echo "host worker stopping" || true; \
+	  for i in $$(seq 1 60); do kill -0 $$pid 2>/dev/null || break; sleep 0.5; done; \
+	  if kill -0 $$pid 2>/dev/null; then echo "warning: host worker $$pid still running after 30 s"; \
+	  else echo "host worker stopped"; fi; rm -f $(HOST_WORKER_PID); fi
 
 # Sandbox image for validating generated projects (Story 6.1); its venv holds the overlay requirements and every
 # plugin's (Story 10.2), so a project with plugins needs no install of its own.

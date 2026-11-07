@@ -38,10 +38,15 @@ model picking image views. A requirement in another language has no words for co
       readable contrast (tests on synthetic outlines: orange on white, cream and brown with serif headings, a dark
       theme; nothing requested changes nothing; values that do not fit are left out with a note).
 - [x] Prompt snapshots: v5 is v4 plus the bullet; the older versions change only in the shared schema digest.
-- [ ] A real draft follows its requirement's look (the bakery wholesale requirement: cream, deep brown, serif, photos).
+- [x] A real draft follows its requirement's look (the bakery wholesale requirement: cream, deep brown, serif, photos).
 - [ ] A Japanese requirement's look is followed too (the dental clinic: white and pale mint, soft rounded corners).
 
 ## Status
 
-**Implemented (2026-11-07); the real drafts are next.** Known limit: no condensed face is bundled, so "bold condensed
+**Implemented (2026-11-07); bakery checked on a real run, the Japanese clinic is next.**
+
+Bakery wholesale (agy draft and generation, COMPLETED): the draft wrote `requested` = background `#faf7f2`, text
+`#3d2314`, serif headings, photos prominent, light, with the requirement's words; the note says what was followed.
+The live app's screens have the cream background, the deep brown text and Lora headings; products are a media grid
+with a media detail. The buttons stay the design data's red: the requirement names no accent. Known limit: no condensed face is bundled, so "bold condensed
 headings" get the closest kind the model picks; adding one means a new font in the base (`make frontend-base`).
