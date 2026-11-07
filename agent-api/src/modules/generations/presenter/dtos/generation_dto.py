@@ -38,7 +38,7 @@ class GenerationOptionsDto(CamelModel):
         Literal["antigravity_json", "claude_code_json", "gemini_api", "claude_code", "antigravity", "fake"] | None
     ) = None
     # Epic 24: the provider of this generation's LLM-only steps (Epic 26's business workflows); empty: LLM_PROVIDER
-    llm_provider: Literal["antigravity", "claude_code", "gemini_api", "fake"] | None = None
+    llm_provider: Literal["antigravity", "claude_code", "gemini_api"] | None = None
     timeout_seconds: int | None = Field(default=None, ge=60, le=7200)
     # Story 17.6: CRUD modules, models and tests from templates; false makes the engine write the whole backend.
     crud_from_templates: bool = True

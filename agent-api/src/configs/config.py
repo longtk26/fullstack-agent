@@ -72,8 +72,8 @@ class Config(BaseSettings):
     gemini_api_model: str = "gemini-3.8-flash"
     # Epic 24: the provider of every LLM-only step (drafting and its repairs, Epic 26's business workflow steps), each
     # one turn with structured output: antigravity (agy, the account login: no per-token cost), claude_code (claude,
-    # the subscription login), gemini_api (per token) or fake (tests). Empty: drafting follows DRAFT_ENGINE as before.
-    llm_provider: Literal["antigravity", "claude_code", "gemini_api", "fake"] | None = None
+    # the subscription login), or gemini_api (per token). Empty: drafting follows DRAFT_ENGINE as before.
+    llm_provider: Literal["antigravity", "claude_code", "gemini_api"] | None = None
     llm_timeout_seconds: int = 900
     # agy / claude `--effort` for the one-turn JSON steps (empty: the model's default); claude's spending cap per
     # call on an API key (`--max-budget-usd`; the subscription login has none)

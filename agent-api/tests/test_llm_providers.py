@@ -11,9 +11,9 @@ from pathlib import Path
 
 import httpx
 import pytest
+from fake_llm import FakeLlmProvider, skeleton
 
 from src.engines import EngineRequest, EngineStatus
-from src.engines.fake_llm import FakeLlmProvider, skeleton
 from src.engines.gemini_api import GeminiApiEngine
 from src.engines.gemini_api.llm import GeminiLlmProvider
 from src.engines.json_cli import AgyJsonProvider, ClaudeJsonProvider

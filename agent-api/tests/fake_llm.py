@@ -1,8 +1,8 @@
-"""TESTING ONLY (docs/development/test-doubles.md): an LLM provider that answers without a model (Epic 24).
+"""TESTING ONLY (docs/development/test-doubles.md): an LLM provider that answers without a model (Epic 24). Tests
+pass it where the product takes an `LlmProvider` (e.g. `DraftRunner(llm_provider=...)`); nothing in `src/` imports it.
 
 Each step has a responder `(prompt, schema) -> dict`; steps without one get the smallest object the schema allows
-(`skeleton`). Epic 26's fake answers (discovery, expectations, binding, judging, summary) register here, so the
-business layer runs end to end with `LLM_PROVIDER=fake` and on the fake engine.
+(`skeleton`). Epic 26's fake answers (discovery, expectations, binding) register here (`tests/business_fakes.py`).
 """
 
 from collections.abc import Callable
@@ -10,8 +10,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from .llm import Image, LlmAnswer, LlmProvider
-from .port import EngineHealth, ModelCall
+from src.engines.llm import Image, LlmAnswer, LlmProvider
+from src.engines.port import EngineHealth, ModelCall
 
 Responder = Callable[[str, dict[str, Any] | None], Any]
 RESPONDERS: dict[str, Responder] = {}

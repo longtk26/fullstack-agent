@@ -190,10 +190,6 @@ def build_llm_provider(name: str | None = None, cfg=default_config) -> LlmProvid
         from .gemini_api.llm import GeminiLlmProvider
 
         return GeminiLlmProvider(_gemini_engine(cfg, root, redactor))
-    if name == "fake":
-        from .fake_llm import FakeLlmProvider
-
-        return FakeLlmProvider()
     raise UnknownEngineError(f"Unknown LLM provider '{name}'")
 
 

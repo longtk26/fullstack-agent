@@ -7,7 +7,7 @@ the schema as structured output (Gemini's `responseJsonSchema`, `agy` / `claude`
 checked against it in code as well (Epic 24 D3, `libs/json_schema_check.py`).
 
 Providers: `gemini_api` (`engines/gemini_api/llm.py`), `antigravity` and `claude_code` (one CLI turn,
-`engines/json_cli.py`), and the test-only `fake` (`engines/fake_llm.py`). `LLM_PROVIDER` picks one for every step.
+`engines/json_cli.py`). `LLM_PROVIDER` picks one for every step; tests pass their own (`tests/fake_llm.py`).
 """
 
 import json
@@ -22,13 +22,12 @@ from src.libs.json_schema_check import schema_errors
 
 from .port import EngineErrorReason, EngineHealth, EngineStatus, ModelCall
 
-LLM_PROVIDERS = ("antigravity", "claude_code", "gemini_api", "fake")
+LLM_PROVIDERS = ("antigravity", "claude_code", "gemini_api")
 # The draft engine that runs a provider's one-turn JSON mode (the registry's names).
 DRAFT_ENGINE_OF = {
     "antigravity": "antigravity_json",
     "claude_code": "claude_code_json",
     "gemini_api": "gemini_api",
-    "fake": "fake",
 }
 SCHEMA_RETRY = (
     "Your previous answer did not follow the required JSON shape:\n{errors}\n"

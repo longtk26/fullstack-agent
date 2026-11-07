@@ -139,8 +139,8 @@ Agent-specific notes:
   written as one string, a missing primary key); `repair_spec` is the last resort.
 - LLM providers (Epic 24): every LLM-only step asks `LlmProvider.json(step, prompt, schema, images)` (`engines/llm.py`)
   once: `antigravity` (one `agy` stream-json turn with `--json-schema`, deny-all permissions, an empty scratch dir),
-  `claude_code` (`claude -p --output-format json --json-schema --tools ""`), `gemini_api`, or the test-only `fake`
-  (`engines/fake_llm.py`). The answer is checked against the schema in code (`libs/json_schema_check.py`) and asked
+  `claude_code` (`claude -p --output-format json --json-schema --tools ""`) or `gemini_api`; tests pass their own
+  (`tests/fake_llm.py`, never imported by `src/`). The answer is checked against the schema in code (`libs/json_schema_check.py`) and asked
   again once with its errors. `LLM_PROVIDER` picks it (`build_llm_provider` / `get_llm_provider`); `DRAFT_ENGINE`
   defaults to its draft engine (`antigravity` → `antigravity_json`). The account / subscription logins cost $0
   (`costSource: account`). `antigravity_json` runs on the host worker with `ANTIGRAVITY_AUTH=account`.
