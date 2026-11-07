@@ -208,6 +208,34 @@ def _load(path: Path) -> Any:
         return None
 
 
+def _with_screen_operations(
+    path: Path, backend: dict[str, Any], added: list[dict[str, Any]], removed: set[str]
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """The drafted BackendSpec file with the screens' operations added and the left-out aggregates removed, kept only
+    when it stays valid (a removal can leave a rule or a policy without its operation): else the additions alone, else
+    the spec as drafted. Returns the normalized spec and notes (2026-11-07: an invalid edit crashed a draft)."""
+    drafted = _load(path)
+    tries = [(added, removed), (added, set())] if removed else [(added, set())]
+    errors: list[str] = []
+    for adding, removing in tries:
+        raw = copy.deepcopy(drafted)
+        if removing:
+            raw = without_references(raw, removing)
+            raw["operations"] = [op for op in raw.get("operations") or [] if op.get("operationId") not in removing]
+        raw["operations"] = [*(raw.get("operations") or []), *adding]
+        result = validate_spec_data(raw)
+        if result.normalized is not None:
+            path.write_text(json.dumps(raw, indent=2, ensure_ascii=False) + "\n")
+            notes = []
+            if errors:
+                message = f"The left-out aggregates stay in the BackendSpec (removing them: {'; '.join(errors)})"
+                notes.append({"spec": "backend", "path": "/operations", "message": message[:600], "suggestion": None})
+            return result.normalized, notes
+        errors = [f"{issue.path}: {issue.message}" for issue in result.report.errors[:3]]
+    message = f"The screens' operations were not added: the BackendSpec would be invalid ({'; '.join(errors)})"
+    return backend, [{"spec": "backend", "path": "/operations", "message": message[:600], "suggestion": None}]
+
+
 def app_theme(chosen: dict[str, Any] | None) -> dict[str, Any]:
     """The direction's theme tokens only (decision D3): colours, fonts, radius and density; light and dark, the
     kit's own type scale. No surface, colour area, motion or icon style: the kit decides how screens look."""
@@ -299,13 +327,8 @@ async def draft_app(
     kept = {op["operationId"] for op in extended["operations"]}
     removed = {op["operationId"] for op in backend["operations"]} - kept  # Story 25.1: no room on the dashboard
     if added or removed:
-        raw = _load(work / backend_file)
-        if removed:
-            raw = without_references(raw, removed)
-            raw["operations"] = [op for op in raw.get("operations") or [] if op.get("operationId") not in removed]
-        raw["operations"] = [*(raw.get("operations") or []), *added]
-        (work / backend_file).write_text(json.dumps(raw, indent=2, ensure_ascii=False) + "\n")
-        backend = validate_spec_data(raw).normalized
+        backend, edit_notes = _with_screen_operations(work / backend_file, backend, added, removed)
+        notes += edit_notes
     contract = build_contract(backend, build_plan(backend))
     screens = app_frontend_spec(backend, outline, app_theme(chosen), contract)
     (work / frontend_file).write_text(json.dumps(screens.spec, indent=2, ensure_ascii=False) + "\n")
