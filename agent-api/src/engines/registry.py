@@ -10,6 +10,9 @@ from .antigravity import AntigravityEngine
 from .claude_code import ClaudeCodeEngine
 from .fake_engine import FakeEngine, demo_scenario
 from .gemini_api import GeminiApiEngine
+from .json_cli import AgyJsonProvider, ClaudeJsonProvider
+from .llm import DRAFT_ENGINE_OF, LlmProvider
+from .llm_engine import LlmDraftEngine
 from .port import EngineContext, EngineHealth, ICodeEngine
 from .prompts import PromptLibrary
 from .workspace import directory_sha256
@@ -46,15 +49,15 @@ class EngineRegistry:
 
         if name is None:
             raise UnprocessableEntityException(
-                "No engine can draft specs: drafting runs on the Gemini API engine (set GEMINI_API_KEY)",
+                "No engine can draft specs: set LLM_PROVIDER (antigravity, claude_code) or GEMINI_API_KEY",
                 code=ErrorCode.ENGINE_UNKNOWN,
             )
         if name not in self.engines:
             raise UnprocessableEntityException(f"Engine '{name}' is not enabled", code=ErrorCode.ENGINE_UNKNOWN)
         if name not in self.draft_engine_names():
-            allowed = ", ".join(self.draft_engine_names()) or "none: set GEMINI_API_KEY"
+            allowed = ", ".join(self.draft_engine_names()) or "none"
             raise UnprocessableEntityException(
-                f"Engine '{name}' writes code only; drafts run on an API engine ({allowed})",
+                f"Engine '{name}' writes code only; drafts run in one turn on a JSON engine ({allowed})",
                 code=ErrorCode.ENGINE_UNKNOWN,
             )
         return name
@@ -131,22 +134,74 @@ def build_engine_registry(cfg=default_config) -> EngineRegistry:
             },
         ),
     ]
-    engines.append(
-        GeminiApiEngine(
-            api_key=cfg.gemini_api_key,
-            model=cfg.gemini_api_model,
-            allowed_root=root,
-            redactor=redactor,
-            default_timeout_s=cfg.gemini_api_timeout_seconds,
-            max_output_tokens=cfg.gemini_api_max_output_tokens,
-            thinking_budget=cfg.gemini_api_thinking_budget,
-        )
-    )
+    engines.append(_gemini_engine(cfg, root, redactor))
+    # Epic 24: the CLIs in a one-turn JSON mode draft specs (no tools, the inline prompts, structured output)
+    for provider in ("antigravity", "claude_code"):
+        engines.append(LlmDraftEngine(DRAFT_ENGINE_OF[provider], build_llm_provider(provider, cfg), root))
     if cfg.enable_fake_engine:
         engines.append(FakeEngine(allowed_root=root, scenario=demo_scenario(cfg.fake_engine_delay_seconds)))
     return EngineRegistry(engines, default=cfg.default_engine, draft_default=cfg.draft_engine_name)
 
 
+def _gemini_engine(cfg, root: Path, redactor) -> GeminiApiEngine:
+    return GeminiApiEngine(
+        api_key=cfg.gemini_api_key,
+        model=cfg.gemini_api_model,
+        allowed_root=root,
+        redactor=redactor,
+        default_timeout_s=cfg.gemini_api_timeout_seconds,
+        max_output_tokens=cfg.gemini_api_max_output_tokens,
+        thinking_budget=cfg.gemini_api_thinking_budget,
+    )
+
+
+def build_llm_provider(name: str | None = None, cfg=default_config) -> LlmProvider:
+    """The provider of the LLM-only steps (Epic 24): `name`, else LLM_PROVIDER / the draft engine's provider."""
+    name = name or cfg.llm_provider_name
+    root = Path(cfg.workspace_root)
+    redactor = default_redactor()
+    cli = {
+        "allowed_root": root,
+        "redactor": redactor,
+        "default_timeout_s": cfg.llm_timeout_seconds,
+        "max_output_bytes": cfg.engine_max_output_bytes,
+    }
+    if name == "antigravity":
+        return AgyJsonProvider(
+            binary=cfg.antigravity_bin,
+            model=cfg.antigravity_model,
+            auth=cfg.antigravity_auth,
+            gemini_api_key=cfg.gemini_api_key,
+            google_application_credentials=cfg.google_application_credentials,
+            effort=cfg.antigravity_json_effort,
+            **cli,
+        )
+    if name == "claude_code":
+        return ClaudeJsonProvider(
+            binary=cfg.claude_code_bin,
+            model=cfg.claude_code_model,
+            api_key=cfg.anthropic_api_key,
+            credentials_file=cfg.claude_credentials_file,
+            effort=cfg.claude_code_json_effort,
+            max_budget_usd=cfg.claude_code_json_max_budget_usd,
+            **cli,
+        )
+    if name == "gemini_api":
+        from .gemini_api.llm import GeminiLlmProvider
+
+        return GeminiLlmProvider(_gemini_engine(cfg, root, redactor))
+    if name == "fake":
+        from .fake_llm import FakeLlmProvider
+
+        return FakeLlmProvider()
+    raise UnknownEngineError(f"Unknown LLM provider '{name}'")
+
+
 @lru_cache
 def get_engine_registry() -> EngineRegistry:
     return build_engine_registry()
+
+
+@lru_cache
+def get_llm_provider() -> LlmProvider:
+    return build_llm_provider()

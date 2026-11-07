@@ -63,6 +63,8 @@ def test_two_workers_report_their_own_engines(client, login):
         "claude_code": True,
         "antigravity": True,
         "gemini_api": False,
+        "antigravity_json": False,
+        "claude_code_json": False,
         "fake": True,
     }
     by_name = {e["name"]: e for e in body["engines"]}

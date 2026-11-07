@@ -18,7 +18,7 @@ import { useCreateGeneration } from "./use-generation-mutations";
 
 const DEFAULT_OPTIONS: TGenerationOptionsFormValues = {
   engine: "claude_code",
-  draftEngine: "gemini_api",
+  draftEngine: "antigravity_json",
   maxRepairAttempts: 3,
   runTests: true,
   generateDockerfile: true,

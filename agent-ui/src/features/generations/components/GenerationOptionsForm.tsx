@@ -22,7 +22,9 @@ import type { TGenerationMode } from "../types";
 const ENGINE_LABELS: Record<string, string> = {
   claude_code: "Claude Code",
   antigravity: "Antigravity",
-  gemini_api: "Gemini API (drafts only)",
+  antigravity_json: "Antigravity, one turn (drafts only, account login)",
+  claude_code_json: "Claude Code, one turn (drafts only)",
+  gemini_api: "Gemini API (drafts only, billed per token)",
   fake: "Fake (test/demo: bundled examples only)",
 };
 

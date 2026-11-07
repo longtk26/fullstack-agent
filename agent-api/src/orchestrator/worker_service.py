@@ -233,7 +233,8 @@ class WorkerService:
             now = time.monotonic()
             try:
                 if now - last_health >= ENGINE_HEALTH_INTERVAL_S:
-                    served = [h for h in await self.registry.health() if h.name in self.engines]
+                    # only the engines this worker serves: no probe of an engine another worker (or nobody) runs
+                    served = [await self.registry.get(name).health() for name in self.engines]
                     await health_store.publish(served)
                     last_health = now
                 if now - last_reap >= config.reaper_interval_seconds:

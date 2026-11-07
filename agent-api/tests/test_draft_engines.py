@@ -57,9 +57,9 @@ def test_a_cli_draft_engine_is_refused_with_the_reason(tmp_path):
 
     registry = _registry(tmp_path, "cli", "gemini_api")
     assert registry.check_draft_engine("gemini_api") == "gemini_api"
-    with pytest.raises(UnprocessableEntityException, match="writes code only; drafts run on an API engine"):
+    with pytest.raises(UnprocessableEntityException, match="writes code only; drafts run in one turn on a JSON engine"):
         registry.check_draft_engine("cli")
-    with pytest.raises(UnprocessableEntityException, match="set GEMINI_API_KEY"):
+    with pytest.raises(UnprocessableEntityException, match="set LLM_PROVIDER"):
         _registry(tmp_path, "cli").check_draft_engine(None)
 
 

@@ -129,13 +129,21 @@ Agent-specific notes:
   purposes; the engine list marks it). Answers are one JSON envelope of `files` and RFC 6902 `patches`
   (`libs/jsonpatch.py`). `DRAFT_ENGINE` / `registry.draft_default` pick it for drafts; generation keeps the CLI
   engines. A repair round whose errors repeat the previous round's ends the loop. `docs/engines/gemini-api.md`.
-  Story 22.8: **drafting is API-only**: an engine drafts only when it says so (`ICodeEngine.drafts`: the Gemini API
-  engine and the fake); `EngineRegistry.check_draft_engine` refuses a CLI engine for `/spec-drafts` and a one-click
+  Story 22.8 / Epic 24: **drafting is one-turn only** (was "API-only"): an engine drafts only when it says so
+  (`ICodeEngine.drafts`: the Gemini API engine, the one-turn JSON engines `antigravity_json` / `claude_code_json`
+  (`engines/llm_engine.py` over `engines/json_cli.py`) and the fake); `EngineRegistry.check_draft_engine` refuses a CLI engine for `/spec-drafts` and a one-click
   `draftEngine` (422), and `draft_default` is never a CLI engine. An app draft asks for **structured output**
   (`EngineRequest.response_schema` → `responseJsonSchema`): `drafting/answer_schema.py` builds the answer's schema
   (the three files, rules typed per kind, only the keywords Gemini documents); a 400 for the schema retries without
   it. `drafting/app.fix_backend_defaults` fixes mechanical mistakes before any check (`now` defaults, a field list
   written as one string, a missing primary key); `repair_spec` is the last resort.
+- LLM providers (Epic 24): every LLM-only step asks `LlmProvider.json(step, prompt, schema, images)` (`engines/llm.py`)
+  once: `antigravity` (one `agy` stream-json turn with `--json-schema`, deny-all permissions, an empty scratch dir),
+  `claude_code` (`claude -p --output-format json --json-schema --tools ""`), `gemini_api`, or the test-only `fake`
+  (`engines/fake_llm.py`). The answer is checked against the schema in code (`libs/json_schema_check.py`) and asked
+  again once with its errors. `LLM_PROVIDER` picks it (`build_llm_provider` / `get_llm_provider`); `DRAFT_ENGINE`
+  defaults to its draft engine (`antigravity` → `antigravity_json`). The account / subscription logins cost $0
+  (`costSource: account`). `antigravity_json` runs on the host worker with `ANTIGRAVITY_AUTH=account`.
 - Designed pages (Epic 21): a page may be an element **tree** (`FrontendSpec` `pages[].tree` + `css`, `layout.chrome`
   / `footerTree`; `TreeNode` in `schema_v1.py`), as Frontend-Agent's site JSON writes it. `frontend_spec/trees.py`
   classifies node types (elements, shadcn primitives, Lucide icons, library sections, data components), checks the

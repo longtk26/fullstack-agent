@@ -19,7 +19,7 @@ RUNNER_NODE_IMAGE ?= bga-runner-node:1
 # Docker worker runs the other engines. Jobs are queued per engine, so each goes to a worker that can run it.
 comma := ,
 HOST_WORKER           := $(filter account,$(ANTIGRAVITY_AUTH))
-DOCKER_WORKER_ENGINES := $(if $(HOST_WORKER),claude_code$(comma)fake$(comma)gemini_api,)
+DOCKER_WORKER_ENGINES := $(if $(HOST_WORKER),claude_code$(comma)claude_code_json$(comma)fake$(comma)gemini_api,)
 HOST_WORKER_PID       := $(CURDIR)/.data/host-worker.pid
 HOST_WORKER_LOG       := $(CURDIR)/.data/host-worker.log
 
@@ -58,8 +58,8 @@ up: env runner runner-node $(if $(HOST_WORKER),template venv)
 # Worker on the host for Antigravity's account login (started by `make up`, stopped by `make down`).
 host-worker: host-worker-stop
 	@command -v $(or $(ANTIGRAVITY_BIN),agy) >/dev/null || echo "warning: agy not found on PATH; Antigravity will be unavailable"
-	@nohup bash -c 'cd $(API_DIR) && exec env $(DEV_ENV) WORKER_ENGINES=antigravity PREVIEW_WORKER=false $(PY)/python -u -m src.worker' > $(HOST_WORKER_LOG) 2>&1 & echo $$! > $(HOST_WORKER_PID)
-	@echo "host worker (antigravity) started: pid $$(cat $(HOST_WORKER_PID)), log .data/host-worker.log"
+	@nohup bash -c 'cd $(API_DIR) && exec env $(DEV_ENV) WORKER_ENGINES=antigravity$(comma)antigravity_json PREVIEW_WORKER=false $(PY)/python -u -m src.worker' > $(HOST_WORKER_LOG) 2>&1 & echo $$! > $(HOST_WORKER_PID)
+	@echo "host worker (antigravity, antigravity_json) started: pid $$(cat $(HOST_WORKER_PID)), log .data/host-worker.log"
 
 host-worker-stop:
 	@if [ -f $(HOST_WORKER_PID) ]; then \

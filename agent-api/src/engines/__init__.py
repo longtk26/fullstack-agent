@@ -21,8 +21,10 @@ from .registry import (
     build_engine_context,
     build_engine_registry,
     build_frontend_engine_context,
+    build_llm_provider,
     engine_skills,
     get_engine_registry,
+    get_llm_provider,
 )
 
 __all__ = [
@@ -48,6 +50,8 @@ __all__ = [
     "build_engine_context",
     "build_frontend_engine_context",
     "build_engine_registry",
+    "build_llm_provider",
     "engine_skills",
     "get_engine_registry",
+    "get_llm_provider",
 ]

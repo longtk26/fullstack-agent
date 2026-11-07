@@ -1,0 +1,46 @@
+#!/usr/bin/env python3
+"""TESTING ONLY (docs/development/test-doubles.md): stands in for `agy --input-format stream-json --output-format
+stream-json --json-schema <file>` (agy 1.5.2 event shapes, Story 24.1). MODE=<x> in the prompt picks the answer:
+ok, fenced (code-fenced text, no structured output), refuse_schema (refuses --json-schema), tool (tries view_file
+first), notjson, bad_shape (wrong shape until asked again), auth."""
+import json, os, pathlib, sys
+
+message = json.loads(sys.stdin.readline())
+prompt = message["message"]["content"]
+mode = next((w.split("=", 1)[1] for w in prompt.split() if w.startswith("MODE=")), "ok")
+argv = sys.argv
+schema = argv[argv.index("--json-schema") + 1] if "--json-schema" in argv else None
+home = pathlib.Path(os.environ["HOME"])
+records = sorted(home.glob("record-*.json"))
+home.joinpath(f"record-{len(records)}.json").write_text(json.dumps({
+    "argv": argv, "cwd": os.getcwd(), "files": sorted(os.listdir(".")), "prompt": prompt,
+    "schema": json.loads(pathlib.Path(schema).read_text()) if schema else None}))
+out = lambda obj: print(json.dumps(obj), flush=True)
+usage = {"input_tokens": 700, "output_tokens": 40, "thinking_tokens": 10, "cache_read_tokens": 0, "total_tokens": 750}
+
+if mode == "auth":
+    print("Error: authentication required. Run 'agy' to log in, then retry.", file=sys.stderr)
+    sys.exit(1)
+if mode == "refuse_schema" and schema:
+    out({"event": "result", "result": {"status": "ERROR", "error": "invalid json schema: unsupported keyword"}})
+    sys.exit(1)
+out({"event": "init", "conversation_id": "c-json", "init": {"cwd": os.getcwd(), "permission_mode": "request-review"}})
+if mode == "tool":
+    out({"event": "step_update", "step_update": {"step_index": 1, "state": "DONE", "step_type": "tool",
+         "tool_name": "view_file", "tool_info": {"name": "view_file", "error": "denied"}}})
+answer = {"files": {"answer.json": {"roles": ["member", "librarian"]}}, "message": "roles listed"}
+if mode == "bad_shape" and "did not follow the required JSON shape" not in prompt:
+    answer = {"files": "not an object"}
+if mode == "notjson":
+    text, structured = "I cannot answer that as JSON.", None
+elif mode in ("fenced", "refuse_schema") or not schema:
+    text, structured = "Here it is:\n```json\n" + json.dumps(answer) + "\n```", None
+else:
+    text, structured = json.dumps(answer), answer
+out({"event": "step_update", "step_update": {"step_index": 2, "state": "DONE", "step_type": "agent_response",
+     "text_delta": text, "duration_seconds": 1.0, "usage": usage}})
+result = {"conversation_id": "c-json", "status": "SUCCESS", "response": text, "duration_seconds": 1.2,
+          "num_turns": 1, "usage": usage}
+if structured is not None:
+    result["structured_output"] = structured
+out({"event": "result", "result": result})

@@ -70,6 +70,16 @@ class Config(BaseSettings):
     # (empty: the model's default) and the per-request timeout. Generation keeps the CLI engines.
     draft_engine: str | None = None
     gemini_api_model: str = "gemini-3.8-flash"
+    # Epic 24: the provider of every LLM-only step (drafting and its repairs, Epic 26's business workflow steps), each
+    # one turn with structured output: antigravity (agy, the account login: no per-token cost), claude_code (claude,
+    # the subscription login), gemini_api (per token) or fake (tests). Empty: drafting follows DRAFT_ENGINE as before.
+    llm_provider: Literal["antigravity", "claude_code", "gemini_api", "fake"] | None = None
+    llm_timeout_seconds: int = 900
+    # agy / claude `--effort` for the one-turn JSON steps (empty: the model's default); claude's spending cap per
+    # call on an API key (`--max-budget-usd`; the subscription login has none)
+    antigravity_json_effort: str | None = None
+    claude_code_json_effort: str | None = None
+    claude_code_json_max_budget_usd: float | None = None
     # Epic 21: after a frontend draft, design each page as an element tree (one engine call per page; the pages
     # of an API engine run in parallel). Off: the section pages as before.
     frontend_trees: bool = True
@@ -204,6 +214,10 @@ class Config(BaseSettings):
         "langsmith_agent_id",
         "gemini_image_api_key",
         "draft_engine",
+        "llm_provider",
+        "antigravity_json_effort",
+        "claude_code_json_effort",
+        "claude_code_json_max_budget_usd",
         "gemini_api_thinking_budget",
         mode="before",
     )
@@ -213,8 +227,24 @@ class Config(BaseSettings):
 
     @property
     def draft_engine_name(self) -> str:
-        """The engine that drafts specs (Story 18.10)."""
-        return self.draft_engine or ("gemini_api" if self.gemini_api_key else self.default_engine)
+        """The engine that drafts specs (Story 18.10; Epic 24: the LLM provider's draft engine when one is chosen)."""
+        if self.draft_engine:
+            return self.draft_engine
+        if self.llm_provider:
+            from src.engines.llm import DRAFT_ENGINE_OF
+
+            return DRAFT_ENGINE_OF[self.llm_provider]
+        return "gemini_api" if self.gemini_api_key else self.default_engine
+
+    @property
+    def llm_provider_name(self) -> str:
+        """The provider of the LLM-only steps (Epic 24): LLM_PROVIDER, else the draft engine's provider."""
+        if self.llm_provider:
+            return self.llm_provider
+        from src.engines.llm import DRAFT_ENGINE_OF
+
+        providers = {engine: provider for provider, engine in DRAFT_ENGINE_OF.items()}
+        return providers.get(self.draft_engine_name, "gemini_api" if self.gemini_api_key else "antigravity")
 
     @field_validator("claude_code_model", "antigravity_model", "image_provider", "gemini_api_model", mode="before")
     @classmethod

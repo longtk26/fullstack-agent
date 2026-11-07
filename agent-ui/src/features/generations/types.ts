@@ -20,7 +20,13 @@ export type TLaneStatus = "PENDING" | "RUNNING" | "VALIDATING" | "REPAIRING" | "
 
 export type TLanes = Partial<Record<TLane, TLaneStatus>>;
 
-export type TEngineName = "claude_code" | "antigravity" | "gemini_api" | "fake";
+export type TEngineName =
+  | "claude_code"
+  | "antigravity"
+  | "antigravity_json"
+  | "claude_code_json"
+  | "gemini_api"
+  | "fake";
 
 export type TGenerationOptions = {
   maxRepairAttempts: number;

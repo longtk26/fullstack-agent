@@ -1,0 +1,38 @@
+#!/usr/bin/env python3
+"""TESTING ONLY (docs/development/test-doubles.md): stands in for `claude -p --output-format json --json-schema
+'<schema>' --tools ""` (Story 24.1). Reads the prompt on stdin; MODE=<x> as in fake_agy_json (ok, fenced,
+refuse_schema, tool, notjson, bad_shape, auth)."""
+import json, os, pathlib, sys
+
+prompt = sys.stdin.read()
+mode = next((w.split("=", 1)[1] for w in prompt.split() if w.startswith("MODE=")), "ok")
+argv = sys.argv
+schema = json.loads(argv[argv.index("--json-schema") + 1]) if "--json-schema" in argv else None
+home = pathlib.Path(os.environ["HOME"])
+records = sorted(home.glob("record-*.json"))
+home.joinpath(f"record-{len(records)}.json").write_text(json.dumps({
+    "argv": argv, "cwd": os.getcwd(), "files": sorted(os.listdir(".")), "prompt": prompt, "schema": schema,
+    "env": {k: v for k, v in os.environ.items() if k in ("HOME", "CLAUDE_CONFIG_DIR", "ANTHROPIC_API_KEY")}}))
+usage = {"input_tokens": 500, "output_tokens": 30, "cache_read_input_tokens": 100, "cache_creation_input_tokens": 0}
+base = {"type": "result", "session_id": "s-json", "num_turns": 1, "duration_ms": 900, "total_cost_usd": 0.0042,
+        "usage": usage}
+if mode == "auth":
+    print(json.dumps({**base, "subtype": "error", "is_error": True, "result": "Invalid API key · Please run /login"}))
+    sys.exit(1)
+if mode == "refuse_schema" and schema:
+    print(json.dumps({**base, "subtype": "error", "is_error": True, "result": "--json-schema: invalid schema"}))
+    sys.exit(1)
+answer = {"files": {"answer.json": {"roles": ["member", "librarian"]}}, "message": "roles listed"}
+if mode == "bad_shape" and "did not follow the required JSON shape" not in prompt:
+    answer = {"files": "not an object"}
+result = {**base, "subtype": "success", "is_error": False}
+if mode == "tool":
+    result["permission_denials"] = [{"tool_name": "Read", "tool_input": {"file_path": "/etc/passwd"}}]
+if mode == "notjson":
+    result["result"] = "I cannot answer that as JSON."
+elif mode in ("fenced", "refuse_schema") or not schema:
+    result["result"] = "```json\n" + json.dumps(answer) + "\n```"
+else:
+    result["result"] = json.dumps(answer)
+    result["structured_output"] = answer
+print(json.dumps(result))

@@ -1,6 +1,14 @@
 import { z } from "zod";
 
-export const ENGINE_NAMES = ["claude_code", "antigravity", "gemini_api", "fake"] as const;
+// Epic 24: `antigravity_json` / `claude_code_json` draft in one CLI turn with structured output (no per-token cost).
+export const ENGINE_NAMES = [
+  "claude_code",
+  "antigravity",
+  "antigravity_json",
+  "claude_code_json",
+  "gemini_api",
+  "fake",
+] as const;
 
 export const generationOptionsSchema = z
   .object({

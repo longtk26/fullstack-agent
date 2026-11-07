@@ -53,7 +53,7 @@ class EngineUsage(BaseModel):
     cache_write_tokens: int | None = None
     thinking_tokens: int | None = None
     cost_usd: float | None = None
-    cost_source: Literal["reported", "estimated"] | None = None
+    cost_source: Literal["reported", "estimated", "account"] | None = None
     model: str | None = None
 
 
@@ -81,7 +81,7 @@ class ModelCall(BaseModel):
     ended_at: datetime
     latency_source: Literal["reported", "measured"] = "measured"
     cost_usd: float | None = None
-    cost_source: Literal["reported", "estimated"] | None = None
+    cost_source: Literal["reported", "estimated", "account"] | None = None
     tools: list[ToolCall] = []
 
     @property

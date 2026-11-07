@@ -14,6 +14,7 @@ not JSON is asked again once with the parse error, a truncated answer is `output
 """
 
 import asyncio
+import base64
 import json
 import time
 from collections.abc import Mapping
@@ -24,9 +25,9 @@ from typing import Any
 import httpx
 
 from src.configs import get_logger
-from src.libs.jsonpatch import PatchError, apply_patch
 from src.libs.redaction import Redactor
 
+from ..envelope import apply_envelope
 from ..port import (
     EngineContext,
     EngineErrorReason,
@@ -265,21 +266,31 @@ class GeminiApiEngine(ICodeEngine):
     def _headers(self) -> dict[str, str]:
         return {"x-goog-api-key": self.api_key or "", "Content-Type": "application/json"}
 
-    def _body(self, prompt: str, schema: dict[str, Any] | None = None) -> dict[str, Any]:
+    def _body(self, prompt: str, schema: dict[str, Any] | None = None, images: list | None = None) -> dict[str, Any]:
         generation: dict[str, Any] = {"responseMimeType": "application/json", "maxOutputTokens": self.max_output_tokens}
         if schema is not None:
             generation["responseJsonSchema"] = schema
         if self.thinking_budget is not None:
             generation["thinkingConfig"] = {"thinkingBudget": self.thinking_budget}
-        return {"contents": [{"role": "user", "parts": [{"text": prompt}]}], "generationConfig": generation}
+        parts: list[dict[str, Any]] = [{"text": prompt}]
+        for image in images or []:  # Story 24.2: inline image parts (Epic 26's screen judging)
+            data = base64.b64encode(image.data).decode()
+            parts.append({"inlineData": {"mimeType": image.media_type, "data": data}})
+        return {"contents": [{"role": "user", "parts": parts}], "generationConfig": generation}
 
     async def _post(
-        self, invocation_id: str, model: str, prompt: str, timeout: float, schema: dict[str, Any] | None = None
+        self,
+        invocation_id: str,
+        model: str,
+        prompt: str,
+        timeout: float,
+        schema: dict[str, Any] | None = None,
+        images: list | None = None,
     ) -> httpx.Response:
         async def send() -> httpx.Response:
             async with httpx.AsyncClient(timeout=timeout, transport=self.transport) as client:
                 url = f"{self.base_url}/models/{model}:generateContent"
-                return await client.post(url, headers=self._headers(), json=self._body(prompt, schema))
+                return await client.post(url, headers=self._headers(), json=self._body(prompt, schema, images))
 
         task = asyncio.create_task(send())
         self._requests[invocation_id] = task
@@ -327,48 +338,7 @@ class GeminiApiEngine(ICodeEngine):
 
     def _apply(self, workdir: Path, envelope: dict[str, Any]) -> tuple[list[str], list[str]]:
         """Writes the envelope's files and applies its patches; returns (changed files, problems)."""
-        changed: list[str] = []
-        problems: list[str] = []
-        files = envelope.get("files") or {}
-        if not isinstance(files, dict):
-            problems.append("'files' is not an object")
-            files = {}
-        for relative, content in files.items():
-            try:
-                target = ensure_inside(workdir / str(relative), workdir)
-            except Exception as exc:  # outside the workdir, or an odd name
-                problems.append(f"{relative}: {exc}")
-                continue
-            target.parent.mkdir(parents=True, exist_ok=True)
-            text = content if isinstance(content, str) else json.dumps(content, indent=2, ensure_ascii=False) + "\n"
-            target.write_text(text)
-            changed.append(str(relative))
-        patches = envelope.get("patches") or {}
-        if not isinstance(patches, dict):
-            problems.append("'patches' is not an object")
-            patches = {}
-        for relative, patch in patches.items():
-            try:
-                target = ensure_inside(workdir / str(relative), workdir)
-                document = json.loads(target.read_text())
-            except Exception as exc:
-                problems.append(f"{relative}: cannot patch ({exc})")
-                continue
-            if not isinstance(patch, list):
-                problems.append(f"{relative}: 'patches' entry is not a list")
-                continue
-            try:
-                patched = apply_patch(document, patch)
-            except PatchError as exc:
-                # Apply the operations before the failing one, so one bad pointer does not undo the round.
-                problems.append(f"{relative}: {exc}")
-                if exc.index == 0:
-                    continue
-                patched = apply_patch(document, patch[: exc.index])
-            target.write_text(json.dumps(patched, indent=2, ensure_ascii=False) + "\n")
-            if str(relative) not in changed:
-                changed.append(str(relative))
-        return changed, problems
+        return apply_envelope(workdir, envelope)
 
     def _redacted(self, response: httpx.Response) -> Any:
         try:
