@@ -227,6 +227,12 @@ def build_fixtures(spec: dict[str, Any], plan: dict[str, Any]) -> tuple[dict[str
                 else:
                     row[name] = _synthesize(column, entity, index, slug)
         records[entity] = rows
+    # Story 25.5: a person field (an owner, an assigned worker) names demo users of its role, so every demo user of
+    # that role has records of their own (and the second one others the first cannot reach)
+    from ..drafting.access import person_roles
+
+    person = person_roles(spec)
+    user_entity = ((spec.get("auth") or {}).get("userEntity") or "User") if spec.get("auth") else None
     for model in models:  # pass 2: foreign keys point at the parent's records
         dangling: dict[str, dict[str, Any]] = {}  # field → a seeded key no parent record has → the one it now names
         for index, row in enumerate(records[model["entity"]]):
@@ -238,6 +244,9 @@ def build_fixtures(spec: dict[str, Any], plan: dict[str, Any]) -> tuple[dict[str
                 table, _, _ = fk["references"].partition(".")
                 parent = by_table.get(table)
                 parent_rows = records.get(parent["entity"]) if parent else None
+                roles = person.get((model["entity"], name))
+                if roles and parent_rows and parent and parent["entity"] == user_entity:
+                    parent_rows = [r for r in parent_rows if r.get("role") in roles] or parent_rows
                 pk = next(c["apiName"] for c in parent["columns"] if c["primaryKey"]) if parent_rows else None
                 if name in row:
                     # A seed row's own key names a parent record, or (a drafted id such as an owner the demo users
@@ -628,7 +637,10 @@ class _Builder:
         if op["status"] == 204:
             responses[status] = {"description": "No content"}
         elif (action == "list" or (action is None and mock_plan == "records" and spec_op.get("pagination"))) and model:
-            list_name = op["responseDto"].removesuffix("Dto")
+            # a custom paginated list has no planned list DTO (Story 25.1, a real agy draft): named from its handler
+            list_name = (op.get("responseDto") or f"{op['handler'].title().replace('_', '')}Response").removesuffix(
+                "Dto"
+            )
             self.schemas[list_name] = _object(
                 {
                     "items": {"type": "array", "items": {"$ref": self.entity_schema(entity)}},

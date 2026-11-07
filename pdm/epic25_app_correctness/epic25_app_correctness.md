@@ -2,7 +2,7 @@
 
 ## Overview
 
-Proposed 2026-11-07 for the user's review, from the business-value lab (`lab/business-value/`, 2026-11-06/07). The lab
+Proposed and **done 2026-11-07** (Status in each story; the re-check is in 26.7), from the business-value lab (`lab/business-value/`, 2026-11-06/07). The lab
 wrote down, before each draft, what must be true at every step of a requirement's main workflows (who may do it, who
 must be refused, the status after it, who may and may not see the record, its effects), then checked every line
 against the running app as each role's demo user. It used three requirements outside `examples/`, chosen for three

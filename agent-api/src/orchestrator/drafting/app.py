@@ -6,6 +6,7 @@ contract. No direction cards, no designed pages, no Manage area. Every dynamic d
 legacy dynamic flow); static sites keep their own flow in `drafts.py`.
 """
 
+import copy
 import json
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
@@ -25,12 +26,16 @@ from ..backend.planner import build_plan
 from ..frontend.app.design import archetype_candidates, archetype_for, design_notes
 from ..frontend.app.outline import complete_outline
 from ..frontend.app.recipes import complete_looks, recommended_looks, style_words
-from ..frontend.app.screens import app_frontend_spec, ensure_aggregates
+from ..frontend.app.screens import app_frontend_spec, ensure_aggregates, without_references
 from ..frontend.app.typesetting import locale_of
 from ..integration.contract import build_contract
+from .access import secure_access
 from .answer_schema import app_answer_schema
 
-PROMPT = ("draft_app", "v3")  # v3 (Story 23.6): the design brief and areas; v2 (22.8): sign-in, roles, plugins
+PROMPT = (
+    "draft_app",
+    "v4",
+)  # v4 (Epic 25): the access rules; v3 (Story 23.6): the design brief and areas; v2 (22.8): sign-in, roles, plugins
 OUTLINE_FILE = "app-outline.json"  # what the model drafts next to the BackendSpec (code folds it into the FrontendSpec)
 # Outline examples shown in the prompt, relative to EXAMPLES_DIR; they fit `specs/flashcards.json`,
 # `specs/two-entity.json` and `specs/workshop-bookings.json` (the fake engine drafts from them too).
@@ -103,6 +108,26 @@ NOW_WORDS = frozenset({"today", "current_date", "current_timestamp", "now()", "c
 # Story 22.8: `"scope": "pitchId"`, which the validator then read letter by letter).
 RULE_LISTS = {"noOverlap": ("scope",), "uniqueTogether": ("fields",), "immutableAfter": ("states",)}
 OPERATION_LISTS = ("filters", "sort", "search", "rules")
+
+
+def apply_access_rules(work: Path, backend_file: str) -> list[dict[str, Any]]:
+    """Epic 25 (`drafting/access.py`): records tied to a person private, actions guarded by their role, a status with
+    a flow changed only by its actions, records staff create for someone owned by that someone. Applied only when the
+    BackendSpec stays valid; else the draft keeps its own policies, with a note saying why."""
+    data = _load(work / backend_file)
+    if not isinstance(data, dict):
+        return []
+    secured = copy.deepcopy(data)
+    notes = secure_access(secured)
+    if not notes:
+        return []
+    report = validate_spec_data(secured).report
+    if not report.valid:
+        first = report.errors[0].message if report.errors else "invalid"
+        message = f"The access rules were left out: they would make the BackendSpec invalid ({first})"
+        return [{"spec": "backend", "path": "/policies", "message": message, "suggestion": None}]
+    (work / backend_file).write_text(json.dumps(secured, indent=2, ensure_ascii=False) + "\n")
+    return notes
 
 
 def fix_backend_defaults(work: Path, backend_file: str) -> list[dict[str, Any]]:
@@ -230,6 +255,9 @@ async def draft_app(
         if repaired.status != EngineStatus.OK and not check.ok:
             error = f"Repair {attempts} stopped: {repaired.error_message or repaired.status}"
             break
+    if check.ok:  # Epic 25: who may see and do what, correct by default (general rules, no model call)
+        notes += apply_access_rules(work, backend_file)
+        check = check_draft(work, GenerationMode.BACKEND)
     await progress("validating")
     backend = validate_spec_data(_load(work / backend_file)).normalized if check.ok else None
     if backend is None:
@@ -247,8 +275,13 @@ async def draft_app(
     # Story 22.3: the dashboard's figures are aggregate operations, templated like CRUD; code adds the missing ones.
     extended, outline, aggregate_notes = ensure_aggregates(backend, outline)
     added = [op for op in extended["operations"] if op not in backend["operations"]]
-    if added:
+    kept = {op["operationId"] for op in extended["operations"]}
+    removed = {op["operationId"] for op in backend["operations"]} - kept  # Story 25.1: no room on the dashboard
+    if added or removed:
         raw = _load(work / backend_file)
+        if removed:
+            raw = without_references(raw, removed)
+            raw["operations"] = [op for op in raw.get("operations") or [] if op.get("operationId") not in removed]
         raw["operations"] = [*(raw.get("operations") or []), *added]
         (work / backend_file).write_text(json.dumps(raw, indent=2, ensure_ascii=False) + "\n")
         backend = validate_spec_data(raw).normalized

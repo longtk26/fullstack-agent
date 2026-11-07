@@ -31,12 +31,27 @@ so a run never stops on the generator's own mistakes.
 
 ## Acceptance criteria
 
-- [ ] No dashboard exceeds 6 items; every aggregate in the BackendSpec is on a screen.
-- [ ] The mocks answer 409 for each separately unique field, as the backend does; `frontend:scenarios` passes for
+- [x] No dashboard exceeds 6 items; every aggregate in the BackendSpec is on a screen.
+- [x] The mocks answer 409 for each separately unique field, as the backend does; `frontend:scenarios` passes for
       any entity with more than one unique field (the lab draft that showed it is kept as a regression fixture).
-- [ ] A draft the generation would refuse is refused by the draft check, with the same message.
+- [x] A draft the generation would refuse is refused by the draft check, with the same message.
 
 ## Verify
 
 `make lint`, `make test`, `BGA_SANDBOX_TESTS=1 make test` (mocks), and the lab draft that showed F5 and F6
 (`lab/business-value/runs/buyright-1`) on the fake engine as a regression fixture.
+
+## Status
+
+**Done 2026-11-07.** `ensure_aggregates` fills the dashboard while there is room and drops an aggregate that has no
+screen from the BackendSpec (and from the drafted file, `drafting/app.py`), with a note; the mock checks each
+separately unique field on its own (`mocks/plugins.ts`) and answers 409 with that field. Tests:
+`test_app_screens.py::test_the_dashboard_never_passes_its_cap_and_every_aggregate_has_a_screen`, the mock assertion in
+`test_app_plugins.py`.
+
+Step 3 needed no change: the app draft's final check already validates the planned FrontendSpec (the lab's draft
+ended NEEDS_REVIEW with exactly this error; the lab submitted it anyway). Two more pipeline crashes, found by the real
+`agy` drafts of this epic, were fixed here: `"pagination": true` on a custom list (the normalizer expanded it only for
+CRUD lists; the contract crashed) and a custom paginated list without a planned list DTO
+(`test_access_rules.py::test_pagination_true_on_a_custom_list_means_the_default_limits`). The sandbox scenarios for
+the mock were not run (the user's limit on slow tests); the real generations of 26.7 run them.

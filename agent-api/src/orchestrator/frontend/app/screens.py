@@ -25,6 +25,7 @@ from typing import Any
 
 from src.modules.shared.domain.backend_spec import validate_spec_data
 from src.modules.shared.domain.backend_spec.naming import pluralize, to_camel, to_kebab, to_pascal
+from src.modules.shared.domain.frontend_spec.app import MAX_DASHBOARD
 from src.modules.shared.domain.frontend_spec.coverage import uncovered_operations
 from src.orchestrator.integration.contract import build_contract, contract_operations, resolve
 
@@ -247,8 +248,12 @@ def ensure_aggregates(
             notes.append(_note(f"/app/dashboard/{index}", f"'{item['label']}' is computed by {op_id} (added)"))
         used.add(found["operationId"])
         dashboard.append({**item, "operationId": found["operationId"]})
+    dropped: list[str] = []
     for op in operations:  # every aggregate on a screen (coverage by construction)
         if op.get("type") != "aggregate" or op["operationId"] in used or op.get("entity") not in entities:
+            continue
+        if len(dashboard) >= MAX_DASHBOARD:  # Story 25.1: no room; an aggregate without a screen leaves the spec
+            dropped.append(op["operationId"])
             continue
         aggregate = op.get("aggregate") or {}
         label = op.get("summary") or humanize(op["operationId"].split(".", 1)[1])
@@ -263,7 +268,21 @@ def ensure_aggregates(
             }
         )
         used.add(op["operationId"])
+    if dropped:
+        operations = [op for op in operations if op["operationId"] not in dropped]
+        backend = without_references(backend, set(dropped))
+        names = ", ".join(dropped)
+        notes.append(_note("/app/dashboard", f"The dashboard holds {MAX_DASHBOARD} items; left out: {names}"))
     return {**backend, "operations": operations}, {**outline, "dashboard": dashboard}, notes
+
+
+def without_references(value: Any, ids: set[str]) -> Any:
+    """The BackendSpec without the given operation ids wherever a list names them (policies, rules)."""
+    if isinstance(value, dict):
+        return {key: without_references(item, ids) for key, item in value.items()}
+    if isinstance(value, list):
+        return [without_references(item, ids) for item in value if not (isinstance(item, str) and item in ids)]
+    return value
 
 
 def parent_lists(backend: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -752,7 +771,9 @@ class _Screens:
             self.place(op_id)
             actions.append(action)
         flow = self.transitions.get(entity) or {}
-        if flow and "update" in crud:  # Story 22.7: a move per state, shown when `transition:<STATE>` is allowed
+        # Story 22.7: a move per state, shown when `transition:<STATE>` is allowed; Story 25.3: not when the update
+        # cannot write the status (it moves only through the record's own actions)
+        if flow and "update" in crud and flow.get("field") in self.request(crud["update"])[0]:
             states = [state for targets in (flow.get("transitions") or {}).values() for state in targets]
             for state in dict.fromkeys(states):
                 move: dict[str, Any] = {

@@ -261,14 +261,16 @@ export function ruleRefusal(op: TPluginOperation, current: TRecord | null, chang
       if (clash) return contractError(op, rule.code, "This is taken", rule.status);
     }
   }
-  // a unique field (the contract's CONFLICT with its fields: a tag's name, an account's email)
+  // unique fields (the contract's CONFLICT lists each separately unique column: a tag's name, an account's email);
+  // each is unique on its own, as the backend's unique indexes are (Story 25.1). Fields unique only together are
+  // the uniqueTogether rule above.
   const conflict = op.errors?.find((item) => item.code === "CONFLICT" && item.fields?.length);
   if (conflict && op.entity) {
     const merged = { ...(current ?? {}), ...changes };
-    const fields = conflict.fields as string[];
-    if (fields.every((field) => merged[field] !== undefined)) {
-      const clash = records(op.entity).some((row) => row !== current && fields.every((field) => String(row[field]) === String(merged[field])));
-      if (clash) return error(conflict.status, conflict.code, conflict.message, conflict.fields);
+    for (const field of conflict.fields as string[]) {
+      if (merged[field] === undefined || merged[field] === null) continue;
+      const clash = records(op.entity).some((row) => row !== current && String(row[field]) === String(merged[field]));
+      if (clash) return error(conflict.status, conflict.code, conflict.message, [field]);
     }
   }
   return null;

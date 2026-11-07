@@ -18,6 +18,7 @@ from typing import Any
 
 from src.modules.shared.domain.backend_spec.naming import to_snake
 
+from ..drafting.access import owner_from_request, person_roles
 from .auth_jwt import DEMO_HASH, _auth, _demo_login
 from .base import ActionCheck, CaseContext, Code, Plugin, RepositoryFilter, RouterParam
 
@@ -188,13 +189,18 @@ class PoliciesPlugin(Plugin):
             )
         if not owned:
             return
-        # two demo users without a bypass role: each owns records the other cannot reach
+        # Story 25.5: two demo users of every role whose users own records (else of the first role without a
+        # bypass): each owns records the other cannot reach, so "another user" can be shown and checked
         block = next(seed for seed in spec.get("seed", []) if seed["entity"] == auth["userEntity"])
         demo = [record for record in block["records"] if record.get("passwordHash") == DEMO_HASH]
+        person = {role for roles in person_roles(spec).values() for role in roles}
         plain = [record for record in demo if record["role"] not in bypass]
-        if plain and len(plain) < 2:
-            other = copy.deepcopy(plain[0])
-            other[auth["loginField"]] = _demo_login(auth["loginField"], f"{plain[0]['role']}-2")
+        firsts = [record for record in demo if record["role"] in person] or plain[:1]
+        for first in firsts:
+            if sum(1 for record in demo if record["role"] == first["role"]) >= 2:
+                continue
+            other = copy.deepcopy(first)
+            other[auth["loginField"]] = _demo_login(auth["loginField"], f"{first['role']}-2")
             block["records"].append(other)
 
     @staticmethod
@@ -232,6 +238,7 @@ class PoliciesPlugin(Plugin):
             model = models[module["entity"]]
             by_api = {column["apiName"]: column for column in model["columns"]}
             owner = None
+            readers: list[dict[str, Any]] = []  # the ownership fields that guard the entity's reads
             visible = hidden.get(module["entity"])
             for op in module["operations"]:
                 if visible and op.get("action") in ("list", "get"):
@@ -266,6 +273,8 @@ class PoliciesPlugin(Plugin):
                 if policy is None:
                     continue
                 owner = by_api[policy["ownerField"]]
+                if op.get("action") in ("get", "list"):
+                    readers.append(owner)
                 deny = policy.get("denyStatus") or 404
                 op["auth"]["ownership"] = {
                     "field": owner["apiName"],
@@ -281,7 +290,9 @@ class PoliciesPlugin(Plugin):
                         module["tests"].append(_test(op, "bypass", 200, "a bypass role reaches any record"))
                 elif op.get("action") == "list" and "{" not in op["path"]:
                     module["tests"].append(_test(op, "own_records", 200, "the list shows the caller's records"))
-            if owner is not None:
+            # Story 25.2: the owner is the field that guards the reads (an action's assignee field is not the owner)
+            owner = readers[0] if readers else owner
+            if owner is not None and not owner_from_request(spec, module["entity"]):
                 self._owner_from_user(plan, module, model, owner)
         plan["unresolved"] = [entry for entry in plan["unresolved"] if entry["kind"] not in ("auth", "policies")]
 

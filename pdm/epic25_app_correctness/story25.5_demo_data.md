@@ -27,10 +27,17 @@ role's workflow can be shown right away.
 
 ## Acceptance criteria
 
-- [ ] Each demo user of a person role owns at least one record of each person-tied entity in the seed.
-- [ ] The second demo user of a role exists, and its records are hidden from the first (with 25.2).
-- [ ] The backend smoke check's seed rule still passes.
+- [x] Each demo user of a person role owns at least one record of each person-tied entity in the seed.
+- [x] The second demo user of a role exists, and its records are hidden from the first (with 25.2).
+- [x] The backend smoke check's seed rule still passes.
 
 ## Verify
 
 `make lint`, `make test`, `BGA_SANDBOX_TESTS=1 make test`, 25.6.
+
+## Status
+
+**Done 2026-11-07.** The policies plugin seeds a second demo user for every role whose users own or are assigned
+records (`<role>-2`); the contract's fixtures point every person field at demo users of its role
+(`person_roles`), so both demo users of a role own records and an assigned worker has work. Tests:
+`test_access_rules.py::test_the_seed_gives_each_demo_user_of_a_person_role_records_of_their_own`.

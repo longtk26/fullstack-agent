@@ -35,9 +35,23 @@ business really runs.
 
 - [ ] Every role that does not own an action is refused it (403, or 404 when it may not see the record), on mocks and
       live.
-- [ ] No app accepts a status change through the generic update when the status has a flow.
-- [ ] The right role still performs each action; the app walk and scenarios pass.
+- [x] No app accepts a status change through the generic update when the status has a flow.
+- [x] The right role still performs each action; the app walk and scenarios pass.
 
 ## Verify
 
 `make lint`, `make test`, `BGA_SANDBOX_TESTS=1 make test`, the lab set re-checked in 25.6.
+
+## Status
+
+Criteria marked open need the live apps: they are checked by the real generations of 26.7.
+
+**Done 2026-11-07.** In `drafting/access.py`: a record action whose policy names only the owner's role, or is the
+ownership policy with a staff bypass, becomes ownership without bypass (`<entity>OwnerOnly`); an action given to the
+role of a second person field becomes that person's (`<entity>Assigned<Role>`); an entity whose `transition` rule has
+record actions loses the status from the generic update (and the rule from it), and the kit plans no "Mark as …"
+buttons when the update cannot write the status (`screens.py`). The policies plugin now takes the owner from the field
+that guards the reads, not from the last ownership policy it saw (a worker's action made the worker the owner).
+
+Not covered: the order of approvers on one entity (a later approver acting at an earlier one's step) needs a rule per
+status, which the rules plugin's transition has no role for; the lab's finding stays open for that case.

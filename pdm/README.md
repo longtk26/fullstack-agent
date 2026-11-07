@@ -87,7 +87,7 @@ lane, tracing, results, and an OpenAPI explorer that sends test calls to the run
 | 22 | [Dynamic app frontend: screens from the contract, separate from static sites](epic22_dynamic_app_frontend/epic22_dynamic_app_frontend.md) (done 2026-11-06; the only dynamic flow) | Phase 5 | 8 |
 | 23 | [App design: layouts that fit the data, looks to choose from, areas per role](epic23_app_design/epic23_app_design.md) (implemented 2026-11-06 on the fake engine; real tests next) | Phase 5 | 13 |
 | 24 | [Draft provider: Antigravity or Claude Code (one-turn JSON), or the Gemini API](epic24_draft_provider/epic24_draft_provider.md) (done 2026-11-07) | Phase 5 | 4 |
-| 25 | [App correctness: who may do it, who may see it, demo data that works](epic25_app_correctness/epic25_app_correctness.md) (proposed 2026-11-07, from the business-value lab) | Phase 5 | 6 |
+| 25 | [App correctness: who may do it, who may see it, demo data that works](epic25_app_correctness/epic25_app_correctness.md) (done 2026-11-07, from the business-value lab) | Phase 5 | 6 |
 | 26 | [Main business workflows: discovered, shown as a guided tour, evaluated](epic26_business_workflows/epic26_business_workflows.md) (proposed 2026-11-07) | Phase 5 | 7 |
 
 ### Suggested delivery order
@@ -170,7 +170,7 @@ workflow to be built before real generation works.
 | 10 | re-planned 2026-11-04, backend only since 2026-11-05: 12 stories in checkpoints A–E (contract and framework, core plugins, infrastructure, integrations, domain shapes); in progress on `feat/epic10-backend-plugins`: 10.0b, 10.1 (Checkpoint A), 10.2–10.4 (Checkpoint B: JWT auth, roles and ownership, business rules) committed; 10.5 (file storage), 10.6 (jobs and events), 10.7 (email) committed (Checkpoint C); 10.8 (webhooks), 10.9 (payments) committed (Checkpoint D); all 12 stories done 2026-11-05 (Checkpoints A–E); open items in the stories' deviations; branch under review |
 | 22 | done 2026-11-06: 8 stories in checkpoints A–D (the flow, forms, plugin frontends, switch-over); the legacy dynamic flow is removed (22.8) |
 | 23 | implemented 2026-11-06 on `feat/epic23-app-design` (gate 23.0 with 10 real Gemini drafts, then 23.1–23.12 on the fake engine, no paid call, per the user); the real tests (Gemini drafts, live backends, app walks) and the review are next |
-| 24, 25, 26 | 24 done 2026-11-07 (`LLM_PROVIDER=antigravity`: one-turn `agy` JSON drafts, $0 on the account login); 25 and 26 in progress on `epic-24-25-26`. Proposed 2026-11-07 from the business-value lab (`lab/business-value/`: FixPoint, BuyRight, HomeFix). Order: 24 (draft provider, for cost), 25 (app correctness; 25.1 first), 26 (business workflows, tour, evaluation tab) |
+| 24, 25, 26 | 24 done 2026-11-07 (`LLM_PROVIDER=antigravity`: one-turn `agy` JSON drafts, $0 on the account login); 25 done 2026-11-07 (access rules by default; its live re-check moves to 26.7); 26 in progress on `epic-24-25-26`. Proposed 2026-11-07 from the business-value lab (`lab/business-value/`: FixPoint, BuyRight, HomeFix). Order: 24 (draft provider, for cost), 25 (app correctness; 25.1 first), 26 (business workflows, tour, evaluation tab) |
 | 11, 16 | open (16 to be revised after Epic 20) |
 
 ### Next up (re-planned 2026-10-30)

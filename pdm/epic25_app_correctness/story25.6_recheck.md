@@ -24,3 +24,8 @@ found in.
 ## Verify
 
 Real runs with the user's go (Antigravity on the account login; Gemini API only if the user chooses it).
+
+## Status
+
+**Moved into 26.7 (2026-11-07).** The re-check runs with Epic 26's evaluation (the lab's checker, now in the product)
+on the user's limit of two requirements and `agy` only, instead of the lab's Gemini-based scripts. Results in 26.7.

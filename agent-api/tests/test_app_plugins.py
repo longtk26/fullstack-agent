@@ -161,6 +161,9 @@ def test_the_mock_api_acts_as_the_plugins(workshop):
         "export function ruleRefusal(",
     ):
         assert check in handlers, check
+    # Story 25.1 (F6): separately unique fields are each unique on their own, as the backend's indexes are
+    assert "for (const field of conflict.fields as string[])" in handlers
+    assert "fields.every((field) => String(row[field])" not in handlers.split("uniqueTogether")[-1]
 
 
 @pytest.mark.parametrize("mode", ["local", "cookie"])

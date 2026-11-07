@@ -326,3 +326,38 @@ def test_attaching_an_app_spec_changes_none_of_its_links(name):
     spec = _plan(backend, raw)[3].spec
     fixed, notes = autofix_frontend_spec(copy.deepcopy(spec))
     assert fixed["pages"] == spec["pages"] and notes == []
+
+
+def test_the_dashboard_never_passes_its_cap_and_every_aggregate_has_a_screen():
+    """Story 25.1 (F5): aggregates the draft wrote that no dashboard item names join the dashboard while there is room;
+    the rest leave the BackendSpec with a note, so the FrontendSpec stays valid and coverage holds."""
+    backend, raw = _example("two-entity")
+    extra = [
+        ("task.countDone", {"fn": "count", "filters": {"status": "DONE"}}),
+        ("task.countInProgress", {"fn": "count", "filters": {"status": "IN_PROGRESS"}}),
+        ("task.sumPriority", {"fn": "sum", "field": "priority"}),
+        ("task.avgPriority", {"fn": "avg", "field": "priority"}),
+        ("task.maxPriority", {"fn": "max", "field": "priority"}),
+    ]
+    spec = json.loads((EXAMPLES / "specs" / "two-entity.json").read_text())
+    spec["operations"] += [
+        {
+            "operationId": op_id,
+            "type": "aggregate",
+            "entity": "Task",
+            "method": "GET",
+            "summary": op_id,
+            "path": f"/tasks/aggregate/{op_id.split('.')[1].lower()}",
+            "aggregate": aggregate,
+        }
+        for op_id, aggregate in extra
+    ]
+    result = validate_spec_data(spec)
+    assert result.report.valid, result.report.errors
+    extended, outline, _, screens = _plan(result.normalized, raw)
+    assert len(outline["dashboard"]) == 6, "3 named + 3 of the 5 unnamed aggregates"
+    aggregates = {op["operationId"] for op in extended["operations"] if op["type"] == "aggregate"}
+    on_dashboard = {item["operationId"] for item in outline["dashboard"]}
+    assert aggregates == on_dashboard, "an aggregate without a screen left the BackendSpec"
+    assert validate_frontend_spec_data(screens.spec).report.valid
+    assert uncovered_operations(screens.spec, build_contract(extended, build_plan(extended))) == []

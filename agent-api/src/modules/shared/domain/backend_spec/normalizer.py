@@ -35,7 +35,8 @@ def normalize_spec(spec: BackendSpecV1) -> dict[str, Any]:
         operation.auth = operation.auth or "none"
         if operation.type == "custom" and operation.entity is None:
             operation.entity = owning_entity(operation, normalized.entities)
-        if operation.action == "list" and operation.pagination in (None, True):
+        if (operation.action == "list" and operation.pagination is None) or operation.pagination is True:
+            # Story 25.1: `true` on any operation (a custom list too) means the default limits
             operation.pagination = Pagination()
         elif operation.pagination is False:
             operation.pagination = None

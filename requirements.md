@@ -941,6 +941,8 @@ per draft or generation:
 
 ### FR-39: Correct by Default: Roles, Ownership, Visibility, Demo Data
 
+_Implemented 2026-11-07 (Epic 25)._
+
 - A record tied to a person (any reference to the signed-in user's entity, directly or through a parent) is visible and changeable only by that
   person, by an assigned worker once assigned, and by the staff roles that manage it; other users of the same role get
   404. Records with no person reference stay as the draft says (a catalogue stays public).

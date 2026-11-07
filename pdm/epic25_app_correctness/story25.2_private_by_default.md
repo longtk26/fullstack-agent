@@ -37,10 +37,27 @@ what their work needs), without having to spell it out in the requirement.
 
 - [ ] For every person-tied entity, another user of the same role gets 404 on get and does not see the record in
       lists, on mocks and live.
-- [ ] Staff roles still see what their area needs; an assigned worker sees a record only once assigned to them.
-- [ ] Records with no person reference (reference data, catalogues) are unchanged; the static and app golden tests
+- [x] Staff roles still see what their area needs; an assigned worker sees a record only once assigned to them.
+- [x] Records with no person reference (reference data, catalogues) are unchanged; the static and app golden tests
       pass.
 
 ## Verify
 
 `make lint`, `make test`, `BGA_SANDBOX_TESTS=1 make test`, the lab set re-checked in 25.6.
+
+## Status
+
+Criteria marked open need the live apps: they are checked by the real generations of 26.7.
+
+**Done 2026-11-07.** `drafting/access.py` (`secure_access`, run in the app draft after the BackendSpec is valid and
+only when it stays valid, `drafting/app.apply_access_rules`): the person-tied entities are found from the draft's
+ownership policies or a field named after a role (`<role>Id`, `<role>UserId`); reads, edits and record actions without
+a policy get the owner's policy (staff bypass), figures over private records become the staff's, and every change is a
+note in the draft's assumptions. `draft_app@v4` explains the rule in one paragraph. Tests on synthetic specs:
+`tests/test_access_rules.py`. Planned offline on the three lab drafts: valid BackendSpec, valid FrontendSpec, no pair
+issue, nothing uncovered.
+
+Deviations: a record reached only through a parent (a child of a person-tied parent) is not made private by itself
+(no draft in the lab needed it; the draft prompt asks for it). An assigned worker opens a record by its id (the
+worker's role bypasses the read) but does not get a list limited to assigned records; their own list is the draft's
+custom operation. The re-check is 26.7's (25.6).

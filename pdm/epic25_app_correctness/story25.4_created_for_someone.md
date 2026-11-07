@@ -39,9 +39,24 @@ user, so they see it in their own account and carry on its workflow themselves.
 
 - [ ] When a staff role creates a person-tied record, the record belongs to the user chosen in the form, who then sees
       it and performs their own actions on it, on mocks and live.
-- [ ] A user of the owner's role cannot create a record that belongs to someone else.
-- [ ] Records a user creates for themselves are unchanged (`currentUser`); the static and app golden tests pass.
+- [x] A user of the owner's role cannot create a record that belongs to someone else.
+- [x] Records a user creates for themselves are unchanged (`currentUser`); the static and app golden tests pass.
 
 ## Verify
 
 `make lint`, `make test`, `BGA_SANDBOX_TESTS=1 make test`; measured on real requirements in 25.6.
+
+## Status
+
+Criteria marked open need the live apps: they are checked by the real generations of 26.7.
+
+**Done 2026-11-07.** When only staff roles create a person's record, `drafting/access.created_for_someone` links the
+owner field to the user entity (a relationship), declares the user entity (`role` included) and a user directory
+(`user.list` / `user.get`) for those roles only, and the policies plugin leaves the owner field to the request
+(`owner_from_request`). The screens plan the create form on the person's page in the staff area
+(`/…/users/[id]/<records>/new`): staff pick the person from the directory, then create the record for them. An
+assigned worker's field is linked the same way. Step 3's choice: the person must already have an account (picker
+only); linking on a later sign-up is not done.
+
+Tests: `tests/test_access_rules.py` (staff creating, a person creating their own, the contract's `reference` source,
+the directory's policy).

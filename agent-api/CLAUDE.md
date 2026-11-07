@@ -144,6 +144,12 @@ Agent-specific notes:
   again once with its errors. `LLM_PROVIDER` picks it (`build_llm_provider` / `get_llm_provider`); `DRAFT_ENGINE`
   defaults to its draft engine (`antigravity` → `antigravity_json`). The account / subscription logins cost $0
   (`costSource: account`). `antigravity_json` runs on the host worker with `ANTIGRAVITY_AUTH=account`.
+- Access rules (Epic 25): `orchestrator/drafting/access.py` runs on every valid app draft (`drafting/app.apply_access_rules`,
+  kept only when the BackendSpec stays valid, each change a note): records tied to a person (an ownership owner field or
+  a `<role>Id` field) are private with the staff's bypass; owner actions lose the bypass; an assigned worker's actions
+  are theirs; a status with a flow changes only through its actions (no "Mark as" buttons then); a person's record that
+  only staff create names its person (a staff-only `user.list` directory, the policies plugin's `owner_from_request`);
+  the fixtures point person fields at demo users of their role, two per person role (`person_roles`).
 - Designed pages (Epic 21): a page may be an element **tree** (`FrontendSpec` `pages[].tree` + `css`, `layout.chrome`
   / `footerTree`; `TreeNode` in `schema_v1.py`), as Frontend-Agent's site JSON writes it. `frontend_spec/trees.py`
   classifies node types (elements, shadcn primitives, Lucide icons, library sections, data components), checks the
