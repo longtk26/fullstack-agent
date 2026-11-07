@@ -167,11 +167,15 @@ class FakeBackend:
             self.records[record["id"]] = record
             return Response(201, record)
         parts = path.strip("/").split("/")
+        if method == "GET" and (parts[0] == "desk" or parts[:2] == ["requests", "desk"]):
+            # staff's own read of a request (as `GET /repair-requests/jobs/{id}`), under /desk or /requests/desk
+            record = self.records.get(parts[-1])
+            if record is None:
+                return Response(404, {"error": "not found"})
+            return Response(200, record) if role == "staff" else Response(404, {"error": "not found"})
         record = self.records.get(parts[1]) if len(parts) > 1 else None
         if record is None:
             return Response(404, {"error": "not found"})
-        if parts[0] == "desk" and method == "GET":  # staff's own read of a request (as `GET /jobs/{id}`)
-            return Response(200, record) if role == "staff" else Response(404, {"error": "not found"})
         if len(parts) == 2 and method == "GET":
             staff = role == "staff" and "staff_reads_at_desk" not in self.bugs
             mine = record["owner"] == user or staff or "everyone_reads" in self.bugs
@@ -417,4 +421,55 @@ def test_a_role_that_reads_through_its_own_operation_sees_the_record(backend):
 
     line = run(with_desk)
     assert line["result"] == "pass" and "/desk/" in line["evidence"]["call"], line
+    # drafted without a response type (HomeFix's `getJob`): the same resource's untyped read counts too
+    typed = [{**op, "response": fields} if op["operationId"] == "request.get" else op for op in OPERATIONS]
+    same = typed + [{"operationId": "request.atDesk", "method": "GET", "path": "/requests/desk/{id}"}]
+    line = run(same)
+    assert line["result"] == "pass" and "/requests/desk/" in line["evidence"]["call"], line
+    other = typed + [{"operationId": "desk.get", "method": "GET", "path": "/desk/{id}"}]
+    assert run(other)["result"] == "fail", "an untyped read of another resource is not this record's"
     assert run(OPERATIONS)["result"] == "fail", "no other read: the staff cannot see it"
+
+
+def test_the_screens_are_taken_on_the_live_api_never_the_mocks():
+    """HomeFix (2026-11-08): a frontend preview started again runs on the mocks, where the records the checker created
+    through the live API do not exist, so every record page was "Could not load this". The evaluation switches only the
+    preview to the live API (`switch-frontend`, never the generation's integration: D4) and takes no screenshots when
+    it does not get there."""
+    from src.modules.shared.domain.enums import PreviewStatus
+
+    backend = SimpleNamespace(url="http://localhost:18001", status=PreviewStatus.RUNNING, mock_api=None)
+
+    def frontend(mock_api):
+        return SimpleNamespace(url="http://localhost:18002", status=PreviewStatus.RUNNING, mock_api=mock_api)
+
+    class Redis:
+        def __init__(self):
+            self.sent: list[dict[str, Any]] = []
+
+        async def lpush(self, key, value):
+            self.sent.append(json.loads(value))
+
+    def service(rows):
+        store = _Store()
+        store.preview = lambda generation_id, kind: rows.pop(0) if len(rows) > 1 else rows[0]
+        svc = EvaluationService(store, prompts=None, redis=Redis())  # type: ignore[arg-type]
+        svc.switch_timeout_s = 1.0
+        return svc
+
+    live = frontend(False)
+    svc = service([live])
+    assert asyncio.run(svc._live_frontend(uuid.uuid4(), "gen_1", {"backend": backend, "frontend": live})) is live
+    assert svc.redis.sent == [], "already on the live API: nothing to switch"
+
+    switched = frontend(False)
+    svc = service([frontend(True), switched])
+    got = asyncio.run(svc._live_frontend(uuid.uuid4(), "gen_1", {"backend": backend, "frontend": frontend(True)}))
+    assert got is switched
+    args = {"kind": "frontend", "mockApi": False, "apiBaseUrl": "http://localhost:18001"}
+    assert svc.redis.sent == [{"op": "switch-frontend", "generationId": "gen_1", "args": args}]
+
+    svc = service([frontend(True)])
+    assert (
+        asyncio.run(svc._live_frontend(uuid.uuid4(), "gen_1", {"backend": backend, "frontend": frontend(True)})) is None
+    )

@@ -69,3 +69,9 @@ browser switches the automatic start off (`bga-tour-off`) so screenshots show th
 Checked: an app with a tour (the workshop example, the fake binding) installs, typechecks, lints and builds in the
 Node runner and renders (`.data/shots/tour-check`). Deviations: the replay is a floating "Guide" button, not an entry in
 the auth plugin's user menu; no vitest for `AppTour` (the app walk's checks are 26.7's run).
+
+**Re-check on clean previews (2026-11-08, HomeFix):** the property manager's tour opened a real repair request by
+itself and anchored to "Assign"; other roles' steps were centred notes as designed; the dashboard targets exist; no
+API call failed (yesterday's "Could not load this" was the stuck preview). The tenant "had no tour": it had one, shown
+as react-joyride's beacon (a pulsing dot that waits for a click) on "Create repair request" after the tour opened a
+building's new-request page itself. Steps now show directly (`skipBeacon`), to be seen on the next generations.

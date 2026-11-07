@@ -120,17 +120,24 @@ class Checker:
         )
 
     def _other_reads(self, op: dict[str, Any]) -> list[dict[str, Any]]:
-        """The other `GET /…/{id}` operations answering with the same record fields as `op`."""
+        """The other `GET /…/{id}` operations of the same record: the same response fields, or an untyped response
+        under the same resource (`GET /repair-requests/jobs/{id}` drafted without a response type)."""
         fields = set((op.get("response") or {}).keys())
-        if not fields:
-            return []
+        resource = (op.get("path") or "").strip("/").split("/")[0]
+
+        def same_record(other: dict[str, Any]) -> bool:
+            theirs = set((other.get("response") or {}).keys())
+            if theirs:
+                return bool(fields) and theirs == fields
+            return bool(resource) and (other.get("path") or "").strip("/").split("/")[0] == resource
+
         return [
             other
             for other in self.api.operations.values()
             if other["operationId"] != op["operationId"]
             and other.get("method") == "GET"
             and len(re.findall(r"\{[^}]+\}", other.get("path") or "")) == 1
-            and set((other.get("response") or {}).keys()) == fields
+            and same_record(other)
         ]
 
     # -- the browser -------------------------------------------------------------------------------------------------

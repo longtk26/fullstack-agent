@@ -66,6 +66,7 @@ class EvaluationService:
         self.prompts = prompts
         self.redis = redis
         self.events = events
+        self.switch_timeout_s = 600.0  # a frontend preview rebuilds for the live API (minutes on a cold cache)
 
     # -- queueing -------------------------------------------------------------------------------------------------
 
@@ -127,6 +128,28 @@ class EvaluationService:
             finished_at=datetime.now(UTC),
         )  # fmt: skip
         await self._publish(generation_id, run_id, "DONE", score=report["score"])
+
+    async def _live_frontend(self, run_id: uuid.UUID, generation_id: str, previews: dict[str, Any]) -> Any:
+        """The frontend preview on the live API: the checker's records exist only there, and a preview started again
+        (expired, or started by hand) runs on the mocks. Only the preview is switched (`switch-frontend`), never the
+        generation (D4: no integration recheck). None when it does not get there."""
+        frontend, backend = previews.get("frontend"), previews.get("backend")
+        if frontend is None or frontend.mock_api is False:
+            return frontend
+        if backend is None or not backend.url or self.redis is None:
+            return None
+        await self._progress(run_id, "connecting the screens to the live API")
+        from src.libs.queue.preview_commands import PreviewCommandBus
+
+        from ..previews import wait_settled
+
+        await PreviewCommandBus(self.redis).send(
+            "switch-frontend", generation_id, kind="frontend", mockApi=False, apiBaseUrl=backend.url
+        )
+        row = await wait_settled(self.store, generation_id, "frontend", self.switch_timeout_s, mock_api=False)
+        if row is None or row.status != PreviewStatus.RUNNING or row.mock_api is not False:
+            return None
+        return row
 
     async def _progress(self, run_id: uuid.UUID, text: str) -> None:
         self.store.update_evaluation(run_id, progress=text[:120])
@@ -236,6 +259,14 @@ class EvaluationService:
             binding = await self._bind_here(generation_id, business, expected, contract, provider, state, calls)
 
         walker = None
+        screens_note = None
+        if "frontend" in previews and config.evaluation_screenshots:
+            live = await self._live_frontend(run_id, generation_id, previews)
+            if live is None:
+                previews.pop("frontend")
+                screens_note = "no screenshots: the frontend preview stayed on the mocks, not the live API"
+            else:
+                previews["frontend"] = live
         frontend_url = reachable(previews["frontend"].url) if "frontend" in previews else None
         if frontend_url and config.evaluation_screenshots:
             await self._progress(run_id, "starting the browser")
@@ -301,6 +332,7 @@ class EvaluationService:
             "business": {k: business.get(k) for k in ("app", "values", "actors", "workflows", "scope")},
             "log": log_lines[-200:],
             "screenshots": walker is not None,
+            **({"screenshotsNote": screens_note} if screens_note else {}),
         }
         usage = {
             "provider": provider.name,

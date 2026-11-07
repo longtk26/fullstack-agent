@@ -193,6 +193,7 @@ export default function AppTour() {
           overlayClickAction: false,
           zIndex: 60,
           beforeTimeout: 15000, // a record step opens a list, then a record (`openRoute`)
+          skipBeacon: true, // the step itself, not a pulsing dot to click first (a first sign-in saw no tour)
         }}
         locale={{ back: t("tourBack"), next: t("tourNext"), last: t("tourDone"), skip: t("tourSkip") }}
       />

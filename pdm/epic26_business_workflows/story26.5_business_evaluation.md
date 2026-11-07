@@ -81,3 +81,7 @@ entity's other single-record reads with the same fields when the bound one answe
 used; a role that must not see the record is still refused by all of them). Test:
 `test_a_role_that_reads_through_its_own_operation_sees_the_record`. The 3 unchecked lines are the binding problem the
 app really has (the monitoring figures are dashboard aggregates, not a report record).
+
+**2026-11-08:** the re-run on clean previews still failed the contractor's 6 "can see it" lines: `getJob` was drafted
+without a response type, so it had no fields to match. An untyped `GET …/{id}` under the same resource path counts as
+the record's read too (test extended); the drafts now type such operations (Story 25.1's note).
