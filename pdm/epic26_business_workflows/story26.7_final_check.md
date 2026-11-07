@@ -37,8 +37,12 @@ HomeFix (the lab requirement), with and without the business layer:
   decided ones; every "can do it" (10), "refused" (24), "hidden" (14), "too early" (4) and "status after" (6) line
   passed. The 6 failures were the checker's (the assigned contractor reads through their own operation; fixed, 26.5);
   the 3 unchecked lines are the app's real gap (monitoring figures are dashboard aggregates, no report record).
-- Without it (`gen_01M6TF17DNTGEXCDY87RDX2QWX`): COMPLETED; its evaluation against the first run's frozen expectations
-  (`expectationsFrom`, bound to its own contract and screens) was running when this was written.
+- Without it (`gen_01M6TF17DNTGEXCDY87RDX2QWX`): COMPLETED. Evaluated on 2026-11-08 against the first run's frozen
+  expectations (`expectationsFrom`, bound to its own contract and screens): 11 of 81 met (14 %), 66 lines blocked.
+  **Not a valid comparison yet:** the tenant's first call (`POST /repair-requests`) sent ids that do not exist for
+  `buildingId`, `flatId` and `contractorId` (400 REFERENCE_NOT_FOUND), so the binding against this app did not find
+  existing records and every later step was blocked before the app was really tested. Measuring an app drafted
+  without the layer needs the binding to reuse its seeded records (open).
 - No generation's status changed because of an evaluation (a failed evaluation left COMPLETED as it was).
 
 What the runs found and fixed in the generator and the layer (each with a test): two keys to the same model
@@ -51,8 +55,8 @@ Open, for the next session:
 - The on/off comparison's numbers (the run above), then the first criterion's other apps: six requirements of other
   shapes and styles are written (volunteer shifts, bakery wholesale, pet adoption, coworking rooms, a clinic in
   Japanese, dark-themed event tickets); the user will run them next.
-- On HomeFix's first evaluation the judged screens showed "Could not load this" on record pages and the tenant's
-  tour did not start; both ran while the backend preview was stuck (the preview race), so they are to be checked again
-  on cleanly started previews before they count either way.
-- The Docker worker image still has the preview race (its rebuild failed on Docker Desktop's credential helper);
-  `make up` after signing in to Docker Desktop deploys the fix.
+- Re-checked on clean previews (2026-11-08): the record pages failed because a preview started again runs on the
+  mocks (fixed: the evaluation switches the frontend to the live API first, 26.5); the tenant's tour was there as a
+  beacon (fixed: steps show directly, 26.4); the contractor's page showed "Ok: Yes" (fixed in the drafts: typed
+  responses, Story 25.1). All three are to be seen working on the next generations.
+- The Docker worker's preview race fix is deployed (`make up` succeeded on 2026-11-08).
