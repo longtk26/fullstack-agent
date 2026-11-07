@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Stack } from "@/components/layout/Stack";
+import { elapsedMs, formatDuration } from "@/lib/format-duration";
 import { formatTokens, formatUsd } from "@/lib/format-usage";
 import { summarizeAppOutline, summarizeFrontendSpec } from "../lib/frontend-spec-summary";
 import { summarizeSpec } from "../lib/spec-summary";
@@ -26,14 +27,24 @@ type DraftResultProps = {
   onDiscard: () => void;
 };
 
+/** The draft's total time, start to finish (the queue wait apart when it was noticeable): "15m 12s (+20s queued)". */
+export function draftTotalTime(draft: TSpecDraft): string | null {
+  const total = elapsedMs(draft.startedAt, draft.finishedAt, Date.now());
+  if (total == null || !draft.finishedAt) return null;
+  const queued = draft.createdAt && draft.startedAt ? Date.parse(draft.startedAt) - Date.parse(draft.createdAt) : 0;
+  return `${formatDuration(total)}${queued >= 5000 ? ` (+${formatDuration(queued)} queued)` : ""}`;
+}
+
 function usageLine(draft: TSpecDraft): string {
   const { usage } = draft;
-  const seconds = Math.round((usage.engineMs ?? 0) / 1000);
+  const models = formatDuration(usage.engineMs ?? 0);
+  const total = draftTotalTime(draft);
   const tokens = (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0);
   const cost = usage.unpriced ? "cost unknown" : formatUsd(usage.costUsd ?? 0);
   const images = usage.images;
   const imagePart = images ? ` · ${images.count} photos (${formatUsd(images.costUsd)})` : "";
-  return `${draft.engine} · ${usage.modelCalls ?? 0} model calls · ${formatTokens(tokens)} tokens · ${cost}${imagePart} · ${seconds} s`;
+  const time = total ? `took ${total} · models ${models}` : `models ${models}`;
+  return `${draft.engine} · ${usage.modelCalls ?? 0} model calls · ${formatTokens(tokens)} tokens · ${cost}${imagePart} · ${time}`;
 }
 
 function ReportBadge({ name, report }: { name: keyof typeof REPORT_LABELS; report: TValidationReport }) {
@@ -56,6 +67,11 @@ export function DraftResult({ draft, needsAcknowledgement, acknowledged, onAckno
         <AlertDescription>
           <Stack gap="xs">
             <span>{cancelled ? "Draft the requirement again to continue." : (draft.error ?? "Unknown error")}</span>
+            {draftTotalTime(draft) && (
+              <span className="text-xs text-muted-foreground" data-draft-total-time>
+                {cancelled ? "Cancelled" : "Failed"} after {draftTotalTime(draft)}.
+              </span>
+            )}
             <div>
               <Button size="sm" variant="outline" onClick={onDiscard}>
                 Dismiss

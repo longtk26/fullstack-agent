@@ -9,6 +9,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { Stack } from "@/components/layout/Stack";
 import type { TGenerationMode } from "@/features/generations/types";
+import { formatDuration } from "@/lib/format-duration";
 import { useNow } from "@/hooks/use-now";
 import { cn } from "@/lib/utils";
 import { useRequirementTab } from "../hooks/use-requirement-tab";
@@ -54,7 +55,7 @@ export function RequirementTab({ mode, engine, onGenerateDirect, isGenerating }:
   const copy = COPY[mode];
   const draft = tab.draft;
   const startedAt = draft?.startedAt ?? draft?.createdAt;
-  const elapsed = startedAt ? Math.max(0, Math.round((now - Date.parse(startedAt)) / 1000)) : 0;
+  const elapsed = formatDuration(startedAt ? Math.max(0, now - Date.parse(startedAt)) : 0);
   const progress = draft ? PROGRESS[draft.progress ?? draft.status] ?? `${draft.progress ?? draft.status}…` : "Starting…";
 
   return (
@@ -150,7 +151,7 @@ export function RequirementTab({ mode, engine, onGenerateDirect, isGenerating }:
               <Spinner /> {progress}
             </CardTitle>
             <CardDescription>
-              {elapsed} s · the draft runs on the worker; you can leave this page and come back.
+              {elapsed} so far · the draft runs on the worker; you can leave this page and come back.
             </CardDescription>
           </CardHeader>
         </Card>
