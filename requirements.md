@@ -967,6 +967,15 @@ _Implemented 2026-11-07 (Epic 25)._
   role's demo user, with evidence per line and screenshots per step; the score is computed (met of all, met of
   decided). The result is a read-only Business tab; it never fails a generation, adds warnings or triggers repairs.
 
+### FR-41: Stock Photos with Attribution (proposed, Epic 27)
+
+- **Source:** with `IMAGE_PROVIDER=unsplash`, a photo the draft asks for (a short phrase of what it shows) is found
+  through the Unsplash API by the agent's code (the LLM engines cannot fetch), in the orientation of its place.
+- **Use:** the photo is hotlinked from Unsplash at the size of its place, never downloaded; its use is tracked once
+  through Unsplash's download endpoint; repeated phrases are cached within the hourly request limit.
+- **Credit:** every photo shows "Photo by <name> on Unsplash" with links, and the project README lists them.
+- **Fallback:** with no result or no requests left, the place falls back as today (placeholder) and the draft goes on.
+
 ---
 
 ## 5. BackendSpec Input Example

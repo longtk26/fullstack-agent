@@ -89,6 +89,7 @@ lane, tracing, results, and an OpenAPI explorer that sends test calls to the run
 | 24 | [Draft provider: Antigravity or Claude Code (one-turn JSON), or the Gemini API](epic24_draft_provider/epic24_draft_provider.md) (done 2026-11-07) | Phase 5 | 4 |
 | 25 | [App correctness: who may do it, who may see it, demo data that works](epic25_app_correctness/epic25_app_correctness.md) (done 2026-11-07, from the business-value lab) | Phase 5 | 6 |
 | 26 | [Main business workflows: discovered, shown as a guided tour, evaluated](epic26_business_workflows/epic26_business_workflows.md) (proposed 2026-11-07) | Phase 5 | 7 |
+| 27 | [Stock photos from Unsplash](epic27_stock_photos/epic27_stock_photos.md) (proposed 2026-11-08) | Phase 5 | 3 |
 
 ### Suggested delivery order
 
