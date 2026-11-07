@@ -29,13 +29,15 @@ role's workflow can be shown right away.
 
 - [x] Each demo user of a person role owns at least one record of each person-tied entity in the seed.
 - [x] The second demo user of a role exists, and its records are hidden from the first (with 25.2).
-- [x] The backend smoke check's seed rule still passes.
+- [ ] The backend smoke check's seed rule still passes.
 
 ## Verify
 
 `make lint`, `make test`, `BGA_SANDBOX_TESTS=1 make test`, 25.6.
 
 ## Status
+
+Open: the backend smoke check (sandbox) was not run on the new seed; 26.7's generations run it.
 
 **Done 2026-11-07.** The policies plugin seeds a second demo user for every role whose users own or are assigned
 records (`<role>-2`); the contract's fixtures point every person field at demo users of its role
