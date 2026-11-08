@@ -1014,13 +1014,13 @@ _Implemented 2026-11-07 (Epic 25)._
 ### FR-45: Sample Videos with Attribution (proposed, Epic 31)
 
 - **Sources:** with `VIDEO_PROVIDERS`, a video the draft asks for (a short phrase and its place) is found by the
-  agent's code: YouTube (Data API: embeddable, safe search, the app's language) for videos people watch, Pexels
-  (Videos API: MP4 files under a free licence) for hero backgrounds and seeded video fields; each within its limits,
+  agent's code: YouTube (Data API: embeddable, safe search, the app's language) for videos people watch, Pixabay
+  (videos API: MP4 files under the Pixabay Content License) for hero backgrounds and seeded video fields; each within its limits,
   cached, and the other provider as the fallback.
-- **Use:** YouTube videos are embedded through `youtube-nocookie.com`, loaded only when the user presses play; Pexels
+- **Use:** YouTube videos are embedded through `youtube-nocookie.com`, loaded only when the user presses play; Pixabay
   files play in our own `<video>` (muted, pausable background loops that stay still under reduced motion; app players
   with our subtitles). Nothing is downloaded; the keys stay in the agent.
-- **Credit:** the title and channel (YouTube) or the author (Pexels) with links next to each video, and in the README.
+- **Credit:** the title and channel (YouTube) or the author (Pixabay) with links next to each video, and in the README.
 - **Fallback:** no result, no quota or an unavailable video leaves the place as today and the draft goes on.
 
 ---

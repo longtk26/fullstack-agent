@@ -26,7 +26,7 @@ quota, so that sites and apps can show real videos without the model naming any.
 4. **Cache and quota:** results cached by phrase + language + duration under `ARTIFACT_ROOT/asset-cache/video/`; a
    local daily counter of units spent (reset at midnight Pacific time, as the quota is) that refuses a search when the
    remaining units are under a margin.
-5. **Settings:** `VIDEO_PROVIDERS` (a list of `youtube`, `pexels`; empty by default), `YOUTUBE_API_KEY`; listed in
+5. **Settings:** `VIDEO_PROVIDERS` (a list of `youtube`, `pixabay`; empty by default), `YOUTUBE_API_KEY`; listed in
    `.env.example`; the settings page shows which providers are on. A quick key check script like Epic 27's
    (`videos.list`, 1 unit).
 6. **Tests:** the adapter against a recorded responder injected from `tests/` (no network, per the test-code rule);

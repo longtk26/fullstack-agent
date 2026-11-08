@@ -15,12 +15,12 @@ record, so that the app looks like a working product on mocks and in the preview
 
 ## Steps
 
-1. **Seeds:** `stock_seed_videos` gives each seeded `video` field a video searched by the record's label: a Pexels
-   file first (it plays in our player), a YouTube link when there is no Pexels key or no result (the epic's table);
+1. **Seeds:** `stock_seed_videos` gives each seeded `video` field a video searched by the record's label: a Pixabay
+   file first (it plays in our player), a YouTube link when there is no Pixabay key or no result (the epic's table);
    one search per distinct label within the limits, the rest reuse results; with nothing found the field keeps Epic
    29's sample. The record's image field (the poster) gets the video's poster when it is empty and no stock photo was
    set.
-2. **Kit:** `VideoPlayer` plays a Pexels link natively, with the record's subtitle tracks when it has any; it
+2. **Kit:** `VideoPlayer` plays a Pixabay link natively, with the record's subtitle tracks when it has any; it
    recognises a YouTube link (`youtube.com/watch?v=`, `youtu.be/`) and renders the same facade as sites (31.3). The
    credit shows under the player (as `PhotoCredit` does).
 3. **Contract and backend:** a seeded outside link is returned as the field's URL like a seeded photo; uploads still

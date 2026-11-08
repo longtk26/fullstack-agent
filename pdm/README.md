@@ -158,7 +158,7 @@ workflow to be built before real generation works.
    forms, keeps a checklist; the walker plays it) → [Epic 29](epic29_media_fields/epic29_media_fields.md) (video, audio
    and subtitle fields, uploaded and played) → [Epic 30](epic30_design_plugins/epic30_design_plugins.md) (design plugins:
    one folder per layout or look, generated enums, prompt lists and kit dispatch; signed-in measurement first; media
-   layouts after 29.3) → [Epic 31](epic31_sample_videos/epic31_sample_videos.md) (sample videos: YouTube embeds and Pexels
+   layouts after 29.3) → [Epic 31](epic31_sample_videos/epic31_sample_videos.md) (sample videos: YouTube embeds and Pixabay
    stock video files, credited; 31.3 for sites can start after the two providers). After Epic 30, design plugins are added one at a time
    with [the guide](../docs/development/design-plugins.md).
 

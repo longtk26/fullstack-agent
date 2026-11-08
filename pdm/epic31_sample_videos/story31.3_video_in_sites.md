@@ -17,7 +17,7 @@ real without me uploading videos.
 
 ## Steps
 
-1. **Asset:** `kind: "video"` assets gain `source: "youtube"` (`id`, `title`, `poster`) and `source: "pexels"` (`url` of
+1. **Asset:** `kind: "video"` assets gain `source: "youtube"` (`id`, `title`, `poster`) and `source: "pixabay"` (`url` of
    the chosen file, `poster`, `width`, `height`, `duration`), each with `credit`; these fields are code-only and left
    out of the drafting schemas. The draft writes `source: "search"` with a `query`, a `place` (`watch` or `background`)
    and an optional `duration`; `stock_site_videos` resolves it through the providers in the place's order (the epic's
@@ -30,12 +30,12 @@ real without me uploading videos.
    the credit; on click it swaps in the `youtube-nocookie.com/embed/<id>?autoplay=1` iframe with a title, an `allow`
    list and `referrerpolicy`; keyboard operable; no YouTube request before the click. Without JavaScript it is a link
    to the video.
-4. **Pexels in a `Video` section:** a native `<video controls preload="metadata">` with the poster and the credit.
+4. **Pixabay in a `Video` section:** a native `<video controls preload="metadata">` with the poster and the credit.
 5. **Hero background video** (`components/assets/BackgroundVideo.tsx`): a `background` option on the hero layouts that
    put text over media; `<video muted loop playsinline autoplay>` with the poster shown first, a visible pause / play
    button, a scrim that keeps the hero text at AA contrast on the worst frame (checked on sampled frames by the design
    check), paused and showing the poster under `prefers-reduced-motion` and when the browser asks to save data (D9);
-   the credit in the hero's corner. Only Pexels files are used here.
+   the credit in the hero's corner. Only Pixabay files are used here.
 6. **Trees:** a tree may use the library's `VideoEmbed` or `BackgroundVideo` as a data component bound to a video
    asset; raw `iframe` / `video` stay refused (D8).
 7. **Credits:** the README lists each video (title or description, author or channel, link); the design checklist
