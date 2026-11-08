@@ -83,7 +83,7 @@ class DockerFrontendPreviewRuntime(IPreviewRuntime):
 
     def _deploy(self, request: PreviewRequest) -> PreviewHandle:
         mode = request.options.get("mode", "dynamic")
-        build_log = self._ensure_image(request.generation_id, request.source_zip)
+        build_log = self._ensure_image(request.generation_id, request.source_zip, request.runtime)
         app = self._get(names(request.generation_id)["app"])
         if app is not None and (app.labels or {}).get("bga.frontend.env") != self._env_key(request):
             app.remove(force=True)  # MOCK_TEST_API / API_BASE_URL changed: recreate with the new environment
@@ -109,13 +109,17 @@ class DockerFrontendPreviewRuntime(IPreviewRuntime):
         options = request.options
         return f"{options.get('mockApi', True)}|{options.get('apiBaseUrl', '')}|{config.preview_auth_token_storage}"
 
-    def _ensure_image(self, generation_id: str, source_zip: Path) -> str | None:
+    def _ensure_image(self, generation_id: str, source_zip: Path, runtime: Path | None = None) -> str | None:
         tag = names(generation_id)["image"]
         try:
             self.client.images.get(tag)
             return None
         except ImageNotFound:
             pass
+        if runtime is not None:
+            built = self._runtime_image(generation_id, runtime)
+            if built is not None:
+                return built
         with tempfile.TemporaryDirectory(prefix="bga-fe-preview-") as directory:
             with zipfile.ZipFile(source_zip) as archive:
                 for info in archive.infolist():
@@ -171,6 +175,30 @@ class DockerFrontendPreviewRuntime(IPreviewRuntime):
                 raise PreviewError(f"frontend image build failed: {exc.msg}", log) from exc
             except APIError as exc:
                 raise PreviewError(f"frontend image build failed: {exc}") from exc
+
+    def _runtime_image(self, generation_id: str, runtime: Path) -> str | None:
+        """The image from the frontend lane's validated build (2026-11-08: a copy, about ten seconds, where the ZIP's
+        Dockerfile installs and builds again, about two minutes); None when it fails (the ZIP's build follows)."""
+        tag = names(generation_id)["image"]
+        started = time.monotonic()
+        try:
+            with runtime.open("rb") as context:
+                _, stream = self.client.images.build(
+                    fileobj=context,
+                    custom_context=True,
+                    encoding="gzip",
+                    tag=tag,
+                    rm=True,
+                    forcerm=True,
+                    labels=_labels(generation_id, "image"),
+                    timeout=config.preview_build_timeout_seconds,
+                )
+                lines = [chunk.get("stream", "") for chunk in stream if isinstance(chunk, dict)]
+        except (BuildError, APIError, OSError) as exc:
+            logger.warning("frontend preview runtime build failed; building the ZIP", extra={"error": str(exc)[:300]})
+            return None
+        seconds = time.monotonic() - started
+        return f"built from the validated build ({seconds:.0f} s)\n" + "".join(lines)
 
     def _create_app(self, request: PreviewRequest, mode: str) -> Container:
         n = names(request.generation_id)

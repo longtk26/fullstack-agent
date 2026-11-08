@@ -32,7 +32,7 @@ from src.modules.shared.domain.enums import GenerationMode, GenerationStatus, La
 from src.modules.shared.domain.generation_modes import backend_ready, overall_status
 from src.preview import IPreviewRuntime, PreviewError, PreviewRequest
 
-from .packaging import ArtifactWriter
+from .packaging import PREVIEW_RUNTIME, ArtifactWriter
 from .store import JobStore
 
 logger = get_logger(__name__)
@@ -219,12 +219,14 @@ class PreviewService:
             self.cors_ports[generation_id] = frontend_row.host_port if frontend_row else None
         if options_override:
             options.update(options_override)
+        runtime = self.store.artifact_by_name(generation_id, PREVIEW_RUNTIME) if kind == "frontend" else None
         request = PreviewRequest(
             generation_id=generation_id,
             source_zip=self._file(source),
             ports=ports,
             seed=self._file(seed).read_bytes() if seed else None,
             options=options,
+            runtime=self._file(runtime) if runtime and runtime.size and self._file(runtime).is_file() else None,
         )
         try:
             handle = await self.runtimes[kind].deploy(request)

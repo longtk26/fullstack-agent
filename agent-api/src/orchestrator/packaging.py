@@ -10,6 +10,7 @@ import hashlib
 import io
 import json
 import re
+import tarfile
 import uuid
 import zipfile
 from dataclasses import dataclass, field
@@ -130,6 +131,117 @@ def build_source_zip(project: Path) -> bytes:
             info.external_attr = (0o100755 if path.stat().st_mode & 0o111 else 0o100644) << 16
             archive.writestr(info, data)
     return buffer.getvalue()
+
+
+# -- preview runtime (2026-11-08) ---------------------------------------------------------------------------------
+# A frontend preview built from frontend.zip runs `pnpm install` and `next build` again (about two minutes); the
+# frontend lane's validation has just built the same source. The runtime is that build with the project's own last
+# Dockerfile stage, as a gzipped build context: the preview's image is then a copy (about ten seconds).
+
+PREVIEW_RUNTIME = "frontend-runtime.tar.gz"
+_FROM_BUILD = re.compile(r"^COPY\s+--from=build\s+((?:--\S+\s+)*)/app/(\S+)\s+(\S+)\s*$")
+_COPY = re.compile(r"^COPY\s+((?:--\S+\s+)*)(\S+)\s+(\S+)\s*$")
+_ROOT = "rootfs"  # the merged copies' tree in the runtime context
+
+
+@dataclass
+class _Copy:
+    flags: str  # e.g. "--chown=node:node " (with its space), or ""
+    source: str  # relative to the project
+    target: str  # absolute in the image
+
+
+def _runtime_stage(dockerfile: str) -> tuple[list[str], list[_Copy], int, str | None] | None:
+    """The last stage of the project's Dockerfile: its lines without the copies, the copies (copies from the build
+    stage read the project's own build output), where the first copy was and the WORKDIR; None when a line cannot
+    be mapped (another stage, an ARG image, a relative target without a WORKDIR)."""
+    lines = dockerfile.splitlines()
+    starts = [index for index, line in enumerate(lines) if line.strip().upper().startswith("FROM ")]
+    if not starts or "$" in lines[starts[-1]]:
+        return None
+    kept: list[str] = []
+    copies: list[_Copy] = []
+    first = -1
+    workdir: str | None = None
+    for line in lines[starts[-1] :]:
+        text = line.strip()
+        if text.upper().startswith("WORKDIR "):
+            workdir = text.split(None, 1)[1]
+        if not text.upper().startswith("COPY "):
+            kept.append(line)
+            continue
+        match = _FROM_BUILD.match(text) or (None if "--from" in text else _COPY.match(text))
+        if match is None:
+            return None
+        flags, source, target = match.groups()
+        if not target.startswith("/"):
+            if workdir is None or not workdir.startswith("/"):
+                return None
+            relative = target[2:] if target.startswith("./") else "" if target == "." else target
+            target = workdir.rstrip("/") + "/" + relative
+        if first < 0:
+            first = len(kept)
+        copies.append(_Copy(flags, source.rstrip("/"), target))
+    return kept, copies, first, workdir
+
+
+def _image_path(copy: _Copy, source: Path) -> str:
+    """Where `COPY <source> <target>` puts the source: a directory's contents into the target directory, a file at
+    the target, or into it when the target ends with a slash."""
+    target = copy.target.rstrip("/")
+    if source.is_file() and copy.target.endswith("/"):
+        return f"{target}/{source.name}"
+    return target
+
+
+def build_preview_runtime(project: Path) -> bytes | None:
+    """The validated build of a generated frontend as a preview build context (gzipped tar), or None when there is
+    none or it is older than a source (the preview then builds the ZIP's Dockerfile). The stage's copies become one
+    layer when they share their flags and land in the WORKDIR (three copies of a Node server build twice as long)."""
+    dockerfile, build_id = project / "Dockerfile", project / ".next" / "BUILD_ID"
+    if not dockerfile.is_file() or not build_id.is_file():
+        return None
+    stage = _runtime_stage(dockerfile.read_text(errors="replace"))
+    if stage is None:
+        return None
+    kept, copies, first, workdir = stage
+    built = build_id.stat().st_mtime
+    if any(path.stat().st_mtime >= built for path in source_files(project)):
+        return None  # a source changed after the build (or in the same clock tick)
+    root = project.resolve()
+    sources = [project / copy.source for copy in copies]
+    if not all(source.exists() and root in [source.resolve(), *source.resolve().parents] for source in sources):
+        return None
+    home = (workdir or "").rstrip("/")
+    merged = bool(home) and len({copy.flags for copy in copies}) == 1
+    merged = merged and all(copy.target.rstrip("/") == home or copy.target.startswith(home + "/") for copy in copies)
+    if merged:  # only inside the WORKDIR: system directories keep their owners
+        lines = [*kept[:first], f"COPY {copies[0].flags}{_ROOT}{home}/ {home}/", *kept[first:]]
+        names = [_ROOT + _image_path(copy, source) for copy, source in zip(copies, sources, strict=True)]
+    else:
+        lines, names = list(kept), []
+        for offset, copy in enumerate(copies):
+            lines.insert(first + offset, f"COPY {copy.flags}{copy.source} {copy.target}")
+            names.append(copy.source)
+    buffer = io.BytesIO()
+    with tarfile.open(fileobj=buffer, mode="w:gz", compresslevel=1) as archive:
+        text = ("\n".join(lines) + "\n").encode()
+        info = tarfile.TarInfo("Dockerfile")
+        info.size = len(text)
+        archive.addfile(info, io.BytesIO(text))
+        for name, source in zip(names, sources, strict=True):
+            archive.add(source, arcname=name)  # relative symlinks (pnpm's) stay links
+    return buffer.getvalue()
+
+
+def write_frontend(writer: "ArtifactWriter", project: Path) -> None:
+    """frontend.zip and, when the validated build is current, the preview runtime next to it."""
+    writer.write("frontend.zip", "frontend", build_source_zip(project), "application/zip")
+    runtime = build_preview_runtime(project)
+    if runtime is not None:
+        writer.write(PREVIEW_RUNTIME, "preview", runtime, "application/gzip")
+    elif PREVIEW_RUNTIME in writer.ids:  # an earlier runtime no longer matches the ZIP: empty, so it is not used
+        writer.write(PREVIEW_RUNTIME, "preview", b"", "application/gzip")
 
 
 # -- manifest ----------------------------------------------------------------------------------------------------

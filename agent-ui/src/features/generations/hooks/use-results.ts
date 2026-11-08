@@ -8,6 +8,9 @@ import type { TArtifact, TGenerationDetail, TManifest } from "../types";
 
 const ARTIFACT_ORDER = ["source", "openapi", "manifest", "report", "seed", "plan", "spec", "patch", "validation", "log"];
 
+/** Kinds kept for the system, not for download (the preview's runtime: the validated frontend build). */
+const INTERNAL_KINDS = new Set(["preview"]);
+
 export function sortArtifacts(artifacts: TArtifact[]): TArtifact[] {
   const rank = (kind: string) => (ARTIFACT_ORDER.indexOf(kind) + 1 || ARTIFACT_ORDER.length + 1);
   return [...artifacts].sort((a, b) => rank(a.kind) - rank(b.kind) || a.name.localeCompare(b.name));
@@ -40,7 +43,7 @@ export function useResults(detail: TGenerationDetail) {
   });
 
   return {
-    artifacts: sortArtifacts(detail.artifacts),
+    artifacts: sortArtifacts(detail.artifacts.filter((artifact) => !INTERNAL_KINDS.has(artifact.kind))),
     hasSource: byName.has("backend.zip"),
     validation,
     manifest,

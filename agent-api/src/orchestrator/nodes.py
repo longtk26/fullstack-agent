@@ -27,6 +27,7 @@ from .packaging import (
     build_seed,
     build_source_zip,
     report_markdown,
+    write_frontend,
 )
 from .state import GenerationState, NodeResult, Outcome
 
@@ -117,7 +118,7 @@ async def write_artifacts(ctx: JobContext, state: dict[str, Any], completed: boo
     operations = 0
     frontend_ready = completed and frontend_plan and lanes.get("frontend") == LaneStatus.COMPLETED.value
     if frontend_ready:
-        writer.write("frontend.zip", "frontend", build_source_zip(workspace.frontend), "application/zip")
+        write_frontend(writer, workspace.frontend)
     if completed and plan and lanes.get("backend") == LaneStatus.COMPLETED.value:
         head_file = workspace.state / "backend-packaged-head"
         packaged_head = head_file.read_text().strip() if head_file.is_file() else None

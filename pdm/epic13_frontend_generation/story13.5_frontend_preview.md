@@ -30,3 +30,15 @@ As a user, I want the generated frontend running at a local URL right away, and 
 - The API uses `?kind=frontend` on the preview endpoints; `GET /generations/{id}` returns `frontendPreview`
   (`{kind, status, url, mockApi, …}`) next to `preview` (backend) rather than `preview.frontend`. The UI shows
   **Open site** (with a "mock API" badge); the in-app App tab is 9.9.
+
+**Update (2026-11-08): the preview starts from the validated build.** Building `frontend.zip`'s Dockerfile installed
+and ran `next build` again on every start without an image (the first start, and every start after a delete): about
+two minutes on a laptop, while the frontend lane's validation had just built the same source. Wherever
+`frontend.zip` is written, `packaging.write_frontend` also writes `frontend-runtime.tar.gz` (kind `preview`, hidden in
+the UI's artifact list): the validated build (`.next/standalone`, `.next/static`, `public`, or a static export) with
+the project's own last Dockerfile stage, its copies in one layer when they land in the WORKDIR. It is written only
+when the build is newer than every source (else an earlier one is emptied); the preview builds its image from it
+(about 25 s with the classic builder on a busy laptop, the container answers 2 s later) and falls back to the ZIP's
+Dockerfile when there is none or it fails (generations from before). The ZIP's Dockerfile itself is no longer built
+for new generations; validation's `next build` of the same source is the check. BuildKit would halve the image build
+again (the worker image has the Docker CLI, not buildx).

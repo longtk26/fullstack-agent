@@ -18,6 +18,8 @@ class PreviewRequest:
     seed: bytes | None = None
     # backend: corsOrigins; frontend: mode (static | dynamic), mockApi, apiBaseUrl
     options: dict[str, Any] = field(default_factory=dict)
+    # frontend: the validated build as a build context (`packaging.PREVIEW_RUNTIME`); none: build the ZIP's Dockerfile
+    runtime: Path | None = None
 
 
 @dataclass

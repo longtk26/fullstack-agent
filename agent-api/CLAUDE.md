@@ -37,6 +37,10 @@ Agent-specific notes:
   `templates/nextjs_overlay` (`overlay.json` = drift manifest). Frontend checks are stored as `frontend:<check>`;
   the frontend has its own git repo (`<workspace>/frontend`), sandbox kind (`for_job(..., "frontend")`) and
   preview kind (`previews.kind`).
+- Frontend preview images (2026-11-08): `packaging.write_frontend` writes `frontend.zip` and, when the validated
+  build is current, `frontend-runtime.tar.gz` (kind `preview`); `DockerFrontendPreviewRuntime` builds the image from
+  it (a copy, no install or `next build`) and falls back to the ZIP's Dockerfile. Write `frontend.zip` only through
+  `write_frontend`.
 - Before the checks (Story 17.5), `orchestrator/autofix.py` restores changed generator-owned files and runs
   `ruff --fix` / `eslint --fix`, committed as `node:autofix`. Frontend sandboxes mount a shared read-only
   node_modules per dependency set (`bga-fe-modules-<key>`, `FRONTEND_SHARED_MODULES`); only `.vite*` folders are

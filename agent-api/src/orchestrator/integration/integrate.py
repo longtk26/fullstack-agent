@@ -26,7 +26,7 @@ from src.modules.shared.domain.enums import GenerationMode, LaneStatus, PreviewS
 
 from ..backend.validation import CheckResult, ValidationOutcome, traced_check, write_report
 from ..context import JobContext
-from ..packaging import ArtifactWriter, build_contract_seed, build_seed, build_source_zip
+from ..packaging import ArtifactWriter, build_contract_seed, build_seed, build_source_zip, write_frontend
 from ..plugins import extended_spec
 from ..previews import KINDS, wait_settled
 from ..state import GenerationState, Outcome
@@ -67,7 +67,7 @@ async def package_lane_preview(state: GenerationState, ctx: JobContext, kind: st
         Path(config.artifact_root), ctx.generation_id, {a.name: a.id for a in ctx.store.artifacts(ctx.generation_id)}
     )
     if kind == "frontend":
-        writer.write("frontend.zip", "frontend", build_source_zip(ctx.workspace.frontend), "application/zip")
+        write_frontend(writer, ctx.workspace.frontend)
     else:
         project = ctx.workspace.project
         writer.write("backend.zip", "source", build_source_zip(project), "application/zip")
@@ -244,7 +244,7 @@ async def integrate(state: GenerationState, ctx: JobContext) -> NodeResult:
                 ctx.generation_id,
                 {a.name: a.id for a in ctx.store.artifacts(ctx.generation_id)},
             )
-            writer.write("frontend.zip", "frontend", build_source_zip(ctx.workspace.frontend), "application/zip")
+            write_frontend(writer, ctx.workspace.frontend)
             ctx.store.replace_artifacts(ctx.generation_id, writer.written)
             async with ctx.previews.locked(ctx.generation_id, *KINDS):  # switch_frontend may restart the backend
                 fe_preview = ctx.store.preview(ctx.generation_id, "frontend")
@@ -270,7 +270,7 @@ async def integrate(state: GenerationState, ctx: JobContext) -> NodeResult:
     writer = ArtifactWriter(
         Path(config.artifact_root), ctx.generation_id, {a.name: a.id for a in ctx.store.artifacts(ctx.generation_id)}
     )
-    writer.write("frontend.zip", "frontend", build_source_zip(ctx.workspace.frontend), "application/zip")
+    write_frontend(writer, ctx.workspace.frontend)
     ctx.store.replace_artifacts(ctx.generation_id, writer.written)
     async with ctx.previews.locked(ctx.generation_id, *KINDS):  # switch_frontend may restart the backend
         fe_preview = ctx.store.preview(ctx.generation_id, "frontend")
