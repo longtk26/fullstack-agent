@@ -64,6 +64,7 @@ export function AssetImage({ asset, className, priority = false }: AssetImagePro
           referrerPolicy={entry.mode === "remote" ? "no-referrer" : undefined}
           className="size-full object-cover"
         />
+        {creditOf(entry) && <PhotoCredit credit={creditOf(entry)!} />}
       </div>
     );
   }
@@ -92,5 +93,28 @@ export function AssetImage({ asset, className, priority = false }: AssetImagePro
       aria-hidden={decorative || undefined}
       className={cn(frame, "bg-gradient-to-br from-primary/30 via-accent to-secondary")}
     />
+  );
+}
+
+type TCredit = { name: string; profileUrl: string; sourceUrl: string };
+
+/** Epic 27: a registry declares `credit` only when a photo has one, so it is read without the type. */
+function creditOf(entry: object): TCredit | undefined {
+  return (entry as { credit?: TCredit }).credit;
+}
+
+/** Epic 27: a stock photo's credit, over its corner, linked as Unsplash's guidelines ask. */
+function PhotoCredit({ credit }: { credit: TCredit }) {
+  return (
+    <span className="absolute right-1.5 bottom-1.5 max-w-[90%] truncate rounded bg-black/55 px-1.5 py-0.5 text-[10px] leading-4 text-white">
+      Photo by{" "}
+      <a href={credit.profileUrl} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
+        {credit.name}
+      </a>{" "}
+      on{" "}
+      <a href={credit.sourceUrl} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
+        Unsplash
+      </a>
+    </span>
   );
 }

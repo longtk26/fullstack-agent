@@ -17,6 +17,7 @@ import {
   enumLabel,
   listOf,
   pageHref,
+  photoCredit,
   recordTitle,
   resolveParams,
   type TAppAction,
@@ -28,6 +29,7 @@ import {
   type TRouteParams,
 } from "./app";
 import { useOperationQuery } from "./bindings";
+import { PhotoCredit } from "./PhotoCredit";
 import { FieldValue } from "./FieldValue";
 import { RowActions } from "./RecordActions";
 import { slots } from "./slots";
@@ -65,6 +67,16 @@ export function Media({ entity, record, field, title, className }: { entity?: TA
   const url = imageUrl(entity, record, field);
   const [failed, setFailed] = useState(false);
   if (url && !failed) {
+    const credit = photoCredit(url);
+    if (credit) {
+      return (
+        <div className={cn("relative overflow-hidden", className)}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={url} alt="" loading="lazy" className="size-full object-cover" onError={() => setFailed(true)} />
+          <PhotoCredit credit={credit} />
+        </div>
+      );
+    }
     // eslint-disable-next-line @next/next/no-img-element
     return <img src={url} alt="" loading="lazy" className={cn("object-cover", className)} onError={() => setFailed(true)} />;
   }

@@ -315,6 +315,16 @@ AssetKind = Literal["image", "icon", "video", "file", "illustration", "pattern",
 AspectRatio = Literal["16:9", "4:3", "1:1", "3:4", "21:9"]
 
 
+class AssetCredit(SpecModel):
+    """Epic 27: a stock photo's credit, shown with it as the photo service requires ("Photo by <name> on Unsplash")."""
+
+    provider: Literal["unsplash"] = "unsplash"
+    name: str = Field(min_length=1, max_length=120)
+    profile_url: str = Field(pattern=r"^https://", max_length=500)
+    source_url: str = Field(pattern=r"^https://", max_length=500)
+    photo_id: str | None = Field(default=None, max_length=64)
+
+
 class Asset(SpecModel):
     """An image the site shows (Stories 15.1, 19.1). `source`: `placeholder` (a themed panel),
     `generate` (an SVG the code engine draws, 15.2), `photo` (an AI photograph, 19.2),
@@ -330,6 +340,7 @@ class Asset(SpecModel):
     style: str | None = Field(default=None, max_length=200)
     aspect_ratio: AspectRatio | None = None  # default per kind
     decorative: bool = False  # no alt needed; rendered aria-hidden
+    credit: AssetCredit | None = None  # Epic 27: a stock photo (an `https://` source) and who took it
 
 
 class FrontendSpecV1(SpecModel):

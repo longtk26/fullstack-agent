@@ -25,3 +25,15 @@ requires.
 ## Verify
 
 `make lint`, `pnpm exec tsc --noEmit`, `make test`, a site and an app drafted with `IMAGE_PROVIDER=unsplash`.
+
+## Status
+
+**Implemented (2026-11-08); the real check is Story 27.3.** Sites: the draft's photo step resolves `photo` assets on
+Unsplash (`stock_site_photos`) instead of generating them; `Asset.credit` (code-only) reaches the registry and
+`AssetImage` draws "Photo by <name> on Unsplash" over the photo's corner; the README's linked images name the credit.
+Apps: `stock_seed_photos` gives each seeded record's image field a photo found from its label and entity (at most
+`FRONTEND_MAX_PHOTOS`), the FrontendSpec keeps the credited photos as assets, `app.json` gets `photoCredits` by URL,
+and the kit's `Media` and the storage plugin's `FileValue` show the credit (a title on table thumbnails). The draft
+review's "regenerate" takes the next Unsplash result. Static golden snapshots were refreshed: `AssetImage.tsx` gained
+the credit (a site without credits renders the same markup), `.bga/owned.json` follows its hash. Not done: the README
+list of an app's seeded photos (the app.json credits and the pages carry them).

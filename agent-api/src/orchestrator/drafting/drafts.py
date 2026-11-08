@@ -35,8 +35,9 @@ from src.configs.config import uploads_dir
 from src.engines import EngineRegistry, PromptLibrary
 from src.engines.port import EngineContext, EngineRequest, EngineResult, EngineStatus
 from src.engines.prompts import RenderedPrompt
-from src.images.factory import get_image_generator, photos_enabled
+from src.images.factory import get_image_generator, get_stock_photos, photos_enabled
 from src.images.service import generate_single_photo
+from src.images.stock import stock_seed_photos, stock_site_photos
 from src.libs.ids.ulid import new_upload_id
 from src.modules.shared.domain.backend_spec import (
     SpecIssue,
@@ -933,6 +934,19 @@ class DraftRunner:
             if found:  # the direction's theme only: its first note says where it came from
                 assumptions += design_notes(found[0])[:1]
             notes = assumptions + outcome.notes
+            stock = get_stock_photos() if check.ok else None
+            if stock is not None:  # Epic 27: the seeded records' photos from Unsplash, credited in the app
+                raw_backend, _ = _load(work / BACKEND_FILE)
+                raw_frontend, _ = _load(work / FRONTEND_FILE)
+                if isinstance(raw_backend, dict) and isinstance(raw_frontend, dict):
+                    await update_progress("photos")
+                    photo_assets, stock_notes = await stock_seed_photos(raw_backend, stock, config.frontend_max_photos)
+                    if photo_assets:
+                        raw_frontend["assets"] = [*(raw_frontend.get("assets") or []), *photo_assets]
+                        _write_json(work / BACKEND_FILE, raw_backend)
+                        _write_json(work / FRONTEND_FILE, raw_frontend)
+                        check = check_draft(work, mode)
+                    notes += stock_notes
             if business is not None:
                 before = len(business.calls)
                 await update_progress("binding workflows")
@@ -1095,6 +1109,13 @@ class DraftRunner:
                         "they show as placeholders, upload an image for them"
                     )
                     photo_notes.append({"spec": "frontend", "path": "/assets", "message": msg, "suggestion": None})
+                stock = get_stock_photos()
+                if photo_assets and stock is not None:  # Epic 27: found on Unsplash, hotlinked and credited
+                    await update_progress("photos")
+                    photo_notes += await stock_site_photos(photo_assets, stock)
+                    _write_json(work / FRONTEND_FILE, spec)
+                    check = check_draft(work, mode)
+                    photo_assets = []
                 if photo_assets:
                     await update_progress("photos")
                     semaphore = asyncio.Semaphore(config.image_concurrency)

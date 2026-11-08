@@ -151,7 +151,11 @@ class Config(BaseSettings):
     frontend_asset_repair_limit: int = 1
     # Gemini AI Photos (Epic 19): provider ("gemini" | "fake" | "none"), API key, model and limits. Paid photos are
     # opt-in: with "gemini" and no GEMINI_IMAGE_API_KEY photos are off (GEMINI_API_KEY is never used for them).
-    image_provider: Literal["gemini", "fake", "none"] = "gemini"
+    image_provider: Literal["gemini", "unsplash", "fake", "none"] = "gemini"
+    # Epic 27: stock photos from Unsplash (IMAGE_PROVIDER=unsplash): the access key of the user's Unsplash application
+    # and the name its referral links carry; without the key photos are off.
+    unsplash_access_key: str | None = None
+    unsplash_app_name: str = "fullstack_generation_agent"
     gemini_image_api_key: str | None = None
     gemini_image_model: str = "gemini-3.1-flash-lite-image"
     gemini_image_size: str = "1K"

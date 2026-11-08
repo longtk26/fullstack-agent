@@ -23,10 +23,19 @@ and apps show real photos without paid image generation.
 
 ## Acceptance criteria
 
-- [ ] A photo asset resolves to an images.unsplash.com URL and a credit, without downloading the image.
-- [ ] A repeated phrase costs no request; a used photo is tracked once.
-- [ ] Out of requests or no result, the asset falls back with its reason, and the draft still succeeds.
+- [x] A photo asset resolves to an images.unsplash.com URL and a credit, without downloading the image.
+- [x] A repeated phrase costs no request; a used photo is tracked once.
+- [x] Out of requests or no result, the asset falls back with its reason, and the draft still succeeds.
 
 ## Verify
 
 `make lint`, `make test`, the key check (one real search).
+
+## Status
+
+**Implemented (2026-11-08); the real check is Story 27.3.** `src/images/unsplash.py` (`UnsplashPhotos`, `StockPhoto`,
+`orientation`, `size_for`), `IMAGE_PROVIDER=unsplash` with `UNSPLASH_ACCESS_KEY` / `UNSPLASH_APP_NAME`
+(`get_stock_photos`; `photos_enabled` counts it). A search keeps ten results per phrase and orientation, so another
+photo for the same phrase costs nothing; 403 / 429 / a remaining count of 0 stop the searching for the instance. Tests
+on httpx's MockTransport (`tests/test_unsplash_photos.py`). The three criteria above are met in tests; the real key
+is used in 27.3.

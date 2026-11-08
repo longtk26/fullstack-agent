@@ -192,6 +192,12 @@ def app_data(plan: dict[str, Any], spec: dict[str, Any], contract: dict[str, Any
         "access": app_access(contract),
         "entities": app_entities(spec, contract, pages),
         "forms": {form["id"]: _form(form) for form in spec.get("forms") or []},
+        # Epic 27: the seeded records' stock photos (by URL) and who took them, shown where the photo shows
+        "photoCredits": {
+            asset["source"]: {key: asset["credit"][key] for key in ("name", "profileUrl", "sourceUrl")}
+            for asset in spec.get("assets") or []
+            if isinstance(asset.get("credit"), dict) and str(asset.get("source") or "").startswith("https://")
+        },
     }
 
 

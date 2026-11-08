@@ -204,6 +204,13 @@ export type TDesign = {
 /** Story 23.10: a group of roles with its own routes (`prefix`) and layout. */
 export type TArea = { id: string; label: string; roles: string[]; prefix: string; design: Partial<TDesign> };
 
+export type TPhotoCredit = { name: string; profileUrl: string; sourceUrl: string };
+
+/** Epic 27: the credit of a seeded stock photo, by its URL (none for an upload or an outside link). */
+export function photoCredit(url: string | null | undefined): TPhotoCredit | null {
+  return (url && app.photoCredits?.[url]) || null;
+}
+
 export type TApp = {
   name: string;
   tagline: string | null;
@@ -223,6 +230,8 @@ export type TApp = {
   areas: TArea[];
   /** Story 26.4: the guided tour of the core business workflows (none: no tour). */
   workflows?: TWorkflows | null;
+  /** Epic 27: seeded stock photos by URL and who took them (shown with the photo). */
+  photoCredits?: Record<string, TPhotoCredit>;
 };
 
 /** Story 26.4: one step of a workflow tour: who does it, where, and the action that performs it. */

@@ -138,6 +138,8 @@ class _Planner:
                 "routes": sorted(used.get(asset["id"], [])),
                 "visibleRoutes": sorted(visible.get(asset["id"], [])),
             }
+            if isinstance(asset.get("credit"), dict):  # Epic 27: shown with the photo
+                entry["credit"] = asset["credit"]
             if mode == "svg-component":
                 entry |= {
                     "prompt": asset.get("prompt") or asset.get("alt") or asset["id"],

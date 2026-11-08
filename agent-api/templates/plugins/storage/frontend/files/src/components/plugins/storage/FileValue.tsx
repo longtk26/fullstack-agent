@@ -2,6 +2,8 @@
 
 import { FileText } from "lucide-react";
 import { useState } from "react";
+import { photoCredit } from "@/components/app/app";
+import { PhotoCredit } from "@/components/app/PhotoCredit";
 import type { TFileValue } from "@/components/app/plugin-types";
 
 /** A file or image field in a list or a record (Story 22.7): through its signed read URL (`<field>Url`). An image
@@ -14,6 +16,23 @@ export const FileValue: TFileValue = ({ entity, field, record, compact }) => {
     return <span className="text-muted-foreground">—</span>;
   }
   if (spec?.type === "image") {
+    const credit = photoCredit(url);
+    if (credit) {
+      return (
+        <span className={compact ? "relative inline-block h-10 w-14" : "relative inline-block aspect-video max-h-56 w-full max-w-sm"}>
+          {/* eslint-disable-next-line @next/next/no-img-element -- a seeded stock photo, hotlinked as its service asks */}
+          <img
+            src={url}
+            alt=""
+            title={compact ? `Photo by ${credit.name} on Unsplash` : undefined}
+            className="size-full rounded-lg border object-cover"
+            loading="lazy"
+            onError={() => setFailed(true)}
+          />
+          {!compact && <PhotoCredit credit={credit} />}
+        </span>
+      );
+    }
     return (
       // eslint-disable-next-line @next/next/no-img-element -- a signed URL from the API, not a static asset
       <img

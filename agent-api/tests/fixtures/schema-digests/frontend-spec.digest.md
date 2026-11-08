@@ -153,6 +153,16 @@ type Asset = {
   style?: string | null;
   aspectRatio?: "16:9" | "4:3" | "1:1" | "3:4" | "21:9" | null;
   decorative?: boolean;
+  credit?: AssetCredit | null;
+};
+
+// Epic 27: a stock photo's credit, shown with it as the photo service requires ("Photo by <name> on Unsplash").
+type AssetCredit = {
+  provider?: string;
+  name: string;
+  profileUrl: string;
+  sourceUrl: string;
+  photoId?: string | null;
 };
 
 type Component = {

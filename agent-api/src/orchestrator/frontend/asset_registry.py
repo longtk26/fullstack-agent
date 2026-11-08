@@ -26,6 +26,7 @@ def assets_ts(plan: dict[str, Any]) -> str:
     imports: list[str] = []
     icons: set[str] = set()
     entries = []
+    credited = False
     for asset in plan.get("assets", []):
         mode = _effective_mode(asset)
         fields: dict[str, Any] = {"mode": mode, "aspectRatio": asset["aspectRatio"]}
@@ -44,11 +45,17 @@ def assets_ts(plan: dict[str, Any]) -> str:
             fields |= {"src": asset["src"], "width": asset.get("width"), "height": asset.get("height")}
         elif mode == "remote":
             fields["src"] = asset["url"]
+            if asset.get("credit"):  # Epic 27: "Photo by <name> on Unsplash"
+                credited = True
+                credit = asset["credit"]
+                fields["credit"] = {key: credit[key] for key in ("name", "profileUrl", "sourceUrl") if credit.get(key)}
         body = ", ".join(f"{key}: {json.dumps(value, ensure_ascii=False)}" for key, value in fields.items())
         if component:
             body += f", component: {component}"
         entries.append(f"  {json.dumps(asset['id'])}: {{ {body} }},\n")
     lucide = f'import {{ {", ".join(sorted(icons))} }} from "lucide-react";\n' if icons else ""
+    # Epic 27: only a registry with a credited photo declares it (other sites' registries stay byte-identical)
+    credit_type = "  credit?: { name: string; profileUrl: string; sourceUrl: string };\n"
     return (
         HEADER
         + 'import type { ComponentType } from "react";\n'
@@ -58,7 +65,9 @@ def assets_ts(plan: dict[str, Any]) -> str:
         + "export type TAsset = {\n"
         + "  mode: TAssetMode;\n  aspectRatio: string;\n  alt?: string;\n  decorative?: boolean;\n"
         + "  src?: string;\n  width?: number;\n  height?: number;\n"
-        + "  component?: ComponentType<{ className?: string }>;\n};\n\n"
+        + "  component?: ComponentType<{ className?: string }>;\n"
+        + (credit_type if credited else "")
+        + "};\n\n"
         + f"export const assets: Record<string, TAsset> = {{\n{''.join(entries)}}};\n"
     )
 
@@ -69,5 +78,13 @@ def external_images_note(plan: dict[str, Any]) -> str:
     if not remote:
         return ""
     lines = ["", "Linked images (loaded from other sites, not part of this project; check they stay available):", ""]
-    lines += [f"- `{asset['id']}`: {asset['url']}" for asset in remote]
+    lines += [
+        f"- `{asset['id']}`: {asset['url']}"
+        + (
+            f" (photo by {asset['credit']['name']} on Unsplash, {asset['credit']['profileUrl']})"
+            if asset.get("credit")
+            else ""
+        )
+        for asset in remote
+    ]
     return "\n".join(lines) + "\n"

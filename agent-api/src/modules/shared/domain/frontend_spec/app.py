@@ -154,6 +154,7 @@ class AppRequestedStyle(SpecModel):
 class AppDesign(SpecModel):
     """The design brief (Epic 23): the model chooses from these values, code checks them against the contract and
     replaces what does not fit (`replaced`, one line each)."""
+
     archetype: Archetype | None = None
     shell: Shell | None = None
     mobile_nav: MobileNav | None = None
@@ -210,6 +211,7 @@ _APP_ONLY_PROPERTIES = {
     "FrontendSpecV1": ("app",),
     "Project": ("flow",),
     "FormField": ("help", "currency", "unit", "reference", "upload", "transition"),
+    "Asset": ("credit",),  # Epic 27: written by code from the photo service, never drafted
 }
 _APP_ONLY_DEFS = (
     "AppOutline",
@@ -223,6 +225,7 @@ _APP_ONLY_DEFS = (
 )
 DESIGN_DEFS = ("AppDesign", "AppEntityDesign", "AppFieldRoles", "AppLook", "AppArea", "AppRequestedStyle")  # Epic 23
 _APP_ONLY_DEFS += DESIGN_DEFS
+_APP_ONLY_DEFS += ("AssetCredit",)
 # Epic 23: the outline's parts the `draft_app@v2` prompt does not explain; its outline digest and answer schema leave
 # them out, so v2 reads as before (`draft_app@v3` asks for them).
 DESIGN_PARTS = ("design", "areas")

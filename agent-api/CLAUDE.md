@@ -37,6 +37,12 @@ Agent-specific notes:
   `templates/nextjs_overlay` (`overlay.json` = drift manifest). Frontend checks are stored as `frontend:<check>`;
   the frontend has its own git repo (`<workspace>/frontend`), sandbox kind (`for_job(..., "frontend")`) and
   preview kind (`previews.kind`).
+- Stock photos (Epic 27): `IMAGE_PROVIDER=unsplash` (`UNSPLASH_ACCESS_KEY`) → `images/factory.get_stock_photos()`
+  (`images/unsplash.py`: search by phrase and orientation, cached under `ARTIFACT_ROOT/asset-cache/stock/`, download
+  tracking once, the hourly limit). Drafts hotlink and credit, never copy: a site's `photo` assets become the sized
+  `images.unsplash.com` URL plus `credit` (`images/stock.stock_site_photos`), an app's seeded image fields get a photo
+  per record's label (`stock_seed_photos`) and the FrontendSpec keeps their credited assets (`app.json`
+  `photoCredits`, the kit's `PhotoCredit`). `Asset.credit` is code-only (left out of every drafting schema).
 - Frontend preview images (2026-11-08): `packaging.write_frontend` writes `frontend.zip` and, when the validated
   build is current, `frontend-runtime.tar.gz` (kind `preview`); `DockerFrontendPreviewRuntime` builds the image from
   it (a copy, no install or `next build`) and falls back to the ZIP's Dockerfile. Write `frontend.zip` only through

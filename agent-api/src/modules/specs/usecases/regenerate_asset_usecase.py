@@ -11,8 +11,9 @@ from PIL import Image
 
 from src.configs import config
 from src.configs.config import uploads_dir
-from src.images.factory import get_image_generator, photos_enabled
+from src.images.factory import get_image_generator, get_stock_photos, photos_enabled
 from src.images.service import generate_single_photo
+from src.images.unsplash import StockUnavailable, UnsplashPhotos, orientation, size_for
 from src.libs.decorators.transactional_decorator import Transactional
 from src.libs.exceptions import (
     BadRequestException,
@@ -73,6 +74,10 @@ class RegenerateAssetUsecase:
                 break
         if target_asset is None:
             raise NotFoundException(f"Asset '{asset_id}' not found")
+
+        stock = get_stock_photos()
+        if stock is not None:  # Epic 27: another Unsplash photo for the phrase (the ones the draft uses are skipped)
+            return await self._another_stock_photo(draft, spec, target_asset, stock, prompt)
 
         generator = get_image_generator()
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -147,6 +152,33 @@ class RegenerateAssetUsecase:
             self.drafts.update(draft.id, frontend_spec=spec, usage=usage)
 
             return target_asset
+
+    async def _another_stock_photo(
+        self,
+        draft: Any,
+        spec: dict[str, Any],
+        asset: dict[str, Any],
+        stock: UnsplashPhotos,
+        prompt: str | None,
+    ) -> dict[str, Any]:
+        ratio = asset.get("aspectRatio") or "16:9"
+        phrase = prompt or asset.get("prompt") or asset.get("alt") or str(asset.get("id"))
+        used = {
+            str(item["credit"].get("photoId"))
+            for item in spec["assets"]
+            if isinstance(item, dict) and isinstance(item.get("credit"), dict)
+        }
+        try:
+            photo = await stock.find(phrase, orientation(ratio), used)
+        except StockUnavailable as exc:
+            raise BadRequestException(f"No other photo: {exc.reason}", code=ErrorCode.IMAGE_FAILED) from exc
+        await stock.track(photo)
+        asset["source"] = photo.url(*size_for(ratio))
+        asset["credit"] = photo.credit(stock.app_name)
+        if prompt is not None:
+            asset["prompt"] = prompt
+        self.drafts.update(draft.id, frontend_spec=spec)
+        return asset
 
 
 RegenerateAssetUsecaseDep = Annotated[RegenerateAssetUsecase, Depends(RegenerateAssetUsecase)]
