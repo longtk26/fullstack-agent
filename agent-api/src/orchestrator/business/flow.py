@@ -51,15 +51,16 @@ def usage_record(provider: LlmProvider, prompt_ref, answer: LlmAnswer, purpose: 
 
 
 class BusinessFlow:
-    def __init__(self, provider: LlmProvider, prompts: PromptLibrary, state_dir: Path):
+    def __init__(self, provider: LlmProvider, prompts: PromptLibrary, state_dir: Path, model: str | None = None):
         self.provider = provider
         self.prompts = prompts
         self.state_dir = state_dir
+        self.model = model  # a fast draft's model (None: the provider's own)
         self.calls: list[dict[str, Any]] = []
 
     async def _ask(self, purpose: str, prompt_id: str, schema: dict[str, Any], **context: Any) -> dict[str, Any]:
         rendered = self.prompts.render(prompt_id, "v1", **context)
-        answer = await self.provider.json(purpose, rendered.text, schema, state_dir=self.state_dir)
+        answer = await self.provider.json(purpose, rendered.text, schema, state_dir=self.state_dir, model=self.model)
         self.calls.append(usage_record(self.provider, rendered.ref, answer, purpose))
         return answer.data
 

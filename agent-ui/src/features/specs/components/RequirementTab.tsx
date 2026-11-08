@@ -8,7 +8,7 @@ import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/ca
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { Stack } from "@/components/layout/Stack";
-import type { TGenerationMode } from "@/features/generations/types";
+import type { TDraftSpeed, TGenerationMode } from "@/features/generations/types";
 import { formatDuration } from "@/lib/format-duration";
 import { useNow } from "@/hooks/use-now";
 import { cn } from "@/lib/utils";
@@ -141,6 +141,7 @@ export function RequirementTab({ mode, engine, onGenerateDirect, isGenerating }:
         {tab.tooShort && tab.text.length > 0 && (
           <span className="text-xs text-muted-foreground">At least {REQUIREMENT_MIN_CHARS} characters.</span>
         )}
+        <DraftSpeedSwitch value={tab.draftSpeed} onChange={tab.setDraftSpeed} disabled={tab.isRunning || tab.isStarting} />
         {engine && <span className="text-xs text-muted-foreground">Drafting with {engine} (Options → Draft engine)</span>}
       </Stack>
 
@@ -186,3 +187,44 @@ export function RequirementTab({ mode, engine, onGenerateDirect, isGenerating }:
     </Stack>
   );
 }
+
+const SPEEDS: { value: TDraftSpeed; label: string; hint: string }[] = [
+  { value: "thorough", label: "Thorough", hint: "the full model: more of the requirement's rules, about 15 min" },
+  { value: "fast", label: "Fast", hint: "a lighter model: about 2 min, fewer rules; review the draft" },
+];
+
+/** How the draft thinks (fast: the provider's fast model for every call); remembered in this browser. */
+function DraftSpeedSwitch({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: TDraftSpeed | null;
+  onChange: (speed: TDraftSpeed | null) => void;
+  disabled?: boolean;
+}) {
+  const current = SPEEDS.find((speed) => speed.value === value);
+  return (
+    <span className="flex items-center gap-2 text-xs text-muted-foreground">
+      <span role="group" aria-label="Draft speed" className="inline-flex rounded-md border p-0.5">
+        {SPEEDS.map((speed) => (
+          <button
+            key={speed.value}
+            type="button"
+            aria-pressed={speed.value === value}
+            disabled={disabled}
+            onClick={() => onChange(speed.value === value ? null : speed.value)}
+            className={cn(
+              "rounded px-2 py-1 font-medium transition-colors disabled:opacity-50",
+              speed.value === value ? "bg-primary text-primary-foreground" : "hover:bg-accent hover:text-foreground",
+            )}
+          >
+            {speed.label}
+          </button>
+        ))}
+      </span>
+      {current ? current.hint : "the server's default (DRAFT_SPEED); pick one to choose"}
+    </span>
+  );
+}
+

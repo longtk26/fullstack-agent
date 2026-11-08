@@ -29,6 +29,8 @@ class CreateSpecDraftRequestDto(CamelModel):
     # Epic 26 (D7): the business layer of a dynamic draft (empty: BUSINESS_WORKFLOWS); Epic 24: its LLM provider
     business_workflows: bool | None = None
     llm_provider: Literal["antigravity", "claude_code", "gemini_api"] | None = None
+    # `fast`: the provider's fast model (FAST_DRAFT_MODELS) for every model call of the draft; empty: DRAFT_SPEED
+    draft_speed: Literal["fast", "thorough"] | None = None
 
 
 class CreateSpecDraftResponseDto(CamelModel):

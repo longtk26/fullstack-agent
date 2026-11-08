@@ -8,6 +8,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { useEngines } from "@/features/specs/hooks/use-spec-queries";
 import { ApiError } from "@/lib/api-client";
+import { useSpecDraftStore } from "@/store/spec-draft-store";
 import {
   ENGINE_NAMES,
   generationOptionsSchema,
@@ -112,6 +113,7 @@ export function useNewGeneration({
       options: {
         ...options,
         frontend: mode !== "backend" ? options.frontend : undefined,
+        draftSpeed: useSpecDraftStore.getState().draftSpeed ?? undefined,
       },
     };
     const key = crypto.randomUUID();

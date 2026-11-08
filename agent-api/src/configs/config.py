@@ -78,6 +78,11 @@ class Config(BaseSettings):
     # Epic 26 (D7): the business layer of dynamic drafts: workflow discovery, frozen expectations, binding, the
     # guided tour and the evaluation. A draft request's `businessWorkflows` overrides it (to compare with it off).
     business_workflows: bool = True
+    # 2026-11-08: how a draft's model calls think. `thorough` uses each provider's model; `fast` its FAST_DRAFT_MODELS
+    # entry (a pet adoption draft: 85 s instead of 15.6 min, with fewer of the requirement's rules). A draft request's
+    # `draftSpeed` overrides it.
+    draft_speed: Literal["fast", "thorough"] = "thorough"
+    fast_draft_models: Annotated[dict[str, str], NoDecode] = {"antigravity": "gemini-3.8-flash-low"}
     # Story 26.5: how long an evaluation waits for the generation's previews, and whether it takes screenshots
     evaluation_preview_wait_seconds: int = 900
     evaluation_screenshots: bool = True
@@ -256,13 +261,17 @@ class Config(BaseSettings):
         providers = {engine: provider for provider, engine in DRAFT_ENGINE_OF.items()}
         return providers.get(self.draft_engine_name, "gemini_api" if self.gemini_api_key else "antigravity")
 
-    @field_validator("claude_code_model", "antigravity_model", "image_provider", "gemini_api_model", mode="before")
+    @field_validator(
+        "claude_code_model", "antigravity_model", "image_provider", "gemini_api_model", "draft_speed", mode="before"
+    )
     @classmethod
     def _blank_model_means_default(cls, value, info):
         # Compose passes `CLAUDE_CODE_MODEL=` when .env leaves it empty; that means "the default", not "none".
         return cls.model_fields[info.field_name].default if value in (None, "") else value
 
-    @field_validator("claude_code_purpose_models", "antigravity_purpose_models", "model_prices", mode="before")
+    @field_validator(
+        "claude_code_purpose_models", "antigravity_purpose_models", "fast_draft_models", "model_prices", mode="before"
+    )
     @classmethod
     def _parse_dict_or_default(cls, value, info):
         # NoDecode hands the raw env string here: compose passes `X_PURPOSE_MODELS=` when .env leaves it empty.

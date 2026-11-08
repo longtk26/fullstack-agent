@@ -36,6 +36,8 @@ export function useRequirementTab({ mode, engine }: TRequirementTabInput) {
   const setSpecText = useSpecDraftStore((state) => state.setSpecText);
   const setFrontendSpecText = useSpecDraftStore((state) => state.setFrontendSpecText);
   const setActiveTab = useSpecDraftStore((state) => state.setActiveTab);
+  const draftSpeed = useSpecDraftStore((state) => state.draftSpeed);
+  const setDraftSpeed = useSpecDraftStore((state) => state.setDraftSpeed);
   const [acknowledged, setAcknowledged] = useState(false);
   const { data: examples } = useExampleIndex();
   const create = useCreateSpecDraft();
@@ -87,13 +89,21 @@ export function useRequirementTab({ mode, engine }: TRequirementTabInput) {
     },
     startDraft: async () => {
       try {
-        const created = await create.mutateAsync({ mode, requirementText: text, requirementFileName: fileName, engine });
+        const created = await create.mutateAsync({
+          mode,
+          requirementText: text,
+          requirementFileName: fileName,
+          engine,
+          draftSpeed: draftSpeed ?? undefined,
+        });
         setAcknowledged(false);
         setDraftId(created.draftId);
       } catch (error) {
         toast.error(error instanceof ApiError ? `${error.code}: ${error.message}` : "Could not start the draft");
       }
     },
+    draftSpeed,
+    setDraftSpeed,
     discardDraft: () => setDraftId(null),
     openInEditor: () => {
       if (!draft) return;

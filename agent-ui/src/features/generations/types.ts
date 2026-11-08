@@ -28,6 +28,8 @@ export type TEngineName =
   | "gemini_api"
   | "fake";
 
+export type TDraftSpeed = "fast" | "thorough";
+
 export type TGenerationOptions = {
   maxRepairAttempts: number;
   runTests: boolean;
@@ -36,6 +38,8 @@ export type TGenerationOptions = {
   engine?: TEngineName | null;
   /** Story 18.10: the engine that drafts the specs of a one-click generation. */
   draftEngine?: TEngineName | null;
+  /** How the one-click draft thinks: fast (the provider's fast model) or thorough; empty: the server's DRAFT_SPEED. */
+  draftSpeed?: TDraftSpeed | null;
   timeoutSeconds?: number | null;
   draftId?: string | null;
   autoGenerate?: boolean | null;

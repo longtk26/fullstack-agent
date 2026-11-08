@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { create } from "zustand";
 import { createJSONStorage, devtools, persist } from "zustand/middleware";
-import type { TGenerationMode } from "@/features/generations/types";
+import type { TDraftSpeed, TGenerationMode } from "@/features/generations/types";
 import type { TSpecTab } from "@/features/specs/types";
 
 /** The requirement draft whose specs were opened in the editors; sent as `draftId` so the requirement is kept. */
@@ -16,6 +16,9 @@ type TSpecDraftState = {
   requirementFileName: string | null;
   draftId: string | null;
   appliedDraft: TAppliedDraft | null;
+  /** How requirement drafts think (remembered per browser): fast, thorough, or null for the server's DRAFT_SPEED. */
+  draftSpeed: TDraftSpeed | null;
+  setDraftSpeed: (speed: TDraftSpeed | null) => void;
   setMode: (mode: TGenerationMode) => void;
   setSpecText: (text: string) => void;
   setFrontendSpecText: (text: string) => void;
@@ -42,6 +45,8 @@ export const useSpecDraftStore = create<TSpecDraftState>()(
         requirementFileName: null,
         draftId: null,
         appliedDraft: null,
+        draftSpeed: null,
+        setDraftSpeed: (draftSpeed) => set({ draftSpeed }, false, "specDraft/setDraftSpeed"),
         setMode: (mode) => set({ mode }, false, "specDraft/setMode"),
         setSpecText: (specText) => set({ specText }, false, "specDraft/setSpecText"),
         setFrontendSpecText: (frontendSpecText) => set({ frontendSpecText }, false, "specDraft/setFrontendSpecText"),
@@ -68,6 +73,7 @@ export const useSpecDraftStore = create<TSpecDraftState>()(
           requirementFileName: state.requirementFileName,
           draftId: state.draftId,
           appliedDraft: state.appliedDraft,
+          draftSpeed: state.draftSpeed,
         }),
         // Rehydrated after mount (see NewGenerationView) so the server and first client render match.
         skipHydration: true,

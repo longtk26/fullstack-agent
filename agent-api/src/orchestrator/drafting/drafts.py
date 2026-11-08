@@ -66,7 +66,7 @@ from ..checks.consistency import check_spec_pair
 from ..store import JobStore
 from .app import BACKEND_EXAMPLE as APP_BACKEND_EXAMPLE
 from .app import app_flow, app_inputs, draft_app, outline_notes
-from .business import DraftBusiness, business_on, draft_provider
+from .business import DraftBusiness, business_on, draft_model, draft_provider
 from .design_cards import (
     MAX_SEED,
     best_fit,
@@ -861,6 +861,8 @@ class DraftRunner:
                     payload={"progress": prog, "attempts": attempts_count or 0},
                 )
 
+        fast_model = draft_model(draft, engine.name)
+
         async def call(
             step: str, prompt: RenderedPrompt, response_schema: dict[str, Any] | None = None
         ) -> EngineResult:
@@ -880,6 +882,7 @@ class DraftRunner:
                 prompt=prompt.text,
                 prompt_ref=prompt.ref,
                 response_schema=response_schema,
+                model=fast_model,  # a fast draft (draftSpeed / DRAFT_SPEED); None: the engine's own model
             )
             try:
                 result = await engine.run(request)
@@ -900,7 +903,7 @@ class DraftRunner:
         if app:
             # Epic 26: the business workflows before the draft (the brief) and bound to it after
             provider = (self.llm_provider or draft_provider(draft, engine.name)) if business_on(draft) else None
-            business = DraftBusiness(provider, self.prompts, state) if provider is not None else None
+            business = DraftBusiness(provider, self.prompts, state, fast_model) if provider is not None else None
             app_context = context
             if business is not None:
                 await update_progress("discovering workflows")

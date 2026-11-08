@@ -1,3 +1,4 @@
+import type { TDraftSpeed } from "@/features/generations/types";
 export type TIssueSeverity = "error" | "warning";
 
 export type TSpecIssue = {
@@ -97,6 +98,7 @@ export type TCreateSpecDraftPayload = {
   requirementText: string;
   requirementFileName?: string | null;
   engine?: string | null;
+  draftSpeed?: TDraftSpeed | null;
 };
 
 export type TDraftUsage = {

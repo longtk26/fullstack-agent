@@ -35,6 +35,16 @@ def business_on(draft: SpecDraftEntity) -> bool:
     return config.business_workflows if wanted is None else bool(wanted)
 
 
+def draft_model(draft: SpecDraftEntity, engine_name: str) -> str | None:
+    """The model of every call of a `fast` draft (its request's `draftSpeed`, else DRAFT_SPEED): the provider's
+    FAST_DRAFT_MODELS entry; None for a thorough draft or a provider without one (its own model)."""
+    speed = (draft.inputs or {}).get("draftSpeed") or config.draft_speed
+    if speed != "fast":
+        return None
+    provider = (draft.inputs or {}).get("llmProvider") or PROVIDER_OF_ENGINE.get(engine_name)
+    return config.fast_draft_models.get(provider or "")
+
+
 def draft_provider(draft: SpecDraftEntity, engine_name: str) -> LlmProvider | None:
     """The provider of the draft's business steps: the request's, else the draft engine's, else LLM_PROVIDER. None for
     a fake-engine draft that names none: there is no model to discover a business with."""
@@ -47,8 +57,8 @@ def draft_provider(draft: SpecDraftEntity, engine_name: str) -> LlmProvider | No
 
 
 class DraftBusiness:
-    def __init__(self, provider: LlmProvider, prompts: PromptLibrary, state_dir: Path):
-        self.flow = BusinessFlow(provider, prompts, state_dir)
+    def __init__(self, provider: LlmProvider, prompts: PromptLibrary, state_dir: Path, model: str | None = None):
+        self.flow = BusinessFlow(provider, prompts, state_dir, model)
         self.data: dict[str, Any] = {"provider": provider.name}
 
     @property
