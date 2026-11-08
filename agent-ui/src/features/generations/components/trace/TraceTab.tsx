@@ -6,6 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Stack } from "@/components/layout/Stack";
 import { useSpecDraft } from "@/features/specs/hooks/use-spec-queries";
+import { draftTotalTime } from "@/features/specs/lib/draft-time";
+import { formatDuration } from "@/lib/format-duration";
 import { formatTokens } from "@/lib/format-usage";
 import { useTrace } from "../../hooks/use-trace";
 import { useTraceView } from "../../hooks/use-trace-view";
@@ -27,6 +29,7 @@ export function TraceTab({ detail, events }: TraceTabProps) {
   const view = useTraceView(trace.data, now);
   const draftQuery = useSpecDraft(detail.options?.draftId ?? null);
   const draftUsage = draftQuery.data?.usage;
+  const draftTime = draftQuery.data ? draftTotalTime(draftQuery.data) : null;
 
   if (trace.isError) {
     return (
@@ -50,7 +53,16 @@ export function TraceTab({ detail, events }: TraceTabProps) {
             </CardTitle>
           </CardHeader>
           <CardContent className="py-2">
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+              {draftTime && (
+                <div>
+                  <span className="text-xs text-muted-foreground block">Drafting time</span>
+                  <span className="text-sm font-semibold tabular-nums">{draftTime}</span>
+                  {draftUsage.engineMs ? (
+                    <span className="text-xs text-muted-foreground block">models {formatDuration(draftUsage.engineMs)}</span>
+                  ) : null}
+                </div>
+              )}
               <div>
                 <span className="text-xs text-muted-foreground block">Drafting model calls</span>
                 <span className="text-sm font-semibold tabular-nums">{draftUsage.modelCalls ?? 0}</span>
