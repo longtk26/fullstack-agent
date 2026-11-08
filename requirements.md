@@ -976,6 +976,53 @@ _Implemented 2026-11-07 (Epic 25)._
 - **Credit:** every photo shows "Photo by <name> on Unsplash" with links, and the project README lists them.
 - **Fallback:** with no result or no requests left, the place falls back as today (placeholder) and the draft goes on.
 
+### FR-42: Interactive Guided Tour (proposed, Epic 28)
+
+- **Doing, not reading:** a tour step that performs an operation waits until the user performs it on the real screen
+  and the API reports success; steps that show data or another role's part keep a Next button.
+- **Form help:** form steps walk the required fields and offer "Fill with an example" (values from the contract's
+  success scenarios); the tour never submits a form or performs an action itself.
+- **Ready records:** a step on a record opens one whose allowed actions include the step's action, or names the earlier
+  step that makes one.
+- **Progress:** a checklist per user and step that survives leaving; in demos, "Continue as <role>" follows a workflow
+  across roles.
+- **Check:** the evaluation plays each role's tour on mocks and reports each step as completed, skipped or stuck
+  (information only, as FR-40).
+
+### FR-43: Media Fields (proposed, Epic 29)
+
+- **Types:** BackendSpec fields `video`, `audio` and `subtitles`, stored like `file` / `image`, with defaults limited to
+  formats browsers play natively and sizes that fit media.
+- **Subtitles:** a subtitle field on the media record, or a child entity with a language field for several languages;
+  WebVTT and SubRip accepted.
+- **Kit:** uploads with progress and cancel; native players styled by the theme with captions; posters, durations and
+  play affordances in lists; audio that keeps playing across pages.
+- **Samples:** mocks, seeds and the evaluation use small sample media of our own.
+
+### FR-44: Design Plugins (proposed, Epic 30)
+
+- **Plugins:** every option of the app design space (shell, list view, detail view, home, filters, card, recipe, font
+  pairing) is a folder with a descriptor (when to choose it, what it needs from the contract, its fallback) and its kit
+  files.
+- **One source:** schema enums, the drafting prompt's choices, the checks and the kit's dispatch come from the registry;
+  an app contains only the plugins it uses.
+- **Gates:** a plugin is offered only after passing the design checks (widths, schemes, recipes, contrast, keyboard,
+  reduced motion and transparency, all states).
+- **Choice:** the model chooses, code checks; equal candidates are picked by the draft's seed; the review can switch.
+- **Measure:** apps are compared signed in, by structure and screens.
+
+### FR-45: Sample Videos with Attribution (proposed, Epic 31)
+
+- **Sources:** with `VIDEO_PROVIDERS`, a video the draft asks for (a short phrase and its place) is found by the
+  agent's code: YouTube (Data API: embeddable, safe search, the app's language) for videos people watch, Pexels
+  (Videos API: MP4 files under a free licence) for hero backgrounds and seeded video fields; each within its limits,
+  cached, and the other provider as the fallback.
+- **Use:** YouTube videos are embedded through `youtube-nocookie.com`, loaded only when the user presses play; Pexels
+  files play in our own `<video>` (muted, pausable background loops that stay still under reduced motion; app players
+  with our subtitles). Nothing is downloaded; the keys stay in the agent.
+- **Credit:** the title and channel (YouTube) or the author (Pexels) with links next to each video, and in the README.
+- **Fallback:** no result, no quota or an unavailable video leaves the place as today and the draft goes on.
+
 ---
 
 ## 5. BackendSpec Input Example

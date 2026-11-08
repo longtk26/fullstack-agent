@@ -89,7 +89,11 @@ lane, tracing, results, and an OpenAPI explorer that sends test calls to the run
 | 24 | [Draft provider: Antigravity or Claude Code (one-turn JSON), or the Gemini API](epic24_draft_provider/epic24_draft_provider.md) (done 2026-11-07) | Phase 5 | 4 |
 | 25 | [App correctness: who may do it, who may see it, demo data that works](epic25_app_correctness/epic25_app_correctness.md) (done 2026-11-07, from the business-value lab) | Phase 5 | 6 |
 | 26 | [Main business workflows: discovered, shown as a guided tour, evaluated](epic26_business_workflows/epic26_business_workflows.md) (proposed 2026-11-07) | Phase 5 | 7 |
-| 27 | [Stock photos from Unsplash](epic27_stock_photos/epic27_stock_photos.md) (proposed 2026-11-08) | Phase 5 | 3 |
+| 27 | [Stock photos from Unsplash](epic27_stock_photos/epic27_stock_photos.md) (done 2026-11-08) | Phase 5 | 3 |
+| 28 | [A tour you do: steps that wait for the action, help with forms, a checklist](epic28_interactive_tour/epic28_interactive_tour.md) (proposed 2026-11-08) | Phase 5 | 7 |
+| 29 | [Media fields: video, audio and subtitles, uploaded and played](epic29_media_fields/epic29_media_fields.md) (proposed 2026-11-08) | Phase 5 | 6 |
+| 30 | [Design plugins: a registry of layouts and looks that grows every day](epic30_design_plugins/epic30_design_plugins.md) (proposed 2026-11-08; guide: [design-plugins.md](../docs/development/design-plugins.md)) | Phase 5 | 8 |
+| 31 | [Sample videos: YouTube embeds and stock video files](epic31_sample_videos/epic31_sample_videos.md) (proposed 2026-11-08) | Phase 5 | 5 |
 
 ### Suggested delivery order
 
@@ -149,6 +153,14 @@ workflow to be built before real generation works.
    draft call, screens built by code from the contract on one shadcn app kit, no page trees), with the form kit (was
    10.0a), the reference pickers (frontend half of 10.0b) and every plugin's frontend half (22.7); static mode is
    unchanged, guarded by a static golden test (22.1). Then 20.10, 20.7 and Epic 20's final check; Epic 11 stays last.
+15. **Proposed 2026-11-08 (after Epics 24–27), for review:**
+   [Epic 28](epic28_interactive_tour/epic28_interactive_tour.md) (the tour waits for the user's action, helps with
+   forms, keeps a checklist; the walker plays it) → [Epic 29](epic29_media_fields/epic29_media_fields.md) (video, audio
+   and subtitle fields, uploaded and played) → [Epic 30](epic30_design_plugins/epic30_design_plugins.md) (design plugins:
+   one folder per layout or look, generated enums, prompt lists and kit dispatch; signed-in measurement first; media
+   layouts after 29.3) → [Epic 31](epic31_sample_videos/epic31_sample_videos.md) (sample videos: YouTube embeds and Pexels
+   stock video files, credited; 31.3 for sites can start after the two providers). After Epic 30, design plugins are added one at a time
+   with [the guide](../docs/development/design-plugins.md).
 
 ### Status (2026-10-30)
 
@@ -172,6 +184,8 @@ workflow to be built before real generation works.
 | 22 | done 2026-11-06: 8 stories in checkpoints A–D (the flow, forms, plugin frontends, switch-over); the legacy dynamic flow is removed (22.8) |
 | 23 | implemented 2026-11-06 on `feat/epic23-app-design` (gate 23.0 with 10 real Gemini drafts, then 23.1–23.12 on the fake engine, no paid call, per the user); the real tests (Gemini drafts, live backends, app walks) and the review are next |
 | 24, 25, 26 | 24 done 2026-11-07 (`LLM_PROVIDER=antigravity`: one-turn `agy` JSON drafts, $0 on the account login); 25 done 2026-11-07 (access rules by default; its live re-check moves to 26.7); 26 in progress on `epic-24-25-26`. Proposed 2026-11-07 from the business-value lab (`lab/business-value/`: FixPoint, BuyRight, HomeFix). Order: 24 (draft provider, for cost), 25 (app correctness; 25.1 first), 26 (business workflows, tour, evaluation tab) |
+| 27 | done 2026-11-08 (stock photos from Unsplash, hotlinked and credited) |
+| 28, 29, 30, 31 | proposed 2026-11-08, for review (interactive tour, media fields, design plugins, sample videos) |
 | 11, 16 | open (16 to be revised after Epic 20) |
 
 ### Next up (re-planned 2026-10-30)

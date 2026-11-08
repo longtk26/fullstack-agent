@@ -1,0 +1,44 @@
+# Story 30.5 — Media layouts: shelves, a featured home, a watch page
+
+**Epic:** [30 — Design plugins](epic30_design_plugins.md) · **Requirements:** FR-44, FR-43 · **Depends on:** 30.4, 29.3
+
+## User story
+
+As a user of an app built around media records, I want to browse them in rows I can scroll, see one featured record
+when I arrive, and watch or listen on a page that shows what comes next, so that the app feels like a media product.
+
+## Context
+
+- `CatalogueRows` groups the home into rows of a 4-card grid by the badge field (23.5).
+- Epic 29 adds video and audio players, posters and durations.
+
+## Steps
+
+1. **`shelves` list view:** rows grouped by a `groupField` (an enum or a reference), each a horizontal scroll strip with
+   snap points, arrow buttons on wide screens, keyboard scrolling, "See all" to the filtered list; cards from the
+   entity's card plugin. Needs: `groupField`, `mediaField`.
+2. **`featured` home:** one record across the top (its media large, title, subtitle, the main action), then shelves.
+   The featured record is the newest by the feed's date sort, or the first of a `featured` boolean field when the
+   entity has one. Needs: `mediaField`, `dateSort` or a boolean field.
+3. **`watch` detail view:** the player (video or audio) at the top or the left, title, meta and actions under it, and
+   a side list "Up next": records of the same group (the shelves' `groupField`), else the same parent, else the newest;
+   one column on phones with the list below. Needs: `mediaField` of kind `video` or `audio`.
+4. **`chips` filters with counts** for media lists (the existing `chips` plugin gains an optional count per value when
+   the list's aggregate can give it, otherwise unchanged).
+5. **List features (code):** the `groupField` and the newest-first sort are added to the list operation before the
+   contract is built (Epic 23's D6, `list_features`).
+6. Tests: `needs` and fallbacks (no group field → `media-grid`; image but no video → `media` detail); vitest: shelves
+   keyboard scrolling; plugin checks (30.3) clean.
+
+## Acceptance criteria
+
+- [ ] Media apps can be drafted with shelves, a featured home and a watch page, and pass their gates.
+- [ ] Without the data a plugin needs, the app falls back with one note and still renders.
+
+## Verify
+
+`make design-plugin-check` for each plugin, `make app-design-report`, `make test`.
+
+## Status
+
+Proposed 2026-11-08.
